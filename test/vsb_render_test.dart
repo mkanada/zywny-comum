@@ -3,12 +3,11 @@
 //
 // Depende de dois artefatos não versionados; sem eles o teste é pulado em vez
 // de falhar (ver README.md, seção Build):
-//   tool/build_verovio_linux.sh  -> libverovio.so no submódulo
-//   git submodule update --init  -> corpus/ e verovio/data
+//   tool/build_verovio_linux.sh  -> libverovio.so no verovio_flutter_bridge
 //
 // `verovioResourcePath()` não serve aqui: depende de path_provider, que não
 // tem implementação em `flutter test`. O resourcePath aponta direto para o
-// `verovio/data` do submódulo, que é a mesma árvore que o zip empacota.
+// `verovio/data` do verovio_flutter_bridge, que é a mesma árvore que o zip empacota.
 
 import 'dart:io';
 import 'dart:ui' as ui;
@@ -17,7 +16,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:score_bridge/score_bridge.dart';
 import 'package:zywny/verovio_render.dart';
 
-const _submodule = 'third_party/verovio_flutter_bridge';
+const _submodule = '/home/mauricio/rust_projects/verovio_flutter_bridge';
 const _libPath = '$_submodule/verovio/bindings/dart/libverovio.so';
 const _resourcePath = '$_submodule/verovio/data';
 const _scorePath = '$_submodule/corpus/mei/Grieg_Little_bird_Op43_No4.mei';

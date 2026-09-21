@@ -15,7 +15,7 @@ import 'package:verovio/verovio.dart';
 import 'package:zywny/layout_options.dart';
 import 'package:zywny/verovio_render.dart';
 
-const _submodule = 'third_party/verovio_flutter_bridge';
+const _submodule = '/home/mauricio/rust_projects/verovio_flutter_bridge';
 const _libPath = '$_submodule/verovio/bindings/dart/libverovio.so';
 const _resourcePath = '$_submodule/verovio/data';
 const _scorePath = '$_submodule/corpus/mei/Grieg_Little_bird_Op43_No4.mei';

@@ -10,15 +10,15 @@
 # lib/verovio_resources.dart unpacks it on first launch and hands the
 # directory to the Toolkit as its resourcePath.
 #
-# Not versioned (see .gitignore) — regenerable and derived from the
-# submodule. Re-run after updating third_party/verovio_flutter_bridge.
+# Not versioned (see .gitignore) — regenerable and derived from
+# submodule. Re-run after updating /home/mauricio/rust_projects/verovio_flutter_bridge.
 set -euo pipefail
 
 proj_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-src="$proj_dir/third_party/verovio_flutter_bridge/verovio/data"
+src="/home/mauricio/rust_projects/verovio_flutter_bridge/verovio/data"
 dst="$proj_dir/assets/verovio_data.zip"
 
-[[ -d "$src" ]] || { echo "ERROR: directory not found: $src (submodule checked out?)" >&2; exit 1; }
+[[ -d "$src" ]] || { echo "ERROR: directory not found: $src" >&2; exit 1; }
 command -v zip >/dev/null || { echo "ERROR: 'zip' not installed" >&2; exit 1; }
 
 mkdir -p "$(dirname "$dst")"
