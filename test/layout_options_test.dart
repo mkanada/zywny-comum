@@ -40,8 +40,11 @@ Iterable<LayoutOption> get _allOptions =>
 
 void main() {
   group('layoutOptionsToSend', () {
-    test('o estado inicial só desvia do Verovio no rodapé', () {
-      expect(layoutOptionsToSend(initialLayoutValues()), {'footer': 'none'});
+    test('o estado inicial só desvia do Verovio no rodapé e no unit', () {
+      expect(layoutOptionsToSend(initialLayoutValues()), {
+        'footer': 'none',
+        'unit': 4.5,
+      });
     });
 
     test(
@@ -69,6 +72,7 @@ void main() {
         ..['marginVertical'] = 20;
       expect(layoutOptionsToSend(values), {
         'footer': 'none',
+        'unit': 4.5,
         'pageMarginLeft': 80,
         'pageMarginRight': 80,
         'pageMarginTop': 20,
