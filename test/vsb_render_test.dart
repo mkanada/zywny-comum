@@ -48,6 +48,11 @@ void main() {
     expect(document.manifest.pageCount, document.pages.length);
     expect(document.glyphs, isNotEmpty);
 
+    // N02 (zywny): document.midi chega populado depois de G01/G02 no bridge
+    // (libverovio.so refeita por `just native`).
+    expect(document.midi, isNotNull);
+    expect(document.midi!.notes, isNotEmpty);
+
     // O pintor só quebra na página real: glifos ausentes do dicionário e
     // runs de texto sem fonte carregada falham aqui, não no parse.
     await loadScoreFonts();
