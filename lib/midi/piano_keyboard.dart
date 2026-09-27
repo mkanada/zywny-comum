@@ -3,10 +3,20 @@ import 'package:flutter/material.dart';
 /// Teclado de piano de 88 teclas (A0=21 .. C8=108) desenhado com
 /// `CustomPaint` para o "Monitor MIDI" (M01), acendendo [held].
 class PianoKeyboardPainter extends CustomPainter {
-  const PianoKeyboardPainter({required this.held, required this.heldColor});
+  const PianoKeyboardPainter({
+    required this.held,
+    required this.heldColor,
+    this.wrong = const {},
+    this.wrongColor = Colors.red,
+  });
 
   final Set<int> held;
   final Color heldColor;
+
+  /// Teclas erradas do modo treino (T02) — pintadas por cima de [held],
+  /// já que uma nota errada normalmente também está apertada.
+  final Set<int> wrong;
+  final Color wrongColor;
 
   static const int lowestNote = 21; // A0
   static const int highestNote = 108; // C8
@@ -29,6 +39,7 @@ class PianoKeyboardPainter extends CustomPainter {
 
     final whitePaint = Paint()..color = Colors.white;
     final heldWhitePaint = Paint()..color = heldColor;
+    final wrongWhitePaint = Paint()..color = wrongColor;
     final borderPaint = Paint()
       ..color = Colors.black45
       ..style = PaintingStyle.stroke
@@ -41,7 +52,10 @@ class PianoKeyboardPainter extends CustomPainter {
         whiteWidth,
         size.height,
       );
-      canvas.drawRect(rect, held.contains(n) ? heldWhitePaint : whitePaint);
+      final paint = wrong.contains(n)
+          ? wrongWhitePaint
+          : (held.contains(n) ? heldWhitePaint : whitePaint);
+      canvas.drawRect(rect, paint);
       canvas.drawRect(rect, borderPaint);
     }
 
@@ -51,6 +65,7 @@ class PianoKeyboardPainter extends CustomPainter {
     final blackHeight = size.height * 0.62;
     final blackPaint = Paint()..color = Colors.black87;
     final heldBlackPaint = Paint()..color = heldColor;
+    final wrongBlackPaint = Paint()..color = wrongColor;
     for (var n = lowestNote; n <= highestNote; n++) {
       if (!_isBlack(n)) continue;
       final leftWhiteIndex = whiteIndexOf[n - 1];
@@ -62,11 +77,17 @@ class PianoKeyboardPainter extends CustomPainter {
         blackWidth,
         blackHeight,
       );
-      canvas.drawRect(rect, held.contains(n) ? heldBlackPaint : blackPaint);
+      final paint = wrong.contains(n)
+          ? wrongBlackPaint
+          : (held.contains(n) ? heldBlackPaint : blackPaint);
+      canvas.drawRect(rect, paint);
     }
   }
 
   @override
   bool shouldRepaint(covariant PianoKeyboardPainter oldDelegate) =>
-      oldDelegate.held != held || oldDelegate.heldColor != heldColor;
+      oldDelegate.held != held ||
+      oldDelegate.heldColor != heldColor ||
+      oldDelegate.wrong != wrong ||
+      oldDelegate.wrongColor != wrongColor;
 }

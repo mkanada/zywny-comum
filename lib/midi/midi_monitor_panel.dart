@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import 'midi_device_manager.dart';
@@ -20,11 +21,17 @@ class MidiMonitorPanel extends StatefulWidget {
     required this.deviceManager,
     required this.input,
     required this.onClose,
+    this.wrong,
   });
 
   final MidiDeviceManager deviceManager;
   final MidiInputService input;
   final VoidCallback onClose;
+
+  /// Pitches errados do modo treino (T02), pintados em vermelho por cima de
+  /// [held]. `null` fora do modo treino — o teclado volta a só acender o
+  /// que está apertado.
+  final ValueListenable<Set<int>>? wrong;
 
   @override
   State<MidiMonitorPanel> createState() => _MidiMonitorPanelState();
@@ -105,13 +112,23 @@ class _MidiMonitorPanelState extends State<MidiMonitorPanel> {
               builder: (context, constraints) =>
                   ValueListenableBuilder<Set<int>>(
                     valueListenable: widget.input.held,
-                    builder: (context, held, _) => CustomPaint(
-                      size: Size(constraints.maxWidth, 64),
-                      painter: PianoKeyboardPainter(
-                        held: held,
-                        heldColor: theme.colorScheme.primary,
-                      ),
-                    ),
+                    builder: (context, held, _) {
+                      final wrong = widget.wrong;
+                      Widget paint(Set<int> wrongPitches) => CustomPaint(
+                        size: Size(constraints.maxWidth, 64),
+                        painter: PianoKeyboardPainter(
+                          held: held,
+                          heldColor: theme.colorScheme.primary,
+                          wrong: wrongPitches,
+                        ),
+                      );
+                      if (wrong == null) return paint(const {});
+                      return ValueListenableBuilder<Set<int>>(
+                        valueListenable: wrong,
+                        builder: (context, wrongPitches, _) =>
+                            paint(wrongPitches),
+                      );
+                    },
                   ),
             ),
           ),

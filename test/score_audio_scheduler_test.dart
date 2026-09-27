@@ -321,5 +321,120 @@ void main() {
         );
       }
     });
+
+    group('freio do modo espera (T02)', () {
+      test('posição estaciona no onMs armado e não passa dele', () {
+        final engine = FakeSoundEngine();
+        final track = _loadTrack('maple-leaf-rag.vsb');
+        final scheduler = ScoreAudioScheduler(
+          engine: engine,
+          track: track,
+          autoTick: false,
+        );
+        final brakeMs = track.durationMs / 3;
+
+        scheduler.play(0);
+        scheduler.setBrake(brakeMs);
+        _advanceUntil(engine, scheduler, brakeMs);
+        expect(scheduler.positionMs, brakeMs);
+
+        // Tempo do dispositivo segue correndo por baixo: posição continua
+        // parada exatamente no freio.
+        for (var i = 0; i < 100; i++) {
+          engine.now += 0.025;
+          scheduler.pump();
+        }
+        expect(scheduler.positionMs, brakeMs);
+      });
+
+      test(
+        'com filtro de pauta, só agenda a pauta do app e nunca além do '
+        'freio',
+        () {
+          final engine = FakeSoundEngine();
+          final track = _loadTrack('maple-leaf-rag.vsb');
+          final scheduler = ScoreAudioScheduler(
+            engine: engine,
+            track: track,
+            autoTick: false,
+          );
+          final brakeMs = track.durationMs / 3;
+
+          scheduler.setStaves({2});
+          scheduler.play(0);
+          scheduler.setBrake(brakeMs);
+          _advanceUntil(engine, scheduler, brakeMs);
+          for (var i = 0; i < 100; i++) {
+            engine.now += 0.025;
+            scheduler.pump();
+          }
+
+          final expected = track.events
+              .where((e) => e.staff == 2 && e.onMs < brakeMs)
+              .length;
+          final noteOns = engine.scheduled
+              .where((m) => m.status & 0xF0 == 0x90)
+              .toList();
+          expect(noteOns.length, expected);
+          expect(noteOns, isNotEmpty);
+          expect(
+            noteOns.every(
+              (m) => track.events.any(
+                (e) =>
+                    e.staff == 2 &&
+                    e.pitch == m.d1 &&
+                    e.channel == (m.status & 0x0F),
+              ),
+            ),
+            isTrue,
+            reason: 'nenhum note-on deveria vir da pauta 1 (do aluno)',
+          );
+        },
+      );
+
+      test(
+        'avançar o freio (passo concluído) retoma o agendamento sem pular '
+        'o que ficou parado',
+        () {
+          final engine = FakeSoundEngine();
+          final track = _loadTrack('maple-leaf-rag.vsb');
+          final scheduler = ScoreAudioScheduler(
+            engine: engine,
+            track: track,
+            autoTick: false,
+          );
+          final brake1 = track.durationMs / 4;
+          final brake2 = track.durationMs / 2;
+
+          scheduler.play(0);
+          scheduler.setBrake(brake1);
+          _advanceUntil(engine, scheduler, brake1);
+          // Fica "parado" um bom tempo — o relógio do dispositivo passa bem
+          // além do que a posição musical mostra.
+          for (var i = 0; i < 200; i++) {
+            engine.now += 0.025;
+            scheduler.pump();
+          }
+
+          scheduler.setBrake(brake2);
+          _advanceUntil(engine, scheduler, brake2);
+          expect(scheduler.positionMs, brake2);
+
+          scheduler.setBrake(null);
+          _advanceUntil(engine, scheduler, track.durationMs);
+          engine.now += 1.0;
+          scheduler.pump();
+
+          final noteOns = engine.scheduled
+              .where((m) => m.status & 0xF0 == 0x90)
+              .length;
+          expect(
+            noteOns,
+            track.events.length,
+            reason: 'nenhum evento deveria ficar sem agendar',
+          );
+        },
+      );
+    });
   });
 }

@@ -61,13 +61,52 @@ class ScoreAudioScheduler {
   /// chamada só pede a [PerformanceTrack.startingIn] o que vem depois.
   double _scheduledUpToMs = 0;
 
+  /// Freio do modo espera (T02): quando não-nulo, [positionMs] e o
+  /// horizonte de [pump] não passam daqui — a posição "estaciona" no `onMs`
+  /// do passo pendente em vez de correr livre, e nada é agendado além
+  /// disso (nem os eventos da mão do app).
+  double? _brakeMs;
+
+  /// Filtro de pauta do modo espera (T02): quando não-nulo, só eventos
+  /// dessas pautas entram em [pump] — é assim que "o app toca a outra mão"
+  /// (a pauta do aluno nunca é agendada, ele toca fisicamente).
+  Set<int>? _staves;
+
   double get speed => _speed;
   bool get isRunning => _running;
 
   /// Posição musical atual, em ms — parada (o valor da última âncora)
-  /// enquanto não [isRunning].
-  double get positionMs =>
-      _running ? _musicalAt(engine.nowSeconds) : _musicalT0;
+  /// enquanto não [isRunning], e capada em [_brakeMs] quando o freio do
+  /// modo espera está armado.
+  double get positionMs {
+    if (!_running) return _musicalT0;
+    final raw = _musicalAt(engine.nowSeconds);
+    final brake = _brakeMs;
+    return brake == null ? raw : (raw < brake ? raw : brake);
+  }
+
+  /// Arma (ou solta, com `null`) o freio do modo espera no `onMs` do passo
+  /// pendente. Reancora a posição atual primeiro — ela pode estar havia um
+  /// tempo estacionada no freio anterior enquanto o relógio do dispositivo
+  /// seguia correndo por baixo — para que o novo trecho comece a fluir
+  /// exatamente daqui. **Não** usa [_reanchor] puro: isso zeraria
+  /// [_scheduledUpToMs] de volta para a posição atual, reagendando (em
+  /// duplicata) eventos que o `pump` de olhar-à-frente já tinha mandado ao
+  /// motor antes do freio prender — o aluno pode soltar o passo antes do
+  /// próximo tick do `pump`, então esse adiantamento é real, não hipotético.
+  void setBrake(double? onMs) {
+    final held = positionMs;
+    _musicalT0 = held;
+    _deviceT0 = engine.nowSeconds;
+    if (_scheduledUpToMs < held) _scheduledUpToMs = held;
+    _brakeMs = onMs;
+  }
+
+  /// Restringe (ou libera, com `null`) [pump] às pautas em [staves] — a
+  /// mão que o app toca no modo espera.
+  void setStaves(Set<int>? staves) {
+    _staves = staves;
+  }
 
   double _musicalAt(double deviceSeconds) =>
       _musicalT0 + (deviceSeconds - _deviceT0) * 1000 * _speed;
@@ -169,14 +208,22 @@ class ScoreAudioScheduler {
   void pump() {
     if (!_running) return;
 
-    final horizonMs = _musicalAt(
+    final rawHorizonMs = _musicalAt(
       engine.nowSeconds + lookahead.inMicroseconds / 1e6,
     );
+    final brake = _brakeMs;
+    final horizonMs = brake == null || rawHorizonMs < brake
+        ? rawHorizonMs
+        : brake;
     if (horizonMs <= _scheduledUpToMs) return;
 
     final earliest = engine.earliestScheduleSeconds;
     final midi = <ScheduledMidi>[];
-    for (final e in track.startingIn(_scheduledUpToMs, horizonMs)) {
+    for (final e in track.startingIn(
+      _scheduledUpToMs,
+      horizonMs,
+      staves: _staves,
+    )) {
       // Atrasado (tick perdido, GC): nunca descarte o par — toque no mais
       // cedo possível.
       final onAt = _clamp(_deviceAt(e.onMs), earliest);
