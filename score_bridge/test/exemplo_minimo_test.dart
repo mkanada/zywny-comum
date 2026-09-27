@@ -13,7 +13,7 @@ void main() {
   late VsbDocument doc;
 
   setUpAll(() {
-    final file = File('../docs/formato/exemplo-minimo.json');
+    final file = File('test/fixtures/exemplo-minimo.json');
     final json = jsonDecode(file.readAsStringSync()) as Map<String, dynamic>;
     doc = VsbDocument.fromJson(json);
   });

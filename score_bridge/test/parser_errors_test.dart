@@ -6,7 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:score_bridge/score_bridge.dart';
 
 Map<String, dynamic> _loadExemploMinimo() {
-  final file = File('../docs/formato/exemplo-minimo.json');
+  final file = File('test/fixtures/exemplo-minimo.json');
   return jsonDecode(file.readAsStringSync()) as Map<String, dynamic>;
 }
 

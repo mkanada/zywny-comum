@@ -220,7 +220,7 @@ void main() {
   });
 
   test('caso real: primeiro octave tracejado do Chopin Étude Op.10 No.9', () {
-    final bytes = File('../compare/out/s08/Chopin_Etude_Op10_No9.vsb')
+    final bytes = File('test/fixtures/Chopin_Etude_Op10_No9.vsb')
         .readAsBytesSync();
     final doc = VsbDocument.fromBytes(bytes);
 

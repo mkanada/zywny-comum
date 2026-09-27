@@ -1,0 +1,166 @@
+{
+  "manifest": {
+    "format": "vsb",
+    "version": 1,
+    "generator": "verovio 6.3.0 / bridge 1",
+    "pageCount": 1,
+    "files": {
+      "scene": "scene.json",
+      "glyphs": "glyphs.json",
+      "timemap": "timemap.json",
+      "meta": "meta.json"
+    }
+  },
+  "glyphs": {
+    "Leipzig:E0A4": {
+      "font": "Leipzig",
+      "codepoint": "E0A4",
+      "unitsPerEm": 2048,
+      "horizAdvX": 656,
+      "bbox": [-10, -262, 552, 262],
+      "paths": [
+        {
+          "closed": true,
+          "v": [0, 0, 100, 0, 100, 100, 0, 100],
+          "i": [0, 0, 0, 0, 0, 0, 0, 0],
+          "o": [0, 0, 0, 0, 0, 0, 0, 0]
+        }
+      ]
+    }
+  },
+  "scene": {
+    "pages": [
+      {
+        "index": 0,
+        "width": 2100,
+        "height": 2970,
+        "contentHeight": 2970,
+        "viewBoxFactor": 10.0,
+        "viewBox": [0, 0, 21000, 29700],
+        "baseWidth": 2100,
+        "baseHeight": 2970,
+        "userScaleX": 1.0,
+        "userScaleY": 1.0,
+        "widthPx": 2100,
+        "heightPx": 2970,
+        "fit": {
+          "scale": 0.1,
+          "tx": 0.0,
+          "ty": 0.0
+        },
+        "origin": [500, 500],
+        "root": {
+          "t": "g",
+          "children": [
+            {
+              "t": "g",
+              "class": "staff",
+              "bbox": [1000, 1500, 11000, 2100],
+              "children": [
+                {
+                  "t": "p",
+                  "paths": [
+                    {
+                      "closed": false,
+                      "v": [1000, 1500, 11000, 1500],
+                      "i": [0, 0, 0, 0],
+                      "o": [0, 0, 0, 0]
+                    },
+                    {
+                      "closed": false,
+                      "v": [1000, 1650, 11000, 1650],
+                      "i": [0, 0, 0, 0],
+                      "o": [0, 0, 0, 0]
+                    },
+                    {
+                      "closed": false,
+                      "v": [1000, 1800, 11000, 1800],
+                      "i": [0, 0, 0, 0],
+                      "o": [0, 0, 0, 0]
+                    },
+                    {
+                      "closed": false,
+                      "v": [1000, 1950, 11000, 1950],
+                      "i": [0, 0, 0, 0],
+                      "o": [0, 0, 0, 0]
+                    },
+                    {
+                      "closed": false,
+                      "v": [1000, 2100, 11000, 2100],
+                      "i": [0, 0, 0, 0],
+                      "o": [0, 0, 0, 0]
+                    }
+                  ],
+                  "fill": "none",
+                  "stroke": "#000000",
+                  "strokeWidth": 10
+                },
+                {
+                  "t": "u",
+                  "g": "Leipzig:E0A4",
+                  "x": 1000,
+                  "y": 1500,
+                  "sx": 3.2,
+                  "sy": 3.2
+                }
+              ]
+            },
+            {
+              "t": "g",
+              "id": "note-1",
+              "class": "note",
+              "color": "#ff0000",
+              "bbox": [3000, 1550, 3700, 2200],
+              "children": [
+                {
+                  "t": "p",
+                  "paths": [
+                    {
+                      "closed": true,
+                      "v": [3000, 1900, 3300, 1750, 3600, 1900, 3300, 2050],
+                      "i": [0, 0, 0, 0, 0, 0, 0, 0],
+                      "o": [0, 0, 0, 0, 0, 0, 0, 0]
+                    },
+                    {
+                      "closed": false,
+                      "v": [3600, 1900, 3600, 1550],
+                      "i": [0, 0, 0, 0],
+                      "o": [0, 0, 0, 0]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "t": "t",
+              "s": "Título",
+              "x": 1000,
+              "y": 800,
+              "size": 360.0,
+              "align": "left",
+              "letterSpacing": 0.0,
+              "bold": true,
+              "italic": false,
+              "family": "Liberation Serif",
+              "color": "#000000"
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "timemap": [
+    {
+      "qstamp": 0.0,
+      "tstamp": 1.0,
+      "on": ["note-1"]
+    }
+  ],
+  "meta": {
+    "title": "Título",
+    "creators": [
+      { "name": "Compositor Exemplo", "role": "composer" },
+      { "name": "Letrista Exemplo", "role": "lyricist" }
+    ]
+  }
+}

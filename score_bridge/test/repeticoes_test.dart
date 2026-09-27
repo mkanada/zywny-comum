@@ -14,7 +14,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:score_bridge/score_bridge.dart';
 
 const _fixturesDir = 'test/fixtures/repeticoes';
-const _repeticoesDir = '../corpus/repeticoes';
+const _repeticoesDir = _fixturesDir;
 
 /// As 13 partituras mínimas de E01a: nome do fixture -> arquivo `.esperado`
 /// (ao lado da partitura em `corpus/repeticoes/`).

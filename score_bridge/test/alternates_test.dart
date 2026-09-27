@@ -111,7 +111,7 @@ void main() {
   });
 
   test('exemplo-alternates.json (P02a) parseia (critério 5)', () {
-    final file = File('../docs/formato/exemplo-alternates.json');
+    final file = File('test/fixtures/exemplo-alternates.json');
     final decoded =
         json.decode(file.readAsStringSync()) as Map<String, dynamic>;
     final sequences = parseAlternatesDocument(decoded, path: 'alternates');

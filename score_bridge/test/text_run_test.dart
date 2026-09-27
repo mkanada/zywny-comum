@@ -271,7 +271,7 @@ void main() {
   });
 
   test('dedilhado real: centro sobre x (tol 0,5 viewBox)', () {
-    final bytes = File('../compare/out/s08/Chopin_Etude_Op10_No9.vsb')
+    final bytes = File('test/fixtures/Chopin_Etude_Op10_No9.vsb')
         .readAsBytesSync();
     final doc = VsbDocument.fromBytes(bytes);
     SceneText? fingering;
