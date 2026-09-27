@@ -70,6 +70,14 @@ class MidiDeviceManager {
     connected.value = null;
   }
 
+  /// Preferência do monitor MIDI (M02), por dispositivo — desligada por
+  /// padrão (som em dobro se o teclado já tiver som próprio).
+  Future<bool> monitorEnabled(String deviceId) async =>
+      await _prefs.getBool('midi_monitor_$deviceId') ?? false;
+
+  Future<void> setMonitorEnabled(String deviceId, bool value) =>
+      _prefs.setBool('midi_monitor_$deviceId', value);
+
   void dispose() {
     unawaited(_setupSub?.cancel());
     devices.dispose();
