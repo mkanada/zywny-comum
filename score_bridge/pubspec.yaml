@@ -1,0 +1,62 @@
+name: score_bridge
+description: "Modelo e parser do formato .vsb (Verovio Score Bridge)."
+version: 0.0.1
+homepage:
+
+environment:
+  sdk: ^3.13.3
+  flutter: ">=1.17.0"
+
+dependencies:
+  archive: ^4.3.0
+  flutter:
+    sdk: flutter
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+# For information on the generic Dart part of this file, see the
+# following page: https://dart.dev/tools/pub/pubspec
+
+# The following section is specific to Flutter packages.
+flutter:
+
+  # To add assets to your package, add an assets section, like this:
+  # assets:
+  #   - images/a_dot_burr.jpeg
+  #   - images/a_dot_ham.jpeg
+  #
+  # For details regarding assets in packages, see
+  # https://flutter.dev/to/asset-from-package
+  #
+  # An image asset can refer to one or more resolution-specific "variants", see
+  # https://flutter.dev/to/resolution-aware-images
+
+  # Serifada do projeto (R04a): a mesma que o `svg_render` usa como
+  # `serif` da referência (`--pin-serif-family "Liberation Serif"`).
+  # OFL em fonts/LiberationSerif-OFL.txt.
+  #
+  # Os TTFs vão também em `assets`: o `fonts:` registra a família, mas não
+  # expõe os bytes via `rootBundle` no app release — e o `loadScoreFonts`
+  # (R04b, usado pelo `compare`) precisa deles como assets comuns.
+  assets:
+    - fonts/LiberationSerif-Regular.ttf
+    - fonts/LiberationSerif-Italic.ttf
+    - fonts/LiberationSerif-Bold.ttf
+    - fonts/LiberationSerif-BoldItalic.ttf
+  fonts:
+    - family: Liberation Serif
+      fonts:
+        - asset: fonts/LiberationSerif-Regular.ttf
+        - asset: fonts/LiberationSerif-Italic.ttf
+          style: italic
+        - asset: fonts/LiberationSerif-Bold.ttf
+          weight: 700
+        - asset: fonts/LiberationSerif-BoldItalic.ttf
+          weight: 700
+          style: italic
+  #
+  # For details regarding fonts in packages, see
+  # https://flutter.dev/to/font-from-package
