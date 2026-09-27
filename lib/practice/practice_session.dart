@@ -1,0 +1,351 @@
+// T01: núcleo do treino, Dart puro — sem UI, sem hardware (M02/M03) e sem
+// relógio de parede embutido. Quem chama decide o tempo (`atMs`/`musicalMs`)
+// e faz a conversão de segundos de dispositivo para ms musicais (isso é do
+// agendador, K04, e do relógio de treino, T02/T03); ver
+// docs/plano/T01-casador-de-notas.md.
+
+import 'dart:async';
+
+import 'package:flutter/foundation.dart';
+
+import '../music/performance_track.dart';
+
+/// Como uma nota tocada se compara com o que a partitura esperava.
+enum PracticeVerdictKind { correct, wrong, early, late, missed }
+
+/// Resultado de uma nota tocada — ou de um evento não tocado, no caso de
+/// [PracticeVerdictKind.missed], em que não há nota física correspondente.
+@immutable
+class NoteVerdict {
+  const NoteVerdict({
+    this.eventId,
+    required this.pitch,
+    required this.kind,
+    required this.deltaMs,
+    this.velocity = 0,
+  });
+
+  /// Id do [SoundEvent] casado; `null` em [PracticeVerdictKind.wrong] (não
+  /// há candidato).
+  final String? eventId;
+  final int pitch;
+  final PracticeVerdictKind kind;
+
+  /// tocada − esperada, em ms: musicais no modo tempo real, de parede desde
+  /// a primeira nota do acorde no modo espera. `0` em `wrong`/`missed`.
+  final double deltaMs;
+
+  /// Guardada para uso futuro — não avaliada na 1.0 (D-TREINO).
+  final int velocity;
+
+  @override
+  String toString() =>
+      'NoteVerdict($kind pitch=$pitch Δ=${deltaMs.toStringAsFixed(1)}ms'
+      '${eventId != null ? " id=$eventId" : ""})';
+}
+
+/// Um passo do modo espera: acordes de todas as pautas do aluno com o mesmo
+/// `onMs`, fundidos num só. `remaining` é republicado a cada nota certa
+/// tocada (mesmo `index`/`onMs`/`notes`), para a UI destacar só o que falta.
+@immutable
+class PracticeStep {
+  const PracticeStep({
+    required this.index,
+    required this.onMs,
+    required this.notes,
+    required this.remaining,
+  });
+
+  final int index;
+  final double onMs;
+  final List<SoundEvent> notes;
+  final Set<int> remaining;
+}
+
+/// Janela de parede, em ms, para agrupar notas de um mesmo acorde no modo
+/// espera. Não é prazo: o modo espera nunca marca `missed` — a janela só
+/// mede o `deltaMs` de cada nota tocada em relação à primeira do acorde.
+const double kWaitChordWindowMs = 300;
+
+/// Modo espera (T01): o tempo não anda até o acorde certo ser tocado.
+/// Dirigido só por [noteOn]/[noteOff] — sem relógio interno.
+class WaitModeSession {
+  WaitModeSession(List<PracticeStep> steps) : _steps = steps {
+    _startStep(0);
+  }
+
+  /// Funde os acordes das pautas do aluno pelo mesmo `onMs` (N03 já agrupa
+  /// por pauta, com tolerância de [PerformanceTrack.chordToleranceMs]; aqui
+  /// só junta pautas diferentes que caem no mesmo instante). Notas de
+  /// ornamento (`SoundEvent.ornament`) não entram nos passos — D-TREINO não
+  /// cobra ornamento na 1.0, o aluno não precisa tocá-las.
+  factory WaitModeSession.forStaves(
+    PerformanceTrack track, {
+    required Set<int> staves,
+  }) {
+    final byOnMs = <double, List<SoundEvent>>{};
+    for (final chord in track.chords(staves: staves)) {
+      final notes = chord.notes.where((e) => !e.ornament).toList();
+      if (notes.isEmpty) continue;
+      byOnMs.putIfAbsent(chord.onMs, () => []).addAll(notes);
+    }
+    final onsets = byOnMs.keys.toList()..sort();
+    var i = 0;
+    final steps = [
+      for (final onMs in onsets)
+        PracticeStep(
+          index: i++,
+          onMs: onMs,
+          notes: byOnMs[onMs]!,
+          remaining: byOnMs[onMs]!.map((e) => e.pitch).toSet(),
+        ),
+    ];
+    return WaitModeSession(steps);
+  }
+
+  final List<PracticeStep> _steps;
+  int _index = 0;
+  final Set<int> _held = {};
+  Set<int> _remaining = {};
+  Set<int> _blocked = {};
+  double? _firstHitAtMs;
+
+  final ValueNotifier<PracticeStep?> _current = ValueNotifier(null);
+
+  /// Passo atual, com `remaining` sempre atualizado; `null` quando a peça
+  /// acabou.
+  ValueListenable<PracticeStep?> get current => _current;
+
+  final StreamController<NoteVerdict> _verdicts =
+      StreamController<NoteVerdict>.broadcast(sync: true);
+
+  /// `sync: true`: emissão é uma decisão pura e imediata de [noteOn]/
+  /// [noteOff], sem I/O — o padrão assíncrono só obrigaria os testes a
+  /// aguardar uma volta de event loop por chamada sem trazer benefício.
+  Stream<NoteVerdict> get verdicts => _verdicts.stream;
+
+  bool get done => _index >= _steps.length;
+
+  /// Nota física apertada. `atMs` é o relógio de parede do app (mesma
+  /// unidade em todas as chamadas de uma sessão) — usado só para o
+  /// `deltaMs` do veredito, nunca para decidir se o passo avança.
+  void noteOn(int pitch, {required double atMs, int velocity = 0}) {
+    _held.add(pitch);
+    if (done) return;
+
+    if (_blocked.contains(pitch)) {
+      // Ainda presa desde antes deste passo (nota repetida): exige soltar e
+      // apertar de novo.
+      return;
+    }
+
+    if (!_remaining.contains(pitch)) {
+      _verdicts.add(
+        NoteVerdict(
+          pitch: pitch,
+          kind: PracticeVerdictKind.wrong,
+          deltaMs: 0,
+          velocity: velocity,
+        ),
+      );
+      return;
+    }
+
+    final step = _steps[_index];
+    _firstHitAtMs ??= atMs;
+    _remaining.remove(pitch);
+    _verdicts.add(
+      NoteVerdict(
+        eventId: step.notes.firstWhere((e) => e.pitch == pitch).id,
+        pitch: pitch,
+        kind: PracticeVerdictKind.correct,
+        deltaMs: atMs - _firstHitAtMs!,
+        velocity: velocity,
+      ),
+    );
+
+    if (_remaining.isEmpty) {
+      _startStep(_index + 1);
+    } else {
+      _publish(step);
+    }
+  }
+
+  /// Tecla solta: limpa o bloqueio de "precisa soltar e apertar de novo"
+  /// para essa tecla.
+  void noteOff(int pitch) {
+    _held.remove(pitch);
+    _blocked.remove(pitch);
+  }
+
+  /// T04 (loop A-B): reinicia no primeiro passo a partir de `onMs`.
+  void resetTo(double onMs) {
+    final index = _steps.indexWhere((s) => s.onMs >= onMs);
+    _startStep(index == -1 ? _steps.length : index);
+  }
+
+  void _startStep(int index) {
+    _index = index;
+    if (done) {
+      _remaining = {};
+      _blocked = {};
+      _current.value = null;
+      return;
+    }
+    final step = _steps[index];
+    _remaining = step.notes.map((e) => e.pitch).toSet();
+    _blocked = _held.intersection(_remaining);
+    _firstHitAtMs = null;
+    _publish(step);
+  }
+
+  void _publish(PracticeStep step) {
+    _current.value = PracticeStep(
+      index: step.index,
+      onMs: step.onMs,
+      notes: step.notes,
+      remaining: Set.of(_remaining),
+    );
+  }
+
+  void dispose() {
+    _current.dispose();
+    unawaited(_verdicts.close());
+  }
+}
+
+/// Modo tempo real (T01): casa notas tocadas — já convertidas para ms
+/// musicais pela camada de cima (K04) — contra a janela de cada evento
+/// esperado. Dirigido por [noteOn] e por [tick] (que marca `missed`).
+class RealtimeSession {
+  RealtimeSession(
+    List<SoundEvent> events, {
+    required this.speed,
+    this.windowOkMs = 75,
+    this.windowMaxMs = 150,
+  }) : _all = List<SoundEvent>.of(events)
+         ..sort((a, b) => a.onMs.compareTo(b.onMs)) {
+    _pending = List<SoundEvent>.of(_all);
+  }
+
+  /// Só os eventos das pautas do aluno entram na avaliação — o resto é
+  /// tocado pelo app (T02) e não conta.
+  factory RealtimeSession.forStaves(
+    PerformanceTrack track, {
+    required Set<int> staves,
+    required double speed,
+    double windowOkMs = 75,
+    double windowMaxMs = 150,
+  }) {
+    final events = track.events.where((e) => staves.contains(e.staff));
+    return RealtimeSession(
+      events.toList(),
+      speed: speed,
+      windowOkMs: windowOkMs,
+      windowMaxMs: windowMaxMs,
+    );
+  }
+
+  final double speed;
+  final double windowOkMs;
+  final double windowMaxMs;
+  final List<SoundEvent> _all;
+  late List<SoundEvent> _pending;
+
+  final StreamController<NoteVerdict> _verdicts =
+      StreamController<NoteVerdict>.broadcast(sync: true);
+  Stream<NoteVerdict> get verdicts => _verdicts.stream;
+
+  /// Janelas de parede convertidas para ms musicais — a `speed` 0.5 a
+  /// música anda devagar: 75 ms de parede viram 37,5 ms musicais.
+  double get _okMs => windowOkMs * speed;
+  double get _maxMs => windowMaxMs * speed;
+
+  /// Nota tocada, já em ms musicais. Casa com o evento pendente de mesmo
+  /// pitch mais próximo dentro de [_maxMs]. Ornamentos entram como
+  /// candidatos só para a nota tocada não virar `wrong`: se casarem, são
+  /// consumidos sem veredito (D-TREINO: não cobrados na 1.0).
+  void noteOn(int pitch, double musicalMs, {int velocity = 0}) {
+    SoundEvent? best;
+    double? bestDelta;
+    SoundEvent? bestOrnament;
+    double? bestOrnamentDelta;
+
+    for (final e in _pending) {
+      if (e.pitch != pitch) continue;
+      final delta = musicalMs - e.onMs;
+      if (delta.abs() > _maxMs) continue;
+      if (e.ornament) {
+        if (bestOrnamentDelta == null ||
+            delta.abs() < bestOrnamentDelta.abs()) {
+          bestOrnament = e;
+          bestOrnamentDelta = delta;
+        }
+      } else if (bestDelta == null || delta.abs() < bestDelta.abs()) {
+        best = e;
+        bestDelta = delta;
+      }
+    }
+
+    if (best != null) {
+      _pending.remove(best);
+      final kind = bestDelta!.abs() <= _okMs
+          ? PracticeVerdictKind.correct
+          : (bestDelta < 0
+                ? PracticeVerdictKind.early
+                : PracticeVerdictKind.late);
+      _verdicts.add(
+        NoteVerdict(
+          eventId: best.id,
+          pitch: pitch,
+          kind: kind,
+          deltaMs: bestDelta,
+          velocity: velocity,
+        ),
+      );
+      return;
+    }
+
+    if (bestOrnament != null) {
+      _pending.remove(bestOrnament);
+      return;
+    }
+
+    _verdicts.add(
+      NoteVerdict(
+        pitch: pitch,
+        kind: PracticeVerdictKind.wrong,
+        deltaMs: 0,
+        velocity: velocity,
+      ),
+    );
+  }
+
+  /// Avança o relógio musical: eventos cuja janela (`onMs + janelaMax`) já
+  /// passou sem casar viram `missed` — exceto ornamentos, que somem em
+  /// silêncio (não cobrados na 1.0).
+  void tick(double musicalNowMs) {
+    _pending.removeWhere((e) {
+      if (musicalNowMs <= e.onMs + _maxMs) return false;
+      if (!e.ornament) {
+        _verdicts.add(
+          NoteVerdict(
+            eventId: e.id,
+            pitch: e.pitch,
+            kind: PracticeVerdictKind.missed,
+            deltaMs: 0,
+          ),
+        );
+      }
+      return true;
+    });
+  }
+
+  /// T04 (loop A-B): reinicia a partir de `musicalMs`, descartando o que já
+  /// tinha sido casado ou perdido antes dele.
+  void resetTo(double musicalMs) {
+    _pending = _all.where((e) => e.onMs >= musicalMs).toList();
+  }
+
+  void dispose() => unawaited(_verdicts.close());
+}
