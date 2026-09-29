@@ -92,6 +92,17 @@ class MidiDeviceManager {
   Future<void> setMonitorEnabled(String deviceId, bool value) =>
       _prefs.setBool('midi_monitor_$deviceId', value);
 
+  /// Latência de entrada+saída calibrada (T04, ms), por par (dispositivo de
+  /// entrada, saída de som) — `output` é `'app'` ou `'midi'`.
+  Future<double?> inputLatencyMs(String deviceId, String output) =>
+      _prefs.getDouble('midi_latency_${deviceId}_$output');
+
+  Future<void> setInputLatencyMs(
+    String deviceId,
+    String output,
+    double value,
+  ) => _prefs.setDouble('midi_latency_${deviceId}_$output', value);
+
   void dispose() {
     unawaited(_setupSub?.cancel());
     devices.dispose();

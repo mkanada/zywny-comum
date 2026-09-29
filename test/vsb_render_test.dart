@@ -25,43 +25,60 @@ void main() {
   // `loadScoreFonts` passa pelo `rootBundle`, que exige o binding.
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  final missing = [_libPath, _resourcePath, _scorePath]
-      .where((p) => !File(p).existsSync() && !Directory(p).existsSync())
-      .toList();
+  final missing = [
+    _libPath,
+    _resourcePath,
+    _scorePath,
+  ].where((p) => !File(p).existsSync() && !Directory(p).existsSync()).toList();
 
-  test('gera e desenha um .vsb a partir de um MEI do corpus', () async {
-    final tmp = await Directory.systemTemp.createTemp('zywny_test');
-    addTearDown(() => tmp.delete(recursive: true));
+  test(
+    'gera e desenha um .vsb a partir de um MEI do corpus',
+    () async {
+      final tmp = await Directory.systemTemp.createTemp('zywny_test');
+      addTearDown(() => tmp.delete(recursive: true));
 
-    final document = await renderScoreToVsb(
-      VsbRenderRequest(
-        inputPath: _scorePath,
-        outputPath: '${tmp.path}/score.vsb',
-        libraryPath: File(_libPath).absolute.path,
-        resourcePath: Directory(_resourcePath).absolute.path,
-        pageWidth: kFallbackPageWidth,
-        pageHeight: kFallbackPageHeight,
-      ),
-    );
+      final document = await renderScoreToVsb(
+        VsbRenderRequest(
+          inputPath: _scorePath,
+          outputPath: '${tmp.path}/score.vsb',
+          libraryPath: File(_libPath).absolute.path,
+          resourcePath: Directory(_resourcePath).absolute.path,
+          pageWidth: kFallbackPageWidth,
+          pageHeight: kFallbackPageHeight,
+        ),
+      );
 
-    expect(document.pages, isNotEmpty);
-    expect(document.manifest.pageCount, document.pages.length);
-    expect(document.glyphs, isNotEmpty);
+      expect(document.pages, isNotEmpty);
+      expect(document.manifest.pageCount, document.pages.length);
+      expect(document.glyphs, isNotEmpty);
 
-    // N02 (zywny): document.midi chega populado depois de G01/G02 no bridge
-    // (libverovio.so refeita por `just native`).
-    expect(document.midi, isNotNull);
-    expect(document.midi!.notes, isNotEmpty);
+      // N02 (zywny): document.midi chega populado depois de G01/G02 no bridge
+      // (libverovio.so refeita por `just native`).
+      expect(document.midi, isNotNull);
+      expect(document.midi!.notes, isNotEmpty);
 
-    // O pintor só quebra na página real: glifos ausentes do dicionário e
-    // runs de texto sem fonte carregada falham aqui, não no parse.
-    await loadScoreFonts();
-    final recorder = ui.PictureRecorder();
-    ScenePainter(
-      document.pages.first,
-      document.glyphs,
-      glyphCache: document.glyphCache,
-    ).paint(ui.Canvas(recorder));
-    recorder.endRecording().dispose();
-  }, skip: missing.isEmpty ? null : 'artefatos ausentes: ${missing.join(', ')}');
+      // G05: pitchpos.json e a geometria de pauta chegam pelo mesmo caminho,
+      // e uma tecla qualquer vira fantasma na coluna de uma nota real.
+      expect(document.pitchPos, isNotNull);
+      final firstNote = document.midi!.notes.first;
+      final ghosts = document.ghostsFor(
+        expectedIds: [firstNote.id],
+        wrongKeys: [firstNote.pitch + 1],
+      );
+      expect(ghosts, hasLength(1));
+      expect(ghosts.single.head.glyphId, endsWith(':E0A4'));
+
+      // O pintor só quebra na página real: glifos ausentes do dicionário e
+      // runs de texto sem fonte carregada falham aqui, não no parse.
+      await loadScoreFonts();
+      final recorder = ui.PictureRecorder();
+      ScenePainter(
+        document.pages.first,
+        document.glyphs,
+        glyphCache: document.glyphCache,
+      ).paint(ui.Canvas(recorder));
+      recorder.endRecording().dispose();
+    },
+    skip: missing.isEmpty ? null : 'artefatos ausentes: ${missing.join(', ')}',
+  );
 }

@@ -12,9 +12,25 @@
 // note-on/note-off é sempre agendado junto, mesmo que `offMs` caia bem além
 // da janela — o motor aceita futuro distante (K02), então não há por que
 // guardar um mapa de note-offs pendentes à parte.
+//
+// LOOP A-B (T04): com [setLoop], quando o horizonte de [pump] alcança o fim do
+// trecho o agendador fecha a volta (note-offs cortados em `endMs`, nada
+// depois dele) e já **reancora** em `startMs` no instante de dispositivo em
+// que `endMs` soa — a volta seguinte é agendada em seguida, sem lacuna. A
+// âncora antiga fica em [_segments] até esse instante chegar, para que
+// [positionMs] (que o `ScorePlayer` lê) só volte a `startMs` quando o áudio
+// volta. O `ScorePlayer` percebe o recuo (> 20 ms) e faz `seek` sozinho.
+// Mudança de `speed` no meio do loop vale na hora (reancora da posição
+// corrente, como sempre).
+//
+// METRÔNOMO e CONTAGEM (T04): cliques no canal 9 nas [beats] (o host as
+// deriva do timemap, ver metronome.dart). A contagem inicial desloca a âncora
+// para 1 compasso antes de `fromMs`: a posição fica parada em `fromMs` (piso)
+// enquanto os cliques soam.
 import 'dart:async';
 
 import '../music/performance_track.dart';
+import 'metronome.dart';
 import 'sound_engine.dart';
 
 /// Quanto um note-off antecipa `offMs`: a mesma tecla religada logo em
@@ -67,6 +83,30 @@ class ScoreAudioScheduler {
   /// disso (nem os eventos da mão do app).
   double? _brakeMs;
 
+  /// Batidas do compasso (T04) — ver `metronomeBeats`. Vazias: sem
+  /// metrônomo nem contagem.
+  List<Beat> beats = const [];
+
+  /// Metrônomo ligado: clica em cada batida enquanto toca.
+  bool metronomeOn = false;
+
+  /// Avisado (do [pump], até uma janela de [lookahead] antes de o som
+  /// voltar) cada vez que uma volta do loop fecha; o argumento é o número
+  /// de voltas completas desde [setLoop].
+  void Function(int laps)? onLoop;
+
+  double? _loopStartMs;
+  double? _loopEndMs;
+  int _laps = 0;
+
+  /// Âncoras antigas ainda audíveis: até `until` (segundos do dispositivo)
+  /// [positionMs] usa esta âncora em vez da atual.
+  final List<_Segment> _segments = [];
+
+  /// Piso da posição durante a contagem inicial.
+  double? _floorMs;
+  List<Beat> _countIn = const [];
+
   /// Filtro de pauta do modo espera (T02): quando não-nulo, só eventos
   /// dessas pautas entram em [pump] — é assim que "o app toca a outra mão"
   /// (a pauta do aluno nunca é agendada, ele toca fisicamente).
@@ -80,9 +120,53 @@ class ScoreAudioScheduler {
   /// modo espera está armado.
   double get positionMs {
     if (!_running) return _musicalT0;
-    final raw = _musicalAt(engine.nowSeconds);
+    var raw = _rawPositionAt(engine.nowSeconds);
     final brake = _brakeMs;
-    return brake == null ? raw : (raw < brake ? raw : brake);
+    if (brake != null && raw > brake) raw = brake;
+    final loopEnd = _loopEndMs;
+    if (loopEnd != null && _segments.isEmpty && raw > loopEnd) raw = loopEnd;
+    final floor = _floorMs;
+    if (floor != null && raw < floor) raw = floor;
+    return raw;
+  }
+
+  /// Posição musical que o relógio do dispositivo marcava (ou marcará) em
+  /// [deviceSeconds], pela âncora corrente — para converter o carimbo de uma
+  /// tecla em tempo musical (T03).
+  double musicalAtDevice(double deviceSeconds) => _musicalAt(deviceSeconds);
+
+  /// Trecho em repetição (T04), ou `null`.
+  ({double startMs, double endMs})? get loop {
+    final s = _loopStartMs;
+    final e = _loopEndMs;
+    return s == null || e == null ? null : (startMs: s, endMs: e);
+  }
+
+  /// Voltas do loop completadas desde [setLoop].
+  int get loopLaps => _laps;
+
+  /// Repete `[startMs, endMs)` (T04). Não move a posição: o host faz
+  /// `seek(startMs)` se quiser começar pelo trecho. [clearLoop] desliga.
+  void setLoop(double startMs, double endMs) {
+    assert(endMs > startMs);
+    _loopStartMs = startMs;
+    _loopEndMs = endMs;
+    _laps = 0;
+  }
+
+  void clearLoop() {
+    _loopStartMs = null;
+    _loopEndMs = null;
+    _laps = 0;
+  }
+
+  double _rawPositionAt(double deviceSeconds) {
+    _segments.removeWhere((s) => s.until <= deviceSeconds);
+    if (_segments.isNotEmpty) {
+      final s = _segments.first;
+      return s.musicalT0 + (deviceSeconds - s.deviceT0) * 1000 * _speed;
+    }
+    return _musicalAt(deviceSeconds);
   }
 
   /// Arma (ou solta, com `null`) o freio do modo espera no `onMs` do passo
@@ -119,6 +203,9 @@ class ScoreAudioScheduler {
     _deviceT0 = engine.nowSeconds;
     if (speed != null) _speed = speed;
     _scheduledUpToMs = musicalMs;
+    _segments.clear();
+    _floorMs = null;
+    _countIn = const [];
   }
 
   void _armTimer() {
@@ -127,9 +214,21 @@ class ScoreAudioScheduler {
 
   /// Começa (ou retoma) a tocar a partir de [fromMs]. Manda o Program
   /// Change de cada canal (uma vez, aqui) e liga a agenda.
-  void play(double fromMs, {double? speed}) {
+  ///
+  /// [countIn]: antes de [fromMs], 1 compasso de cliques (a contagem inicial,
+  /// T04) — a posição fica parada em [fromMs] enquanto eles soam.
+  void play(double fromMs, {double? speed, bool countIn = false}) {
     engine.allNotesOff();
     _reanchor(fromMs, speed: speed);
+    if (countIn) {
+      final clicks = countInBeats(beats, fromMs);
+      if (clicks.isNotEmpty) {
+        _countIn = clicks;
+        _floorMs = fromMs;
+        _musicalT0 = clicks.first.ms;
+        _scheduledUpToMs = clicks.first.ms;
+      }
+    }
     _running = true;
     _sendProgramChanges();
     _armTimer();
@@ -208,40 +307,109 @@ class ScoreAudioScheduler {
   void pump() {
     if (!_running) return;
 
-    final rawHorizonMs = _musicalAt(
-      engine.nowSeconds + lookahead.inMicroseconds / 1e6,
-    );
+    final horizonDevice = engine.nowSeconds + lookahead.inMicroseconds / 1e6;
     final brake = _brakeMs;
-    final horizonMs = brake == null || rawHorizonMs < brake
-        ? rawHorizonMs
-        : brake;
-    if (horizonMs <= _scheduledUpToMs) return;
+    double horizon() {
+      final raw = _musicalAt(horizonDevice);
+      return brake == null || raw < brake ? raw : brake;
+    }
 
     final earliest = engine.earliestScheduleSeconds;
     final midi = <ScheduledMidi>[];
-    for (final e in track.startingIn(
-      _scheduledUpToMs,
-      horizonMs,
-      staves: _staves,
-    )) {
-      // Atrasado (tick perdido, GC): nunca descarte o par — toque no mais
-      // cedo possível.
-      final onAt = _clamp(_deviceAt(e.onMs), earliest);
-      final rawOffAt = _deviceAt(e.offMs) - _kNoteOffLeadSeconds;
-      final offAt = _clamp(rawOffAt, earliest).clamp(onAt, double.infinity);
-      midi.add(ScheduledMidi(onAt, 0x90 | e.channel, e.pitch, e.velocity));
-      midi.add(ScheduledMidi(offAt, 0x80 | e.channel, e.pitch, 0));
+    var horizonMs = horizon();
+
+    // Fecha as voltas do loop que cabem na janela. Cada volta tem que
+    // avançar (start < end e a âncora anda para `startMs`), então o laço
+    // termina; o teto protege de um loop ínfimo com o relógio parado.
+    final loopStart = _loopStartMs;
+    final loopEnd = _loopEndMs;
+    if (loopStart != null && loopEnd != null) {
+      var guard = 0;
+      while (_scheduledUpToMs < loopEnd &&
+          horizonMs >= loopEnd &&
+          guard++ < 64) {
+        _emit(midi, _scheduledUpToMs, loopEnd, earliest, cutMs: loopEnd);
+        final wrapDevice = _deviceAt(loopEnd);
+        _segments.add(_Segment(wrapDevice, _deviceT0, _musicalT0));
+        _musicalT0 = loopStart;
+        _deviceT0 = wrapDevice;
+        _scheduledUpToMs = loopStart;
+        _laps++;
+        onLoop?.call(_laps);
+        horizonMs = horizon();
+      }
     }
-    _scheduledUpToMs = horizonMs;
+
+    if (horizonMs > _scheduledUpToMs) {
+      _emit(
+        midi,
+        _scheduledUpToMs,
+        horizonMs,
+        earliest,
+        cutMs: loopEnd != null && horizonMs > loopEnd ? loopEnd : null,
+      );
+      _scheduledUpToMs = horizonMs;
+    }
     if (midi.isNotEmpty) engine.schedule(midi);
 
     // Todo evento que ainda faltava já entrou na agenda: não há mais nada
-    // para o Timer fazer.
-    if (horizonMs >= track.durationMs) {
+    // para o Timer fazer (com loop, nunca acaba).
+    if (loopEnd == null && horizonMs >= track.durationMs) {
       _timer?.cancel();
       _timer = null;
     }
   }
 
+  /// Agenda em [midi] o que começa em `[lo, hi)`: notas (com `offMs`
+  /// cortado em [cutMs]), cliques do metrônomo e da contagem inicial.
+  void _emit(
+    List<ScheduledMidi> midi,
+    double lo,
+    double hi,
+    double earliest, {
+    double? cutMs,
+  }) {
+    final floor = _floorMs;
+    final noteLo = floor != null && lo < floor ? floor : lo;
+    if (hi > noteLo) {
+      for (final e in track.startingIn(noteLo, hi, staves: _staves)) {
+        // Atrasado (tick perdido, GC): nunca descarte o par — toque no mais
+        // cedo possível.
+        final onAt = _clamp(_deviceAt(e.onMs), earliest);
+        final offMs = cutMs != null && e.offMs > cutMs ? cutMs : e.offMs;
+        final rawOffAt = _deviceAt(offMs) - _kNoteOffLeadSeconds;
+        final offAt = _clamp(rawOffAt, earliest).clamp(onAt, double.infinity);
+        midi.add(ScheduledMidi(onAt, 0x90 | e.channel, e.pitch, e.velocity));
+        midi.add(ScheduledMidi(offAt, 0x80 | e.channel, e.pitch, 0));
+      }
+    }
+    for (final b in _countIn) {
+      if (b.ms >= lo && b.ms < hi) _click(midi, b, earliest);
+    }
+    if (metronomeOn) {
+      for (final b in beats) {
+        if (b.ms >= hi) break;
+        if (b.ms >= lo && (floor == null || b.ms >= floor)) {
+          _click(midi, b, earliest);
+        }
+      }
+    }
+  }
+
+  void _click(List<ScheduledMidi> midi, Beat b, double earliest) {
+    final at = _clamp(_deviceAt(b.ms), earliest);
+    final note = b.accent ? kMetronomeAccentNote : kMetronomeNote;
+    midi.add(ScheduledMidi(at, 0x90 | kMetronomeChannel, note, 100));
+    midi.add(ScheduledMidi(at + 0.05, 0x80 | kMetronomeChannel, note, 0));
+  }
+
   double _clamp(double at, double earliest) => at < earliest ? earliest : at;
+}
+
+class _Segment {
+  const _Segment(this.until, this.deviceT0, this.musicalT0);
+
+  final double until;
+  final double deviceT0;
+  final double musicalT0;
 }

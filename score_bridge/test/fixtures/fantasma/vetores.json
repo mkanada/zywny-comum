@@ -1,0 +1,1484 @@
+{
+ "_comentario": "G04d: vetores de teste da nota fantasma (§10). `resumo` escrito à mão; `fantasmas` gerado por compare/scripts/ghost_ref.py depois de conferir o resumo. Tolerância dos números: 0,5 unidade de viewBox.",
+ "accGapPerUnit": 0.5,
+ "casos": [
+  {
+   "nome": "acorde: tecla branca acima do acorde",
+   "vsb": "satie.vsb",
+   "esperados": [
+    "orw55dt",
+    "q1t6l0ej",
+    "r1c5f34m"
+   ],
+   "teclas": [
+    69
+   ],
+   "conta": "alvo f#4 (66, dist 4); A4 natural: loc=(4-4)*7+5-2=3; armadura de ré maior não altera lá; sem colisão (|3-1|=2)",
+   "resumo": [
+    {
+     "loc": 3,
+     "m": 0,
+     "accid": null,
+     "ledgers": 0,
+     "pname": "a",
+     "oct": 4,
+     "alt": 0,
+     "target": "r1c5f34m",
+     "staff": "yy2zfkq"
+    }
+   ],
+   "fantasmas": [
+    {
+     "key": 69,
+     "staff": "yy2zfkq",
+     "loc": 3,
+     "locRaw": 3,
+     "m": 0,
+     "ledgersRaw": 0,
+     "pname": "a",
+     "oct": 4,
+     "alt": 0,
+     "target": "r1c5f34m",
+     "head": {
+      "g": "Leipzig:E0A4",
+      "x": 2629,
+      "y": 1258,
+      "sx": 0.72,
+      "sy": 0.72
+     },
+     "accid": null,
+     "ledgers": [],
+     "octave": null,
+     "width": 226.07999999999998
+    }
+   ]
+  },
+  {
+   "nome": "tecla preta, armadura de sustenidos: sustenido com acidente",
+   "vsb": "satie.vsb",
+   "esperados": [
+    "orw55dt",
+    "q1t6l0ej",
+    "r1c5f34m"
+   ],
+   "teclas": [
+    70
+   ],
+   "conta": "lá#4: loc 3; em vigor para lá = 0, alt +1 -> desenha ♯",
+   "resumo": [
+    {
+     "loc": 3,
+     "m": 0,
+     "accid": "E262",
+     "ledgers": 0,
+     "pname": "a",
+     "oct": 4,
+     "alt": 1,
+     "target": "r1c5f34m",
+     "staff": "yy2zfkq"
+    }
+   ],
+   "fantasmas": [
+    {
+     "key": 70,
+     "staff": "yy2zfkq",
+     "loc": 3,
+     "locRaw": 3,
+     "m": 0,
+     "ledgersRaw": 0,
+     "pname": "a",
+     "oct": 4,
+     "alt": 1,
+     "target": "r1c5f34m",
+     "head": {
+      "g": "Leipzig:E0A4",
+      "x": 2629,
+      "y": 1258,
+      "sx": 0.72,
+      "sy": 0.72
+     },
+     "accid": {
+      "g": "Leipzig:E262",
+      "x": 2442.16,
+      "y": 1258,
+      "sx": 0.72,
+      "sy": 0.72
+     },
+     "ledgers": [],
+     "octave": null,
+     "width": 226.07999999999998
+    }
+   ]
+  },
+  {
+   "nome": "tecla preta já na armadura: sem acidente, desloca por colisão (segunda)",
+   "vsb": "satie.vsb",
+   "esperados": [
+    "orw55dt",
+    "q1t6l0ej",
+    "r1c5f34m"
+   ],
+   "teclas": [
+    61
+   ],
+   "conta": "dó#4: loc -2, 1 linha suplementar; a armadura já tem dó# -> sem acidente; |-2-(-3)|=1 e |-2-(-1)|=1 com si3/ré4 na mesma coluna -> desloca",
+   "resumo": [
+    {
+     "loc": -2,
+     "m": 0,
+     "accid": null,
+     "ledgers": 1,
+     "pname": "c",
+     "oct": 4,
+     "alt": 1,
+     "target": "q1t6l0ej",
+     "staff": "yy2zfkq"
+    }
+   ],
+   "fantasmas": [
+    {
+     "key": 61,
+     "staff": "yy2zfkq",
+     "loc": -2,
+     "locRaw": -2,
+     "m": 0,
+     "ledgersRaw": 1,
+     "pname": "c",
+     "oct": 4,
+     "alt": 1,
+     "target": "q1t6l0ej",
+     "head": {
+      "g": "Leipzig:E0A4",
+      "x": 2855.08,
+      "y": 1708,
+      "sx": 0.72,
+      "sy": 0.72
+     },
+     "accid": null,
+     "ledgers": [
+      {
+       "y": 1708,
+       "x1": 2807.08,
+       "x2": 3129.16,
+       "w": 22
+      }
+     ],
+     "octave": null,
+     "width": 226.07999999999998
+    }
+   ]
+  },
+  {
+   "nome": "duas fantasmas em segunda",
+   "vsb": "satie.vsb",
+   "esperados": [
+    "orw55dt",
+    "q1t6l0ej",
+    "r1c5f34m"
+   ],
+   "teclas": [
+    61,
+    63
+   ],
+   "conta": "dó#4 (loc -2) e ré#4 (loc -1, sem ré# na armadura -> ♯); a segunda colide com o ré4 real e com a 1ª fantasma -> 2 deslocamentos",
+   "resumo": [
+    {
+     "loc": -2,
+     "m": 0,
+     "accid": null,
+     "ledgers": 1,
+     "pname": "c",
+     "oct": 4,
+     "alt": 1,
+     "target": "q1t6l0ej",
+     "staff": "yy2zfkq"
+    },
+    {
+     "loc": -1,
+     "m": 0,
+     "accid": "E262",
+     "ledgers": 0,
+     "pname": "d",
+     "oct": 4,
+     "alt": 1,
+     "target": "q1t6l0ej",
+     "staff": "yy2zfkq"
+    }
+   ],
+   "fantasmas": [
+    {
+     "key": 61,
+     "staff": "yy2zfkq",
+     "loc": -2,
+     "locRaw": -2,
+     "m": 0,
+     "ledgersRaw": 1,
+     "pname": "c",
+     "oct": 4,
+     "alt": 1,
+     "target": "q1t6l0ej",
+     "head": {
+      "g": "Leipzig:E0A4",
+      "x": 2855.08,
+      "y": 1708,
+      "sx": 0.72,
+      "sy": 0.72
+     },
+     "accid": null,
+     "ledgers": [
+      {
+       "y": 1708,
+       "x1": 2807.08,
+       "x2": 3129.16,
+       "w": 22
+      }
+     ],
+     "octave": null,
+     "width": 226.07999999999998
+    },
+    {
+     "key": 63,
+     "staff": "yy2zfkq",
+     "loc": -1,
+     "locRaw": -1,
+     "m": 0,
+     "ledgersRaw": 0,
+     "pname": "d",
+     "oct": 4,
+     "alt": 1,
+     "target": "q1t6l0ej",
+     "head": {
+      "g": "Leipzig:E0A4",
+      "x": 3081.16,
+      "y": 1618,
+      "sx": 0.72,
+      "sy": 0.72
+     },
+     "accid": {
+      "g": "Leipzig:E262",
+      "x": 2894.3199999999997,
+      "y": 1618,
+      "sx": 0.72,
+      "sy": 0.72
+     },
+     "ledgers": [],
+     "octave": null,
+     "width": 226.07999999999998
+    }
+   ]
+  },
+  {
+   "nome": "mesmo loc de uma cabeça real, bequadro necessário",
+   "vsb": "satie.vsb",
+   "esperados": [
+    "orw55dt",
+    "q1t6l0ej",
+    "r1c5f34m"
+   ],
+   "teclas": [
+    65
+   ],
+   "conta": "alvo f#4 (66, dist 1); fá4 natural: loc 1 = o do fá#4 real; armadura tem fá# -> alt 0 != +1 -> ♮; desloca",
+   "resumo": [
+    {
+     "loc": 1,
+     "m": 0,
+     "accid": "E261",
+     "ledgers": 0,
+     "pname": "f",
+     "oct": 4,
+     "alt": 0,
+     "target": "r1c5f34m",
+     "staff": "yy2zfkq"
+    }
+   ],
+   "fantasmas": [
+    {
+     "key": 65,
+     "staff": "yy2zfkq",
+     "loc": 1,
+     "locRaw": 1,
+     "m": 0,
+     "ledgersRaw": 0,
+     "pname": "f",
+     "oct": 4,
+     "alt": 0,
+     "target": "r1c5f34m",
+     "head": {
+      "g": "Leipzig:E0A4",
+      "x": 2855.08,
+      "y": 1438,
+      "sx": 0.72,
+      "sy": 0.72
+     },
+     "accid": {
+      "g": "Leipzig:E261",
+      "x": 2697.04,
+      "y": 1438,
+      "sx": 0.72,
+      "sy": 0.72
+     },
+     "ledgers": [],
+     "octave": null,
+     "width": 226.07999999999998
+    }
+   ]
+  },
+  {
+   "nome": "empate de distância: vale a nota de cima",
+   "vsb": "satie.vsb",
+   "esperados": [
+    "orw55dt",
+    "q1t6l0ej",
+    "r1c5f34m"
+   ],
+   "teclas": [
+    64
+   ],
+   "conta": "mi4 (64): |64-62|=|64-66|=2 -> alvo f#4 (a de cima); mi4 natural loc=0+2-2=0; |0-1|=1 -> desloca",
+   "resumo": [
+    {
+     "loc": 0,
+     "m": 0,
+     "accid": null,
+     "ledgers": 0,
+     "pname": "e",
+     "oct": 4,
+     "alt": 0,
+     "target": "r1c5f34m",
+     "staff": "yy2zfkq"
+    }
+   ],
+   "fantasmas": [
+    {
+     "key": 64,
+     "staff": "yy2zfkq",
+     "loc": 0,
+     "locRaw": 0,
+     "m": 0,
+     "ledgersRaw": 0,
+     "pname": "e",
+     "oct": 4,
+     "alt": 0,
+     "target": "r1c5f34m",
+     "head": {
+      "g": "Leipzig:E0A4",
+      "x": 2855.08,
+      "y": 1528,
+      "sx": 0.72,
+      "sy": 0.72
+     },
+     "accid": null,
+     "ledgers": [],
+     "octave": null,
+     "width": 226.07999999999998
+    }
+   ]
+  },
+  {
+   "nome": "8va: muito agudo cabe com uma oitava",
+   "vsb": "satie.vsb",
+   "esperados": [
+    "orw55dt",
+    "q1t6l0ej",
+    "r1c5f34m"
+   ],
+   "teclas": [
+    100
+   ],
+   "conta": "mi7 natural: loc=(7-4)*7+2-2=21 -> 6 linhas > 4 -> loc 14, 3 linhas, 8va",
+   "resumo": [
+    {
+     "loc": 14,
+     "m": 1,
+     "accid": null,
+     "ledgers": 3,
+     "pname": "e",
+     "oct": 7,
+     "alt": 0,
+     "target": "r1c5f34m",
+     "staff": "yy2zfkq"
+    }
+   ],
+   "fantasmas": [
+    {
+     "key": 100,
+     "staff": "yy2zfkq",
+     "loc": 14,
+     "locRaw": 21,
+     "m": 1,
+     "ledgersRaw": 6,
+     "pname": "e",
+     "oct": 7,
+     "alt": 0,
+     "target": "r1c5f34m",
+     "head": {
+      "g": "Leipzig:E0A4",
+      "x": 2629,
+      "y": 268,
+      "sx": 0.72,
+      "sy": 0.72
+     },
+     "accid": null,
+     "ledgers": [
+      {
+       "y": 628,
+       "x1": 2581,
+       "x2": 2903.08,
+       "w": 22
+      },
+      {
+       "y": 448,
+       "x1": 2581,
+       "x2": 2903.08,
+       "w": 22
+      },
+      {
+       "y": 268,
+       "x1": 2581,
+       "x2": 2903.08,
+       "w": 22
+      }
+     ],
+     "octave": {
+      "g": "Leipzig:E511",
+      "x": 2505.52,
+      "y": -2,
+      "sx": 0.72,
+      "sy": 0.72
+     },
+     "width": 226.07999999999998
+    }
+   ]
+  },
+  {
+   "nome": "15mb: muito grave na clave de sol fica presa em 4 linhas (limitação)",
+   "vsb": "satie.vsb",
+   "esperados": [
+    "orw55dt",
+    "q1t6l0ej",
+    "r1c5f34m"
+   ],
+   "teclas": [
+    21
+   ],
+   "conta": "lá0 na clave de sol: loc=(0-4)*7+5-2=-25 (12 linhas); -18 (9), -11 (5) ainda > 4 com m=2 -> presa em -8 (4 linhas), 15mb",
+   "resumo": [
+    {
+     "loc": -8,
+     "m": 2,
+     "accid": null,
+     "ledgers": 4,
+     "pname": "a",
+     "oct": 0,
+     "alt": 0,
+     "target": "orw55dt",
+     "staff": "yy2zfkq"
+    }
+   ],
+   "fantasmas": [
+    {
+     "key": 21,
+     "staff": "yy2zfkq",
+     "loc": -8,
+     "locRaw": -25,
+     "m": 2,
+     "ledgersRaw": 12,
+     "pname": "a",
+     "oct": 0,
+     "alt": 0,
+     "target": "orw55dt",
+     "head": {
+      "g": "Leipzig:E0A4",
+      "x": 2629,
+      "y": 2248,
+      "sx": 0.72,
+      "sy": 0.72
+     },
+     "accid": null,
+     "ledgers": [
+      {
+       "y": 1708,
+       "x1": 2581,
+       "x2": 2903.08,
+       "w": 22
+      },
+      {
+       "y": 1888,
+       "x1": 2581,
+       "x2": 2903.08,
+       "w": 22
+      },
+      {
+       "y": 2068,
+       "x1": 2581,
+       "x2": 2903.08,
+       "w": 22
+      },
+      {
+       "y": 2248,
+       "x1": 2581,
+       "x2": 2903.08,
+       "w": 22
+      }
+     ],
+     "octave": {
+      "g": "Leipzig:E516",
+      "x": 2413.36,
+      "y": 2698,
+      "sx": 0.72,
+      "sy": 0.72
+     },
+     "width": 226.07999999999998
+    }
+   ]
+  },
+  {
+   "nome": "8vb na clave de fá",
+   "vsb": "satie.vsb",
+   "esperados": [
+    "yw90mxt"
+   ],
+   "teclas": [
+    21
+   ],
+   "conta": "lá0 na clave de fá: loc=(0-4)*7+5+10=-13 (6 linhas) -> -6 (3 linhas), 8vb",
+   "resumo": [
+    {
+     "loc": -6,
+     "m": 1,
+     "accid": null,
+     "ledgers": 3,
+     "pname": "a",
+     "oct": 0,
+     "alt": 0,
+     "target": "yw90mxt",
+     "staff": "z1oagi0k"
+    }
+   ],
+   "fantasmas": [
+    {
+     "key": 21,
+     "staff": "z1oagi0k",
+     "loc": -6,
+     "locRaw": -13,
+     "m": 1,
+     "ledgersRaw": 6,
+     "pname": "a",
+     "oct": 0,
+     "alt": 0,
+     "target": "yw90mxt",
+     "head": {
+      "g": "Leipzig:E0A4",
+      "x": 1856,
+      "y": 4291,
+      "sx": 0.72,
+      "sy": 0.72
+     },
+     "accid": null,
+     "ledgers": [
+      {
+       "y": 3931,
+       "x1": 1808,
+       "x2": 2130.08,
+       "w": 22
+      },
+      {
+       "y": 4111,
+       "x1": 1808,
+       "x2": 2130.08,
+       "w": 22
+      },
+      {
+       "y": 4291,
+       "x1": 1808,
+       "x2": 2130.08,
+       "w": 22
+      }
+     ],
+     "octave": {
+      "g": "Leipzig:E512",
+      "x": 1735.04,
+      "y": 4741,
+      "sx": 0.72,
+      "sy": 0.72
+     },
+     "width": 226.07999999999998
+    }
+   ]
+  },
+  {
+   "nome": "pausa e nota em pautas diferentes: vence a mais próxima (pausa)",
+   "vsb": "satie.vsb",
+   "esperados": [
+    "j97m9qh",
+    "yw90mxt"
+   ],
+   "teclas": [
+    64
+   ],
+   "conta": "linha do meio da clave de sol = si4 (71, dist 7); sol2 (43, dist 21) -> pausa; mi4: loc 0; x = o do glifo da pausa",
+   "resumo": [
+    {
+     "loc": 0,
+     "m": 0,
+     "accid": null,
+     "ledgers": 0,
+     "pname": "e",
+     "oct": 4,
+     "alt": 0,
+     "target": "j97m9qh",
+     "staff": "yy2zfkq"
+    }
+   ],
+   "fantasmas": [
+    {
+     "key": 64,
+     "staff": "yy2zfkq",
+     "loc": 0,
+     "locRaw": 0,
+     "m": 0,
+     "ledgersRaw": 0,
+     "pname": "e",
+     "oct": 4,
+     "alt": 0,
+     "target": "j97m9qh",
+     "head": {
+      "g": "Leipzig:E0A4",
+      "x": 1856,
+      "y": 1528,
+      "sx": 0.72,
+      "sy": 0.72
+     },
+     "accid": null,
+     "ledgers": [],
+     "octave": null,
+     "width": 226.07999999999998
+    }
+   ]
+  },
+  {
+   "nome": "pausa e nota em pautas diferentes: vence a nota do baixo",
+   "vsb": "satie.vsb",
+   "esperados": [
+    "j97m9qh",
+    "yw90mxt"
+   ],
+   "teclas": [
+    45
+   ],
+   "conta": "lá2 (45): dist 2 do sol2 -> baixo; lá2 na clave de fá: loc=(2-4)*7+5+10=1; |1-0|=1 com o sol2 real -> desloca",
+   "resumo": [
+    {
+     "loc": 1,
+     "m": 0,
+     "accid": null,
+     "ledgers": 0,
+     "pname": "a",
+     "oct": 2,
+     "alt": 0,
+     "target": "yw90mxt",
+     "staff": "z1oagi0k"
+    }
+   ],
+   "fantasmas": [
+    {
+     "key": 45,
+     "staff": "z1oagi0k",
+     "loc": 1,
+     "locRaw": 1,
+     "m": 0,
+     "ledgersRaw": 0,
+     "pname": "a",
+     "oct": 2,
+     "alt": 0,
+     "target": "yw90mxt",
+     "head": {
+      "g": "Leipzig:E0A4",
+      "x": 2082.08,
+      "y": 3661,
+      "sx": 0.72,
+      "sy": 0.72
+     },
+     "accid": null,
+     "ledgers": [],
+     "octave": null,
+     "width": 226.07999999999998
+    }
+   ]
+  },
+  {
+   "nome": "sem armadura: sustenido se acima da nota esperada",
+   "vsb": "f01-clave-no-meio.vsb",
+   "esperados": [
+    "f01-a"
+   ],
+   "teclas": [
+    73
+   ],
+   "conta": "dó5 (72); 73 > 72 e sem armadura -> dó#5: loc=(5-4)*7+0-2=5; em vigor 0 -> ♯; = loc do dó5 real -> desloca",
+   "resumo": [
+    {
+     "loc": 5,
+     "m": 0,
+     "accid": "E262",
+     "ledgers": 0,
+     "pname": "c",
+     "oct": 5,
+     "alt": 1,
+     "target": "f01-a",
+     "staff": "uukfmsn"
+    }
+   ],
+   "fantasmas": [
+    {
+     "key": 73,
+     "staff": "uukfmsn",
+     "loc": 5,
+     "locRaw": 5,
+     "m": 0,
+     "ledgersRaw": 0,
+     "pname": "c",
+     "oct": 5,
+     "alt": 1,
+     "target": "f01-a",
+     "head": {
+      "g": "Leipzig:E0A4",
+      "x": 1509.08,
+      "y": 810,
+      "sx": 0.72,
+      "sy": 0.72
+     },
+     "accid": {
+      "g": "Leipzig:E262",
+      "x": 1322.24,
+      "y": 810,
+      "sx": 0.72,
+      "sy": 0.72
+     },
+     "ledgers": [],
+     "octave": null,
+     "width": 226.07999999999998
+    }
+   ]
+  },
+  {
+   "nome": "sem armadura: bemol se abaixo da nota esperada",
+   "vsb": "f01-clave-no-meio.vsb",
+   "esperados": [
+    "f01-a"
+   ],
+   "teclas": [
+    70
+   ],
+   "conta": "70 < 72 e sem armadura -> si♭4: loc=0+6-2=4; ♭",
+   "resumo": [
+    {
+     "loc": 4,
+     "m": 0,
+     "accid": "E260",
+     "ledgers": 0,
+     "pname": "b",
+     "oct": 4,
+     "alt": -1,
+     "target": "f01-a",
+     "staff": "uukfmsn"
+    }
+   ],
+   "fantasmas": [
+    {
+     "key": 70,
+     "staff": "uukfmsn",
+     "loc": 4,
+     "locRaw": 4,
+     "m": 0,
+     "ledgersRaw": 0,
+     "pname": "b",
+     "oct": 4,
+     "alt": -1,
+     "target": "f01-a",
+     "head": {
+      "g": "Leipzig:E0A4",
+      "x": 1509.08,
+      "y": 900,
+      "sx": 0.72,
+      "sy": 0.72
+     },
+     "accid": {
+      "g": "Leipzig:E260",
+      "x": 1321.52,
+      "y": 900,
+      "sx": 0.72,
+      "sy": 0.72
+     },
+     "ledgers": [],
+     "octave": null,
+     "width": 226.07999999999998
+    }
+   ]
+  },
+  {
+   "nome": "clave muda no meio do compasso",
+   "vsb": "f01-clave-no-meio.vsb",
+   "esperados": [
+    "f01-c"
+   ],
+   "teclas": [
+    50
+   ],
+   "conta": "após a clave de fá (co=10): ré3 loc=(3-4)*7+1+10=4",
+   "resumo": [
+    {
+     "loc": 4,
+     "m": 0,
+     "accid": null,
+     "ledgers": 0,
+     "pname": "d",
+     "oct": 3,
+     "alt": 0,
+     "target": "f01-c",
+     "staff": "uukfmsn"
+    }
+   ],
+   "fantasmas": [
+    {
+     "key": 50,
+     "staff": "uukfmsn",
+     "loc": 4,
+     "locRaw": 4,
+     "m": 0,
+     "ledgersRaw": 0,
+     "pname": "d",
+     "oct": 3,
+     "alt": 0,
+     "target": "f01-c",
+     "head": {
+      "g": "Leipzig:E0A4",
+      "x": 3042.08,
+      "y": 900,
+      "sx": 0.72,
+      "sy": 0.72
+     },
+     "accid": null,
+     "ledgers": [],
+     "octave": null,
+     "width": 226.07999999999998
+    }
+   ]
+  },
+  {
+   "nome": "8va escrita: a fantasma usa a altura escrita",
+   "vsb": "f02-oitavas.vsb",
+   "esperados": [
+    "f02-a"
+   ],
+   "teclas": [
+    86
+   ],
+   "conta": "dó5 sob 8va soa dó6 (sh=12); tecla 86 -> escrita 74 = ré5: loc=7+1-2=6",
+   "resumo": [
+    {
+     "loc": 6,
+     "m": 0,
+     "accid": null,
+     "ledgers": 0,
+     "pname": "d",
+     "oct": 5,
+     "alt": 0,
+     "target": "f02-a",
+     "staff": "uukfmsn"
+    }
+   ],
+   "fantasmas": [
+    {
+     "key": 86,
+     "staff": "uukfmsn",
+     "loc": 6,
+     "locRaw": 6,
+     "m": 0,
+     "ledgersRaw": 0,
+     "pname": "d",
+     "oct": 5,
+     "alt": 0,
+     "target": "f02-a",
+     "head": {
+      "g": "Leipzig:E0A4",
+      "x": 1509.08,
+      "y": 720,
+      "sx": 0.72,
+      "sy": 0.72
+     },
+     "accid": null,
+     "ledgers": [],
+     "octave": null,
+     "width": 226.07999999999998
+    }
+   ]
+  },
+  {
+   "nome": "8vb escrita",
+   "vsb": "f02-oitavas.vsb",
+   "esperados": [
+    "f02-e"
+   ],
+   "teclas": [
+    50
+   ],
+   "conta": "dó4 sob 8vb soa dó3 (sh=-12); tecla 50 -> escrita 62 = ré4: loc=0+1-2=-1",
+   "resumo": [
+    {
+     "loc": -1,
+     "m": 0,
+     "accid": null,
+     "ledgers": 0,
+     "pname": "d",
+     "oct": 4,
+     "alt": 0,
+     "target": "f02-e",
+     "staff": "k1egcmst"
+    }
+   ],
+   "fantasmas": [
+    {
+     "key": 50,
+     "staff": "k1egcmst",
+     "loc": -1,
+     "locRaw": -1,
+     "m": 0,
+     "ledgersRaw": 0,
+     "pname": "d",
+     "oct": 4,
+     "alt": 0,
+     "target": "f02-e",
+     "head": {
+      "g": "Leipzig:E0A4",
+      "x": 4462.08,
+      "y": 1350,
+      "sx": 0.72,
+      "sy": 0.72
+     },
+     "accid": null,
+     "ledgers": [],
+     "octave": null,
+     "width": 226.07999999999998
+    }
+   ]
+  },
+  {
+   "nome": "instrumento transpositor (clarinete em Si♭), tecla branca",
+   "vsb": "f03-transpositor.vsb",
+   "esperados": [
+    "f03-b"
+   ],
+   "teclas": [
+    77
+   ],
+   "conta": "sh=-2: som 77 -> escrita 79 = sol5 natural; loc=7+4-2=9; armadura de ré maior não altera sol",
+   "resumo": [
+    {
+     "loc": 9,
+     "m": 0,
+     "accid": null,
+     "ledgers": 0,
+     "pname": "g",
+     "oct": 5,
+     "alt": 0,
+     "target": "f03-b",
+     "staff": "uukfmsn"
+    }
+   ],
+   "fantasmas": [
+    {
+     "key": 77,
+     "staff": "uukfmsn",
+     "loc": 9,
+     "locRaw": 9,
+     "m": 0,
+     "ledgersRaw": 0,
+     "pname": "g",
+     "oct": 5,
+     "alt": 0,
+     "target": "f03-b",
+     "head": {
+      "g": "Leipzig:E0A4",
+      "x": 2698.08,
+      "y": 450,
+      "sx": 0.72,
+      "sy": 0.72
+     },
+     "accid": null,
+     "ledgers": [],
+     "octave": null,
+     "width": 226.07999999999998
+    }
+   ]
+  },
+  {
+   "nome": "instrumento transpositor, tecla preta",
+   "vsb": "f03-transpositor.vsb",
+   "esperados": [
+    "f03-b"
+   ],
+   "teclas": [
+    78
+   ],
+   "conta": "som 78 -> escrita 80 = sol#5 (armadura de sustenidos); em vigor 0 -> ♯",
+   "resumo": [
+    {
+     "loc": 9,
+     "m": 0,
+     "accid": "E262",
+     "ledgers": 0,
+     "pname": "g",
+     "oct": 5,
+     "alt": 1,
+     "target": "f03-b",
+     "staff": "uukfmsn"
+    }
+   ],
+   "fantasmas": [
+    {
+     "key": 78,
+     "staff": "uukfmsn",
+     "loc": 9,
+     "locRaw": 9,
+     "m": 0,
+     "ledgersRaw": 0,
+     "pname": "g",
+     "oct": 5,
+     "alt": 1,
+     "target": "f03-b",
+     "head": {
+      "g": "Leipzig:E0A4",
+      "x": 2698.08,
+      "y": 450,
+      "sx": 0.72,
+      "sy": 0.72
+     },
+     "accid": {
+      "g": "Leipzig:E262",
+      "x": 2511.24,
+      "y": 450,
+      "sx": 0.72,
+      "sy": 0.72
+     },
+     "ledgers": [],
+     "octave": null,
+     "width": 226.07999999999998
+    }
+   ]
+  },
+  {
+   "nome": "cross-staff: a fantasma vai na pauta onde a nota está desenhada",
+   "vsb": "f04-cross-staff.vsb",
+   "esperados": [
+    "f04-b"
+   ],
+   "teclas": [
+    62
+   ],
+   "conta": "f04-b (mi4) é desenhada na pauta de baixo (clave de fá, co=10): ré4 loc=0+1+10=11 -> 1 linha acima da pauta",
+   "resumo": [
+    {
+     "loc": 11,
+     "m": 0,
+     "accid": null,
+     "ledgers": 1,
+     "pname": "d",
+     "oct": 4,
+     "alt": 0,
+     "target": "f04-b",
+     "staff": "j196sd00"
+    }
+   ],
+   "fantasmas": [
+    {
+     "key": 62,
+     "staff": "j196sd00",
+     "loc": 11,
+     "locRaw": 11,
+     "m": 0,
+     "ledgersRaw": 1,
+     "pname": "d",
+     "oct": 4,
+     "alt": 0,
+     "target": "f04-b",
+     "head": {
+      "g": "Leipzig:E0A4",
+      "x": 2262.08,
+      "y": 2070,
+      "sx": 0.72,
+      "sy": 0.72
+     },
+     "accid": null,
+     "ledgers": [
+      {
+       "y": 2160,
+       "x1": 2214.08,
+       "x2": 2536.16,
+       "w": 22
+      }
+     ],
+     "octave": null,
+     "width": 226.07999999999998
+    }
+   ]
+  },
+  {
+   "nome": "armadura não padronizada (mista): sentido do erro",
+   "vsb": "f05-armadura-nao-padrao.vsb",
+   "esperados": [
+    "f05-c"
+   ],
+   "teclas": [
+    66
+   ],
+   "conta": "fá# e si♭ na armadura (mista) -> vale o sentido: 66 < 72 -> sol♭4 loc=0+4-2=2; em vigor sol=0 -> ♭",
+   "resumo": [
+    {
+     "loc": 2,
+     "m": 0,
+     "accid": "E260",
+     "ledgers": 0,
+     "pname": "g",
+     "oct": 4,
+     "alt": -1,
+     "target": "f05-c",
+     "staff": "w1j2t6tf"
+    }
+   ],
+   "fantasmas": [
+    {
+     "key": 66,
+     "staff": "w1j2t6tf",
+     "loc": 2,
+     "locRaw": 2,
+     "m": 0,
+     "ledgersRaw": 0,
+     "pname": "g",
+     "oct": 4,
+     "alt": -1,
+     "target": "f05-c",
+     "head": {
+      "g": "Leipzig:E0A4",
+      "x": 3163,
+      "y": 1080,
+      "sx": 0.72,
+      "sy": 0.72
+     },
+     "accid": {
+      "g": "Leipzig:E260",
+      "x": 2975.44,
+      "y": 1080,
+      "sx": 0.72,
+      "sy": 0.72
+     },
+     "ledgers": [],
+     "octave": null,
+     "width": 226.07999999999998
+    }
+   ]
+  },
+  {
+   "nome": "armadura não padronizada: bemol já em vigor",
+   "vsb": "f05-armadura-nao-padrao.vsb",
+   "esperados": [
+    "f05-c"
+   ],
+   "teclas": [
+    70
+   ],
+   "conta": "70 < 72 -> si♭4 loc 4; a armadura já tem si♭ -> sem acidente",
+   "resumo": [
+    {
+     "loc": 4,
+     "m": 0,
+     "accid": null,
+     "ledgers": 0,
+     "pname": "b",
+     "oct": 4,
+     "alt": -1,
+     "target": "f05-c",
+     "staff": "w1j2t6tf"
+    }
+   ],
+   "fantasmas": [
+    {
+     "key": 70,
+     "staff": "w1j2t6tf",
+     "loc": 4,
+     "locRaw": 4,
+     "m": 0,
+     "ledgersRaw": 0,
+     "pname": "b",
+     "oct": 4,
+     "alt": -1,
+     "target": "f05-c",
+     "head": {
+      "g": "Leipzig:E0A4",
+      "x": 3389.08,
+      "y": 900,
+      "sx": 0.72,
+      "sy": 0.72
+     },
+     "accid": null,
+     "ledgers": [],
+     "octave": null,
+     "width": 226.07999999999998
+    }
+   ]
+  },
+  {
+   "nome": "mudança de armadura: sustenido já na nova armadura",
+   "vsb": "f06-mudanca-armadura.vsb",
+   "esperados": [
+    "f06-k"
+   ],
+   "teclas": [
+    68
+   ],
+   "conta": "compasso 3 tem 3 sustenidos (fá#, dó#, sol#): sol#4 loc 2, sem acidente",
+   "resumo": [
+    {
+     "loc": 2,
+     "m": 0,
+     "accid": null,
+     "ledgers": 0,
+     "pname": "g",
+     "oct": 4,
+     "alt": 1,
+     "target": "f06-k",
+     "staff": "axzadr3"
+    }
+   ],
+   "fantasmas": [
+    {
+     "key": 68,
+     "staff": "axzadr3",
+     "loc": 2,
+     "locRaw": 2,
+     "m": 0,
+     "ledgersRaw": 0,
+     "pname": "g",
+     "oct": 4,
+     "alt": 1,
+     "target": "f06-k",
+     "head": {
+      "g": "Leipzig:E0A4",
+      "x": 10877.08,
+      "y": 1080,
+      "sx": 0.72,
+      "sy": 0.72
+     },
+     "accid": null,
+     "ledgers": [],
+     "octave": null,
+     "width": 226.07999999999998
+    }
+   ]
+  },
+  {
+   "nome": "mudança de armadura: bemol da nova armadura",
+   "vsb": "f06-mudanca-armadura.vsb",
+   "esperados": [
+    "f06-q"
+   ],
+   "teclas": [
+    68
+   ],
+   "conta": "compasso 5 tem 3 bemóis (si♭, mi♭, lá♭): 68 -> lá♭4 loc 3, sem acidente",
+   "resumo": [
+    {
+     "loc": 3,
+     "m": 0,
+     "accid": null,
+     "ledgers": 0,
+     "pname": "a",
+     "oct": 4,
+     "alt": -1,
+     "target": "f06-q",
+     "staff": "ka32vyn"
+    }
+   ],
+   "fantasmas": [
+    {
+     "key": 68,
+     "staff": "ka32vyn",
+     "loc": 3,
+     "locRaw": 3,
+     "m": 0,
+     "ledgersRaw": 0,
+     "pname": "a",
+     "oct": 4,
+     "alt": -1,
+     "target": "f06-q",
+     "head": {
+      "g": "Leipzig:E0A4",
+      "x": 16708,
+      "y": 990,
+      "sx": 0.72,
+      "sy": 0.72
+     },
+     "accid": null,
+     "ledgers": [],
+     "octave": null,
+     "width": 226.07999999999998
+    }
+   ]
+  },
+  {
+   "nome": "acidente escrito antes, em outra camada: bequadro necessário",
+   "vsb": "f07-acidentes.vsb",
+   "esperados": [
+    "f07-c"
+   ],
+   "teclas": [
+    65
+   ],
+   "conta": "fá#4 escrito antes na camada 1 (acc f4=+1); fá4 natural -> alt 0 != +1 -> ♮; loc = o do fá#4 real -> desloca",
+   "resumo": [
+    {
+     "loc": 1,
+     "m": 0,
+     "accid": "E261",
+     "ledgers": 0,
+     "pname": "f",
+     "oct": 4,
+     "alt": 0,
+     "target": "f07-c",
+     "staff": "uukfmsn"
+    }
+   ],
+   "fantasmas": [
+    {
+     "key": 65,
+     "staff": "uukfmsn",
+     "loc": 1,
+     "locRaw": 1,
+     "m": 0,
+     "ledgersRaw": 0,
+     "pname": "f",
+     "oct": 4,
+     "alt": 0,
+     "target": "f07-c",
+     "head": {
+      "g": "Leipzig:E0A4",
+      "x": 3067.08,
+      "y": 1170,
+      "sx": 0.72,
+      "sy": 0.72
+     },
+     "accid": {
+      "g": "Leipzig:E261",
+      "x": 2909.04,
+      "y": 1170,
+      "sx": 0.72,
+      "sy": 0.72
+     },
+     "ledgers": [],
+     "octave": null,
+     "width": 226.07999999999998
+    }
+   ]
+  },
+  {
+   "nome": "acidente escrito antes no compasso: sustenido já em vigor",
+   "vsb": "f07-acidentes.vsb",
+   "esperados": [
+    "f07-j"
+   ],
+   "teclas": [
+    68
+   ],
+   "conta": "compasso 3 sem armadura; sol#4 escrito antes (acc g4=+1); 68 > 65 -> sol#4 loc 2; em vigor +1 -> sem acidente",
+   "resumo": [
+    {
+     "loc": 2,
+     "m": 0,
+     "accid": null,
+     "ledgers": 0,
+     "pname": "g",
+     "oct": 4,
+     "alt": 1,
+     "target": "f07-j",
+     "staff": "j97m9qh"
+    }
+   ],
+   "fantasmas": [
+    {
+     "key": 68,
+     "staff": "j97m9qh",
+     "loc": 2,
+     "locRaw": 2,
+     "m": 0,
+     "ledgersRaw": 0,
+     "pname": "g",
+     "oct": 4,
+     "alt": 1,
+     "target": "f07-j",
+     "head": {
+      "g": "Leipzig:E0A4",
+      "x": 8692.08,
+      "y": 1080,
+      "sx": 0.72,
+      "sy": 0.72
+     },
+     "accid": null,
+     "ledgers": [],
+     "octave": null,
+     "width": 226.07999999999998
+    }
+   ]
+  },
+  {
+   "nome": "pausas e mRest em duas pautas: nota da outra pauta mais próxima",
+   "vsb": "f08-pausas.vsb",
+   "esperados": [
+    "f08-mr1",
+    "f08-mr2"
+   ],
+   "teclas": [
+    50
+   ],
+   "conta": "mRest na clave de sol: linha do meio si4 (71, dist 21); na de fá: ré3 (50, dist 0) -> pauta de baixo; ré3 loc=(3-4)*7+1+10=4 = a linha do meio",
+   "resumo": [
+    {
+     "loc": 4,
+     "m": 0,
+     "accid": null,
+     "ledgers": 0,
+     "pname": "d",
+     "oct": 3,
+     "alt": 0,
+     "target": "f08-mr2",
+     "staff": "x1848jna"
+    }
+   ],
+   "fantasmas": [
+    {
+     "key": 50,
+     "staff": "x1848jna",
+     "loc": 4,
+     "locRaw": 4,
+     "m": 0,
+     "ledgersRaw": 0,
+     "pname": "d",
+     "oct": 3,
+     "alt": 0,
+     "target": "f08-mr2",
+     "head": {
+      "g": "Leipzig:E0A4",
+      "x": 4184,
+      "y": 2700,
+      "sx": 0.72,
+      "sy": 0.72
+     },
+     "accid": null,
+     "ledgers": [],
+     "octave": null,
+     "width": 226.07999999999998
+    }
+   ]
+  }
+ ]
+}

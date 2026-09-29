@@ -42,6 +42,7 @@ import 'package:flutter/rendering.dart' show ScrollCacheExtent;
 import 'package:flutter/widgets.dart';
 
 import 'hit_test.dart';
+import 'ghost_layer.dart';
 import 'model.dart';
 import 'page_layers.dart';
 import 'score_controller.dart';
@@ -276,6 +277,7 @@ class ScoreView extends StatefulWidget {
     this.overlayBuilder,
     this.onElementTap,
     this.tapClasses,
+    this.ghosts,
   });
 
   final VsbDocument document;
@@ -324,6 +326,9 @@ class ScoreView extends StatefulWidget {
   overlayBuilder;
   final void Function(String id)? onElementTap;
   final Set<String>? tapClasses;
+
+  /// Fantasmas de teclas erradas (G05), repassadas a cada `ScorePageView`.
+  final GhostController? ghosts;
 
   @override
   State<ScoreView> createState() => ScoreViewState();
@@ -867,6 +872,7 @@ class ScoreViewState extends State<ScoreView> with TickerProviderStateMixin {
     overlayBuilder: widget.overlayBuilder,
     onElementTap: widget.onElementTap,
     tapClasses: widget.tapClasses,
+    ghosts: widget.ghosts,
   );
 
   /// Tamanho da página [ref] desenhada dentro de [box]: a maior escala que

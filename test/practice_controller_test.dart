@@ -31,6 +31,7 @@ import 'package:zywny/practice/practice_controller.dart';
 class FakeSoundEngine implements SoundEngine {
   double now = 0;
   final List<ScheduledMidi> scheduled = [];
+  final List<List<int>> sent = [];
 
   @override
   double get nowSeconds => now;
@@ -43,7 +44,7 @@ class FakeSoundEngine implements SoundEngine {
   @override
   Future<void> loadSoundFont(Uint8List bytes) async {}
   @override
-  void send(List<int> midi) {}
+  void send(List<int> midi) => sent.add(midi);
   @override
   void schedule(List<ScheduledMidi> events) => scheduled.addAll(events);
   @override
@@ -133,9 +134,11 @@ void main() {
   });
 
   group('PracticeController', () {
-    test('nota certa avança o freio e o passo, e pinta a nota de verde', () async {
-      final track = _loadTrack('maple-leaf-rag.vsb');
-      final doc = _loadDoc('maple-leaf-rag.vsb');
+    test('tempo real: notas no tempo viram certas, o que não foi tocado vira '
+        'perdido e o resumo reflete', () async {
+      final track = _loadTrack('erik-satie.vsb');
+      final doc = _loadDoc('erik-satie.vsb');
+      final timeline = ScoreTimeline(doc);
       final engine = FakeSoundEngine();
       final scheduler = ScoreAudioScheduler(
         engine: engine,
@@ -147,59 +150,153 @@ void main() {
       addTearDown(scoreController.clearAll);
       final midi = FakeMidiInput();
       addTearDown(midi.dispose);
-
       final practice = PracticeController(
         midiInput: midi,
         track: track,
         scheduler: scheduler,
         controller: scoreController,
-        hand: Hand.direita, // aluno = pauta 1, app = pauta 2
+        hand: Hand.direita,
+        mode: PracticeMode.realtime,
+        measureIndexAt: timeline.measureIndexAt,
       );
       addTearDown(practice.dispose);
 
+      final mine = track.events
+          .where(
+            (e) => Hand.direita.studentStaves.contains(e.staff) && !e.ornament,
+          )
+          .toList();
       practice.start();
-      final step0 = practice.currentStep.value!;
-      _advanceUntil(engine, scheduler, step0.onMs);
-      expect(scheduler.positionMs, step0.onMs);
-
-      for (final e in step0.notes) {
+      // Toca as 4 primeiras no tempo, 1 errada (pitch fora), pula as demais.
+      for (final e in mine.take(4)) {
+        _advanceUntil(engine, scheduler, e.onMs);
         midi.press(e.pitch, atSeconds: engine.now);
+        await pumpEventQueue();
       }
-      // `MidiInputService.notes` é um broadcast normal (sem `sync: true`,
-      // como o de verdade em FlutterMidiInputService): a entrega é por
-      // microtask, não imediata — precisa esvaziar a fila antes de conferir.
+      midi.press(1, atSeconds: engine.now);
       await pumpEventQueue();
+      final until = mine[8].onMs + 400;
+      _advanceUntil(engine, scheduler, until);
+      // Dispara o tick manual (autoTick do controller é Timer real).
+      practice.finish();
+      final r = practice.report;
+      expect(r.correct, 4);
+      expect(r.wrong, 1);
+      expect(r.missed, greaterThanOrEqualTo(3));
+      expect(practice.hasVerdicts, isTrue);
+      practice.stop();
+    });
 
-      // Todas as notas do passo tocadas certas: sessão avançou.
-      final step1 = practice.currentStep.value;
-      expect(step1, isNot(same(step0)));
-      expect(
-        step1 == null || step1.onMs >= step0.onMs,
-        isTrue,
-        reason: 'o próximo passo não pode voltar no tempo',
+    test('ritmo: qualquer tecla no tempo do onset vira certa, soa as notas '
+        'esperadas e o resto vira perdido', () async {
+      final track = _loadTrack('erik-satie.vsb');
+      final doc = _loadDoc('erik-satie.vsb');
+      final engine = FakeSoundEngine();
+      final magic = FakeSoundEngine();
+      final scheduler = ScoreAudioScheduler(
+        engine: engine,
+        track: track,
+        autoTick: false,
       );
+      final scoreController = ScoreController(document: doc);
+      addTearDown(scoreController.dispose);
+      addTearDown(scoreController.clearAll);
+      final midi = FakeMidiInput();
+      addTearDown(midi.dispose);
+      final practice = PracticeController(
+        midiInput: midi,
+        track: track,
+        scheduler: scheduler,
+        controller: scoreController,
+        hand: Hand.direita,
+        mode: PracticeMode.rhythm,
+        magicEngine: magic,
+      );
+      addTearDown(practice.dispose);
 
-      // Cada nota do passo concluído está pintada de verde agora mesmo
-      // (attack/hold nulos — a cor aparece na hora, sem precisar de tick).
-      for (final e in step0.notes) {
-        expect(
-          scoreController.colorOf(e.id),
-          kPracticeCorrectColor,
-          reason: 'nota ${e.id} deveria estar verde após acerto',
-        );
+      final onsets =
+          (track.events
+              .where(
+                (e) =>
+                    Hand.direita.studentStaves.contains(e.staff) && !e.ornament,
+              )
+              .map((e) => e.onMs)
+              .toSet()
+              .toList()
+            ..sort());
+      practice.start();
+      for (final ms in onsets.take(4)) {
+        _advanceUntil(engine, scheduler, ms);
+        midi.press(1, atSeconds: engine.now); // pitch irrelevante
+        await pumpEventQueue();
+        midi.release(1, atSeconds: engine.now + 0.01);
+        await pumpEventQueue();
       }
+      _advanceUntil(engine, scheduler, onsets[8] + 400);
+      practice.finish();
+      final r = practice.report;
+      expect(r.correct + r.early + r.late, 4);
+      expect(r.extra, 0);
+      expect(r.missed, greaterThanOrEqualTo(3));
+      // Piano mágico: note-on de notas esperadas (não o pitch 1) e note-off.
+      final ons = magic.sent.where((m) => (m[0] & 0xF0) == 0x90);
+      expect(ons, isNotEmpty);
+      expect(ons.every((m) => m[1] != 1), isTrue);
+      expect(magic.sent.where((m) => (m[0] & 0xF0) == 0x80), isNotEmpty);
+      practice.stop();
+    });
 
-      // O freio avançou: uma vez que o relógio alcance o novo passo (ou o
-      // fim, se a peça acabou), a posição não fica presa no passo antigo.
-      if (step1 != null) {
-        _advanceUntil(engine, scheduler, step1.onMs);
-        expect(scheduler.positionMs, step1.onMs);
+    test('loop A-B: ao concluir o último passo do trecho a sessão recomeça '
+        'no início e avisa o host', () async {
+      final track = _loadTrack('erik-satie.vsb');
+      final doc = _loadDoc('erik-satie.vsb');
+      final measures = ScoreTimeline(doc).measures;
+      final startMs = measures[1].startMs.toDouble();
+      final endMs = measures[1].endMs.toDouble();
+      final engine = FakeSoundEngine();
+      final scheduler = ScoreAudioScheduler(
+        engine: engine,
+        track: track,
+        autoTick: false,
+      );
+      final scoreController = ScoreController(document: doc);
+      addTearDown(scoreController.dispose);
+      addTearDown(scoreController.clearAll);
+      final midi = FakeMidiInput();
+      addTearDown(midi.dispose);
+      final restarts = <double>[];
+      final practice = PracticeController(
+        midiInput: midi,
+        track: track,
+        scheduler: scheduler,
+        controller: scoreController,
+        hand: Hand.direita,
+        onLoopRestart: restarts.add,
+      );
+      addTearDown(practice.dispose);
+
+      practice.start(fromMs: startMs);
+      practice.setLoop(startMs, endMs);
+      final first = practice.currentStep.value!;
+      expect(first.onMs, greaterThanOrEqualTo(startMs));
+
+      // Toca todos os passos do trecho.
+      var guard = 0;
+      while (restarts.isEmpty && guard++ < 50) {
+        final step = practice.currentStep.value!;
+        _advanceUntil(engine, scheduler, step.onMs);
+        for (final e in step.notes) {
+          midi.press(e.pitch, atSeconds: engine.now);
+        }
+        await pumpEventQueue();
       }
+      expect(restarts, [startMs]);
+      expect(practice.currentStep.value!.onMs, first.onMs);
+      expect(scheduler.positionMs, closeTo(startMs, 1));
     });
 
     test(
-      'nota errada não avança o passo, pisca a mais próxima e marca a '
-      'tecla física',
+      'nota certa avança o freio e o passo, e pinta a nota de verde',
       () async {
         final track = _loadTrack('maple-leaf-rag.vsb');
         final doc = _loadDoc('maple-leaf-rag.vsb');
@@ -220,40 +317,151 @@ void main() {
           track: track,
           scheduler: scheduler,
           controller: scoreController,
-          hand: Hand.direita,
+          hand: Hand.direita, // aluno = pauta 1, app = pauta 2
         );
         addTearDown(practice.dispose);
 
         practice.start();
         final step0 = practice.currentStep.value!;
         _advanceUntil(engine, scheduler, step0.onMs);
+        expect(scheduler.positionMs, step0.onMs);
 
-        // Pitch bem fora do range de piano: garantidamente não é nenhuma
-        // nota esperada do passo.
-        const wrongPitch = 200;
-        midi.press(wrongPitch, atSeconds: engine.now);
+        for (final e in step0.notes) {
+          midi.press(e.pitch, atSeconds: engine.now);
+        }
+        // `MidiInputService.notes` é um broadcast normal (sem `sync: true`,
+        // como o de verdade em FlutterMidiInputService): a entrega é por
+        // microtask, não imediata — precisa esvaziar a fila antes de conferir.
         await pumpEventQueue();
 
+        // Todas as notas do passo tocadas certas: sessão avançou.
+        final step1 = practice.currentStep.value;
+        expect(step1, isNot(same(step0)));
         expect(
-          practice.currentStep.value,
-          same(step0),
-          reason: 'nota errada não avança o passo',
+          step1 == null || step1.onMs >= step0.onMs,
+          isTrue,
+          reason: 'o próximo passo não pode voltar no tempo',
         );
-        expect(practice.wrongPitches.value, contains(wrongPitch));
 
-        final nearest = step0.notes.reduce(
-          (a, b) =>
-              (a.pitch - wrongPitch).abs() <= (b.pitch - wrongPitch).abs()
-              ? a
-              : b,
-        );
-        expect(scoreController.isHighlighted(nearest.id), isTrue);
+        // Cada nota do passo concluído está pintada de verde agora mesmo
+        // (attack/hold nulos — a cor aparece na hora, sem precisar de tick).
+        for (final e in step0.notes) {
+          expect(
+            scoreController.colorOf(e.id),
+            kPracticeCorrectColor,
+            reason: 'nota ${e.id} deveria estar verde após acerto',
+          );
+        }
 
-        midi.release(wrongPitch, atSeconds: engine.now);
-        await pumpEventQueue();
-        expect(practice.wrongPitches.value, isNot(contains(wrongPitch)));
+        // O freio avançou: uma vez que o relógio alcance o novo passo (ou o
+        // fim, se a peça acabou), a posição não fica presa no passo antigo.
+        if (step1 != null) {
+          _advanceUntil(engine, scheduler, step1.onMs);
+          expect(scheduler.positionMs, step1.onMs);
+        }
       },
     );
+
+    test('tecla errada vira fantasma na coluna do passo; certa não', () async {
+      final track = _loadTrack('satie-fantasma.vsb');
+      final doc = _loadDoc('satie-fantasma.vsb');
+      final engine = FakeSoundEngine();
+      final scheduler = ScoreAudioScheduler(
+        engine: engine,
+        track: track,
+        autoTick: false,
+      );
+      final scoreController = ScoreController(document: doc);
+      addTearDown(scoreController.dispose);
+      final ghosts = GhostController()..attachDocument(doc);
+      addTearDown(ghosts.dispose);
+      final midi = FakeMidiInput();
+      addTearDown(midi.dispose);
+
+      final practice = PracticeController(
+        midiInput: midi,
+        track: track,
+        scheduler: scheduler,
+        controller: scoreController,
+        hand: Hand.direita,
+        ghosts: ghosts,
+      );
+      addTearDown(practice.dispose);
+      practice.start();
+      final step = practice.currentStep.value!;
+      final wrong =
+          step.notes.map((e) => e.pitch).reduce((a, b) => a > b ? a : b) + 1;
+      final stepIds = step.notes.map((e) => e.id).toSet();
+
+      midi.press(wrong, atSeconds: engine.now);
+      await pumpEventQueue();
+      expect(ghosts.visible, hasLength(1));
+      final ghost = ghosts.visible.single.ghost;
+      expect(ghost.key, wrong);
+      expect(stepIds.map(doc.sceneIdOf), contains(ghost.targetId));
+
+      // Tecla certa não gera fantasma nova.
+      midi.press(step.notes.first.pitch, atSeconds: engine.now);
+      await pumpEventQueue();
+      expect(ghosts.visible, hasLength(1));
+
+      practice.stop();
+      expect(ghosts.isEmpty, isTrue);
+    });
+
+    test('nota errada não avança o passo, pisca a mais próxima e marca a '
+        'tecla física', () async {
+      final track = _loadTrack('maple-leaf-rag.vsb');
+      final doc = _loadDoc('maple-leaf-rag.vsb');
+      final engine = FakeSoundEngine();
+      final scheduler = ScoreAudioScheduler(
+        engine: engine,
+        track: track,
+        autoTick: false,
+      );
+      final scoreController = ScoreController(document: doc);
+      addTearDown(scoreController.dispose);
+      addTearDown(scoreController.clearAll);
+      final midi = FakeMidiInput();
+      addTearDown(midi.dispose);
+
+      final practice = PracticeController(
+        midiInput: midi,
+        track: track,
+        scheduler: scheduler,
+        controller: scoreController,
+        hand: Hand.direita,
+      );
+      addTearDown(practice.dispose);
+
+      practice.start();
+      final step0 = practice.currentStep.value!;
+      _advanceUntil(engine, scheduler, step0.onMs);
+
+      // Pitch bem fora do range de piano: garantidamente não é nenhuma
+      // nota esperada do passo.
+      const wrongPitch = 200;
+      midi.press(wrongPitch, atSeconds: engine.now);
+      await pumpEventQueue();
+
+      expect(
+        practice.currentStep.value,
+        same(step0),
+        reason: 'nota errada não avança o passo',
+      );
+      expect(practice.wrongPitches.value, contains(wrongPitch));
+
+      final nearest = step0.notes.reduce(
+        (a, b) => (a.pitch - wrongPitch).abs() <= (b.pitch - wrongPitch).abs()
+            ? a
+            : b,
+      );
+      expect(scoreController.isHighlighted(nearest.id), isTrue);
+
+      midi.release(wrongPitch, atSeconds: engine.now);
+      await pumpEventQueue();
+      expect(practice.wrongPitches.value, isNot(contains(wrongPitch)));
+    });
 
     test('stop() solta o freio e limpa os destaques', () async {
       final track = _loadTrack('maple-leaf-rag.vsb');

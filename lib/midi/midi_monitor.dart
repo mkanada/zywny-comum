@@ -27,7 +27,13 @@ class MidiMonitor {
   late final StreamSubscription<PlayedNote> _notesSub;
   late final StreamSubscription<int> _sustainSub;
 
+  /// Desviado (T05, modo ritmo): não toca a tecla real — o treino soa por
+  /// conta própria. Soltar uma tecla ainda passa, para nunca deixar nota
+  /// presa.
+  bool muted = false;
+
   void _onNote(PlayedNote note) {
+    if (muted && note.on) return;
     _engine.send([
       (note.on ? 0x90 : 0x80) | kMidiMonitorChannel,
       note.pitch,

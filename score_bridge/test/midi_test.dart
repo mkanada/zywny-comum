@@ -240,8 +240,7 @@ void main() {
     test('midi presente: doc.midi lido e indexado por manifest.files.midi', () {
       final json = _freshExemploMinimo();
       json['midi'] = _sampleMidiJson;
-      (json['manifest']['files'] as Map<String, dynamic>)['midi'] =
-          'midi.json';
+      (json['manifest']['files'] as Map<String, dynamic>)['midi'] = 'midi.json';
 
       final doc = VsbDocument.fromJson(json);
 
@@ -283,27 +282,22 @@ void main() {
       expect(repeated.single.pitch, original.single.pitch);
     });
 
-    test(
-      'Maple Leaf Rag: todo id de nota do timemap tem notesOf não-vazio '
-      '(critério de aceite 2)',
-      () {
-        final doc = _fixture('maple-leaf-rag.vsb');
-        final midi = doc.midi!;
+    test('Maple Leaf Rag: todo id de nota do timemap tem notesOf não-vazio '
+        '(critério de aceite 2)', () {
+      final doc = _fixture('maple-leaf-rag.vsb');
+      final midi = doc.midi!;
 
-        final noteIds = <String>{
-          for (final entry in doc.timemap!) ...entry.on,
-        };
-        final missing = [
-          for (final id in noteIds)
-            if (midi.notesOf(id).isEmpty) id,
-        ];
-        expect(
-          missing,
-          isEmpty,
-          reason: 'ids sem cobertura em midi.json: $missing',
-        );
-      },
-    );
+      final noteIds = <String>{for (final entry in doc.timemap!) ...entry.on};
+      final missing = [
+        for (final id in noteIds)
+          if (midi.notesOf(id).isEmpty) id,
+      ];
+      expect(
+        missing,
+        isEmpty,
+        reason: 'ids sem cobertura em midi.json: $missing',
+      );
+    });
 
     test('Clair de Lune: pedal e ligadura de uma peça com os dois', () {
       final doc = _fixture('repeticoes/Clair_de_Lune__Debussy.vsb');
@@ -319,27 +313,22 @@ void main() {
       expect(midi.notesOf(continuationId).single.id, head.id);
     });
 
-    test(
-      'Clair de Lune: quase todo id de nota do timemap tem notesOf '
-      'não-vazio (algumas exceções conhecidas, herdadas de G01 — notas '
-      'silenciosas/cue/sameas, não investigadas a fundo em G02)',
-      () {
-        final doc = _fixture('repeticoes/Clair_de_Lune__Debussy.vsb');
-        final midi = doc.midi!;
+    test('Clair de Lune: quase todo id de nota do timemap tem notesOf '
+        'não-vazio (algumas exceções conhecidas, herdadas de G01 — notas '
+        'silenciosas/cue/sameas, não investigadas a fundo em G02)', () {
+      final doc = _fixture('repeticoes/Clair_de_Lune__Debussy.vsb');
+      final midi = doc.midi!;
 
-        final noteIds = <String>{
-          for (final entry in doc.timemap!) ...entry.on,
-        };
-        final missing = [
-          for (final id in noteIds)
-            if (midi.notesOf(id).isEmpty) id,
-        ];
-        expect(
-          missing.length,
-          lessThanOrEqualTo(5),
-          reason: 'ids sem cobertura em midi.json: $missing',
-        );
-      },
-    );
+      final noteIds = <String>{for (final entry in doc.timemap!) ...entry.on};
+      final missing = [
+        for (final id in noteIds)
+          if (midi.notesOf(id).isEmpty) id,
+      ];
+      expect(
+        missing.length,
+        lessThanOrEqualTo(5),
+        reason: 'ids sem cobertura em midi.json: $missing',
+      );
+    });
   });
 }

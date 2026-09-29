@@ -17,3 +17,11 @@ const kPracticeWrongColor = Color(0xFFC62828);
 const kPracticeWrongAttack = Duration(milliseconds: 60);
 const kPracticeWrongHold = Duration(milliseconds: 150);
 const kPracticeWrongRelease = Duration(milliseconds: 250);
+
+/// Tempo real (T03): adiantado/atrasado — laranja, diferente do vermelho de
+/// errado.
+const kPracticeOffBeatColor = Color(0xFFEF8A00);
+
+/// Tempo real: nota que passou sem ser tocada.
+const kPracticeMissedColor = Color(0xFF8E8E93);
+const kPracticeMissedHold = Duration(milliseconds: 500);

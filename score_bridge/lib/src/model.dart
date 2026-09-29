@@ -68,6 +68,7 @@ class VsbManifestFiles {
   final String? meta;
   final String? alternates;
   final String? midi;
+  final String? pitchpos;
 
   const VsbManifestFiles({
     required this.scene,
@@ -76,6 +77,7 @@ class VsbManifestFiles {
     this.meta,
     this.alternates,
     this.midi,
+    this.pitchpos,
   });
 }
 
@@ -225,6 +227,90 @@ class VsbMidi {
   List<MidiNote> notesOf(String id) => _byId[id] ?? const [];
 }
 
+/// Contexto de notação de uma nota ou pausa (`pitchpos.json`, §2.8): o que o
+/// host precisa para calcular onde uma tecla qualquer ficaria escrita naquele
+/// ponto da partitura (a nota fantasma, §10).
+class PitchEvent {
+  /// `true` para nota (`t: "n"`), `false` para pausa (`t: "r"`).
+  final bool isNote;
+
+  /// `clefLocOffset` da clave vigente na pauta onde o elemento é desenhado.
+  final int clefOffset;
+
+  /// Semitons entre som e escrita (transposição + 8va/8vb); som = escrita + shift.
+  final int shift;
+
+  /// Alteração da armadura vigente, por letra minúscula (`"f"` → +1).
+  final Map<String, int> key;
+
+  /// Alteração em vigor por letra+oitava (`"g4"`) na coluna do elemento; só as
+  /// que diferem da armadura.
+  final Map<String, int> accidentals;
+
+  /// Só nota: letra escrita ('c'…'b'), oitava escrita, alteração sonora e o
+  /// `loc` com que o Verovio desenhou a cabeça.
+  final String? pname;
+  final int? octave;
+  final int? alter;
+  final int? loc;
+
+  const PitchEvent({
+    required this.isNote,
+    required this.clefOffset,
+    required this.shift,
+    required this.key,
+    required this.accidentals,
+    this.pname,
+    this.octave,
+    this.alter,
+    this.loc,
+  });
+}
+
+/// `pitchpos.json` (§2.8), indexado pelo id **notado** (use
+/// [VsbDocument.sceneIdOf] para ids expandidos do timemap).
+class VsbPitchPos {
+  final Map<String, PitchEvent> events;
+
+  const VsbPitchPos(this.events);
+}
+
+/// Geometria de uma pauta (nó `staff`, §5.1) para a nota fantasma.
+class StaffGeometry {
+  /// y da linha de cima.
+  final double topY;
+
+  /// Meio-espaço: distância entre uma linha e o espaço seguinte (o `loc` sobe
+  /// 1 por [unit]).
+  final double unit;
+  final int lines;
+
+  /// Espessura e extensão (quanto passa da cabeça, de cada lado) das linhas
+  /// suplementares; [ledgerCue] só existe quando difere (cue/grace).
+  final double ledgerThickness;
+  final double ledgerExtension;
+  final double? ledgerCueThickness;
+  final double? ledgerCueExtension;
+
+  /// `[sx, sy]` de um glifo de tamanho normal na pauta.
+  final double glyphScaleX;
+  final double glyphScaleY;
+
+  const StaffGeometry({
+    required this.topY,
+    required this.unit,
+    required this.lines,
+    required this.ledgerThickness,
+    required this.ledgerExtension,
+    this.ledgerCueThickness,
+    this.ledgerCueExtension,
+    required this.glyphScaleX,
+    required this.glyphScaleY,
+  });
+
+  bool get hasLedgerCue => ledgerCueThickness != null;
+}
+
 /// Referência a **qualquer** página do documento (§2.5, P03a/P00): uma
 /// página normal (`sequence == null`, `index` em [VsbDocument.pages]) ou a
 /// página `index` de uma sequência alternativa (`sequence` é o índice dela em
@@ -296,6 +382,11 @@ class VsbDocument {
   /// `midi.json` (peça sem nenhuma nota tocável, ou leitor de antes de G01).
   final VsbMidi? midi;
 
+  /// Contexto de notação por nota/pausa (§2.8); `null` sem o arquivo (peça sem
+  /// nota nem pausa, ou `.vsb` anterior à nota fantasma) — nesse caso não há
+  /// fantasma e nada mais quebra.
+  final VsbPitchPos? pitchPos;
+
   /// Sequências alternativas de `alternates.json` (§2.5); vazia quando o
   /// pacote não tem o arquivo (peça sem repetição, ou leitor de antes de
   /// P03a). Parse **preguiçoso**: o parser só monta a árvore de página na
@@ -315,6 +406,7 @@ class VsbDocument {
     this.timemap,
     this.meta,
     this.midi,
+    this.pitchPos,
     List<AlternateSequence>? alternates,
     List<AlternateSequence> Function()? alternatesLoader,
   }) : assert(
@@ -593,6 +685,13 @@ class SceneNode extends SceneChild {
   final Rect? bbox;
   final List<SceneChild> children;
 
+  /// Só nó `staff` (§5.1, G04b); `null` nos demais e em `.vsb` anteriores.
+  final StaffGeometry? staffGeometry;
+
+  /// Só nota/acorde/pausa cross-staff: `id` da pauta em que o elemento é
+  /// desenhado. `null` = a pauta ancestral.
+  final String? staffRef;
+
   const SceneNode({
     this.id,
     required this.className,
@@ -601,6 +700,8 @@ class SceneNode extends SceneChild {
     this.rotate,
     this.bbox,
     required this.children,
+    this.staffGeometry,
+    this.staffRef,
   });
 }
 

@@ -343,8 +343,15 @@ class RealtimeSession {
 
   /// T04 (loop A-B): reinicia a partir de `musicalMs`, descartando o que já
   /// tinha sido casado ou perdido antes dele.
-  void resetTo(double musicalMs) {
-    _pending = _all.where((e) => e.onMs >= musicalMs).toList();
+  ///
+  /// [untilMs] (exclusivo) limita o fim do trecho — o loop A-B só cobra o que
+  /// cai em `[musicalMs, untilMs)`.
+  void resetTo(double musicalMs, {double? untilMs}) {
+    _pending = _all
+        .where(
+          (e) => e.onMs >= musicalMs && (untilMs == null || e.onMs < untilMs),
+        )
+        .toList();
   }
 
   void dispose() => unawaited(_verdicts.close());

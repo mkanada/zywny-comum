@@ -16,6 +16,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 
+import 'ghost_layer.dart';
 import 'model.dart';
 import 'page_layers.dart';
 import 'score_controller.dart';
@@ -36,6 +37,7 @@ class ScorePageView extends StatefulWidget {
     this.overlayBuilder,
     this.onElementTap,
     this.tapClasses,
+    this.ghosts,
   });
 
   final VsbDocument document;
@@ -93,6 +95,10 @@ class ScorePageView extends StatefulWidget {
   /// Classes que [onElementTap] aceita; `null` é `{'note'}`.
   final Set<String>? tapClasses;
 
+  /// Fantasmas de teclas erradas (G05), pintadas por cima da página com o
+  /// mesmo transform dela. `null` (padrão): nenhuma camada extra.
+  final GhostController? ghosts;
+
   @override
   State<ScorePageView> createState() => ScorePageViewState();
 }
@@ -114,6 +120,7 @@ class ScorePageViewState extends State<ScorePageView> {
   void initState() {
     super.initState();
     widget.controller?.attachDocument(widget.document);
+    widget.ghosts?.attachDocument(widget.document);
     widget.controller?.addListener(_onControllerChanged);
     _collectPromotions();
     _rebuildLayers();
@@ -128,6 +135,7 @@ class ScorePageViewState extends State<ScorePageView> {
       controller?.addListener(_onControllerChanged);
     }
     controller?.attachDocument(widget.document);
+    widget.ghosts?.attachDocument(widget.document);
     final structural =
         oldWidget.document != widget.document ||
         oldWidget.pageIndex != widget.pageIndex ||
@@ -215,7 +223,7 @@ class ScorePageViewState extends State<ScorePageView> {
   @override
   Widget build(BuildContext context) {
     final page = _page;
-    final Widget base = RepaintBoundary(
+    final Widget baseLayer = RepaintBoundary(
       child: CustomPaint(
         painter: _PagePainter(
           _layers!,
@@ -225,6 +233,30 @@ class ScorePageViewState extends State<ScorePageView> {
         ),
       ),
     );
+    Widget base = baseLayer;
+    final ghosts = widget.ghosts;
+    if (ghosts != null) {
+      base = Stack(
+        textDirection: TextDirection.ltr,
+        fit: StackFit.passthrough,
+        children: [
+          baseLayer,
+          IgnorePointer(
+            child: RepaintBoundary(
+              child: CustomPaint(
+                painter: GhostPainter(
+                  controller: ghosts,
+                  page: page,
+                  pageRef: PageRef(widget.pageIndex, sequence: widget.sequence),
+                  glyphCache: widget.document.glyphCache,
+                  applyPageTransform: _layers!.applyPageTransform,
+                ),
+              ),
+            ),
+          ),
+        ],
+      );
+    }
     final hasOverlay =
         widget.overlayBuilder != null && widget.overlayIds.isNotEmpty;
     return AspectRatio(

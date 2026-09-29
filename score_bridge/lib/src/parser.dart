@@ -103,6 +103,15 @@ VsbDocument _fromZipBytes(Uint8List bytes) {
     }
   }
 
+  VsbPitchPos? pitchPos;
+  if (manifest.files.pitchpos != null) {
+    final pitchEntry = archive.findFile(manifest.files.pitchpos!);
+    if (pitchEntry != null) {
+      final decoded = json.decode(utf8.decode(pitchEntry.readBytes()!));
+      pitchPos = parsePitchPosDocument(decoded, path: 'pitchpos');
+    }
+  }
+
   // Parse preguiçoso (VsbDocument.alternates): o zip já trouxe todos os bytes
   // para a memória (ZipDecoder.decodeBytes), então só adiamos o json.decode e
   // a montagem da árvore de página em si — o que mediu 4,6x mais lento na
@@ -128,6 +137,7 @@ VsbDocument _fromZipBytes(Uint8List bytes) {
     timemap: timemap,
     meta: meta,
     midi: midi,
+    pitchPos: pitchPos,
     alternatesLoader: loadAlternates,
   );
 }
@@ -158,6 +168,11 @@ VsbDocument _fromDocumentJson(Map<String, dynamic> root) {
     midi = parseMidiDocument(root['midi'], path: 'midi');
   }
 
+  VsbPitchPos? pitchPos;
+  if (root.containsKey('pitchpos') && root['pitchpos'] != null) {
+    pitchPos = parsePitchPosDocument(root['pitchpos'], path: 'pitchpos');
+  }
+
   // Parse preguiçoso (VsbDocument.alternates): o JSON já está todo decodificado
   // em memória aqui (era um `Map` só); o que adiamos é a montagem da árvore de
   // página (ver a mesma nota em _fromZipBytes).
@@ -177,6 +192,7 @@ VsbDocument _fromDocumentJson(Map<String, dynamic> root) {
     timemap: timemap,
     meta: meta,
     midi: midi,
+    pitchPos: pitchPos,
     alternatesLoader: loadAlternates,
   );
 }
@@ -227,6 +243,9 @@ VsbManifest parseManifestDocument(
     midi: filesJson['midi'] == null
         ? null
         : _asString(filesJson['midi'], '$path.files.midi'),
+    pitchpos: filesJson['pitchpos'] == null
+        ? null
+        : _asString(filesJson['pitchpos'], '$path.files.pitchpos'),
   );
   return VsbManifest(
     format: format,
@@ -344,6 +363,91 @@ VsbCreator _parseCreator(Map<String, dynamic> json, String path) {
   return VsbCreator(
     name: _asString(_requireField(json, 'name', path), '$path.name'),
     role: json['role'] == null ? null : _asString(json['role'], '$path.role'),
+  );
+}
+
+// ---------------------------------------------------------------------------
+// pitchpos.json (§2.8)
+// ---------------------------------------------------------------------------
+
+VsbPitchPos parsePitchPosDocument(dynamic json, {required String path}) {
+  final map = _asMap(json, path);
+  final eventsJson = _requireMap(
+    map,
+    'events',
+    path,
+    fieldPath: '$path.events',
+  );
+  return VsbPitchPos({
+    for (final entry in eventsJson.entries)
+      entry.key: _parsePitchEvent(
+        _asMap(entry.value, '$path.events[${entry.key}]'),
+        '$path.events[${entry.key}]',
+      ),
+  });
+}
+
+PitchEvent _parsePitchEvent(Map<String, dynamic> json, String path) {
+  final t = _asString(_requireField(json, 't', path), '$path.t');
+  if (t != 'n' && t != 'r') {
+    throw VsbFormatException('$path.t', 'esperado "n" ou "r", veio "$t"');
+  }
+  final isNote = t == 'n';
+  Map<String, int> intMap(String field) {
+    final value = json[field];
+    if (value == null) return const {};
+    final m = _asMap(value, '$path.$field');
+    return {
+      for (final e in m.entries)
+        e.key: _asInt(e.value, '$path.$field.${e.key}'),
+    };
+  }
+
+  return PitchEvent(
+    isNote: isNote,
+    clefOffset: _asInt(_requireField(json, 'co', path), '$path.co'),
+    shift: json['sh'] == null ? 0 : _asInt(json['sh'], '$path.sh'),
+    key: intMap('key'),
+    accidentals: intMap('acc'),
+    pname: isNote
+        ? _asString(_requireField(json, 'pn', path), '$path.pn')
+        : null,
+    octave: isNote ? _asInt(_requireField(json, 'o', path), '$path.o') : null,
+    alter: isNote
+        ? _asInt(_requireField(json, 'alt', path), '$path.alt')
+        : null,
+    loc: isNote ? _asInt(_requireField(json, 'loc', path), '$path.loc') : null,
+  );
+}
+
+StaffGeometry? _parseStaffGeometry(Map<String, dynamic> json, String path) {
+  final lines = json['lines'];
+  if (lines == null) return null;
+  final l = _asFlatNumbers(lines, '$path.lines');
+  if (l.length != 3) {
+    throw VsbFormatException('$path.lines', 'esperado [topY, unit, n]');
+  }
+  Float64List pair(String field) {
+    final v = _asFlatNumbers(_requireField(json, field, path), '$path.$field');
+    if (v.length != 2) {
+      throw VsbFormatException('$path.$field', 'esperado array de 2 números');
+    }
+    return v;
+  }
+
+  final ledger = pair('ledger');
+  final gs = pair('gs');
+  final cue = json['ledgerCue'] == null ? null : pair('ledgerCue');
+  return StaffGeometry(
+    topY: l[0],
+    unit: l[1],
+    lines: l[2].toInt(),
+    ledgerThickness: ledger[0],
+    ledgerExtension: ledger[1],
+    ledgerCueThickness: cue?[0],
+    ledgerCueExtension: cue?[1],
+    glyphScaleX: gs[0],
+    glyphScaleY: gs[1],
   );
 }
 
@@ -557,6 +661,12 @@ SceneNode _parseNode(Map<String, dynamic> json, String path, _PageIndex index) {
     rotate: rotate,
     bbox: bbox,
     children: children,
+    staffGeometry: className.split(' ').first == 'staff'
+        ? _parseStaffGeometry(json, path)
+        : null,
+    staffRef: json['staff'] == null
+        ? null
+        : _asString(json['staff'], '$path.staff'),
   );
   if (id != null) {
     index.byId[id] = node;
