@@ -1,8 +1,11 @@
+// ignore_for_file: prefer_initializing_formals
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_midi_command/flutter_midi_command.dart';
 import 'package:flutter_midi_command/flutter_midi_command_messages.dart';
+
+import '../diag_log.dart';
 
 /// Uma nota recebida de um teclado MIDI (M01).
 ///
@@ -56,7 +59,7 @@ class FlutterMidiInputService implements MidiInputService {
   FlutterMidiInputService({
     required double Function() nowSeconds,
     Stream<MidiDataReceivedEvent>? events,
-  }) : _nowSeconds = nowSeconds { // ignore: prefer_initializing_formals
+  }) : _nowSeconds = nowSeconds {
     _sub = (events ?? MidiCommand().onMidiDataReceived)?.listen(_onEvent);
   }
 
@@ -76,8 +79,16 @@ class FlutterMidiInputService implements MidiInputService {
   @override
   ValueListenable<Set<int>> get held => _held;
 
-  void _onEvent(MidiDataReceivedEvent event) =>
-      handleMessage(event.message, atSeconds: _nowSeconds());
+  void _onEvent(MidiDataReceivedEvent event) {
+    final at = _nowSeconds();
+    DiagLog.log(
+      'midi-in',
+      '${event.message.runtimeType} ${event.message.data} '
+          'dev=${event.device.name}(${event.device.id}) '
+          'plugin_ts=${event.timestamp} app_t=${at.toStringAsFixed(4)}',
+    );
+    handleMessage(event.message, atSeconds: at);
+  }
 
   /// Exposto para os testes de unidade do M01 (parsing/normalização com
   /// mensagens sintéticas): não depende de um `MidiCommand` de verdade.

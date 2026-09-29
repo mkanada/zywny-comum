@@ -57,7 +57,9 @@ Future<void> showMidiDevicePicker(
                 if (error != null) ...[
                   Text(
                     error,
-                    style: TextStyle(color: Theme.of(context).colorScheme.error),
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.error,
+                    ),
                   ),
                   const SizedBox(height: 8),
                 ],

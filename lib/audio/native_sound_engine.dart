@@ -41,8 +41,11 @@ typedef _Uint64FromPtrDart = int Function(Pointer<Void>);
 typedef _SendNative = Void Function(Pointer<Void>, Uint8, Uint8, Uint8);
 typedef _SendDart = void Function(Pointer<Void>, int, int, int);
 
-typedef _ScheduleNative =
-    Void Function(Pointer<Void>, Pointer<_ZyEvent>, Uint64);
+typedef _ScheduleNative = Void Function(
+  Pointer<Void>,
+  Pointer<_ZyEvent>,
+  Uint64,
+);
 typedef _ScheduleDart = void Function(Pointer<Void>, Pointer<_ZyEvent>, int);
 
 typedef _SetGainNative = Void Function(Pointer<Void>, Float);
@@ -70,31 +73,28 @@ class _ZyBindings {
       sampleRate = lib.lookupFunction<_Int32FromPtrNative, _Int32FromPtrDart>(
         'zy_sample_rate',
       ),
-      outputLatencyFrames =
-          lib.lookupFunction<_Int32FromPtrNative, _Int32FromPtrDart>(
+      outputLatencyFrames = lib
+          .lookupFunction<_Int32FromPtrNative, _Int32FromPtrDart>(
             'zy_output_latency_frames',
           ),
       nowFrame = lib.lookupFunction<_Uint64FromPtrNative, _Uint64FromPtrDart>(
         'zy_now_frame',
       ),
-      renderFrame =
-          lib.lookupFunction<_Uint64FromPtrNative, _Uint64FromPtrDart>(
+      renderFrame = lib
+          .lookupFunction<_Uint64FromPtrNative, _Uint64FromPtrDart>(
             'zy_render_frame',
           ),
       send = lib.lookupFunction<_SendNative, _SendDart>('zy_send'),
       scheduleBatch = lib.lookupFunction<_ScheduleNative, _ScheduleDart>(
         'zy_schedule',
       ),
-      clearScheduled =
-          lib.lookupFunction<_VoidFromPtrNative, _VoidFromPtrDart>(
-            'zy_clear_scheduled',
-          ),
+      clearScheduled = lib.lookupFunction<_VoidFromPtrNative, _VoidFromPtrDart>(
+        'zy_clear_scheduled',
+      ),
       allNotesOff = lib.lookupFunction<_VoidFromPtrNative, _VoidFromPtrDart>(
         'zy_all_notes_off',
       ),
-      setGain = lib.lookupFunction<_SetGainNative, _SetGainDart>(
-        'zy_set_gain',
-      ),
+      setGain = lib.lookupFunction<_SetGainNative, _SetGainDart>('zy_set_gain'),
       stat = lib.lookupFunction<_StatNative, _StatDart>('zy_stat'),
       lastError = lib.lookupFunction<_LastErrorNative, _LastErrorDart>(
         'zy_last_error',

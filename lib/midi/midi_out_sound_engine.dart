@@ -1,5 +1,7 @@
 // M03: toca a partitura no teclado MIDI do próprio usuário, com o mesmo
 // agendador de K04 (ver docs/plano/M03-saida-midi.md).
+import '../diag_log.dart';
+
 import 'dart:async';
 import 'dart:typed_data';
 
@@ -49,7 +51,8 @@ class MidiOutSoundEngine implements SoundEngine {
     bool autoTick = true,
   }) : _sender = sender, // ignore: prefer_initializing_formals
        _deviceId = deviceId, // ignore: prefer_initializing_formals
-       _dispatchInterval = dispatchInterval, // ignore: prefer_initializing_formals
+       // ignore: prefer_initializing_formals
+       _dispatchInterval = dispatchInterval,
        _autoTick = autoTick, // ignore: prefer_initializing_formals
        _nowSeconds = nowSeconds ?? _stopwatchClock();
 
@@ -194,6 +197,10 @@ class MidiOutSoundEngine implements SoundEngine {
   }
 
   void _sendRaw(int status, int d1, int d2) {
+    DiagLog.log(
+      'midi-out',
+      '0x${status.toRadixString(16)} $d1 $d2 dev=$_deviceId',
+    );
     _sender.send(Uint8List.fromList([status, d1, d2]), deviceId: _deviceId);
   }
 }

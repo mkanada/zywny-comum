@@ -15,7 +15,8 @@ const int kMidiMonitorChannel = 15;
 class MidiMonitor {
   MidiMonitor({required MidiInputService input, required SoundEngine engine})
     : _input = input, // ignore: prefer_initializing_formals
-      _engine = engine { // ignore: prefer_initializing_formals
+      // ignore: prefer_initializing_formals
+      _engine = engine {
     _engine.send([0xC0 | kMidiMonitorChannel, 0, 0]);
     _notesSub = _input.notes.listen(_onNote);
     _sustainSub = _input.sustain.listen(_onSustain);

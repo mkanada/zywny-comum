@@ -4,6 +4,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_midi_command/flutter_midi_command.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../diag_log.dart';
+
 /// Lista dispositivos MIDI, conecta, guarda o último escolhido e reconecta
 /// sozinho a ele — na abertura do app e a cada hot-plug (M01, critério de
 /// aceite 1). Não decodifica mensagens: isso é `MidiInputService`.
@@ -11,7 +13,10 @@ class MidiDeviceManager {
   MidiDeviceManager({MidiCommand? midi, SharedPreferencesAsync? prefs})
     : _midi = midi ?? MidiCommand(),
       _prefs = prefs ?? SharedPreferencesAsync() {
-    _setupSub = _midi.onMidiSetupChanged?.listen((_) => refresh());
+    _setupSub = _midi.onMidiSetupChanged?.listen((c) {
+      DiagLog.log('midi-dev', 'setup mudou: $c');
+      refresh();
+    });
     unawaited(refresh());
   }
 
@@ -31,6 +36,11 @@ class MidiDeviceManager {
   Future<void> refresh() async {
     final list = await _midi.devices ?? const <MidiDevice>[];
     devices.value = list;
+    DiagLog.log(
+      'midi-dev',
+      'dispositivos (${list.length}): ${[for (final d in list) '${d.name} id=${d.id} tipo=${d.type} conectado=${d.connected} '
+            'in=${d.inputPorts.length} out=${d.outputPorts.length}'].join(' | ')}',
+    );
 
     final current = connected.value;
     if (current != null && !list.any((d) => d.id == current.id)) {
@@ -53,12 +63,15 @@ class MidiDeviceManager {
   }
 
   Future<void> connect(MidiDevice device) async {
+    DiagLog.log('midi-dev', 'conectando a ${device.name} (${device.id})');
     try {
       await _midi.connectToDevice(device);
+      DiagLog.log('midi-dev', 'conectado a ${device.name}');
       connected.value = device;
       lastError.value = null;
       await _prefs.setString(_kLastDeviceIdKey, device.id);
     } on MidiConnectionException catch (e) {
+      DiagLog.log('midi-dev', 'falha ao conectar: $e');
       lastError.value = e.toString();
     }
   }
@@ -66,6 +79,7 @@ class MidiDeviceManager {
   void disconnect() {
     final device = connected.value;
     if (device == null) return;
+    DiagLog.log('midi-dev', 'desconectando ${device.name}');
     _midi.disconnectDevice(device);
     connected.value = null;
   }

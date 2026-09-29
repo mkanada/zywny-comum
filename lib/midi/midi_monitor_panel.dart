@@ -73,7 +73,10 @@ class _MidiMonitorPanelState extends State<MidiMonitorPanel> {
             child: Row(
               children: [
                 Expanded(
-                  child: Text('Monitor MIDI', style: theme.textTheme.titleSmall),
+                  child: Text(
+                    'Monitor MIDI',
+                    style: theme.textTheme.titleSmall,
+                  ),
                 ),
                 IconButton(
                   tooltip: 'Trocar dispositivo',
