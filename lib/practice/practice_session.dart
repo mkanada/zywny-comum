@@ -62,15 +62,20 @@ class PracticeStep {
   final Set<int> remaining;
 }
 
-/// Janela de parede, em ms, para agrupar notas de um mesmo acorde no modo
-/// espera. Não é prazo: o modo espera nunca marca `missed` — a janela só
-/// mede o `deltaMs` de cada nota tocada em relação à primeira do acorde.
+/// Janela de parede, em ms, para as notas de um mesmo acorde no modo
+/// espera valerem como "juntas": da primeira à última nota certa do acorde
+/// não pode passar disto. Não é `missed` (o modo espera nunca marca falta):
+/// se estourar, a tentativa recomeça — as notas ainda seguradas continuam
+/// valendo (estão soando junto com o ataque atual), o resto volta a faltar.
 const double kWaitChordWindowMs = 300;
 
 /// Modo espera (T01): o tempo não anda até o acorde certo ser tocado.
 /// Dirigido só por [noteOn]/[noteOff] — sem relógio interno.
 class WaitModeSession {
-  WaitModeSession(List<PracticeStep> steps) : _steps = steps {
+  WaitModeSession(
+    List<PracticeStep> steps, {
+    this._chordWindowMs = kWaitChordWindowMs,
+  }) : _steps = steps {
     _startStep(0);
   }
 
@@ -82,6 +87,7 @@ class WaitModeSession {
   factory WaitModeSession.forStaves(
     PerformanceTrack track, {
     required Set<int> staves,
+    double chordWindowMs = kWaitChordWindowMs,
   }) {
     final byOnMs = <double, List<SoundEvent>>{};
     for (final chord in track.chords(staves: staves)) {
@@ -100,10 +106,13 @@ class WaitModeSession {
           remaining: byOnMs[onMs]!.map((e) => e.pitch).toSet(),
         ),
     ];
-    return WaitModeSession(steps);
+    return WaitModeSession(steps, chordWindowMs: chordWindowMs);
   }
 
   final List<PracticeStep> _steps;
+
+  /// Ver [kWaitChordWindowMs].
+  final double _chordWindowMs;
   int _index = 0;
   final Set<int> _held = {};
   Set<int> _remaining = {};
@@ -130,14 +139,26 @@ class WaitModeSession {
   /// unidade em todas as chamadas de uma sessão) — usado só para o
   /// `deltaMs` do veredito, nunca para decidir se o passo avança.
   void noteOn(int pitch, {required double atMs, int velocity = 0}) {
-    _held.add(pitch);
-    if (done) return;
+    if (done) {
+      _held.add(pitch);
+      return;
+    }
 
     if (_blocked.contains(pitch)) {
       // Ainda presa desde antes deste passo (nota repetida): exige soltar e
       // apertar de novo.
+      _held.add(pitch);
       return;
     }
+
+    if (_firstHitAtMs != null && atMs - _firstHitAtMs! > _chordWindowMs) {
+      // Fora da janela de simultaneidade: a tentativa recomeça. Qualquer
+      // ataque vale, certo ou errado — o errado só emite o veredito e não
+      // abre janela nova.
+      _restartChord();
+      if (done) return;
+    }
+    _held.add(pitch);
 
     if (!_remaining.contains(pitch)) {
       _verdicts.add(
@@ -197,6 +218,24 @@ class WaitModeSession {
     _blocked = _held.intersection(_remaining);
     _firstHitAtMs = null;
     _publish(step);
+  }
+
+  /// Recomeça a tentativa do acorde atual (janela de simultaneidade
+  /// estourada): as notas ainda seguradas continuam valendo — estão soando
+  /// junto com o ataque que disparou o recomeço — e o resto volta a faltar.
+  /// O ataque atual ainda não está em [_held] aqui: se for nota do passo,
+  /// cai em [_remaining] e o fluxo normal o conta como primeiro da nova
+  /// tentativa; se for errada, só emite o veredito. Pode concluir o passo
+  /// (tudo segurado) e avançar.
+  void _restartChord() {
+    final step = _steps[_index];
+    _remaining = step.notes.map((e) => e.pitch).toSet().difference(_held);
+    _firstHitAtMs = null;
+    if (_remaining.isEmpty) {
+      _startStep(_index + 1);
+    } else {
+      _publish(step);
+    }
   }
 
   void _publish(PracticeStep step) {

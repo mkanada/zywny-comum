@@ -190,5 +190,98 @@ void main() {
       session.resetTo(0);
       expect(session.current.value!.index, 0);
     });
+
+    test('acorde pingado sem segurar não acumula: fora da janela a '
+        'tentativa recomeça', () {
+      final steps = [
+        PracticeStep(
+          index: 0,
+          onMs: 0,
+          notes: [_ev('c', 60, 0), _ev('e', 64, 0), _ev('g', 67, 0)],
+          remaining: {60, 64, 67},
+        ),
+      ];
+      final session = WaitModeSession(steps);
+      final verdicts = <NoteVerdict>[];
+      session.verdicts.listen(verdicts.add);
+
+      session.noteOn(60, atMs: 0);
+      session.noteOff(60);
+      // 500ms depois, sem nada segurado: recomeça do zero, o 64 vira o
+      // primeiro da nova tentativa.
+      session.noteOn(64, atMs: 500);
+      expect(session.done, isFalse);
+      expect(session.current.value!.remaining, {60, 67});
+      session.noteOff(64);
+      session.noteOn(67, atMs: 1100);
+      expect(session.done, isFalse);
+      expect(session.current.value!.remaining, {60, 64});
+      expect(
+        verdicts.where((v) => v.kind == PracticeVerdictKind.correct).length,
+        3,
+      );
+    });
+
+    test('nota segurada através da janela continua valendo: o que soa '
+        'junto avança', () {
+      final steps = [
+        PracticeStep(
+          index: 0,
+          onMs: 0,
+          notes: [_ev('c', 60, 0), _ev('e', 64, 0), _ev('g', 67, 0)],
+          remaining: {60, 64, 67},
+        ),
+      ];
+      final session = WaitModeSession(steps);
+
+      session.noteOn(60, atMs: 0); // segura
+      session.noteOn(64, atMs: 500); // fora da janela: recomeça, 60 vale
+      expect(session.current.value!.remaining, {67});
+      session.noteOn(67, atMs: 550);
+      expect(session.done, isTrue);
+    });
+
+    test('na fronteira da janela (300ms) ainda vale, além não', () {
+      final steps = [
+        PracticeStep(
+          index: 0,
+          onMs: 0,
+          notes: [_ev('c', 60, 0), _ev('e', 64, 0)],
+          remaining: {60, 64},
+        ),
+      ];
+      final session = WaitModeSession(steps);
+
+      session.noteOn(60, atMs: 0);
+      session.noteOn(64, atMs: 300);
+      expect(session.done, isTrue);
+    });
+
+    test('errada fora da janela recomeça a tentativa sem abrir janela', () {
+      final steps = [
+        PracticeStep(
+          index: 0,
+          onMs: 0,
+          notes: [_ev('c', 60, 0), _ev('e', 64, 0), _ev('g', 67, 0)],
+          remaining: {60, 64, 67},
+        ),
+      ];
+      final session = WaitModeSession(steps);
+      final verdicts = <NoteVerdict>[];
+      session.verdicts.listen(verdicts.add);
+
+      session.noteOn(60, atMs: 0);
+      session.noteOff(60);
+      session.noteOn(72, atMs: 500); // errada, fora da janela: recomeça
+      expect(session.current.value!.remaining, {60, 64, 67});
+      session.noteOn(60, atMs: 550);
+      session.noteOn(64, atMs: 600);
+      session.noteOn(67, atMs: 650);
+      expect(session.done, isTrue);
+      expect(
+        verdicts.where((v) => v.kind == PracticeVerdictKind.wrong).length,
+        1,
+      );
+    });
   });
 }

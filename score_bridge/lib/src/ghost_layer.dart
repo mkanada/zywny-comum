@@ -124,19 +124,32 @@ class GhostController extends ChangeNotifier {
         if (e.value.releaseAt == null) e.key,
     ];
     if (doc != null && active.isNotEmpty) {
-      final byKey = {
-        for (final g in doc.ghostsFor(
-          expectedIds: _expectedIds,
-          wrongKeys: active,
-        ))
-          g.key: g,
-      };
-      for (final key in active) {
-        final g = byKey[key];
-        if (g == null) {
-          _entries.remove(key); // sem pitchpos/candidato: sem fantasma
-        } else {
-          _entries[key]!.ghost = g;
+      if (doc.pitchPos == null) {
+        // Sem pitchpos.json no .vsb (nativo anterior a G04): nenhuma
+        // fantasma é calculável. Log em vez de silêncio — ver Y01.
+        debugPrint(
+          'fantasma: sem pitchpos.json no .vsb, ${active.length} tecla(s) '
+          'sem fantasma',
+        );
+        for (final key in active) {
+          _entries.remove(key);
+        }
+      } else {
+        final byKey = {
+          for (final g in doc.ghostsFor(
+            expectedIds: _expectedIds,
+            wrongKeys: active,
+          ))
+            g.key: g,
+        };
+        for (final key in active) {
+          final g = byKey[key];
+          if (g == null) {
+            debugPrint('fantasma: sem candidato para a tecla $key');
+            _entries.remove(key); // sem candidato: sem fantasma
+          } else {
+            _entries[key]!.ghost = g;
+          }
         }
       }
     } else {
