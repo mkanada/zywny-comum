@@ -1479,6 +1479,441 @@
      "width": 226.07999999999998
     }
    ]
+  },
+  {
+   "nome": "cross-staff: grave cabe no baixo, sem 8vb",
+   "vsb": "satie.vsb",
+   "esperados": [
+    "orw55dt",
+    "q1t6l0ej",
+    "r1c5f34m",
+    "yw90mxt"
+   ],
+   "teclas": [
+    45
+   ],
+   "conta": "lá2 (45): na clave de sol loc=(2-4)*7+5-2=-11 (5 linhas); na clave de fá loc=-14+5+10=1 (0 linhas) -> baixo; |1-0|=1 com o sol2 real -> desloca",
+   "resumo": [
+    {
+     "loc": 1,
+     "m": 0,
+     "accid": null,
+     "ledgers": 0,
+     "pname": "a",
+     "oct": 2,
+     "alt": 0,
+     "target": "yw90mxt",
+     "staff": "z1oagi0k"
+    }
+   ],
+   "fantasmas": [
+    {
+     "key": 45,
+     "staff": "z1oagi0k",
+     "loc": 1,
+     "locRaw": 1,
+     "m": 0,
+     "ledgersRaw": 0,
+     "pname": "a",
+     "oct": 2,
+     "alt": 0,
+     "target": "yw90mxt",
+     "head": {
+      "g": "Leipzig:E0A4",
+      "x": 2082.08,
+      "y": 3661,
+      "sx": 0.72,
+      "sy": 0.72
+     },
+     "accid": null,
+     "ledgers": [],
+     "octave": null,
+     "width": 226.07999999999998
+    }
+   ]
+  },
+  {
+   "nome": "cross-staff: proximidade diz sol, cabimento diz fá (a regra nova)",
+   "vsb": "satie.vsb",
+   "esperados": [
+    "orw55dt",
+    "q1t6l0ej",
+    "r1c5f34m",
+    "yw90mxt"
+   ],
+   "teclas": [
+    55
+   ],
+   "conta": "sol3 (55): mais próximo do si3 (|55-59|=4 < |55-43|=12), mas na sol loc=(3-4)*7+4-2=-5 (2 linhas) e na fá loc=-7+4+10=7 (0) -> baixo; sol natural, sem acidente; |7-0|=7 sem colisão",
+   "resumo": [
+    {
+     "loc": 7,
+     "m": 0,
+     "accid": null,
+     "ledgers": 0,
+     "pname": "g",
+     "oct": 3,
+     "alt": 0,
+     "target": "yw90mxt",
+     "staff": "z1oagi0k"
+    }
+   ],
+   "fantasmas": [
+    {
+     "key": 55,
+     "staff": "z1oagi0k",
+     "loc": 7,
+     "locRaw": 7,
+     "m": 0,
+     "ledgersRaw": 0,
+     "pname": "g",
+     "oct": 3,
+     "alt": 0,
+     "target": "yw90mxt",
+     "head": {
+      "g": "Leipzig:E0A4",
+      "x": 1856,
+      "y": 3121,
+      "sx": 0.72,
+      "sy": 0.72
+     },
+     "accid": null,
+     "ledgers": [],
+     "octave": null,
+     "width": 226.07999999999998
+    }
+   ]
+  },
+  {
+   "nome": "cross-staff: empate de cabimento decide pela proximidade",
+   "vsb": "satie.vsb",
+   "esperados": [
+    "orw55dt",
+    "q1t6l0ej",
+    "r1c5f34m",
+    "yw90mxt"
+   ],
+   "teclas": [
+    60
+   ],
+   "conta": "dó4 na sol: loc=0+0-2=-2 (1 linha); na fá: loc=0+0+10=10 (1 linha); empate 1-1 -> proximidade (|60-59|=1 do si3 contra |60-43|=17) -> sol, coluna do si3; armadura tem dó# -> bequadro; |=1 com si3/ré4 -> desloca",
+   "resumo": [
+    {
+     "loc": -2,
+     "m": 0,
+     "accid": "E261",
+     "ledgers": 1,
+     "pname": "c",
+     "oct": 4,
+     "alt": 0,
+     "target": "orw55dt",
+     "staff": "yy2zfkq"
+    }
+   ],
+   "fantasmas": [
+    {
+     "key": 60,
+     "staff": "yy2zfkq",
+     "loc": -2,
+     "locRaw": -2,
+     "m": 0,
+     "ledgersRaw": 1,
+     "pname": "c",
+     "oct": 4,
+     "alt": 0,
+     "target": "orw55dt",
+     "head": {
+      "g": "Leipzig:E0A4",
+      "x": 2855.08,
+      "y": 1708,
+      "sx": 0.72,
+      "sy": 0.72
+     },
+     "accid": {
+      "g": "Leipzig:E261",
+      "x": 2697.04,
+      "y": 1708,
+      "sx": 0.72,
+      "sy": 0.72
+     },
+     "ledgers": [
+      {
+       "y": 1708,
+       "x1": 2807.08,
+       "x2": 3129.16,
+       "w": 22
+      }
+     ],
+     "octave": null,
+     "width": 226.07999999999998
+    }
+   ]
+  },
+  {
+   "nome": "cross-staff: agudo extremo continua na sol com 8va",
+   "vsb": "satie.vsb",
+   "esperados": [
+    "orw55dt",
+    "q1t6l0ej",
+    "r1c5f34m",
+    "yw90mxt"
+   ],
+   "teclas": [
+    100
+   ],
+   "conta": "mi7 na sol: loc=21 (6 linhas); na fá: loc=(7-4)*7+2+10=33 (12 linhas) -> sol; 6 > 4 -> loc 14, 3 linhas, 8va",
+   "resumo": [
+    {
+     "loc": 14,
+     "m": 1,
+     "accid": null,
+     "ledgers": 3,
+     "pname": "e",
+     "oct": 7,
+     "alt": 0,
+     "target": "r1c5f34m",
+     "staff": "yy2zfkq"
+    }
+   ],
+   "fantasmas": [
+    {
+     "key": 100,
+     "staff": "yy2zfkq",
+     "loc": 14,
+     "locRaw": 21,
+     "m": 1,
+     "ledgersRaw": 6,
+     "pname": "e",
+     "oct": 7,
+     "alt": 0,
+     "target": "r1c5f34m",
+     "head": {
+      "g": "Leipzig:E0A4",
+      "x": 2629,
+      "y": 268,
+      "sx": 0.72,
+      "sy": 0.72
+     },
+     "accid": null,
+     "ledgers": [
+      {
+       "y": 628,
+       "x1": 2581,
+       "x2": 2903.08,
+       "w": 22
+      },
+      {
+       "y": 448,
+       "x1": 2581,
+       "x2": 2903.08,
+       "w": 22
+      },
+      {
+       "y": 268,
+       "x1": 2581,
+       "x2": 2903.08,
+       "w": 22
+      }
+     ],
+     "octave": {
+      "g": "Leipzig:E511",
+      "x": 2505.52,
+      "y": -2,
+      "sx": 0.72,
+      "sy": 0.72
+     },
+     "width": 226.07999999999998
+    }
+   ]
+  },
+  {
+   "nome": "cross-staff: grave extremo vai ao baixo com 8vb",
+   "vsb": "satie.vsb",
+   "esperados": [
+    "orw55dt",
+    "q1t6l0ej",
+    "r1c5f34m",
+    "yw90mxt"
+   ],
+   "teclas": [
+    21
+   ],
+   "conta": "lá0 na sol: loc=(0-4)*7+5-2=-25 (12 linhas); na fá: loc=-28+5+10=-13 (6 linhas) -> baixo; 6 > 4 -> loc -6, 3 linhas, 8vb (pela regra antiga ficaria presa em 15mb na sol)",
+   "resumo": [
+    {
+     "loc": -6,
+     "m": 1,
+     "accid": null,
+     "ledgers": 3,
+     "pname": "a",
+     "oct": 0,
+     "alt": 0,
+     "target": "yw90mxt",
+     "staff": "z1oagi0k"
+    }
+   ],
+   "fantasmas": [
+    {
+     "key": 21,
+     "staff": "z1oagi0k",
+     "loc": -6,
+     "locRaw": -13,
+     "m": 1,
+     "ledgersRaw": 6,
+     "pname": "a",
+     "oct": 0,
+     "alt": 0,
+     "target": "yw90mxt",
+     "head": {
+      "g": "Leipzig:E0A4",
+      "x": 1856,
+      "y": 4291,
+      "sx": 0.72,
+      "sy": 0.72
+     },
+     "accid": null,
+     "ledgers": [
+      {
+       "y": 3931,
+       "x1": 1808,
+       "x2": 2130.08,
+       "w": 22
+      },
+      {
+       "y": 4111,
+       "x1": 1808,
+       "x2": 2130.08,
+       "w": 22
+      },
+      {
+       "y": 4291,
+       "x1": 1808,
+       "x2": 2130.08,
+       "w": 22
+      }
+     ],
+     "octave": {
+      "g": "Leipzig:E512",
+      "x": 1735.04,
+      "y": 4741,
+      "sx": 0.72,
+      "sy": 0.72
+     },
+     "width": 226.07999999999998
+    }
+   ]
+  },
+  {
+   "nome": "cross-staff: duas fantasmas, uma em cada pauta",
+   "vsb": "satie.vsb",
+   "esperados": [
+    "orw55dt",
+    "q1t6l0ej",
+    "r1c5f34m",
+    "yw90mxt"
+   ],
+   "teclas": [
+    45,
+    100
+   ],
+   "conta": "45 -> baixo (0 linhas contra 5 na sol), 100 -> sol com 8va (6 contra 12 no baixo); pautas distintas, sem colisão entre si",
+   "resumo": [
+    {
+     "loc": 1,
+     "m": 0,
+     "accid": null,
+     "ledgers": 0,
+     "pname": "a",
+     "oct": 2,
+     "alt": 0,
+     "target": "yw90mxt",
+     "staff": "z1oagi0k"
+    },
+    {
+     "loc": 14,
+     "m": 1,
+     "accid": null,
+     "ledgers": 3,
+     "pname": "e",
+     "oct": 7,
+     "alt": 0,
+     "target": "r1c5f34m",
+     "staff": "yy2zfkq"
+    }
+   ],
+   "fantasmas": [
+    {
+     "key": 45,
+     "staff": "z1oagi0k",
+     "loc": 1,
+     "locRaw": 1,
+     "m": 0,
+     "ledgersRaw": 0,
+     "pname": "a",
+     "oct": 2,
+     "alt": 0,
+     "target": "yw90mxt",
+     "head": {
+      "g": "Leipzig:E0A4",
+      "x": 2082.08,
+      "y": 3661,
+      "sx": 0.72,
+      "sy": 0.72
+     },
+     "accid": null,
+     "ledgers": [],
+     "octave": null,
+     "width": 226.07999999999998
+    },
+    {
+     "key": 100,
+     "staff": "yy2zfkq",
+     "loc": 14,
+     "locRaw": 21,
+     "m": 1,
+     "ledgersRaw": 6,
+     "pname": "e",
+     "oct": 7,
+     "alt": 0,
+     "target": "r1c5f34m",
+     "head": {
+      "g": "Leipzig:E0A4",
+      "x": 2629,
+      "y": 268,
+      "sx": 0.72,
+      "sy": 0.72
+     },
+     "accid": null,
+     "ledgers": [
+      {
+       "y": 628,
+       "x1": 2581,
+       "x2": 2903.08,
+       "w": 22
+      },
+      {
+       "y": 448,
+       "x1": 2581,
+       "x2": 2903.08,
+       "w": 22
+      },
+      {
+       "y": 268,
+       "x1": 2581,
+       "x2": 2903.08,
+       "w": 22
+      }
+     ],
+     "octave": {
+      "g": "Leipzig:E511",
+      "x": 2505.52,
+      "y": -2,
+      "sx": 0.72,
+      "sy": 0.72
+     },
+     "width": 226.07999999999998
+    }
+   ]
   }
  ]
 }

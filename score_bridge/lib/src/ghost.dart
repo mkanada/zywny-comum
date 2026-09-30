@@ -294,6 +294,13 @@ extension VsbGhostNotes on VsbDocument {
     }
     if (cands.isEmpty) return const [];
 
+    // Candidatos por pauta (id do nó quando há, senão identidade).
+    final groups = <Object, List<_Candidate>>{};
+    for (final c in cands) {
+      (groups[c.staff.id ?? c.staff] ??= []).add(c);
+    }
+    final single = groups.length == 1;
+
     final font = glyphs.keys.first.split(':').first;
     double glyphWidth(String glyphId, double sx) =>
         glyphs[glyphId]!.bbox.width / 10.0 * sx;
@@ -301,32 +308,64 @@ extension VsbGhostNotes on VsbDocument {
     final placed = <({String? staff, int loc, double x, double width})>[];
     final out = <GhostNote>[];
     for (final k in (List.of(wrongKeys)..sort())) {
-      // 1. alvo: menor |k - ref|; empate -> o de cima (maior ref).
-      var t = cands.first;
-      for (final c in cands.skip(1)) {
-        final dc = (k - c.ref).abs();
-        final dt = (k - t.ref).abs();
-        if (dc < dt || (dc == dt && c.ref > t.ref)) t = c;
+      // 1. proposta por pauta (G06): alvo da pauta (menor |k - ref|; empate,
+      //    o de cima), com grafia/loc/suplementares do contexto dessa pauta;
+      //    vence a pauta com menos suplementares brutas (antes de 8va).
+      //    Desempates: menor |k - ref|, depois maior ref.
+      ({_Candidate t, int pname, int octv, int alt, int loc, int led})? best;
+      for (final members in groups.values) {
+        var t = members.first;
+        for (final c in members.skip(1)) {
+          final dc = (k - c.ref).abs();
+          final dt = (k - t.ref).abs();
+          if (dc < dt || (dc == dt && c.ref > t.ref)) t = c;
+        }
+        final ev = t.event;
+        (int, int, int)? targetNote;
+        if (ev.isNote) {
+          targetNote = (_letters.indexOf(ev.pname!) + 1, ev.octave!, ev.alter!);
+        }
+        final (pname, octv, alt) = _spell(
+          k - ev.shift,
+          t.written,
+          ev.key,
+          targetNote,
+        );
+        final loc = (octv - 4) * 7 + (pname - 1) + ev.clefOffset;
+        final led = _ledgerCount(loc, t.geometry.lines);
+        if (best == null) {
+          best = (t: t, pname: pname, octv: octv, alt: alt, loc: loc, led: led);
+          continue;
+        }
+        final b = best;
+        final dn = (k - t.ref).abs();
+        final db = (k - b.t.ref).abs();
+        if (led < b.led ||
+            (led == b.led && (dn < db || (dn == db && t.ref > b.t.ref)))) {
+          best = (t: t, pname: pname, octv: octv, alt: alt, loc: loc, led: led);
+        }
       }
+      final t = best!.t;
+      final pname = best.pname;
+      final octv = best.octv;
+      final alt = best.alt;
       final ev = t.event;
-      final w = k - ev.shift;
-      (int, int, int)? targetNote;
-      if (ev.isNote) {
-        targetNote = (_letters.indexOf(ev.pname!) + 1, ev.octave!, ev.alter!);
-      }
-      final (pname, octv, alt) = _spell(w, t.written, ev.key, targetNote);
       final lines = t.geometry.lines;
       final top = t.geometry.topY;
       final unit = t.geometry.unit;
       final topLoc = 2 * (lines - 1);
-      var loc = (octv - 4) * 7 + (pname - 1) + ev.clefOffset;
+      var loc = best.loc;
       final locRaw = loc;
-      var led = _ledgerCount(loc, lines);
+      // 5. alcance: com pauta única vale a regra integral; entre pautas, só
+      //    desloca se o melhor cabimento passar de 4.
+      var led = best.led;
       var m = 0;
-      while (led > _maxLedgers && m < 2) {
-        loc = locRaw > topLoc ? loc - 7 : loc + 7;
-        m++;
-        led = _ledgerCount(loc, lines);
+      if (single || led > _maxLedgers) {
+        while (led > _maxLedgers && m < 2) {
+          loc = locRaw > topLoc ? loc - 7 : loc + 7;
+          m++;
+          led = _ledgerCount(loc, lines);
+        }
       }
       final up = locRaw > topLoc;
       if (led > _maxLedgers) {
