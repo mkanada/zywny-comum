@@ -96,11 +96,12 @@ class TrailController extends ChangeNotifier {
   }
 
   /// Guarda o resultado da selecionada (aprova/pula por `StageResult`,
-  /// melhor só sobe) e expõe para o resumo.
+  /// melhor só sobe) e expõe para o resumo. Carimba onde parou para o
+  /// "Continuar" da biblioteca (J09).
   Future<void> recordDone(StageResult result) async {
     final stage = selected;
     if (stage == null) return;
-    _progress = _progress.recordResult(stage.id, result);
+    _progress = _stamped(_progress.recordResult(stage.id, result));
     _lastResult = result;
     _lastStage = stage;
     final number = hymnNumber;
@@ -114,10 +115,33 @@ class TrailController extends ChangeNotifier {
     if (stage == null) return;
     final updated = _progress.skip(stage.id);
     if (identical(updated, _progress)) return;
-    _progress = updated;
+    _progress = _stamped(updated);
     final number = hymnNumber;
     if (number != null) await store.save(number, _progress);
     notifyListeners();
+  }
+
+  /// Onde parou (etapa atual), para o resumo guardado.
+  TrailProgress _stamped(TrailProgress progress) {
+    final current = progress.current(plan);
+    if (current == null) {
+      return TrailProgress(
+        n: progress.n,
+        total: progress.total,
+        records: progress.records,
+      );
+    }
+    return TrailProgress(
+      n: progress.n,
+      total: progress.total,
+      records: progress.records,
+      resume: TrailResume(
+        stageId: current.id,
+        label: current.label,
+        segment: current.segment,
+        segments: plan.segmentCount,
+      ),
+    );
   }
 
   bool _freeMode = false;

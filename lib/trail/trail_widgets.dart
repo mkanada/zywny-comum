@@ -12,7 +12,7 @@ import '../ui/theme.dart';
 import 'stage_result.dart' show StageResult, kTrailPassAccuracy;
 import 'trail_controller.dart' show ReinforcementView;
 import 'trail_plan.dart';
-import 'trail_progress.dart' show StageState, TrailProgress;
+import 'trail_progress.dart' show StageState, TrailProgress, TrailResume;
 import 'trail_stage.dart' show kTrailMinMeasures;
 
 /// "Trecho 2/6 · Notas juntas" (fase final: "Fase final · …").
@@ -602,3 +602,8 @@ class TrailNSelector extends StatelessWidget {
     );
   }
 }
+
+/// Onde o hino parou, para o cartão "Continuar" (J09).
+String trailResumeText(TrailResume resume) => resume.segment == null
+    ? 'Fase final · ${resume.label}'
+    : 'Trecho ${resume.segment! + 1}/${resume.segments} · ${resume.label}';

@@ -49,6 +49,54 @@ class StageRecord {
   int get hashCode => Object.hash(state, best);
 }
 
+/// Onde o hino parou, para o cartão "Continuar" da biblioteca (J09): o
+/// rótulo da etapa atual guardado junto com o resumo, sem montar o plano.
+@immutable
+class TrailResume {
+  const TrailResume({
+    required this.stageId,
+    required this.label,
+    required this.segment,
+    required this.segments,
+  });
+
+  final String stageId;
+  final String label;
+
+  /// Trecho da etapa (`null` na fase final) e trechos no plano.
+  final int? segment;
+  final int segments;
+
+  Map<String, Object?> toJson() => {
+    'id': stageId,
+    'label': label,
+    'seg': segment,
+    'segs': segments,
+  };
+
+  factory TrailResume.fromJson(Map<String, dynamic> json) {
+    final seg = json['seg'];
+    final segs = json['segs'];
+    return TrailResume(
+      stageId: json['id'] as String? ?? '',
+      label: json['label'] as String? ?? '',
+      segment: seg is num ? seg.round() : null,
+      segments: segs is num ? segs.round() : 0,
+    );
+  }
+
+  @override
+  bool operator ==(Object other) =>
+      other is TrailResume &&
+      other.stageId == stageId &&
+      other.label == label &&
+      other.segment == segment &&
+      other.segments == segments;
+
+  @override
+  int get hashCode => Object.hash(stageId, label, segment, segments);
+}
+
 /// O que o aluno fez na trilha de um hino, no corte `n` com `total` etapas.
 /// Imutável: `recordResult`/`skip` devolvem um novo valor.
 @immutable
@@ -57,6 +105,7 @@ class TrailProgress {
     required this.n,
     required this.total,
     this.records = const {},
+    this.resume,
   });
 
   /// O N com que o corte foi feito. Com um plano de outro N, tudo conta
@@ -68,6 +117,10 @@ class TrailProgress {
   /// montar o plano de 600 hinos — J09).
   final int total;
   final Map<String, StageRecord> records;
+
+  /// Onde parou (etapa atual ao guardar), para o "Continuar" — `null` sem
+  /// nada feito ou com a trilha concluída.
+  final TrailResume? resume;
 
   /// Trilha vazia (nada feito, sem corte conhecido).
   static const empty = TrailProgress(n: 0, total: 0);
@@ -122,6 +175,10 @@ class TrailProgress {
   int get done =>
       records.values.where((r) => r.state != StageState.pendente).length;
 
+  /// Puladas sem plano (a biblioteca mostra à parte — J09).
+  int get skipped =>
+      records.values.where((r) => r.state == StageState.pulada).length;
+
   /// Aprova se `passed`; sempre atualiza `best`; nunca rebaixa `aprovada`.
   /// Pulada que depois passa vira `aprovada`.
   TrailProgress recordResult(String id, StageResult result) {
@@ -163,6 +220,7 @@ class TrailProgress {
     'records': {
       for (final e in records.entries) e.key: e.value.toJson(),
     },
+    'resume': ?resume?.toJson(),
   };
 
   factory TrailProgress.fromJson(Map<String, dynamic> json) {
@@ -179,10 +237,17 @@ class TrailProgress {
     }
     final n = json['n'];
     final total = json['total'];
+    TrailResume? resume;
+    final storedResume = json['resume'];
+    if (storedResume is Map &&
+        (storedResume['id'] as String?)?.isNotEmpty == true) {
+      resume = TrailResume.fromJson(storedResume.cast<String, dynamic>());
+    }
     return TrailProgress(
       n: n is num ? n.round() : 0,
       total: total is num ? total.round() : 0,
       records: records,
+      resume: resume,
     );
   }
 
@@ -191,10 +256,11 @@ class TrailProgress {
       other is TrailProgress &&
       other.n == n &&
       other.total == total &&
-      mapEquals(other.records, records);
+      mapEquals(other.records, records) &&
+      other.resume == resume;
 
   @override
-  int get hashCode => Object.hash(n, total, records);
+  int get hashCode => Object.hash(n, total, records, resume);
 }
 
 /// Guarda uma trilha por hino (`trail_<número>`, com `'v': 1`), com
@@ -232,9 +298,16 @@ class TrailProgressStore extends ChangeNotifier {
   }
 
   /// Resumo pronto para a biblioteca (J09): sem montar nenhum plano.
-  ({int done, int total, bool completed}) summary(int number) {
+  ({int done, int total, int skipped, bool completed, TrailResume? resume})
+  summary(int number) {
     final p = _byNumber[number] ?? TrailProgress.empty;
-    return (done: p.done, total: p.total, completed: p.finalApproved);
+    return (
+      done: p.done,
+      total: p.total,
+      skipped: p.skipped,
+      completed: p.finalApproved,
+      resume: p.resume,
+    );
   }
 
   Future<void> load() async {
