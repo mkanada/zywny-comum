@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 import '../audio/soundfont_store.dart';
 import '../midi/midi_device_manager.dart';
 import '../midi/midi_device_picker.dart';
+import '../trail/trail_widgets.dart';
 import 'app_settings.dart';
 
 /// Palette offered by [_ColorRow] for the highlight and page-turn-bar
@@ -247,6 +248,15 @@ class GeneralSettingsPanel extends StatelessWidget {
           onTap: live.onOpenMidiPanel,
         ),
       ],
+      const _Header('Trilha de estudo'),
+      Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        child: TrailNSelector(
+          value: settings.trailMeasures,
+          max: 20,
+          onChanged: (v) => unawaited(_changeTrailN(context, settings, v)),
+        ),
+      ),
       const _Header('Cores'),
       _ColorRow(
         label: 'Cor da nota destacada',
@@ -269,6 +279,24 @@ class GeneralSettingsPanel extends StatelessWidget {
       const SizedBox(height: 12),
     ];
   }
+}
+
+/// Troca o N geral com aviso: os hinos sem N próprio recomeçam a trilha
+/// (cada um é descartado ao abrir, em `_setupTrail`).
+Future<void> _changeTrailN(
+  BuildContext context,
+  AppSettings settings,
+  int value,
+) async {
+  if (value == settings.trailMeasures) return;
+  final ok = await confirmTrailReset(
+    context,
+    title: 'Mudar o padrão?',
+    message: 'Os hinos sem N próprio recomeçam a trilha.',
+    confirmLabel: 'Mudar',
+  );
+  if (!ok) return;
+  settings.trailMeasures = value;
 }
 
 /// As configurações gerais abertas pela biblioteca, em tela cheia: sem

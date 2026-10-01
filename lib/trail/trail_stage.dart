@@ -40,6 +40,8 @@ class TrailStage {
     required this.startMs,
     required this.endMs,
     required this.label,
+    required this.first,
+    required this.last,
   });
 
   /// `t<trecho>.<fase>[.<degrau>]` (`t0.notasD`, `t0.ritmoE.75`,
@@ -57,6 +59,12 @@ class TrailStage {
 
   /// O que a faixa e a gaveta mostram ("Ritmo da esquerda 75%").
   final String label;
+
+  /// Compassos lógicos do trecho (índices em `TrailPath.logical`); na fase
+  /// final, o caminho inteiro (0..medida-1). A gaveta mostra "compassos
+  /// 5–9" a partir daqui.
+  final int first;
+  final int last;
 }
 
 /// Rótulo de etapa: a fase mais o degrau em porcentagem, quando houver.

@@ -12,6 +12,7 @@ import '../ui/theme.dart';
 import 'stage_result.dart' show StageResult, kTrailPassAccuracy;
 import 'trail_plan.dart';
 import 'trail_progress.dart' show StageState, TrailProgress;
+import 'trail_stage.dart' show kTrailMinMeasures;
 
 /// "Trecho 2/6 · Notas juntas" (fase final: "Fase final · …").
 String trailStripText(TrailPlan plan, TrailStageOfStrip stage) =>
@@ -119,7 +120,7 @@ class TrailStrip extends StatelessWidget {
 const double kTrailStripHeight = 34;
 
 /// O que o resumo devolve: o botão que o aluno tocou.
-enum StageSummaryAction { next, retry, skip }
+enum StageSummaryAction { next, retry, skip, backToCurrent }
 
 /// Resumo da etapa (folha nova, não o `showPracticeSummary`): porcentagem
 /// grande, aprovado/faltou, compassos com erro (números lógicos) e os botões
@@ -131,6 +132,9 @@ Future<StageSummaryAction?> showStageSummary(
   required StageResult result,
   required List<int> badLogical,
   required bool isLast,
+
+  // Etapa refeita fora da atual (J06): oferece voltar a ela.
+  bool showBackToCurrent = false,
 }) {
   final passed = result.passed;
   final missing = (kTrailPassAccuracy * 100).round() - result.percent;
@@ -166,6 +170,14 @@ Future<StageSummaryAction?> showStageSummary(
                   : 'Compassos com erro: ${badLogical.join(', ')}',
             ),
             const SizedBox(height: 12),
+            if (showBackToCurrent)
+              TextButton(
+                onPressed: () => Navigator.pop(
+                  context,
+                  StageSummaryAction.backToCurrent,
+                ),
+                child: const Text('Voltar à etapa atual'),
+              ),
             if (passed) ...[
               FilledButton(
                 onPressed: () =>
@@ -216,4 +228,280 @@ Future<StageSummaryAction?> showStageSummary(
       ),
     ),
   );
+}
+
+/// Confirmação curta antes de zerar a trilha (troca de N, reinício).
+Future<bool> confirmTrailReset(
+  BuildContext context, {
+  required String title,
+  required String message,
+  required String confirmLabel,
+}) async {
+  final ok = await showDialog<bool>(
+    context: context,
+    builder: (context) => AlertDialog(
+      title: Text(title),
+      content: Text(message),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context, false),
+          child: const Text('Cancelar'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.pop(context, true),
+          child: Text(confirmLabel),
+        ),
+      ],
+    ),
+  );
+  return ok ?? false;
+}
+
+/// Gaveta da trilha (J06): todos os trechos e etapas agrupados, com estado
+/// de cada uma. Abre com um toque na faixa; em paisagem é uma coluna lateral
+/// rolável como a gaveta de opções.
+class TrailDrawer extends StatelessWidget {
+  const TrailDrawer({
+    super.key,
+    required this.plan,
+    required this.progress,
+    required this.selectedId,
+    required this.currentId,
+    required this.onClose,
+    required this.onSelectStage,
+    required this.onSkipCurrent,
+    required this.onRestartTrail,
+  });
+
+  final TrailPlan plan;
+  final TrailProgress progress;
+
+  /// Etapa que a faixa mostra (`null` com a trilha concluída).
+  final String? selectedId;
+
+  /// Primeira pendente (`null` com a trilha concluída).
+  final String? currentId;
+  final VoidCallback onClose;
+  final ValueChanged<String> onSelectStage;
+  final VoidCallback onSkipCurrent;
+  final VoidCallback onRestartTrail;
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      children: [
+        Positioned.fill(
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: onClose,
+            child: const ColoredBox(color: kScrim),
+          ),
+        ),
+        Positioned(
+          right: 0,
+          top: 0,
+          bottom: 0,
+          width: 400,
+          child: Material(
+            color: kSurface,
+            elevation: 8,
+            child: SafeArea(
+              left: false,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text(
+                          'Trilha de estudo',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                            color: kInk,
+                          ),
+                        ),
+                        IconButton(
+                          tooltip: 'Fechar',
+                          onPressed: onClose,
+                          iconSize: 20,
+                          color: kIconQuiet,
+                          icon: const Icon(Icons.close),
+                        ),
+                      ],
+                    ),
+                    if (currentId != null)
+                      OutlinedButton.icon(
+                        onPressed: onSkipCurrent,
+                        icon: const Icon(Icons.skip_next, size: 18),
+                        label: const Text('Pular etapa atual'),
+                      ),
+                    Expanded(
+                      child: ListView(
+                        children: [
+                          for (var seg = 0; seg < plan.segmentCount; seg++)
+                            _segmentGroup(seg),
+                          _finalGroup(),
+                        ],
+                      ),
+                    ),
+                    TextButton.icon(
+                      onPressed: () async {
+                        final ok = await confirmTrailReset(
+                          context,
+                          title: 'Reiniciar trilha?',
+                          message:
+                              'O progresso deste hino volta a zero. Só este hino.',
+                          confirmLabel: 'Reiniciar',
+                        );
+                        if (ok) onRestartTrail();
+                      },
+                      icon: const Icon(Icons.restart_alt, size: 18),
+                      label: const Text('Reiniciar trilha'),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _segmentGroup(int seg) {
+    final stages = [
+      for (final s in plan.stages)
+        if (s.segment == seg) s,
+    ];
+    if (stages.isEmpty) return const SizedBox.shrink();
+    final first = stages.first;
+    final done = stages
+        .where((s) => progress.stateOf(s.id) != StageState.pendente)
+        .length;
+    return ExpansionTile(
+      initiallyExpanded: stages.any((s) => s.id == currentId),
+      title: Text(
+        'Trecho ${seg + 1} · compassos ${first.first + 1}–${first.last + 1} '
+        '· $done/${stages.length}',
+        style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+      ),
+      children: [for (final s in stages) _stageRow(s.id, s.label)],
+    );
+  }
+
+  Widget _stageRow(String id, String label) {
+    final open = progress.isOpen(plan, id);
+    final record = progress.records[id];
+    final state = record?.state ?? StageState.pendente;
+    final IconData icon;
+    final Color? iconColor;
+    var trailing = '';
+    if (!open) {
+      icon = Icons.lock;
+      iconColor = kInkCaption;
+    } else if (state == StageState.aprovada) {
+      icon = Icons.check_circle;
+      iconColor = kGoodColor;
+      trailing = '${record!.best}%';
+    } else if (state == StageState.pulada) {
+      icon = Icons.skip_next;
+      iconColor = kInkCaption;
+      trailing = 'pulada';
+    } else if (id == currentId) {
+      icon = Icons.play_arrow;
+      iconColor = kAccentDark;
+      trailing = 'atual';
+    } else {
+      icon = Icons.circle_outlined;
+      iconColor = kInkCaption;
+    }
+    return ListTile(
+      dense: true,
+      enabled: open,
+      leading: Icon(icon, size: 20, color: iconColor),
+      title: Text(label, style: const TextStyle(fontSize: 14)),
+      trailing: trailing.isEmpty
+          ? null
+          : Text(trailing, style: const TextStyle(fontSize: 12)),
+      onTap: open ? () => onSelectStage(id) : null,
+    );
+  }
+
+  Widget _finalGroup() {
+    final finals = [
+      for (final s in plan.stages)
+        if (s.segment == null) s,
+    ];
+    if (finals.isEmpty) {
+      // J07 faz a fase final funcionar; até lá, só o grupo à vista.
+      return const ListTile(
+        dense: true,
+        enabled: false,
+        title: Text('Fase final', style: TextStyle(fontSize: 14)),
+        trailing: Text('em breve', style: TextStyle(fontSize: 12)),
+      );
+    }
+    final done = finals
+        .where((s) => progress.stateOf(s.id) != StageState.pendente)
+        .length;
+    return ExpansionTile(
+      initiallyExpanded: finals.any((s) => s.id == currentId),
+      title: Text(
+        'Fase final · $done/${finals.length}',
+        style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+      ),
+      children: [for (final s in finals) _stageRow(s.id, s.label)],
+    );
+  }
+}
+
+/// Seletor de compassos por trecho (J06): `- N +`, de 3 ao máximo.
+class TrailNSelector extends StatelessWidget {
+  const TrailNSelector({
+    super.key,
+    required this.value,
+    required this.max,
+    required this.onChanged,
+  });
+
+  final int value;
+  final int max;
+  final ValueChanged<int> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        const Expanded(
+          child: Text(
+            'Compassos por trecho',
+            style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+          ),
+        ),
+        IconButton(
+          tooltip: 'Menos compassos por trecho',
+          onPressed: value > kTrailMinMeasures
+              ? () => onChanged(value - 1)
+              : null,
+          iconSize: 20,
+          color: kIconQuiet,
+          icon: const Icon(Icons.remove),
+        ),
+        Text(
+          '$value',
+          style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+        ),
+        IconButton(
+          tooltip: 'Mais compassos por trecho',
+          onPressed: value < max ? () => onChanged(value + 1) : null,
+          iconSize: 20,
+          color: kIconQuiet,
+          icon: const Icon(Icons.add),
+        ),
+      ],
+    );
+  }
 }

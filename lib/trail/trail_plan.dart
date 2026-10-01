@@ -67,6 +67,8 @@ class TrailPlan {
               startMs: seg.startMs,
               endMs: seg.endMs,
               label: trailStageLabel(phase, null),
+              first: seg.first,
+              last: seg.last,
             ),
           );
         } else {
@@ -81,6 +83,8 @@ class TrailPlan {
                 startMs: seg.startMs,
                 endMs: seg.endMs,
                 label: trailStageLabel(phase, speed),
+                first: seg.first,
+                last: seg.last,
               ),
             );
           }
@@ -103,6 +107,8 @@ class TrailPlan {
             startMs: startMs,
             endMs: endMs,
             label: trailStageLabel(TrailPhase.junto, speed),
+            first: 0,
+            last: path.measureCount - 1,
           ),
         );
       }
