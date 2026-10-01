@@ -7,11 +7,27 @@ library;
 
 import 'package:flutter/foundation.dart';
 
+import 'reinforcement.dart';
 import 'stage_result.dart';
 import 'trail_path.dart';
 import 'trail_plan.dart';
 import 'trail_progress.dart';
 import 'trail_stage.dart';
+
+/// Um bloco de reforço à vista (J07): intervalo lógico + estado transitório.
+class ReinforcementView {
+  const ReinforcementView({
+    required this.first,
+    required this.last,
+    required this.state,
+    required this.isCurrent,
+  });
+
+  final int first;
+  final int last;
+  final StageState state;
+  final bool isCurrent;
+}
 
 class TrailController extends ChangeNotifier {
   TrailController({
@@ -37,7 +53,8 @@ class TrailController extends ChangeNotifier {
 
   String? _selectedId;
 
-  /// A etapa que a faixa mostra e o começar arma (a atual por padrão).
+  /// A etapa que a faixa mostra e o começar arma (a atual por padrão; o
+  /// bloco de reforço corrente enquanto houver reforço).
   TrailStage? get selected {
     final id = _selectedId;
     if (id != null) {
@@ -45,6 +62,8 @@ class TrailController extends ChangeNotifier {
         if (s.id == id) return s;
       }
     }
+    final block = currentBlockStage();
+    if (block != null) return block;
     return progress.current(plan);
   }
 
@@ -120,5 +139,144 @@ class TrailController extends ChangeNotifier {
     if (_running == value) return;
     _running = value;
     notifyListeners();
+  }
+
+  // -------------------------------------------------------------------------
+  // Reforço (J07): blocos transitórios em volta dos compassos errados da
+  // fase final reprovada. Não são etapas do plano e não persistem: fechar a
+  // música descarta (o controlador é refeito ao abrir).
+  // -------------------------------------------------------------------------
+
+  List<({int first, int last})> _blocks = const [];
+  final Map<int, StageState> _blockStates = {};
+  double? _blockSpeed;
+
+  /// Há reforço pendente.
+  bool get reinforcing => _blocks.isNotEmpty;
+
+  /// Degrau reprovado em que os blocos rodam.
+  double? get reinforcementSpeed => _blockSpeed;
+
+  /// Índice do bloco corrente (primeiro pendente), ou `null` sem reforço.
+  int? get reinforcementIndex {
+    for (var i = 0; i < _blocks.length; i++) {
+      if ((_blockStates[i] ?? StageState.pendente) == StageState.pendente) {
+        return i;
+      }
+    }
+    return null;
+  }
+
+  /// Etapa sintética para rodar o bloco corrente (realtime, ambas, no
+  /// degrau reprovado, com contagem e metrônomo — como uma etapa comum).
+  TrailStage? currentBlockStage() {
+    final index = reinforcementIndex;
+    final speed = _blockSpeed;
+    if (index == null || speed == null) return null;
+    final block = _blocks[index];
+    final startMs = path.logical[block.first].startMs;
+    final endMs = path.logical[block.last].endMs;
+    final pct = (speed * 100).round();
+    return TrailStage(
+      id: 'reforco.$index',
+      segment: null,
+      phase: TrailPhase.junto,
+      speed: speed,
+      startMs: startMs,
+      endMs: endMs,
+      label:
+          'Reforço ${index + 1}/${_blocks.length} · '
+          'compassos ${block.first + 1}–${block.last + 1} · $pct%',
+      first: block.first,
+      last: block.last,
+      isReinforcement: true,
+    );
+  }
+
+  /// Blocos à vista para a gaveta (grupo "Fase final").
+  List<ReinforcementView> get blockViews {
+    final current = reinforcementIndex;
+    return [
+      for (var i = 0; i < _blocks.length; i++)
+        ReinforcementView(
+          first: _blocks[i].first,
+          last: _blocks[i].last,
+          state: _blockStates[i] ?? StageState.pendente,
+          isCurrent: i == current,
+        ),
+    ];
+  }
+
+  /// Monta o reforço da última etapa (fase final) reprovada: converte os
+  /// compassos com erro (ocorrências) para lógicos e aplica as 4 regras
+  /// (J02). Devolve `true` com reforço útil; `false` sem reforço (bloco
+  /// único cobrindo a música inteira, ou nenhum compasso apontado) — aí
+  /// vale só "tentar de novo".
+  bool startReinforcement(StageResult result) {
+    final failed = _lastStage;
+    final speed = failed?.speed;
+    if (failed == null || failed.segment != null || speed == null) {
+      return false;
+    }
+    final bad = <int>{
+      for (final occurrence in result.badMeasures)
+        ?path.logicalOf(occurrence),
+    };
+    final blocks = reinforcementBlocks(bad, path.measureCount);
+    if (blocks.isEmpty) return false;
+    if (blocks.length == 1 &&
+        blocks.single.first == 0 &&
+        blocks.single.last == path.measureCount - 1) {
+      return false;
+    }
+    _blocks = blocks;
+    _blockStates.clear();
+    _blockSpeed = speed;
+    notifyListeners();
+    return true;
+  }
+
+  /// Guarda o resultado do bloco (só aprovado marca; pulo à parte). Com
+  /// todos feitos, o reforço sai e a final reabre.
+  void recordBlockDone(int index, StageResult result) {
+    if (index < 0 || index >= _blocks.length) return;
+    if (result.passed) {
+      _blockStates[index] = StageState.aprovada;
+      _maybeClearReinforcement();
+    }
+    notifyListeners();
+  }
+
+  /// Pula o bloco (não marca a final como pulada). Com todos feitos, a
+  /// final reabre.
+  void skipBlock(int index) {
+    if (index < 0 || index >= _blocks.length) return;
+    if ((_blockStates[index] ?? StageState.pendente) !=
+        StageState.pendente) {
+      return;
+    }
+    _blockStates[index] = StageState.pulada;
+    _maybeClearReinforcement();
+    notifyListeners();
+  }
+
+  void _maybeClearReinforcement() {
+    if (reinforcementIndex == null) {
+      _blocks = const [];
+      _blockStates.clear();
+      _blockSpeed = null;
+    }
+  }
+
+  /// Índice do bloco que [stage] é (etapa de reforço), ou `null` se é etapa
+  /// do plano.
+  int? blockIndexOf(TrailStage stage) {
+    if (!stage.isReinforcement) return null;
+    for (var i = 0; i < _blocks.length; i++) {
+      if (_blocks[i].first == stage.first && _blocks[i].last == stage.last) {
+        return i;
+      }
+    }
+    return null;
   }
 }

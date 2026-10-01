@@ -338,6 +338,62 @@ void main() {
       );
     });
   });
+  group('reforço na gaveta (J07)', () {
+    TrailPlan fullPlan() => TrailPlan.build(
+      _path(6),
+      PerformanceTrack.fromEvents([
+        _ev(1, 100),
+        _ev(2, 200),
+        _ev(1, 4100),
+        _ev(2, 4200),
+      ]),
+      n: 5,
+    );
+
+    testWidgets('fase final lista os blocos', (tester) async {
+      final plan = fullPlan();
+      var progress = TrailProgress(n: 5, total: plan.stages.length);
+      for (final s in plan.stages) {
+        if (s.segment != null) {
+          progress = progress.recordResult(
+            s.id,
+            const StageResult(hits: 19, total: 20, badMeasures: {}),
+          );
+        }
+      }
+      await tester.pumpWidget(
+        _app(
+          TrailDrawer(
+            plan: plan,
+            progress: progress,
+            selectedId: 'final.50',
+            currentId: 'final.50',
+            onClose: () {},
+            onSelectStage: (_) {},
+            onSkipCurrent: () {},
+            onRestartTrail: () {},
+            blocks: const [
+              ReinforcementView(
+                first: 1,
+                last: 2,
+                state: StageState.pendente,
+                isCurrent: true,
+              ),
+              ReinforcementView(
+                first: 5,
+                last: 5,
+                state: StageState.pulada,
+                isCurrent: false,
+              ),
+            ],
+          ),
+        ),
+      );
+      await tester.scrollUntilVisible(find.text('Fase final · 0/3'), 200);
+      expect(find.text('Reforço 1 · compassos 2–3'), findsOneWidget);
+      expect(find.text('Reforço 2 · compassos 6–6'), findsOneWidget);
+    });
+  });
 }
 
 void _noop(int _) {}

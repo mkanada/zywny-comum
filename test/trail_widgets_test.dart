@@ -100,6 +100,44 @@ void main() {
       expect(await future, StageSummaryAction.next);
     });
 
+    testWidgets('reprovado com reforço: treinar os trechos com erro', (
+      tester,
+    ) async {
+      await tester.pumpWidget(_app(const SizedBox()));
+      final future = showStageSummary(
+        tester.element(find.byType(Scaffold)),
+        stageRef: 'Fase final · Tudo junto no ritmo 50%',
+        result: const StageResult(hits: 17, total: 20, badMeasures: {7}),
+        badLogical: const [8],
+        isLast: false,
+        blockCount: 2,
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Tentar de novo'), findsNothing);
+      await tester.tap(find.text('Treinar os trechos com erro (2)'));
+      await tester.pumpAndSettle();
+      expect(await future, StageSummaryAction.train);
+    });
+
+    testWidgets('conclusão: biblioteca ou treino livre', (tester) async {
+      await tester.pumpWidget(_app(const SizedBox()));
+      Future<TrailConclusionAction?> conclude() => showTrailConclusion(
+        tester.element(find.byType(Scaffold)),
+      );
+      var future = conclude();
+      await tester.pumpAndSettle();
+      expect(find.text('Trilha concluída!'), findsOneWidget);
+      await tester.tap(find.text('Voltar à biblioteca'));
+      await tester.pumpAndSettle();
+      expect(await future, TrailConclusionAction.library);
+
+      future = conclude();
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Continuar em treino livre'));
+      await tester.pumpAndSettle();
+      expect(await future, TrailConclusionAction.free);
+    });
+
     testWidgets('reprovado: tentar de novo ou pular com confirmação', (
       tester,
     ) async {

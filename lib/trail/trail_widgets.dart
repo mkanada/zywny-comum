@@ -10,6 +10,7 @@ import 'package:flutter/material.dart';
 
 import '../ui/theme.dart';
 import 'stage_result.dart' show StageResult, kTrailPassAccuracy;
+import 'trail_controller.dart' show ReinforcementView;
 import 'trail_plan.dart';
 import 'trail_progress.dart' show StageState, TrailProgress;
 import 'trail_stage.dart' show kTrailMinMeasures;
@@ -120,7 +121,7 @@ class TrailStrip extends StatelessWidget {
 const double kTrailStripHeight = 34;
 
 /// O que o resumo devolve: o botão que o aluno tocou.
-enum StageSummaryAction { next, retry, skip, backToCurrent }
+enum StageSummaryAction { next, retry, skip, backToCurrent, train }
 
 /// Resumo da etapa (folha nova, não o `showPracticeSummary`): porcentagem
 /// grande, aprovado/faltou, compassos com erro (números lógicos) e os botões
@@ -135,6 +136,10 @@ Future<StageSummaryAction?> showStageSummary(
 
   // Etapa refeita fora da atual (J06): oferece voltar a ela.
   bool showBackToCurrent = false,
+
+  // Fase final reprovada com reforço (J07): o botão principal treina os
+  // blocos em vez de tentar de novo.
+  int? blockCount,
 }) {
   final passed = result.passed;
   final missing = (kTrailPassAccuracy * 100).round() - result.percent;
@@ -190,11 +195,22 @@ Future<StageSummaryAction?> showStageSummary(
                 child: const Text('Repetir'),
               ),
             ] else ...[
-              FilledButton(
-                onPressed: () =>
-                    Navigator.pop(context, StageSummaryAction.retry),
-                child: const Text('Tentar de novo'),
-              ),
+              if (blockCount != null)
+                FilledButton(
+                  onPressed: () => Navigator.pop(
+                    context,
+                    StageSummaryAction.train,
+                  ),
+                  child: Text(
+                    'Treinar os trechos com erro ($blockCount)',
+                  ),
+                )
+              else
+                FilledButton(
+                  onPressed: () =>
+                      Navigator.pop(context, StageSummaryAction.retry),
+                  child: const Text('Tentar de novo'),
+                ),
               TextButton(
                 onPressed: () async {
                   final skip = await showDialog<bool>(
@@ -223,6 +239,45 @@ Future<StageSummaryAction?> showStageSummary(
                 child: const Text('Pular etapa'),
               ),
             ],
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
+/// O que a conclusão devolve: para onde o aluno vai.
+enum TrailConclusionAction { library, free }
+
+/// Tela de conclusão (J07): a `final.100` aprovada conclui a trilha.
+Future<TrailConclusionAction?> showTrailConclusion(BuildContext context) {
+  return showModalBottomSheet<TrailConclusionAction>(
+    context: context,
+    backgroundColor: kSurface,
+    isScrollControlled: true,
+    builder: (context) => SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text('Trilha concluída!', style: serifDisplay(fontSize: 28)),
+            const SizedBox(height: 4),
+            const Text('A música inteira a 100% foi aprovada.'),
+            const SizedBox(height: 12),
+            FilledButton(
+              onPressed: () => Navigator.pop(
+                context,
+                TrailConclusionAction.library,
+              ),
+              child: const Text('Voltar à biblioteca'),
+            ),
+            TextButton(
+              onPressed: () =>
+                  Navigator.pop(context, TrailConclusionAction.free),
+              child: const Text('Continuar em treino livre'),
+            ),
           ],
         ),
       ),
@@ -271,6 +326,7 @@ class TrailDrawer extends StatelessWidget {
     required this.onSelectStage,
     required this.onSkipCurrent,
     required this.onRestartTrail,
+    this.blocks = const [],
   });
 
   final TrailPlan plan;
@@ -285,6 +341,10 @@ class TrailDrawer extends StatelessWidget {
   final ValueChanged<String> onSelectStage;
   final VoidCallback onSkipCurrent;
   final VoidCallback onRestartTrail;
+
+  /// Blocos de reforço à vista (J07): o grupo "Fase final" os lista
+  /// enquanto existirem (só leitura — roda-se pela faixa).
+  final List<ReinforcementView> blocks;
 
   @override
   Widget build(BuildContext context) {
@@ -435,7 +495,7 @@ class TrailDrawer extends StatelessWidget {
       for (final s in plan.stages)
         if (s.segment == null) s,
     ];
-    if (finals.isEmpty) {
+    if (finals.isEmpty && blocks.isEmpty) {
       // J07 faz a fase final funcionar; até lá, só o grupo à vista.
       return const ListTile(
         dense: true,
@@ -448,12 +508,49 @@ class TrailDrawer extends StatelessWidget {
         .where((s) => progress.stateOf(s.id) != StageState.pendente)
         .length;
     return ExpansionTile(
-      initiallyExpanded: finals.any((s) => s.id == currentId),
+      initiallyExpanded:
+          finals.any((s) => s.id == currentId) || blocks.isNotEmpty,
       title: Text(
-        'Fase final · $done/${finals.length}',
+        finals.isEmpty
+            ? 'Fase final'
+            : 'Fase final · $done/${finals.length}',
         style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
       ),
-      children: [for (final s in finals) _stageRow(s.id, s.label)],
+      children: [
+        for (final s in finals) _stageRow(s.id, s.label),
+        for (var i = 0; i < blocks.length; i++) _blockRow(i),
+      ],
+    );
+  }
+
+  Widget _blockRow(int index) {
+    final block = blocks[index];
+    final String trailing;
+    final IconData icon;
+    if (block.state == StageState.aprovada) {
+      trailing = 'aprovada';
+      icon = Icons.check_circle;
+    } else if (block.state == StageState.pulada) {
+      trailing = 'pulada';
+      icon = Icons.skip_next;
+    } else if (block.isCurrent) {
+      trailing = 'atual';
+      icon = Icons.play_arrow;
+    } else {
+      trailing = '';
+      icon = Icons.circle_outlined;
+    }
+    return ListTile(
+      dense: true,
+      enabled: false,
+      leading: Icon(icon, size: 20, color: kInkCaption),
+      title: Text(
+        'Reforço ${index + 1} · compassos ${block.first + 1}–${block.last + 1}',
+        style: const TextStyle(fontSize: 14),
+      ),
+      trailing: trailing.isEmpty
+          ? null
+          : Text(trailing, style: const TextStyle(fontSize: 12)),
     );
   }
 }

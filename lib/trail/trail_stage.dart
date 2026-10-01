@@ -42,6 +42,7 @@ class TrailStage {
     required this.label,
     required this.first,
     required this.last,
+    this.isReinforcement = false,
   });
 
   /// `t<trecho>.<fase>[.<degrau>]` (`t0.notasD`, `t0.ritmoE.75`,
@@ -65,6 +66,9 @@ class TrailStage {
   /// 5–9" a partir daqui.
   final int first;
   final int last;
+
+  /// Bloco de reforço (J07): etapa transitória fora do plano, não guardada.
+  final bool isReinforcement;
 }
 
 /// Rótulo de etapa: a fase mais o degrau em porcentagem, quando houver.
