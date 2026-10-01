@@ -31,11 +31,14 @@ class TrailSegment {
 
 /// Corta [path] em trechos de [n] compassos lógicos. `n < 3` é erro de
 /// programação (a UI nunca manda).
+///
+/// Desde o J08 (D-SALTO via a), o corte atravessa saltos: o trecho cobre o
+/// intervalo inteiro e o agendador pula os vãos (a interseção de 1 compasso
+/// continua valendo através do salto — é o que o aluno precisa treinar).
 List<TrailSegment> cutSegments(TrailPath path, int n) {
   assert(n >= 3, 'n deve ser >= 3');
   if (n < 3) throw ArgumentError.value(n, 'n', 'deve ser >= 3');
   if (path.logical.isEmpty) return const [];
-  if (!path.isContiguous) return const [];
   final m = path.logical.length;
   if (m <= n) {
     return [

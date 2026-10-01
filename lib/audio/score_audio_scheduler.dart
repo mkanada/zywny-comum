@@ -99,6 +99,21 @@ class ScoreAudioScheduler {
   double? _loopEndMs;
   int _laps = 0;
 
+  /// Saltos de caminho (J08): trechos `[startMs, endMs)` que o [pump] pula —
+  /// ao alcançar `startMs`, reancora em `endMs` (como a volta do loop, sem
+  /// lacuna) e avisa por [onJump]. Nada dentro deles é agendado (nem notas,
+  /// nem cliques). Mutuamente exclusivos com o loop.
+  List<({double startMs, double endMs})> _jumps = const [];
+  int _jumpsTaken = 0;
+
+  /// Avisado (do [pump]) a cada salto de caminho, com o destino em ms
+  /// musicais — o host leva o `ScorePlayer` para lá, como em [onLoopRestart]
+  /// (só que para a frente).
+  void Function(double toMs)? onJump;
+
+  /// Saltos dados desde [setJumps].
+  int get jumpCount => _jumpsTaken;
+
   /// Âncoras antigas ainda audíveis: até `until` (segundos do dispositivo)
   /// [positionMs] usa esta âncora em vez da atual.
   final List<_Segment> _segments = [];
@@ -168,6 +183,33 @@ class ScoreAudioScheduler {
     _loopStartMs = null;
     _loopEndMs = null;
     _laps = 0;
+  }
+
+  /// Saltos de caminho para o [pump] pular, em ordem de tempo, sem
+  /// sobreposição e com `startMs < endMs` — os intervalos que a trilha pula
+  /// (casas não finais, voltas descartadas). Não move a posição: o salto
+  /// acontece quando o horizonte alcança `startMs`. [clearJumps] desliga.
+  void setJumps(List<({double startMs, double endMs})> jumps) {
+    assert(
+      _loopStartMs == null,
+      'saltos e loop A-B são mutuamente exclusivos',
+    );
+    var prevEnd = double.negativeInfinity;
+    for (final jump in jumps) {
+      assert(jump.startMs < jump.endMs, 'salto precisa de startMs < endMs');
+      assert(
+        jump.startMs >= prevEnd,
+        'saltos em ordem e sem sobreposição',
+      );
+      prevEnd = jump.endMs;
+    }
+    _jumps = List.of(jumps);
+    _jumpsTaken = 0;
+  }
+
+  void clearJumps() {
+    _jumps = const [];
+    _jumpsTaken = 0;
   }
 
   double _rawPositionAt(double deviceSeconds) {
@@ -356,6 +398,42 @@ class ScoreAudioScheduler {
         _scheduledUpToMs = loopStart;
         _laps++;
         onLoop?.call(_laps);
+        horizonMs = horizon();
+      }
+    }
+
+    // Fecha os saltos de caminho que cabem na janela: igual à volta do
+    // loop, mas para a frente — ao alcançar o início, emite até ele (com os
+    // `offMs` cortados) e reancora no destino no instante em que o início
+    // soa, sem lacuna. Cada salto avança, então o laço termina.
+    if (_jumps.isNotEmpty) {
+      var guard = 0;
+      while (guard++ < 64) {
+        ({double startMs, double endMs})? gap;
+        for (final jump in _jumps) {
+          if (jump.startMs >= _scheduledUpToMs &&
+              horizonMs >= jump.startMs) {
+            gap = jump;
+            break;
+          }
+        }
+        if (gap == null) break;
+        final g = gap;
+        _emit(
+          midi,
+          _scheduledUpToMs,
+          g.startMs,
+          earliest,
+          cutMs: g.startMs,
+          stopAt: _stopAtMs,
+        );
+        final jumpDevice = _deviceAt(g.startMs);
+        _segments.add(_Segment(jumpDevice, _deviceT0, _musicalT0));
+        _musicalT0 = g.endMs;
+        _deviceT0 = jumpDevice;
+        _scheduledUpToMs = g.endMs;
+        _jumpsTaken++;
+        onJump?.call(g.endMs);
         horizonMs = horizon();
       }
     }

@@ -169,8 +169,8 @@ void main() {
       expect(path.logicalOf(1), 1);
       expect(path.logicalOf(5), 2);
       expect(path.logicalOf(6), 3);
-      // Trecho não atravessa salto até o J08.
-      expect(cutSegments(path, 3), isEmpty);
+      // J08: o corte atravessa o salto (o agendador pula o vão).
+      expect(cutSegments(path, 3), hasLength(2));
     });
 
     test('|: A :| |: B :| -> A B com salto antes de B', () {

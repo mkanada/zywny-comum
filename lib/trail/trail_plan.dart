@@ -11,6 +11,25 @@ import 'trail_stage.dart';
 /// N efetivo da música: o dela, senão o geral (J00).
 int effectiveTrailMeasures({required int general, int? hymn}) => hymn ?? general;
 
+/// Vãos (`startMs`, `endMs`) dentro da etapa (J08): os saltos do caminho entre
+/// seus compassos lógicos. O agendador os pula e as sessões nem os avaliam.
+/// Vazio sem saltos.
+List<({double startMs, double endMs})> trailStageGaps(
+  TrailPath path,
+  TrailStage stage,
+) {
+  final gaps = <({double startMs, double endMs})>[];
+  for (final jump in path.jumps) {
+    if (jump > stage.first && jump <= stage.last) {
+      gaps.add((
+        startMs: path.logical[jump - 1].endMs,
+        endMs: path.logical[jump].startMs,
+      ));
+    }
+  }
+  return gaps;
+}
+
 /// Lista ordenada de etapas: trecho 0 inteiro, trecho 1…, fase final.
 class TrailPlan {
   const TrailPlan({required this.n, required this.stages});

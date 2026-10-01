@@ -55,6 +55,8 @@ class PracticeController {
     this.magicEngine,
     this.range,
     this.onRangeDone,
+    this.rangeJumps = const [],
+    this.onRangeJump,
   }) : _midiInput = midiInput, // ignore: prefer_initializing_formals
        _track = track {
     if (range != null) {
@@ -64,8 +66,21 @@ class PracticeController {
       );
     }
     _noteSub = _midiInput.notes.listen(_onNote);
+    // As sessões avaliam só o que toca: no intervalo, sem os saltos (J08).
+    // Sem `range`, é a peça inteira — igual a antes.
+    final activeRange = range;
+    final sessionTrack = activeRange == null
+        ? track
+        : track.rangeView(
+            startMs: activeRange.startMs,
+            endMs: activeRange.endMs,
+            gaps: rangeJumps,
+          );
     if (mode == PracticeMode.wait) {
-      final wait = WaitModeSession.forStaves(track, staves: hand.studentStaves);
+      final wait = WaitModeSession.forStaves(
+        sessionTrack,
+        staves: hand.studentStaves,
+      );
       _wait = wait;
       if (range != null) _tally = WaitTally();
       _verdictSub = wait.verdicts.listen(_onVerdict);
@@ -73,7 +88,7 @@ class PracticeController {
       _syncGhostExpected();
     } else if (mode == PracticeMode.rhythm) {
       final rhythm = RhythmSession.forStaves(
-        track,
+        sessionTrack,
         staves: hand.studentStaves,
         speed: scheduler.speed,
       );
@@ -81,7 +96,7 @@ class PracticeController {
       _rhythmSub = rhythm.verdicts.listen(_onRhythmVerdict);
     } else {
       final rt = RealtimeSession.forStaves(
-        track,
+        sessionTrack,
         staves: hand.studentStaves,
         speed: scheduler.speed,
       );
@@ -129,9 +144,17 @@ class PracticeController {
   /// modo livre de hoje (sem fim próprio).
   final ({double startMs, double endMs})? range;
 
+  /// Saltos dentro de [range] (J08): intervalos que o agendador pula e as
+  /// sessões nem avaliam (casas descartadas, voltas). Vazio sem saltos.
+  final List<({double startMs, double endMs})> rangeJumps;
+
   /// Chamado uma vez, quando o intervalo termina por conta própria (não num
   /// `stop` no meio — esse a tela trata como tentativa abandonada).
   final void Function()? onRangeDone;
+
+  /// Chamado a cada salto de caminho com o destino (o host leva o
+  /// `ScorePlayer` para lá, como em [onLoopRestart]).
+  final void Function(double toMs)? onRangeJump;
 
   double? _loopStartMs;
   double? _loopEndMs;
@@ -191,6 +214,8 @@ class PracticeController {
         wait.resetTo(range.startMs);
         scheduler.setBrake(wait.current.value?.onMs);
         scheduler.setStopAt(range.endMs);
+        scheduler.setJumps(rangeJumps);
+        scheduler.onJump = onRangeJump;
       } else {
         if (fromMs > 0) wait.resetTo(fromMs);
         scheduler.setBrake(wait.current.value?.onMs);
@@ -199,7 +224,11 @@ class PracticeController {
       final startMs = range?.startMs ?? fromMs;
       _resetTimed(startMs, untilMs: _loopEndMs ?? range?.endMs);
       scheduler.setBrake(null);
-      if (range != null) scheduler.setStopAt(range.endMs);
+      if (range != null) {
+        scheduler.setStopAt(range.endMs);
+        scheduler.setJumps(rangeJumps);
+        scheduler.onJump = onRangeJump;
+      }
       _lastPositionMs = startMs;
       _tickTimer ??= Timer.periodic(
         const Duration(milliseconds: 30),
@@ -375,6 +404,8 @@ class PracticeController {
     scheduler.setBrake(null);
     scheduler.setStaves(null);
     scheduler.clearStopAt();
+    scheduler.clearJumps();
+    scheduler.onJump = null;
     scheduler.pause();
     _releaseMagic();
     controller.releaseAll();
