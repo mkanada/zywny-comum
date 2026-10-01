@@ -158,6 +158,8 @@ class ScenePainter {
       inheritedColor,
       _CanvasVisitor(this, canvas),
       colorOverrides: node.id == null ? const {} : {node.id!: color},
+      // A letra não acende com a nota, então também não ganha halo.
+      skipExempt: true,
     );
     canvas.restore();
   }

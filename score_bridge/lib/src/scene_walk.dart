@@ -31,38 +31,66 @@ abstract interface class SceneVisitor {
   void exitGroup(SceneNode node);
 }
 
+/// Classes de nó que ficam fora de um destaque: a letra (`verse`, com as
+/// sílabas dentro) é filha da nota na cena, mas não é a nota — quando a nota
+/// acende, a sílaba continua na cor em que estaria sem o destaque.
+const Set<String> kOverrideExemptClasses = {'verse'};
+
 /// Percorre a árvore a partir de [root] em profundidade, na ordem de
 /// `children`, mantendo a cor corrente (§6).
 ///
 /// [initialColor] é a cor herdada por [root] (o preto do
 /// `<svg class="definition-scale">` para uma página inteira).
 /// [colorOverrides] troca a cor de um nó por `id` e vence o `color` do
-/// próprio nó; o que é herdado pelos filhos é a cor trocada.
+/// próprio nó; o que é herdado pelos filhos é a cor trocada — menos pelos
+/// filhos de classe [kOverrideExemptClasses], que seguem com a cor que teriam
+/// sem troca nenhuma. Com [skipExempt] esses filhos nem são visitados (o
+/// halo do destaque, que não deve borrar em volta da letra).
 void walkScene(
   SceneNode root,
   ui.Color initialColor,
   SceneVisitor visitor, {
   Map<String, ui.Color> colorOverrides = const {},
+  bool skipExempt = false,
 }) {
-  _walkNode(root, initialColor, visitor, colorOverrides);
+  _walkNode(
+    root,
+    initialColor,
+    initialColor,
+    visitor,
+    colorOverrides,
+    skipExempt,
+  );
 }
 
+/// [current] é a cor corrente; [plain], a que seria corrente sem
+/// [colorOverrides]. As duas só diferem dentro de um nó com cor trocada.
 void _walkNode(
   SceneNode node,
   ui.Color current,
+  ui.Color plain,
   SceneVisitor visitor,
   Map<String, ui.Color> colorOverrides,
+  bool skipExempt,
 ) {
   if (node.hidden) {
     return;
   }
+  if (kOverrideExemptClasses.contains(node.className)) {
+    if (skipExempt) {
+      return;
+    }
+    current = plain;
+  }
   // Uma conversão `#rrggbb` -> `Color` por nó, não por forma.
   ui.Color color = current;
+  ui.Color plainColor = plain;
+  if (node.color != null) {
+    color = plainColor = parseCssColor(node.color!);
+  }
   final override = node.id == null ? null : colorOverrides[node.id];
   if (override != null) {
     color = override;
-  } else if (node.color != null) {
-    color = parseCssColor(node.color!);
   }
   if (!visitor.enterGroup(node, current, color)) {
     return;
@@ -70,7 +98,14 @@ void _walkNode(
   for (final child in node.children) {
     switch (child) {
       case SceneNode():
-        _walkNode(child, color, visitor, colorOverrides);
+        _walkNode(
+          child,
+          color,
+          plainColor,
+          visitor,
+          colorOverrides,
+          skipExempt,
+        );
       case SceneShape() || SceneText():
         visitor.visitLeaf(child, color);
     }

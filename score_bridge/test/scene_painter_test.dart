@@ -155,6 +155,60 @@ void main() {
     expect(canvas.drawPaths[1].paint.color, const Color(0xFFFF0000));
   });
 
+  test('a letra (verse) dentro de uma nota destacada não muda de cor', () {
+    // Como o Verovio entrega: a sílaba é filha da nota.
+    final note = _node(
+      id: 'n1',
+      children: [
+        _fillRect(10), // a cabeça da nota
+        SceneNode(
+          className: 'verse',
+          hidden: false,
+          children: [
+            _node(children: [_fillRect(20)]),
+          ],
+        ),
+        _fillRect(30), // o que vem depois da letra volta a ser da nota
+      ],
+    );
+    final root = _node(color: '#00ff00', children: [note]);
+    final canvas = RecordingCanvas();
+    final painter = ScenePainter(
+      _page(root),
+      const {},
+      colorOverrides: const {'n1': Color(0xFF0000FF)},
+    )..paint(canvas);
+
+    expect(canvas.drawPaths, hasLength(3));
+    expect(canvas.drawPaths[0].paint.color, const Color(0xFF0000FF));
+    expect(canvas.drawPaths[1].paint.color, const Color(0xFF00FF00));
+    expect(canvas.drawPaths[2].paint.color, const Color(0xFF0000FF));
+
+    // O caminho do destaque animado (nó dinâmico) segue a mesma regra…
+    final subtree = RecordingCanvas();
+    painter.paintSubtree(
+      subtree,
+      note,
+      const Color(0xFF00FF00),
+      overrides: const {'n1': Color(0xFFFF0000)},
+    );
+    expect(subtree.drawPaths.map((d) => d.paint.color), const [
+      Color(0xFFFF0000),
+      Color(0xFF00FF00),
+      Color(0xFFFF0000),
+    ]);
+
+    // …e o halo nem passa pela letra.
+    final halo = RecordingCanvas();
+    painter.paintHalo(
+      halo,
+      note,
+      const Color(0xFF00FF00),
+      const Color(0xFFFF0000),
+    );
+    expect(halo.drawPaths, hasLength(2));
+  });
+
   test('hidden: nó invisível não desenha nada, nem os filhos', () {
     final root = _node(
       children: [
