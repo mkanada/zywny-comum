@@ -154,6 +154,112 @@ class _RailButton extends StatelessWidget {
   }
 }
 
+/// Altura da faixa de título do celular ([PhoneTitleBar]).
+const double kPhoneTitleBarHeight = 40;
+
+/// Faixa do topo da partitura no celular: voltar, o número e o título do
+/// hino e, à direita, o que estiver em [trailing] (os selos do treino).
+///
+/// O artboard `CelularEstudo` só tem o botão de voltar sobre a partitura; o
+/// título vem da barra de `Main` (desktop) — Source Serif 4 semibold sobre o
+/// fundo das barras — encolhido para uma linha, que a altura em paisagem é
+/// pouca. É uma faixa própria, e não um texto por cima da página, para nunca
+/// cobrir a primeira pauta.
+class PhoneTitleBar extends StatelessWidget {
+  const PhoneTitleBar({
+    super.key,
+    required this.number,
+    required this.title,
+    required this.onBack,
+    this.trailing = const [],
+  });
+
+  /// Número do hinário; `null` sem hino aberto.
+  final int? number;
+  final String title;
+  final VoidCallback onBack;
+  final List<Widget> trailing;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: kPhoneTitleBarHeight,
+      padding: const EdgeInsets.only(left: 6, right: 12),
+      decoration: const BoxDecoration(
+        color: kPanelSideBg,
+        border: Border(bottom: BorderSide(color: kBorderPanel)),
+      ),
+      child: Row(
+        children: [
+          IconButton(
+            tooltip: 'Voltar à biblioteca',
+            onPressed: onBack,
+            iconSize: 22,
+            visualDensity: VisualDensity.compact,
+            color: kInkCaption,
+            icon: const Icon(Icons.arrow_back),
+          ),
+          const SizedBox(width: 4),
+          if (number case final number?) ...[
+            Text(
+              '$number',
+              style: const TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w600,
+                color: kInkCaption,
+                fontFeatures: [FontFeature.tabularFigures()],
+              ),
+            ),
+            const SizedBox(width: 10),
+          ],
+          Expanded(
+            child: Text(
+              title,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: serifDisplay(fontSize: 18),
+            ),
+          ),
+          for (final widget in trailing) ...[const SizedBox(width: 8), widget],
+        ],
+      ),
+    );
+  }
+}
+
+/// Título da partitura na barra do desktop — o bloco central da barra de
+/// `Main.dc.html`: título em Source Serif 4 20/600 e uma linha de legenda.
+class ScoreTitle extends StatelessWidget {
+  const ScoreTitle({super.key, required this.title, this.caption});
+
+  final String title;
+  final String? caption;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          title,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: serifDisplay(fontSize: 20).copyWith(height: 1.1),
+        ),
+        if (caption case final caption?) ...[
+          const SizedBox(height: 1),
+          Text(
+            caption,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontSize: 12.5, color: kInkCaption),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
 /// Selo azul "Esperando · mão dir." (`CelularTreino`).
 class PhoneStatusPill extends StatelessWidget {
   const PhoneStatusPill({super.key, required this.text});
@@ -417,6 +523,58 @@ class PhoneToggleRow extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Slider com rótulo e valor da gaveta (mesmo desenho de "ANDAMENTO"):
+/// [onChanged] a cada passo, [onChangeEnd] ao soltar — para o que só vale a
+/// pena aplicar uma vez (regravar a partitura).
+class PhoneSliderRow extends StatelessWidget {
+  const PhoneSliderRow({
+    super.key,
+    required this.label,
+    required this.value,
+    required this.min,
+    required this.max,
+    required this.formatValue,
+    required this.onChanged,
+    this.onChangeEnd,
+    this.divisions,
+  });
+
+  final String label;
+  final double value;
+  final double min;
+  final double max;
+  final int? divisions;
+  final String Function(double value) formatValue;
+  final ValueChanged<double> onChanged;
+  final ValueChanged<double>? onChangeEnd;
+
+  @override
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          _Caption(label),
+          Text(
+            formatValue(value),
+            style: const TextStyle(fontSize: 13, color: kInk),
+          ),
+        ],
+      ),
+      Slider(
+        value: value.clamp(min, max),
+        min: min,
+        max: max,
+        divisions: divisions,
+        activeColor: kAccent,
+        onChanged: onChanged,
+        onChangeEnd: onChangeEnd,
+      ),
+    ],
+  );
 }
 
 /// Linha-botão da gaveta para o que não cabe num interruptor (abrir o
