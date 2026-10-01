@@ -5,6 +5,8 @@ import 'package:score_bridge/score_bridge.dart'
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../practice/practice_controller.dart' show PracticeMode;
+import '../trail/trail_stage.dart'
+    show kTrailDefaultMeasures, kTrailMinMeasures;
 
 /// Saída de som (K03/M03): o sintetizador do app (`.sf2`) ou o teclado MIDI
 /// conectado, tocando no som próprio do piano digital do usuário.
@@ -36,6 +38,7 @@ class AppSettings extends ChangeNotifier {
   static const _kHighlightColor = 'ui_highlight_color';
   static const _kHaloWidth = 'ui_halo_width';
   static const _kBarColor = 'ui_bar_color';
+  static const _kTrailMeasures = 'trail_measures';
 
   final SharedPreferencesAsync _prefs;
 
@@ -48,6 +51,7 @@ class AppSettings extends ChangeNotifier {
   Color _highlightColor = kDefaultHighlightColor;
   double _haloWidth = 1.0;
   Color _barColor = kDefaultBarColor;
+  int _trailMeasures = kTrailDefaultMeasures;
 
   /// `true` depois do primeiro [load] — antes disso valem os padrões.
   bool get loaded => _loaded;
@@ -124,6 +128,15 @@ class AppSettings extends ChangeNotifier {
     _changed(_prefs.setInt(_kBarColor, value.toARGB32()));
   }
 
+  /// Compassos lógicos por trecho da trilha (J03): padrão 5, mínimo 3.
+  int get trailMeasures => _trailMeasures;
+  set trailMeasures(int value) {
+    final clamped = value < kTrailMinMeasures ? kTrailMinMeasures : value;
+    if (clamped == _trailMeasures) return;
+    _trailMeasures = clamped;
+    _changed(_prefs.setInt(_kTrailMeasures, clamped));
+  }
+
   void _changed(Future<void> write) {
     notifyListeners();
     write.catchError((Object e) {
@@ -158,6 +171,7 @@ class AppSettings extends ChangeNotifier {
     final highlight = await read(() => _prefs.getInt(_kHighlightColor));
     final halo = await read(() => _prefs.getDouble(_kHaloWidth));
     final bar = await read(() => _prefs.getInt(_kBarColor));
+    final trailMeasures = await read(() => _prefs.getInt(_kTrailMeasures));
 
     _output = byName(SoundOutput.values, output) ?? _output;
     _useScoreInstruments = instruments ?? _useScoreInstruments;
@@ -168,6 +182,11 @@ class AppSettings extends ChangeNotifier {
     if (highlight != null) _highlightColor = Color(highlight);
     if (halo != null) _haloWidth = halo.clamp(0.0, 3.0);
     if (bar != null) _barColor = Color(bar);
+    if (trailMeasures != null) {
+      _trailMeasures = trailMeasures < kTrailMinMeasures
+          ? kTrailMinMeasures
+          : trailMeasures;
+    }
     _loaded = true;
     notifyListeners();
   }

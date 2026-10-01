@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../layout_options.dart';
 import '../practice/hand.dart';
+import '../trail/trail_stage.dart' show kTrailMinMeasures;
 
 /// Andamento que o app aceita (25%–150%, a faixa da gaveta de estudo).
 const double kSpeedMin = 0.25;
@@ -20,6 +21,7 @@ class HymnSettings {
     this.pageFitsBox = true,
     this.speed,
     this.hand,
+    this.trailMeasures,
   });
 
   /// Só as opções de layout que o usuário tirou do padrão do app (por nome,
@@ -35,8 +37,15 @@ class HymnSettings {
   final double? speed;
   final Hand? hand;
 
+  /// Compassos por trecho só deste hino (J03); `null` = usa o geral.
+  final int? trailMeasures;
+
   bool get isDefault =>
-      layout.isEmpty && pageFitsBox && speed == null && hand == null;
+      layout.isEmpty &&
+      pageFitsBox &&
+      speed == null &&
+      hand == null &&
+      trailMeasures == null;
 
   /// Todas as opções de layout: [defaults] com o que este hino mudou.
   Map<String, Object> layoutOver(Map<String, Object> defaults) => {
@@ -59,6 +68,7 @@ class HymnSettings {
     if (!pageFitsBox) 'fit': false,
     'speed': ?speed,
     'hand': ?hand?.name,
+    'trailMeasures': ?trailMeasures,
   };
 
   /// Lê o que foi guardado, descartando o que não serve mais: opção que o
@@ -81,11 +91,17 @@ class HymnSettings {
     for (final h in Hand.values) {
       if (h.name == json['hand']) hand = h;
     }
+    final trailMeasures = json['trailMeasures'];
     return HymnSettings(
       layout: layout,
       pageFitsBox: json['fit'] != false,
       speed: speed is num ? speed.toDouble().clamp(kSpeedMin, kSpeedMax) : null,
       hand: hand,
+      trailMeasures: trailMeasures is num
+          ? trailMeasures.round() < kTrailMinMeasures
+                ? kTrailMinMeasures
+                : trailMeasures.round()
+          : null,
     );
   }
 
