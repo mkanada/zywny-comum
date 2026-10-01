@@ -215,6 +215,22 @@ class TrailProgressStore extends ChangeNotifier {
   TrailProgress operator [](int number) =>
       _byNumber[number] ?? TrailProgress.empty;
 
+  /// Garante o hino na memória (uma chave só) — a tela usa isto ao abrir a
+  /// partitura; o `load()` em lote é para a biblioteca (J09).
+  Future<TrailProgress> ensureLoaded(int number) async {
+    try {
+      final text = await _prefs.getString(key(number));
+      if (text != null) {
+        _byNumber[number] = TrailProgress.fromJson(
+          jsonDecode(text) as Map<String, dynamic>,
+        );
+      }
+    } on Object {
+      _byNumber.remove(number);
+    }
+    return this[number];
+  }
+
   /// Resumo pronto para a biblioteca (J09): sem montar nenhum plano.
   ({int done, int total, bool completed}) summary(int number) {
     final p = _byNumber[number] ?? TrailProgress.empty;

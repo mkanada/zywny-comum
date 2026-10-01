@@ -22,10 +22,21 @@ class TrailPlan {
 
   bool get isEmpty => stages.isEmpty;
 
+  /// Trechos distintos no plano (etapas com `segment`).
+  int get segmentCount {
+    var count = 0;
+    for (final s in stages) {
+      final seg = s.segment;
+      if (seg != null && seg + 1 > count) count = seg + 1;
+    }
+    return count;
+  }
+
   static TrailPlan build(
     TrailPath path,
     PerformanceTrack track, {
     required int n,
+    bool includeFinal = true,
   }) {
     final segments = cutSegments(path, n);
     if (segments.isEmpty) return TrailPlan(n: n, stages: const []);
@@ -78,19 +89,23 @@ class TrailPlan {
     }
     final startMs = path.logical.first.startMs;
     final endMs = path.logical.last.endMs;
-    for (final speed in kTrailSpeeds) {
-      final pct = (speed * 100).round();
-      stages.add(
-        TrailStage(
-          id: 'final.$pct',
-          segment: null,
-          phase: TrailPhase.junto,
-          speed: speed,
-          startMs: startMs,
-          endMs: endMs,
-          label: trailStageLabel(TrailPhase.junto, speed),
-        ),
-      );
+    // A fase final é do J07: o J05 monta o plano só com os trechos e mostra
+    // "fase final em breve" ao acabar o último.
+    if (includeFinal) {
+      for (final speed in kTrailSpeeds) {
+        final pct = (speed * 100).round();
+        stages.add(
+          TrailStage(
+            id: 'final.$pct',
+            segment: null,
+            phase: TrailPhase.junto,
+            speed: speed,
+            startMs: startMs,
+            endMs: endMs,
+            label: trailStageLabel(TrailPhase.junto, speed),
+          ),
+        );
+      }
     }
     return TrailPlan(n: n, stages: stages);
   }

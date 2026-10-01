@@ -1,0 +1,130 @@
+// J05 — Faixa da trilha e resumo da etapa (widgets com controlador falso).
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:zywny/trail/stage_result.dart';
+import 'package:zywny/trail/trail_progress.dart';
+import 'package:zywny/trail/trail_widgets.dart';
+
+Widget _app(Widget child) =>
+    MaterialApp(home: Scaffold(body: child));
+
+void main() {
+  group('texto da faixa', () {
+    test('trecho e estado', () {
+      expect(trailStripTextFor(6, 1, 'Notas juntas'), 'Trecho 2/6 · Notas juntas');
+      expect(
+        trailStripTextFor(6, null, 'Tudo junto no ritmo 100%'),
+        'Fase final · Tudo junto no ritmo 100%',
+      );
+      const empty = TrailProgress(n: 5, total: 1);
+      expect(trailStateText(empty, 't0.notasD'), '');
+      const done = TrailProgress(n: 5, total: 2, records: {
+        'a': StageRecord(state: StageState.aprovada, best: 92),
+        'b': StageRecord(state: StageState.pulada, best: 0),
+      });
+      expect(trailStateText(done, 'a'), '92%');
+      expect(trailStateText(done, 'b'), 'pulada');
+    });
+  });
+
+  group('TrailStrip', () {
+    testWidgets('mostra texto e estado, começar/parar chamam de volta', (
+      tester,
+    ) async {
+      var starts = 0;
+      var stops = 0;
+      await tester.pumpWidget(
+        _app(
+          TrailStrip(
+            text: 'Trecho 2/6 · Notas juntas',
+            stateText: '92%',
+            running: false,
+            onStart: () => starts++,
+            onStop: () => stops++,
+          ),
+        ),
+      );
+      expect(find.textContaining('Trecho 2/6'), findsOneWidget);
+      expect(find.textContaining('92%'), findsOneWidget);
+      expect(tester.getSize(find.byType(TrailStrip)).height, 34);
+      await tester.tap(find.byTooltip('Começar etapa'));
+      expect(starts, 1);
+
+      await tester.pumpWidget(
+        _app(
+          TrailStrip(
+            text: 'Trecho 2/6 · Notas juntas',
+            stateText: '',
+            running: true,
+            onStart: () => starts++,
+            onStop: () => stops++,
+          ),
+        ),
+      );
+      await tester.tap(find.byTooltip('Parar etapa'));
+      expect(stops, 1);
+    });
+  });
+
+  group('showStageSummary', () {
+    Future<StageSummaryAction?> show(
+      WidgetTester tester, {
+      required int percent,
+      required bool last,
+    }) => showStageSummary(
+      tester.element(find.byType(Scaffold)),
+      stageRef: 'Trecho 1/4 · Notas da direita',
+      result: StageResult(hits: percent, total: 100, badMeasures: const {6}),
+      badLogical: const [7],
+      isLast: last,
+    );
+
+    testWidgets('aprovado: próxima ou repetir', (tester) async {
+      await tester.pumpWidget(_app(const SizedBox()));
+      final future = show(tester, percent: 95, last: false);
+      await tester.pumpAndSettle();
+      expect(find.text('95%'), findsOneWidget);
+      expect(find.text('Aprovado'), findsOneWidget);
+      expect(find.text('Compassos com erro: 7'), findsOneWidget);
+      await tester.tap(find.text('Próxima etapa'));
+      await tester.pumpAndSettle();
+      expect(await future, StageSummaryAction.next);
+    });
+
+    testWidgets('aprovado no último: concluir', (tester) async {
+      await tester.pumpWidget(_app(const SizedBox()));
+      final future = show(tester, percent: 100, last: true);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Concluir'));
+      await tester.pumpAndSettle();
+      expect(await future, StageSummaryAction.next);
+    });
+
+    testWidgets('reprovado: tentar de novo ou pular com confirmação', (
+      tester,
+    ) async {
+      await tester.pumpWidget(_app(const SizedBox()));
+      var future = show(tester, percent: 85, last: false);
+      await tester.pumpAndSettle();
+      expect(find.text('Faltou 5%'), findsOneWidget);
+      await tester.tap(find.text('Tentar de novo'));
+      await tester.pumpAndSettle();
+      expect(await future, StageSummaryAction.retry);
+
+      future = show(tester, percent: 70, last: false);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Pular etapa'));
+      await tester.pumpAndSettle();
+      expect(find.text('Pular etapa?'), findsOneWidget);
+      await tester.tap(find.text('Continuar aqui'));
+      await tester.pumpAndSettle();
+      expect(find.text('Tentar de novo'), findsOneWidget);
+      await tester.tap(find.text('Pular etapa'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Pular'));
+      await tester.pumpAndSettle();
+      await tester.pumpAndSettle();
+      expect(await future, StageSummaryAction.skip);
+    });
+  });
+}
