@@ -112,6 +112,16 @@ class ScoreAudioScheduler {
   /// (a pauta do aluno nunca é agendada, ele toca fisicamente).
   Set<int>? _staves;
 
+  /// Teto de passagem única (J04): com [setStopAt], nada com `onMs >=` o teto
+  /// é agendado (nem notas do app, nem cliques) e os `offMs` são cortados
+  /// nele — mas a posição continua correndo (ao contrário do freio), para o
+  /// último toque ainda poder casar dentro da folga. Mutuamente exclusivo
+  /// com o loop.
+  double? _stopAtMs;
+
+  /// Teto de agendamento da passagem única, ou `null` sem teto.
+  double? get stopAt => _stopAtMs;
+
   double get speed => _speed;
   bool get isRunning => _running;
 
@@ -190,6 +200,16 @@ class ScoreAudioScheduler {
   /// mão que o app toca no modo espera.
   void setStaves(Set<int>? staves) {
     _staves = staves;
+  }
+
+  /// Teto de agendamento da passagem única (J04): nada com `onMs >= [ms]` é
+  /// agendado. [clearStopAt] desliga.
+  void setStopAt(double ms) {
+    _stopAtMs = ms;
+  }
+
+  void clearStopAt() {
+    _stopAtMs = null;
   }
 
   double _musicalAt(double deviceSeconds) =>
@@ -346,7 +366,10 @@ class ScoreAudioScheduler {
         _scheduledUpToMs,
         horizonMs,
         earliest,
-        cutMs: loopEnd != null && horizonMs > loopEnd ? loopEnd : null,
+        cutMs: loopEnd != null && horizonMs > loopEnd
+            ? loopEnd
+            : (_stopAtMs != null && horizonMs > _stopAtMs! ? _stopAtMs : null),
+        stopAt: _stopAtMs,
       );
       _scheduledUpToMs = horizonMs;
     }
@@ -362,17 +385,21 @@ class ScoreAudioScheduler {
 
   /// Agenda em [midi] o que começa em `[lo, hi)`: notas (com `offMs`
   /// cortado em [cutMs]), cliques do metrônomo e da contagem inicial.
+  /// [stopAt] (teto da passagem única, J04) capa o `onMs` de notas e cliques
+  /// — a posição continua correndo além dele.
   void _emit(
     List<ScheduledMidi> midi,
     double lo,
     double hi,
     double earliest, {
     double? cutMs,
+    double? stopAt,
   }) {
     final floor = _floorMs;
     final noteLo = floor != null && lo < floor ? floor : lo;
-    if (hi > noteLo) {
-      for (final e in track.startingIn(noteLo, hi, staves: _staves)) {
+    final noteHi = stopAt != null && hi > stopAt ? stopAt : hi;
+    if (noteHi > noteLo) {
+      for (final e in track.startingIn(noteLo, noteHi, staves: _staves)) {
         // Atrasado (tick perdido, GC): nunca descarte o par — toque no mais
         // cedo possível.
         final onAt = _clamp(_deviceAt(e.onMs), earliest);
@@ -384,11 +411,14 @@ class ScoreAudioScheduler {
       }
     }
     for (final b in _countIn) {
-      if (b.ms >= lo && b.ms < hi) _click(midi, b, earliest);
+      if (b.ms >= lo && b.ms < hi && (stopAt == null || b.ms < stopAt)) {
+        _click(midi, b, earliest);
+      }
     }
     if (metronomeOn) {
       for (final b in beats) {
         if (b.ms >= hi) break;
+        if (stopAt != null && b.ms >= stopAt) break;
         if (b.ms >= lo && (floor == null || b.ms >= floor)) {
           _click(midi, b, earliest);
         }

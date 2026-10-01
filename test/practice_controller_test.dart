@@ -32,6 +32,7 @@ class FakeSoundEngine implements SoundEngine {
   double now = 0;
   final List<ScheduledMidi> scheduled = [];
   final List<List<int>> sent = [];
+  int allNotesOffCalls = 0;
 
   @override
   double get nowSeconds => now;
@@ -50,7 +51,9 @@ class FakeSoundEngine implements SoundEngine {
   @override
   void clearScheduled() {}
   @override
-  void allNotesOff() {}
+  void allNotesOff() {
+    allNotesOffCalls++;
+  }
   @override
   Future<void> dispose() async {}
 }
@@ -502,6 +505,387 @@ void main() {
           .where((m) => m.status & 0xF0 == 0x90)
           .length;
       expect(noteOns, track.events.length);
+    });
+  });
+
+  group('passagem única (J04)', () {
+    ({double startMs, double endMs}) twoBars(ScoreTimeline timeline) => (
+      startMs: timeline.measures[1].startMs.toDouble(),
+      endMs: timeline.measures[3].startMs.toDouble(),
+    );
+
+    Future<void> playStep(
+      FakeMidiInput midi,
+      FakeSoundEngine engine,
+      ScoreAudioScheduler scheduler,
+      PracticeController practice,
+    ) async {
+      final step = practice.currentStep.value!;
+      _advanceUntil(engine, scheduler, step.onMs);
+      for (final e in step.notes) {
+        midi.press(e.pitch, atSeconds: engine.now);
+      }
+      await pumpEventQueue();
+      // Tecla repetida no passo seguinte exige soltar e apertar de novo.
+      for (final e in step.notes) {
+        midi.release(e.pitch, atSeconds: engine.now);
+      }
+      await pumpEventQueue();
+    }
+
+    test('espera: 2 compassos certos → onRangeDone uma vez, 100%, sem passo '
+        'seguinte cobrado', () async {
+      final track = _loadTrack('erik-satie.vsb');
+      final doc = _loadDoc('erik-satie.vsb');
+      final timeline = ScoreTimeline(doc);
+      final interval = twoBars(timeline);
+      final engine = FakeSoundEngine();
+      final scheduler = ScoreAudioScheduler(
+        engine: engine,
+        track: track,
+        autoTick: false,
+      );
+      final scoreController = ScoreController(document: doc);
+      addTearDown(scoreController.dispose);
+      addTearDown(scoreController.clearAll);
+      final midi = FakeMidiInput();
+      addTearDown(midi.dispose);
+      var dones = 0;
+      final practice = PracticeController(
+        midiInput: midi,
+        track: track,
+        scheduler: scheduler,
+        controller: scoreController,
+        hand: Hand.direita,
+        measureIndexAt: timeline.measureIndexAt,
+        range: interval,
+        onRangeDone: () => dones++,
+      );
+      addTearDown(practice.dispose);
+
+      practice.start();
+      var guard = 0;
+      while (dones == 0 && guard++ < 100) {
+        await playStep(midi, engine, scheduler, practice);
+      }
+      expect(dones, 1);
+      final result = practice.stageResult!;
+      expect(result.percent, 100);
+      // O passo seguinte ao intervalo não foi cobrado.
+      final expectedSteps = track
+          .chords(staves: Hand.direita.studentStaves)
+          .where(
+            (c) =>
+                c.onMs >= interval.startMs &&
+                c.onMs < interval.endMs &&
+                c.notes.any((e) => !e.ornament),
+          )
+          .length;
+      expect(result.total, expectedSteps);
+      final next = practice.currentStep.value;
+      expect(next == null || next.onMs >= interval.endMs, isTrue);
+    });
+
+    test('espera: tecla errada tira o passo e marca o compasso', () async {
+      final track = _loadTrack('erik-satie.vsb');
+      final doc = _loadDoc('erik-satie.vsb');
+      final timeline = ScoreTimeline(doc);
+      final interval = twoBars(timeline);
+      final engine = FakeSoundEngine();
+      final scheduler = ScoreAudioScheduler(
+        engine: engine,
+        track: track,
+        autoTick: false,
+      );
+      final scoreController = ScoreController(document: doc);
+      addTearDown(scoreController.dispose);
+      addTearDown(scoreController.clearAll);
+      final midi = FakeMidiInput();
+      addTearDown(midi.dispose);
+      var dones = 0;
+      final practice = PracticeController(
+        midiInput: midi,
+        track: track,
+        scheduler: scheduler,
+        controller: scoreController,
+        hand: Hand.direita,
+        measureIndexAt: timeline.measureIndexAt,
+        range: interval,
+        onRangeDone: () => dones++,
+      );
+      addTearDown(practice.dispose);
+
+      practice.start();
+      final target = practice.currentStep.value!;
+      final targetMeasure = timeline.measureIndexAt(target.onMs);
+      midi.press(200, atSeconds: engine.now);
+      await pumpEventQueue();
+      var guard = 0;
+      while (dones == 0 && guard++ < 100) {
+        await playStep(midi, engine, scheduler, practice);
+      }
+      expect(dones, 1);
+      final result = practice.stageResult!;
+      expect(result.total, greaterThan(1));
+      expect(result.percent, lessThan(100));
+      expect(result.badMeasures, contains(targetMeasure));
+    });
+
+    test('tempo real: no tempo → 100%; sem tocar → 0% só do intervalo',
+        () async {
+      Future<({int dones, int? percent, int? total})> run(
+        bool play,
+      ) async {
+        final track = _loadTrack('erik-satie.vsb');
+        final doc = _loadDoc('erik-satie.vsb');
+        final timeline = ScoreTimeline(doc);
+        final interval = twoBars(timeline);
+        final engine = FakeSoundEngine();
+        final scheduler = ScoreAudioScheduler(
+          engine: engine,
+          track: track,
+          autoTick: false,
+        );
+        final scoreController = ScoreController(document: doc);
+        addTearDown(scoreController.dispose);
+        addTearDown(scoreController.clearAll);
+        final midi = FakeMidiInput();
+        addTearDown(midi.dispose);
+        var dones = 0;
+        final practice = PracticeController(
+          midiInput: midi,
+          track: track,
+          scheduler: scheduler,
+          controller: scoreController,
+          hand: Hand.direita,
+          mode: PracticeMode.realtime,
+          measureIndexAt: timeline.measureIndexAt,
+          passOf: (i) => timeline.measures[i].pass,
+          range: interval,
+          onRangeDone: () => dones++,
+        );
+        addTearDown(practice.dispose);
+
+        practice.start();
+        final mine = track.events
+            .where(
+              (e) =>
+                  Hand.direita.studentStaves.contains(e.staff) &&
+                  !e.ornament &&
+                  e.onMs >= interval.startMs &&
+                  e.onMs < interval.endMs,
+            )
+            .toList();
+        if (play) {
+          for (final e in mine) {
+            _advanceUntil(engine, scheduler, e.onMs);
+            midi.press(e.pitch, atSeconds: engine.now);
+            await pumpEventQueue();
+          }
+        }
+        _advanceUntil(engine, scheduler, interval.endMs + 1000);
+        await Future.delayed(const Duration(milliseconds: 150));
+        final result = practice.stageResult;
+        practice.stop();
+        return (
+          dones: dones,
+          percent: result?.percent,
+          total: result?.total,
+        );
+      }
+
+      final ok = await run(true);
+      expect(ok.dones, 1);
+      expect(ok.percent, 100);
+
+      final silent = await run(false);
+      expect(silent.dones, 1);
+      expect(silent.percent, 0);
+      expect(silent.total, greaterThan(0));
+    });
+
+    test('tempo real sem tocar: nenhum missed fora do intervalo', () async {
+      final track = _loadTrack('erik-satie.vsb');
+      final doc = _loadDoc('erik-satie.vsb');
+      final timeline = ScoreTimeline(doc);
+      final interval = twoBars(timeline);
+      final engine = FakeSoundEngine();
+      final scheduler = ScoreAudioScheduler(
+        engine: engine,
+        track: track,
+        autoTick: false,
+      );
+      final scoreController = ScoreController(document: doc);
+      addTearDown(scoreController.dispose);
+      addTearDown(scoreController.clearAll);
+      final midi = FakeMidiInput();
+      addTearDown(midi.dispose);
+      var dones = 0;
+      final practice = PracticeController(
+        midiInput: midi,
+        track: track,
+        scheduler: scheduler,
+        controller: scoreController,
+        hand: Hand.direita,
+        mode: PracticeMode.realtime,
+        measureIndexAt: timeline.measureIndexAt,
+        passOf: (i) => timeline.measures[i].pass,
+        range: interval,
+        onRangeDone: () => dones++,
+      );
+      addTearDown(practice.dispose);
+
+      practice.start();
+      _advanceUntil(engine, scheduler, interval.endMs + 1000);
+      await Future.delayed(const Duration(milliseconds: 150));
+      expect(dones, 1);
+      final inRange = {
+        for (var i = 0; i < timeline.measures.length; i++)
+          if (timeline.measures[i].startMs >= interval.startMs &&
+              timeline.measures[i].startMs < interval.endMs)
+            i,
+      };
+      expect(inRange, isNotEmpty);
+      for (final m in practice.report.measures) {
+        expect(inRange, contains(m.index), reason: 'compasso ${m.index}');
+      }
+      practice.stop();
+    });
+
+    test('ritmo: no tempo → 100%; extra na pausa → abaixo de 100%', () async {
+      Future<int?> run({required bool extra}) async {
+        final track = _loadTrack('erik-satie.vsb');
+        final doc = _loadDoc('erik-satie.vsb');
+        final timeline = ScoreTimeline(doc);
+        final interval = twoBars(timeline);
+        final engine = FakeSoundEngine();
+        final scheduler = ScoreAudioScheduler(
+          engine: engine,
+          track: track,
+          autoTick: false,
+        );
+        final scoreController = ScoreController(document: doc);
+        addTearDown(scoreController.dispose);
+        addTearDown(scoreController.clearAll);
+        final midi = FakeMidiInput();
+        addTearDown(midi.dispose);
+        var dones = 0;
+        final practice = PracticeController(
+          midiInput: midi,
+          track: track,
+          scheduler: scheduler,
+          controller: scoreController,
+          hand: Hand.direita,
+          mode: PracticeMode.rhythm,
+          measureIndexAt: timeline.measureIndexAt,
+          passOf: (i) => timeline.measures[i].pass,
+          range: interval,
+          onRangeDone: () => dones++,
+        );
+        addTearDown(practice.dispose);
+
+        practice.start();
+        final onsets =
+            (track.events
+                    .where(
+                      (e) =>
+                          Hand.direita.studentStaves.contains(e.staff) &&
+                          !e.ornament &&
+                          e.onMs >= interval.startMs &&
+                          e.onMs < interval.endMs,
+                    )
+                    .map((e) => e.onMs)
+                    .toSet()
+                    .toList()
+                  ..sort());
+        for (final ms in onsets) {
+          _advanceUntil(engine, scheduler, ms);
+          midi.press(60, atSeconds: engine.now);
+          await pumpEventQueue();
+          midi.release(60, atSeconds: engine.now + 0.01);
+          await pumpEventQueue();
+        }
+        if (extra) {
+          // Toque sem alvo depois do último onset, numa pausa com folga das
+          // janelas (130 ms).
+          expect(
+            onsets.isEmpty || onsets.last < interval.endMs - 400,
+            isTrue,
+            reason: 'sem pausa para o extra no intervalo',
+          );
+          final pauseMs = interval.endMs - 200;
+          _advanceUntil(engine, scheduler, pauseMs);
+          midi.press(60, atSeconds: engine.now);
+          await pumpEventQueue();
+          midi.release(60, atSeconds: engine.now + 0.01);
+          await pumpEventQueue();
+        }
+        _advanceUntil(engine, scheduler, interval.endMs + 1000);
+        await Future.delayed(const Duration(milliseconds: 150));
+        expect(dones, 1);
+        final percent = practice.stageResult?.percent;
+        practice.stop();
+        return percent;
+      }
+
+      expect(await run(extra: false), 100);
+      expect(await run(extra: true), lessThan(100));
+    });
+
+    test('mão do app não passa de endMs e há allNotesOff no fim', () async {
+      final track = _loadTrack('erik-satie.vsb');
+      final doc = _loadDoc('erik-satie.vsb');
+      final timeline = ScoreTimeline(doc);
+      final interval = twoBars(timeline);
+      final engine = FakeSoundEngine();
+      final scheduler = ScoreAudioScheduler(
+        engine: engine,
+        track: track,
+        autoTick: false,
+      );
+      final scoreController = ScoreController(document: doc);
+      addTearDown(scoreController.dispose);
+      addTearDown(scoreController.clearAll);
+      final midi = FakeMidiInput();
+      addTearDown(midi.dispose);
+      var dones = 0;
+      final practice = PracticeController(
+        midiInput: midi,
+        track: track,
+        scheduler: scheduler,
+        controller: scoreController,
+        hand: Hand.direita, // app toca a pauta 2
+        measureIndexAt: timeline.measureIndexAt,
+        range: interval,
+        onRangeDone: () => dones++,
+      );
+      addTearDown(practice.dispose);
+
+      practice.start();
+      var guard = 0;
+      while (dones == 0 && guard++ < 100) {
+        await playStep(midi, engine, scheduler, practice);
+      }
+      expect(dones, 1);
+      // Tudo que o app agendou está no intervalo — exato por pitch.
+      final expected = <int, int>{};
+      for (final e in track.events) {
+        if (Hand.direita.appStaves.contains(e.staff) &&
+            !e.ornament &&
+            e.onMs >= interval.startMs &&
+            e.onMs < interval.endMs) {
+          expected[e.pitch] = (expected[e.pitch] ?? 0) + 1;
+        }
+      }
+      final scheduled = <int, int>{};
+      for (final m in engine.scheduled) {
+        if (m.status & 0xF0 != 0x90) continue;
+        if (m.status & 0x0F == 0x09) continue; // metrônomo (desligado aqui)
+        scheduled[m.d1] = (scheduled[m.d1] ?? 0) + 1;
+      }
+      expect(expected, isNotEmpty);
+      expect(scheduled, expected);
+      expect(engine.allNotesOffCalls, greaterThan(0));
     });
   });
 }

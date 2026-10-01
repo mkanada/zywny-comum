@@ -15,6 +15,7 @@ import '../audio/sound_engine.dart';
 import '../midi/midi_input_service.dart';
 import '../midi/midi_monitor.dart' show kMidiMonitorChannel;
 import '../music/performance_track.dart';
+import '../trail/stage_result.dart';
 import 'hand.dart';
 import 'practice_colors.dart';
 import 'practice_report.dart';
@@ -52,12 +53,21 @@ class PracticeController {
     this.measureIndexAt,
     this.passOf,
     this.magicEngine,
+    this.range,
+    this.onRangeDone,
   }) : _midiInput = midiInput, // ignore: prefer_initializing_formals
        _track = track {
+    if (range != null) {
+      assert(
+        range!.startMs < range!.endMs,
+        'range precisa de startMs < endMs',
+      );
+    }
     _noteSub = _midiInput.notes.listen(_onNote);
     if (mode == PracticeMode.wait) {
       final wait = WaitModeSession.forStaves(track, staves: hand.studentStaves);
       _wait = wait;
+      if (range != null) _tally = WaitTally();
       _verdictSub = wait.verdicts.listen(_onVerdict);
       wait.current.addListener(_onStepChanged);
       _syncGhostExpected();
@@ -113,8 +123,29 @@ class PracticeController {
   /// leva o `ScorePlayer` para `startMs` (o agendador já foi reposto aqui).
   final void Function(double startMs)? onLoopRestart;
 
+  /// Intervalo de passagem única (J04): tocar `[startMs, endMs)` uma vez,
+  /// parar sozinho no fim e entregar um [stageResult]. Mutuamente exclusivo
+  /// com o loop ([setLoop] com `range` é erro de programação). `null` é o
+  /// modo livre de hoje (sem fim próprio).
+  final ({double startMs, double endMs})? range;
+
+  /// Chamado uma vez, quando o intervalo termina por conta própria (não num
+  /// `stop` no meio — esse a tela trata como tentativa abandonada).
+  final void Function()? onRangeDone;
+
   double? _loopStartMs;
   double? _loopEndMs;
+
+  /// Contagem do modo espera na passagem única (J02): passos de primeira /
+  /// passos concluídos. Só existe com `range` no modo espera.
+  WaitTally? _tally;
+
+  /// Passo do aluno que o [_tally] tem como pendente (`null` sem pendência
+  /// contabilizada).
+  int? _tallyStep;
+
+  /// O intervalo terminou por conta própria ([onRangeDone] já foi chamado).
+  bool _rangeDone = false;
   WaitModeSession? _wait;
   RealtimeSession? _rt;
   RhythmSession? _rhythm;
@@ -149,23 +180,35 @@ class PracticeController {
   /// [Hand.ambas] — o app não toca nada) e começa em [fromMs].
   ///
   /// [fromMs] começa no meio da peça (loop A-B); [countIn] antecede com 1
-  /// compasso de cliques (T04).
+  /// compasso de cliques (T04). Com [range], começa em `range.startMs` e o
+  /// teto de áudio vai para `range.endMs`.
   void start({double fromMs = 0, bool countIn = false}) {
     scheduler.setStaves(hand.appStaves);
+    final range = this.range;
     final wait = _wait;
     if (wait != null) {
-      if (fromMs > 0) wait.resetTo(fromMs);
-      scheduler.setBrake(wait.current.value?.onMs);
+      if (range != null) {
+        wait.resetTo(range.startMs);
+        scheduler.setBrake(wait.current.value?.onMs);
+        scheduler.setStopAt(range.endMs);
+      } else {
+        if (fromMs > 0) wait.resetTo(fromMs);
+        scheduler.setBrake(wait.current.value?.onMs);
+      }
     } else {
-      _resetTimed(fromMs, untilMs: _loopEndMs);
+      final startMs = range?.startMs ?? fromMs;
+      _resetTimed(startMs, untilMs: _loopEndMs ?? range?.endMs);
       scheduler.setBrake(null);
-      _lastPositionMs = fromMs;
+      if (range != null) scheduler.setStopAt(range.endMs);
+      _lastPositionMs = startMs;
       _tickTimer ??= Timer.periodic(
         const Duration(milliseconds: 30),
         (_) => _tick(),
       );
     }
-    scheduler.play(fromMs, countIn: countIn);
+    // Intervalo sem passo/evento (só pausa): o reset acima já terminou.
+    if (_rangeDone) return;
+    scheduler.play(range?.startMs ?? fromMs, countIn: countIn);
   }
 
   /// Loop A-B no treino (T04). Espera: ao passar o último passo de
@@ -174,6 +217,10 @@ class PracticeController {
   /// dá as voltas; a cada volta o que faltou vira `missed` e a avaliação
   /// recomeça. [clearLoop] desliga.
   void setLoop(double startMs, double endMs) {
+    assert(
+      range == null,
+      'loop e passagem única (range) são mutuamente exclusivos',
+    );
     _loopStartMs = startMs;
     _loopEndMs = endMs;
     final wait = _wait;
@@ -248,6 +295,19 @@ class PracticeController {
   void _tick() {
     if (!_timed || !scheduler.isRunning) return;
     final pos = scheduler.positionMs;
+    final range = this.range;
+    if (range != null) {
+      // Passagem única: a posição passa do fim + folga (o último toque
+      // ainda pode casar), aí o que faltou vira `missed` e termina sozinho.
+      if (pos >= range.endMs + _slackMs) {
+        _tickTimed(range.endMs + _slackMs + 1);
+        _finishRange();
+      } else {
+        _lastPositionMs = pos;
+        _tickTimed(pos);
+      }
+      return;
+    }
     final loopEnd = _loopEndMs;
     final loopStart = _loopStartMs;
     if (loopEnd != null && loopStart != null && pos < _lastPositionMs - 1) {
@@ -271,10 +331,40 @@ class PracticeController {
   /// parar, antes de ler [report].
   void finish() {
     if (!_timed) return;
-    final end = _loopEndMs ?? _track.durationMs;
+    final end = _loopEndMs ?? range?.endMs ?? _track.durationMs;
     final pos = scheduler.positionMs;
     // Só o que já devia ter soado conta como perdido ao parar no meio.
     _tickTimed(pos >= end ? end + _slackMs + 1 : pos);
+  }
+
+  /// O intervalo terminou por conta própria: silencia, solta tudo e avisa o
+  /// host uma vez. O [stageResult] continua válido depois daqui.
+  void _finishRange() {
+    if (_rangeDone) return;
+    _rangeDone = true;
+    stop();
+    onRangeDone?.call();
+  }
+
+  /// Resultado da passagem única — válido depois do fim do intervalo ou de
+  /// [finish()]. Parar no meio (`stop` antes do fim) dá o parcial avaliado
+  /// até ali (`null` se nada foi avaliado ainda); sem [range], `null`.
+  StageResult? get stageResult {
+    final range = this.range;
+    if (range == null) return null;
+    final tally = _tally;
+    if (tally != null) {
+      final result = tally.result();
+      if (result.total > 0 || _rangeDone) return result;
+      return null;
+    }
+    if (hasVerdicts || _rangeDone) {
+      return StageResult.fromReport(
+        report,
+        rhythm: mode == PracticeMode.rhythm,
+      );
+    }
+    return null;
   }
 
   /// Solta o freio/filtro e para o agendador — volta ao comportamento
@@ -284,6 +374,7 @@ class PracticeController {
     _tickTimer = null;
     scheduler.setBrake(null);
     scheduler.setStaves(null);
+    scheduler.clearStopAt();
     scheduler.pause();
     _releaseMagic();
     controller.releaseAll();
@@ -432,6 +523,7 @@ class PracticeController {
 
   void _onVerdict(NoteVerdict verdict) {
     _record(verdict);
+    if (verdict.kind == PracticeVerdictKind.wrong) _tally?.wrong();
     switch (verdict.kind) {
       case PracticeVerdictKind.correct:
         _correctCount.value++;
@@ -522,6 +614,29 @@ class PracticeController {
   void _onStepChanged() {
     final wait = _wait;
     if (wait == null) return;
+    final range = this.range;
+    if (range != null) {
+      // Passagem única: o passo anterior concluiu quando o índice troca (a
+      // republicação do mesmo passo a cada nota certa não conta); o
+      // seguinte, se ainda está no intervalo, entra na contagem — senão o
+      // intervalo acabou.
+      final step = wait.current.value;
+      if (step == null || step.onMs >= range.endMs) {
+        if (_tallyStep != null) {
+          _tally?.stepDone();
+          _tallyStep = null;
+        }
+        _finishRange();
+        return;
+      }
+      if (_tallyStep == step.index) return;
+      if (_tallyStep != null) _tally?.stepDone();
+      _tally?.stepStarted(step.index, measureIndexAt?.call(step.onMs) ?? 0);
+      _tallyStep = step.index;
+      scheduler.setBrake(step.onMs);
+      _syncGhostExpected();
+      return;
+    }
     final end = _loopEndMs;
     if (end != null) {
       final step = wait.current.value;
