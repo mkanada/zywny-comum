@@ -2,6 +2,8 @@
 // fase final), pulando as fases de mão vazia.
 library;
 
+import 'package:score_bridge/score_bridge.dart' show MeasureInfo;
+
 import '../music/performance_track.dart';
 import '../practice/practice_controller.dart' show PracticeMode;
 import 'trail_path.dart';
@@ -9,7 +11,8 @@ import 'trail_segments.dart';
 import 'trail_stage.dart';
 
 /// N efetivo da música: o dela, senão o geral (J00).
-int effectiveTrailMeasures({required int general, int? hymn}) => hymn ?? general;
+int effectiveTrailMeasures({required int general, int? hymn}) =>
+    hymn ?? general;
 
 /// Vãos (`startMs`, `endMs`) dentro da etapa (J08): os saltos do caminho entre
 /// seus compassos lógicos. O agendador os pula e as sessões nem os avaliam.
@@ -28,6 +31,25 @@ List<({double startMs, double endMs})> trailStageGaps(
     }
   }
   return gaps;
+}
+
+/// Ids (na cena) dos compassos do trecho da [stage], na ordem do caminho —
+/// o que a pauta marca com a etapa parada (U02). Vazio na fase final
+/// (`segment == null`: a música inteira, nada a marcar). Um id repetido por
+/// ocorrências (casas, ritornelos) aparece uma vez.
+List<String> trailStageMeasureIds(
+  TrailPath path,
+  TrailStage stage,
+  List<MeasureInfo> measures,
+) {
+  if (stage.segment == null) return const [];
+  final ids = <String>{};
+  for (var i = stage.first; i <= stage.last; i++) {
+    for (final m in path.logical[i].measures) {
+      ids.add(measures[m.occurrence].id);
+    }
+  }
+  return ids.toList();
 }
 
 /// Lista ordenada de etapas: trecho 0 inteiro, trecho 1…, fase final.

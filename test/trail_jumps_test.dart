@@ -17,6 +17,7 @@ import 'package:zywny/practice/practice_controller.dart';
 import 'package:zywny/trail/trail_path.dart';
 import 'package:zywny/trail/trail_plan.dart';
 import 'package:zywny/trail/trail_segments.dart';
+import 'package:zywny/trail/trail_stage.dart';
 
 class _Occ {
   const _Occ(this.id, this.pass, this.t, this.q);
@@ -127,8 +128,7 @@ VsbDocument _houseDoc() => _fakeTrailDoc(
   finalQ: 28,
 );
 
-TrailPath _housePath() =>
-    TrailPath.fromTimeline(ScoreTimeline(_houseDoc()));
+TrailPath _housePath() => TrailPath.fromTimeline(ScoreTimeline(_houseDoc()));
 
 class _Engine implements SoundEngine {
   double now = 0;
@@ -277,9 +277,34 @@ void main() {
     });
   });
 
+  group('compassos marcados na pauta (U02)', () {
+    test('trecho 1 e 2 com casas; fase final vazia', () {
+      final timeline = ScoreTimeline(_houseDoc());
+      final path = TrailPath.fromTimeline(timeline);
+      final plan = TrailPlan.build(
+        path,
+        _houseTrack(),
+        n: 3,
+        includeFinal: true,
+      );
+      List<String> ids(TrailStage s) =>
+          trailStageMeasureIds(path, s, timeline.measures);
+      final first = plan.stages.firstWhere((s) => s.segment == 0);
+      final second = plan.stages.firstWhere((s) => s.segment == 1);
+      final last = plan.stages.firstWhere((s) => s.segment == null);
+      final all = [
+        for (final m in path.logical)
+          timeline.measures[m.measures.first.occurrence].id,
+      ];
+      expect(ids(first), all.sublist(0, 3));
+      // Trechos vizinhos compartilham um compasso (J00).
+      expect(ids(second), all.sublist(2));
+      expect(ids(last), isEmpty);
+    });
+  });
+
   group('agendador pula o vão (critérios 1 e 3)', () {
-    test('nada do vão é agendado; destino avisado; metrônomo fora do vão',
-        () {
+    test('nada do vão é agendado; destino avisado; metrônomo fora do vão', () {
       final track = _houseTrack();
       final engine = _Engine();
       final scheduler = ScoreAudioScheduler(
@@ -457,8 +482,7 @@ void main() {
       practice.stop();
     });
 
-    test('tempo real cruza a casa no tempo: 100%, sem missed do vão',
-        () async {
+    test('tempo real cruza a casa no tempo: 100%, sem missed do vão', () async {
       final track = _houseTrack();
       final timeline = ScoreTimeline(_houseDoc());
       final engine = _Engine();
