@@ -48,18 +48,103 @@ TextStyle serifDisplay({
   color: color,
 );
 
+/// O esquema de cores do app, escrito à mão a partir da paleta acima. O
+/// `fromSeed` gerava um primário arroxeado e superfícies lavanda: diálogos,
+/// botões, interruptores e controles deslizantes não tinham a cor do resto
+/// (U18, E1).
+const kAppColorScheme = ColorScheme(
+  brightness: Brightness.light,
+  primary: kAccent,
+  onPrimary: Colors.white,
+  primaryContainer: kAccentSoftBg,
+  onPrimaryContainer: kAccentDark,
+  secondary: kAccentDark,
+  onSecondary: Colors.white,
+  secondaryContainer: kAccentSoftBg,
+  onSecondaryContainer: kAccentDark,
+  tertiary: kGoodColor,
+  onTertiary: Colors.white,
+  error: kBadColor,
+  onError: Colors.white,
+  surface: kSurface,
+  onSurface: kInk,
+  onSurfaceVariant: kInkCaption,
+  surfaceContainerLowest: kSurface,
+  surfaceContainerLow: kPanelSideBg,
+  surfaceContainer: kLibraryCardBg,
+  surfaceContainerHigh: kChipBg,
+  surfaceContainerHighest: kChipBg,
+  outline: kBorder,
+  outlineVariant: kBorderSoft,
+  shadow: Colors.black,
+  scrim: kScrim,
+  inverseSurface: kInk,
+  onInverseSurface: Colors.white,
+  inversePrimary: kAccentSoftBg,
+  surfaceTint: Colors.transparent,
+);
+
 ThemeData buildAppTheme() {
   final base = ThemeData(
     useMaterial3: true,
-    colorScheme: ColorScheme.fromSeed(
-      seedColor: kAccent,
-      brightness: Brightness.light,
-    ),
+    colorScheme: kAppColorScheme,
     scaffoldBackgroundColor: kLibraryBg,
   );
   return base.copyWith(
     // IBM Plex Sans no corpo, como no artboard.
     textTheme: GoogleFonts.ibmPlexSansTextTheme(base.textTheme)
         .apply(bodyColor: kInk, displayColor: kInk),
+    dialogTheme: DialogThemeData(
+      backgroundColor: kSurface,
+      surfaceTintColor: Colors.transparent,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+    ),
+    bottomSheetTheme: const BottomSheetThemeData(
+      backgroundColor: kSurface,
+      surfaceTintColor: Colors.transparent,
+      modalBackgroundColor: kSurface,
+    ),
+    filledButtonTheme: FilledButtonThemeData(
+      style: FilledButton.styleFrom(
+        backgroundColor: kAccent,
+        foregroundColor: Colors.white,
+      ),
+    ),
+    textButtonTheme: TextButtonThemeData(
+      style: TextButton.styleFrom(foregroundColor: kAccent),
+    ),
+    outlinedButtonTheme: OutlinedButtonThemeData(
+      style: OutlinedButton.styleFrom(
+        foregroundColor: kAccent,
+        side: const BorderSide(color: kBorder),
+      ),
+    ),
+    switchTheme: SwitchThemeData(
+      thumbColor: WidgetStateProperty.resolveWith(
+        (states) =>
+            states.contains(WidgetState.selected) ? Colors.white : kInkMuted,
+      ),
+      trackColor: WidgetStateProperty.resolveWith(
+        (states) => states.contains(WidgetState.selected) ? kAccent : kChipBg,
+      ),
+      trackOutlineColor: WidgetStateProperty.resolveWith(
+        (states) => states.contains(WidgetState.selected) ? kAccent : kBorder,
+      ),
+    ),
+    // O primário (kAccent) já vem do esquema de cores.
+    sliderTheme: const SliderThemeData(inactiveTrackColor: kBorder),
+    segmentedButtonTheme: SegmentedButtonThemeData(
+      style: SegmentedButton.styleFrom(
+        selectedBackgroundColor: kAccentSoftBg,
+        selectedForegroundColor: kAccentDark,
+        side: const BorderSide(color: kBorder),
+      ),
+    ),
+    snackBarTheme: const SnackBarThemeData(
+      backgroundColor: kInk,
+      contentTextStyle: TextStyle(color: Colors.white),
+      behavior: SnackBarBehavior.floating,
+    ),
+    progressIndicatorTheme: const ProgressIndicatorThemeData(color: kAccent),
   );
 }

@@ -23,7 +23,6 @@ Future<({int a, int b})?> showLoopSheet(
 }) {
   return showModalBottomSheet<({int a, int b})>(
     context: context,
-    backgroundColor: kSurface,
     isScrollControlled: true,
     builder: (context) {
       var a = initial?.a ?? current;
@@ -119,7 +118,6 @@ class _LoopSlider extends StatelessWidget {
             min: 0,
             max: (total - 1).toDouble(),
             divisions: total > 1 ? total - 1 : null,
-            activeColor: kAccent,
             label: '${value + 1}',
             onChanged: (v) => onChanged(v.round()),
           ),
@@ -271,7 +269,6 @@ Future<void> showPracticeSummary(
 
   return showModalBottomSheet<void>(
     context: context,
-    backgroundColor: kSurface,
     isScrollControlled: true,
     builder: (context) {
       var details = false;

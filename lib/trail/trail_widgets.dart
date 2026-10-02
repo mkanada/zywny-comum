@@ -200,7 +200,6 @@ Future<StageSummaryAction?> showStageSummary(
   final goal = (kTrailPassAccuracy * 100).round();
   return showModalBottomSheet<StageSummaryAction>(
     context: context,
-    backgroundColor: kSurface,
     isScrollControlled: true,
     builder: (context) => SafeArea(
       child: Padding(
@@ -300,7 +299,6 @@ enum TrailConclusionAction { library, free }
 Future<TrailConclusionAction?> showTrailConclusion(BuildContext context) {
   return showModalBottomSheet<TrailConclusionAction>(
     context: context,
-    backgroundColor: kSurface,
     isScrollControlled: true,
     builder: (context) => SafeArea(
       child: Padding(
