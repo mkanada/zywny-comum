@@ -58,6 +58,7 @@ class PracticeController {
     this.onRangeDone,
     this.rangeJumps = const [],
     this.onRangeJump,
+    this.onWaitTarget,
     this.correctColor = kPracticeCorrectColor,
     this.wrongColor = kPracticeWrongColor,
   }) : _midiInput = midiInput, // ignore: prefer_initializing_formals
@@ -162,6 +163,12 @@ class PracticeController {
   /// `ScorePlayer` para lá, como em [onLoopRestart]).
   final void Function(double toMs)? onRangeJump;
 
+  /// Modo espera: chamado a cada troca do freio com o instante (ms musicais)
+  /// da nota pendente — `null` ao parar. O host repassa a
+  /// `ScorePlayer.waitTarget`, que conclui a virada de página sem esperar o
+  /// relógio (que fica parado no freio).
+  final void Function(double? onMs)? onWaitTarget;
+
   double? _loopStartMs;
   double? _loopEndMs;
 
@@ -218,13 +225,13 @@ class PracticeController {
     if (wait != null) {
       if (range != null) {
         wait.resetTo(range.startMs);
-        scheduler.setBrake(wait.current.value?.onMs);
+        _setBrake(wait.current.value?.onMs);
         scheduler.setStopAt(range.endMs);
         scheduler.setJumps(rangeJumps);
         scheduler.onJump = onRangeJump;
       } else {
         if (fromMs > 0) wait.resetTo(fromMs);
-        scheduler.setBrake(wait.current.value?.onMs);
+        _setBrake(wait.current.value?.onMs);
       }
     } else {
       final startMs = range?.startMs ?? fromMs;
@@ -273,6 +280,13 @@ class PracticeController {
     if (_timed) _resetTimed(_lastPositionMs);
   }
 
+  /// Modo espera: arma (ou solta) o freio do agendador e avisa o host do
+  /// instante da nota pendente ([onWaitTarget]).
+  void _setBrake(double? onMs) {
+    scheduler.setBrake(onMs);
+    onWaitTarget?.call(onMs);
+  }
+
   bool _restarting = false;
 
   void _restartLoop() {
@@ -283,7 +297,7 @@ class PracticeController {
     scheduler.seek(start);
     wait.resetTo(start);
     _restarting = false;
-    scheduler.setBrake(wait.current.value?.onMs);
+    _setBrake(wait.current.value?.onMs);
     onLoopRestart?.call(start);
   }
 
@@ -407,7 +421,11 @@ class PracticeController {
   void stop() {
     _tickTimer?.cancel();
     _tickTimer = null;
-    scheduler.setBrake(null);
+    if (_wait != null) {
+      _setBrake(null);
+    } else {
+      scheduler.setBrake(null);
+    }
     scheduler.setStaves(null);
     scheduler.clearStopAt();
     scheduler.clearJumps();
@@ -679,7 +697,7 @@ class PracticeController {
       if (_tallyStep != null) _tally?.stepDone();
       _tally?.stepStarted(step.index, measureIndexAt?.call(step.onMs) ?? 0);
       _tallyStep = step.index;
-      scheduler.setBrake(step.onMs);
+      _setBrake(step.onMs);
       _syncGhostExpected();
       return;
     }
@@ -691,7 +709,7 @@ class PracticeController {
         return;
       }
     }
-    scheduler.setBrake(wait.current.value?.onMs);
+    _setBrake(wait.current.value?.onMs);
     _syncGhostExpected();
   }
 

@@ -576,6 +576,38 @@ class ScoreTimeline {
     return null;
   }
 
+  /// A virada que chega à página de [ms]: de onde vem ([from], de [fromMs]
+  /// em diante), para onde vai ([to], a partir de [toMs]) e quanto dura cada
+  /// movimento da haste nela (`sweepMs`, o `D` de [curtainAt]). `null` se a
+  /// página de [ms] é a primeira, ou se chega-se a ela por um salto dentro da
+  /// mesma `view` (nada para revelar).
+  ///
+  /// É o que o `ScorePlayer` usa para concluir a virada no modo espera, em
+  /// que a posição para antes de a conclusão de [curtainAt] terminar.
+  ({PageRef from, PageRef to, double fromMs, double toMs, double sweepMs})?
+  turnInto(double ms, {required Duration maxSweep}) {
+    if (_measures.isEmpty) {
+      return null;
+    }
+    final index = measureIndexAt(ms);
+    final r = _runs.indexWhere((run) => index <= run.last);
+    if (r <= 0) {
+      return null;
+    }
+    final run = _runs[r];
+    final prev = _runs[r - 1];
+    if (prev.view == run.view) {
+      return null;
+    }
+    return (
+      from: prev.view,
+      to: run.view,
+      fromMs: _measures[prev.first].startMs,
+      toMs: _measures[run.first].startMs,
+      sweepMs: _dOf(_measures[prev.last], maxSweep.inMicroseconds / 1000.0),
+    );
+  }
+
   /// Borda da haste e desfoque da página revelada ([SweepCurtain.blur]):
   /// inteiro na entrada e na espera, caindo a zero no começo da saída
   /// ([revealBlurAt]).

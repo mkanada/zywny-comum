@@ -35,6 +35,16 @@
 // uma tecla só. As cadeias vêm de `MidiNote.tied` (`midi.json`); sem ele,
 // nada muda. `ScoreTimeline` continua com o timemap cru.
 //
+// VIRADA NO MODO ESPERA (`waitTarget`): a haste de `curtainAt` é função da
+// posição, e no modo espera a posição para no instante da nota pendente — que,
+// na primeira nota de uma página, é justamente o começo da saída da haste: a
+// página anterior nunca saía. Com `waitTarget` (o instante da nota pendente),
+// quando ela está na página seguinte à exibida o player conclui a virada
+// sozinho, em tempo de parede (o `D` da virada), a partir de onde a haste
+// estiver — ou seja, assim que o aluno acerta a última nota da página. A
+// virada adiantada vale até a posição alcançá-la, um `seek`, ou `waitTarget`
+// voltar a `null`.
+//
 // PÁGINAS ALTERNATIVAS (P04b): a página de repouso e a de trás da haste vêm
 // de `ScoreTimeline.restViewAt`/`curtainAt` (a rota de P00/P04a) — em
 // execução, a vista pode mostrar uma alternativa num salto de repetição.
@@ -241,6 +251,21 @@ class ScorePlayer {
   /// cabeçalho do arquivo.
   PlaybackClock? clock;
 
+  /// Modo espera: o instante musical (ms) da nota que o host está esperando
+  /// o aluno tocar — onde o relógio vai ficar parado. `null` (padrão) fora do
+  /// modo espera. Com ele, a página anterior sai assim que a nota pendente
+  /// passa a ser da página seguinte, sem depender de a posição andar — ver
+  /// VIRADA NO MODO ESPERA no cabeçalho do arquivo.
+  double? get waitTarget => _waitTarget;
+  double? _waitTarget;
+  set waitTarget(double? ms) {
+    if (_disposed || _waitTarget == ms) {
+      return;
+    }
+    _waitTarget = ms;
+    _publish();
+  }
+
   /// A haste de virada em [position]; passe a `ScoreView.curtain`.
   ValueListenable<SweepCurtain?> get curtain => _curtain;
 
@@ -296,6 +321,9 @@ class ScorePlayer {
   }
 
   void _onTick(Duration elapsed) {
+    final delta = elapsed - _lastElapsed;
+    _lastElapsed = elapsed;
+    final sweeping = _stepAhead(delta);
     final c = clock;
     if (c != null) {
       final ms = c.positionMs;
@@ -303,14 +331,15 @@ class ScorePlayer {
         _advanceToMs(ms.clamp(0.0, timeline.durationMs));
       } else if (_positionMs - ms > _kClockSeekToleranceMs) {
         seek(Duration(microseconds: (ms * 1000).round()));
+      } else if (sweeping) {
+        // Relógio parado no freio: só a virada adiantada anda.
+        _publish();
       }
       if (_positionMs >= timeline.durationMs) {
         pause();
       }
       return;
     }
-    final delta = elapsed - _lastElapsed;
-    _lastElapsed = elapsed;
     advance(Duration(microseconds: (delta.inMicroseconds * speed).round()));
     if (_positionMs >= timeline.durationMs) {
       pause();
@@ -371,6 +400,7 @@ class ScorePlayer {
       timeline.durationMs,
     );
     _positionMs = ms;
+    _ahead = null;
     controller.clearHighlights();
     final entries = _entries;
     final active = <String>{};
@@ -442,6 +472,55 @@ class ScorePlayer {
 
   int _lastScrolledMeasure = -1;
 
+  /// A virada adiantada em vigor (ver VIRADA NO MODO ESPERA no cabeçalho):
+  /// `null` quando vale a haste de `curtainAt`.
+  _AheadTurn? _ahead;
+
+  /// Anda a virada adiantada em [delta] de tempo de parede; `true` se ela
+  /// se moveu (há o que publicar).
+  bool _stepAhead(Duration delta) {
+    final ahead = _ahead;
+    if (ahead == null || ahead.progress >= 1) {
+      return false;
+    }
+    ahead.progress = ahead.sweepMs <= 0
+        ? 1
+        : (ahead.progress + delta.inMicroseconds / 1000.0 / ahead.sweepMs)
+              .clamp(0.0, 1.0);
+    return true;
+  }
+
+  /// Decide a virada adiantada para a posição atual: encerra a que a posição
+  /// já alcançou (ou que ficou sem sentido) e abre uma nova quando a nota
+  /// pendente de [waitTarget] está na página seguinte à que [natural] mostra.
+  _AheadTurn? _resolveAhead(SweepCurtain? natural, {required bool seeking}) {
+    final target = _waitTarget;
+    if (target == null) {
+      return _ahead = null;
+    }
+    final front = natural?.page ?? timeline.restViewAt(_positionMs);
+    var ahead = _ahead;
+    if (ahead != null &&
+        (front == ahead.to || timeline.restViewAt(target) == front)) {
+      ahead = _ahead = null;
+    }
+    if (ahead != null) {
+      return ahead;
+    }
+    final turn = timeline.turnInto(target, maxSweep: _maxSweepDuration);
+    if (turn == null || front != turn.from || _positionMs < turn.fromMs) {
+      return null;
+    }
+    return _ahead = _AheadTurn(
+      from: turn.from,
+      to: turn.to,
+      x0: natural?.edgeX ?? 0,
+      sweepMs: turn.sweepMs,
+      // Num seek não há o que animar: a página da nota pendente já entra.
+      progress: seeking ? 1 : 0,
+    );
+  }
+
   void _publish({bool force = false, bool seeking = false}) {
     if (timeline.measureCount == 0) {
       return;
@@ -467,17 +546,34 @@ class ScorePlayer {
       }
       return;
     }
-    final c = timeline.curtainAt(
+    final natural = timeline.curtainAt(
       _positionMs,
       maxSweep: _maxSweepDuration,
       barWidth: _barWidthValue,
       singleNoteDelay: singleNoteDelay,
     );
+    final ahead = _resolveAhead(natural, seeking: seeking);
+    final SweepCurtain? c;
+    if (ahead == null) {
+      c = natural;
+    } else if (ahead.progress >= 1) {
+      c = null;
+    } else {
+      final end = sweepEndX(document.pageAt(ahead.from), _barWidthValue);
+      c = SweepCurtain(
+        pageIndex: ahead.from.index,
+        sequence: ahead.from.sequence,
+        edgeX: ahead.x0 + (end - ahead.x0) * ahead.progress,
+        blur: revealBlurAt(ahead.progress),
+        targetPageIndex: ahead.to.index,
+        targetSequence: ahead.to.sequence,
+      );
+    }
     if (_curtain.value != c) {
       _curtain.value = c;
     }
     if (c == null && attached) {
-      final ref = timeline.restViewAt(_positionMs);
+      final ref = ahead?.to ?? timeline.restViewAt(_positionMs);
       if (v.displayedPage != ref) {
         v.showPage(ref);
       }
@@ -492,4 +588,23 @@ class ScorePlayer {
     _measureIndex.dispose();
     _tempo.dispose();
   }
+}
+
+/// Virada concluída em tempo de parede no modo espera
+/// ([ScorePlayer.waitTarget]): de [from] para [to], com a haste saindo de
+/// [x0] (viewBox de [from]) em [sweepMs]; [progress] vai de 0 a 1.
+class _AheadTurn {
+  _AheadTurn({
+    required this.from,
+    required this.to,
+    required this.x0,
+    required this.sweepMs,
+    required this.progress,
+  });
+
+  final PageRef from;
+  final PageRef to;
+  final double x0;
+  final double sweepMs;
+  double progress;
 }
