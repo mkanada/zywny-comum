@@ -87,8 +87,36 @@ void main() {
       ),
     );
 
-    testWidgets('trechos com feitas/total; atual expande; trancada não abre',
-        (tester) async {
+    testWidgets('o cabeçalho mostra o todo: barra e "N de M etapas" (U13)', (
+      tester,
+    ) async {
+      final plan = _plan();
+      var progress = TrailProgress(n: 5, total: plan.stages.length);
+      // Duas etapas aprovadas e uma pulada, na ordem do plano.
+      progress = progress.recordResult(
+        plan.stages[0].id,
+        const StageResult(hits: 19, total: 20, badMeasures: {}),
+      );
+      progress = progress.recordResult(
+        plan.stages[1].id,
+        const StageResult(hits: 19, total: 20, badMeasures: {}),
+      );
+      progress = progress.recordResult(
+        plan.stages[2].id,
+        const StageResult(hits: 1, total: 20, badMeasures: {}),
+      );
+      await pumpDrawer(tester, plan: plan, progress: progress);
+      final done = progress.doneCount(plan);
+      expect(
+        find.textContaining('$done de ${plan.stages.length} etapas'),
+        findsOneWidget,
+      );
+      expect(find.byType(TrailProgressBar), findsOneWidget);
+    });
+
+    testWidgets('trechos com feitas/total; atual expande; trancada não abre', (
+      tester,
+    ) async {
       final plan = _plan();
       final progress = TrailProgress(n: 5, total: plan.stages.length);
       var selected = '';
@@ -98,19 +126,13 @@ void main() {
         progress: progress,
         onSelect: (id) => selected = id,
       );
-      expect(
-        find.text('Trecho 1 · compassos 1–5 · 0/12'),
-        findsOneWidget,
-      );
+      expect(find.text('Trecho 1 · compassos 1–5 · 0/12'), findsOneWidget);
       // O resto da lista (rolável) é montado sob demanda: rola até lá.
       await tester.scrollUntilVisible(
         find.text('Trecho 2 · compassos 5–6 · 0/12'),
         200,
       );
-      expect(
-        find.text('Trecho 2 · compassos 5–6 · 0/12'),
-        findsOneWidget,
-      );
+      expect(find.text('Trecho 2 · compassos 5–6 · 0/12'), findsOneWidget);
       await tester.scrollUntilVisible(find.text('Fase final'), 200);
       expect(find.text('Fase final'), findsOneWidget);
       expect(find.text('em breve'), findsOneWidget);
@@ -225,10 +247,7 @@ void main() {
       await controller.recordDone(
         const StageResult(hits: 97, total: 100, badMeasures: {}),
       );
-      expect(
-        controller.progress.records['t0.notasD']?.best,
-        97,
-      );
+      expect(controller.progress.records['t0.notasD']?.best, 97);
     });
   });
 
@@ -259,28 +278,20 @@ void main() {
 
     testWidgets('no mínimo e no máximo, o botão desliga', (tester) async {
       await tester.pumpWidget(
-        _app(
-          const TrailNSelector(value: 3, max: 7, onChanged: _noop),
-        ),
+        _app(const TrailNSelector(value: 3, max: 7, onChanged: _noop)),
       );
       expect(
         tester
-            .widget<IconButton>(
-              find.widgetWithIcon(IconButton, Icons.remove),
-            )
+            .widget<IconButton>(find.widgetWithIcon(IconButton, Icons.remove))
             .onPressed,
         isNull,
       );
       await tester.pumpWidget(
-        _app(
-          const TrailNSelector(value: 7, max: 7, onChanged: _noop),
-        ),
+        _app(const TrailNSelector(value: 7, max: 7, onChanged: _noop)),
       );
       expect(
         tester
-            .widget<IconButton>(
-              find.widgetWithIcon(IconButton, Icons.add),
-            )
+            .widget<IconButton>(find.widgetWithIcon(IconButton, Icons.add))
             .onPressed,
         isNull,
       );
@@ -314,9 +325,13 @@ void main() {
   group('N e reinício (critérios 3-5)', () {
     test('reiniciar zera só aquele hino', () async {
       final store = TrailProgressStore();
-      const full = TrailProgress(n: 5, total: 24, records: {
-        't0.notasD': StageRecord(state: StageState.aprovada, best: 90),
-      });
+      const full = TrailProgress(
+        n: 5,
+        total: 24,
+        records: {
+          't0.notasD': StageRecord(state: StageState.aprovada, best: 90),
+        },
+      );
       await store.save(12, full);
       await store.save(13, full);
       await store.reset(12);

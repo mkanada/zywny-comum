@@ -441,6 +441,33 @@ class TrailDrawer extends StatelessWidget {
                         ),
                       ],
                     ),
+                    // O todo, à vista: quantas etapas da trilha já foram feitas.
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          TrailProgressBar(
+                            done: progress.doneCount(plan),
+                            skipped: progress.skipped,
+                            total: plan.stages.length,
+                            height: 6,
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            trailProgressText(
+                              done: progress.doneCount(plan),
+                              total: plan.stages.length,
+                              skipped: progress.skipped,
+                            ),
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: kInkCaption,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                     if (currentId != null)
                       OutlinedButton.icon(
                         onPressed: onSkipCurrent,
@@ -605,6 +632,76 @@ class TrailDrawer extends StatelessWidget {
     );
   }
 }
+
+/// Barra fina do progresso da trilha (U13): as feitas em [kAccent] e, dentro
+/// delas, as puladas num tom mais claro, sobre o fundo. Só desenho: o
+/// número vem escrito ao lado, a cor não carrega a informação sozinha.
+class TrailProgressBar extends StatelessWidget {
+  const TrailProgressBar({
+    super.key,
+    required this.done,
+    required this.skipped,
+    required this.total,
+    this.width,
+    this.height = 4,
+  });
+
+  /// Feitas (aprovadas + puladas) e, delas, quantas foram puladas.
+  final int done;
+  final int skipped;
+  final int total;
+  final double? width;
+  final double height;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = total <= 0 ? 1 : total;
+    final skip = skipped.clamp(0, done);
+    final approved = (done - skip).clamp(0, t);
+    return SizedBox(
+      width: width,
+      height: height,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(height / 2),
+        child: ColoredBox(
+          color: kBorderSoft,
+          child: Row(
+            children: [
+              if (approved > 0)
+                Expanded(
+                  flex: approved,
+                  child: const ColoredBox(color: kAccent),
+                ),
+              if (skip > 0)
+                Expanded(
+                  flex: skip,
+                  child: const DecoratedBox(
+                    decoration: BoxDecoration(
+                      color: kAccentSoftBg,
+                      border: Border.symmetric(
+                        horizontal: BorderSide(color: kAccent),
+                      ),
+                    ),
+                  ),
+                ),
+              if (t - approved - skip > 0)
+                Spacer(flex: (t - approved - skip).clamp(0, t)),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// "13 de 75 etapas · 1 pulada" (U13).
+String trailProgressText({
+  required int done,
+  required int total,
+  required int skipped,
+}) =>
+    '$done de $total etapas'
+    '${skipped > 0 ? ' · $skipped ${skipped == 1 ? 'pulada' : 'puladas'}' : ''}';
 
 /// Seletor de compassos por trecho (J06): `- N +`, de 3 ao máximo.
 class TrailNSelector extends StatelessWidget {
