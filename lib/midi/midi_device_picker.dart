@@ -1,9 +1,14 @@
+import 'dart:async';
+
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_midi_command/flutter_midi_command.dart';
 
+import '../ui/theme.dart';
 import 'midi_device_manager.dart';
+import 'midi_labels.dart';
 
-/// Ícone de dispositivo MIDI para a AppBar (M01): mostra se algo está
+/// Ícone do teclado MIDI para a AppBar (M01): mostra se algo está
 /// conectado e abre [showMidiDevicePicker] ao tocar.
 class MidiDevicePickerButton extends StatelessWidget {
   const MidiDevicePickerButton({
@@ -25,8 +30,8 @@ class MidiDevicePickerButton extends StatelessWidget {
         final device = deviceManager.connected.value;
         return IconButton(
           tooltip: device == null
-              ? 'Escolher dispositivo MIDI'
-              : 'MIDI: ${device.name}',
+              ? 'Conectar teclado MIDI'
+              : 'Teclado MIDI: ${device.name}',
           onPressed: () => showMidiDevicePicker(
             context,
             deviceManager,
@@ -39,17 +44,95 @@ class MidiDevicePickerButton extends StatelessWidget {
   }
 }
 
-/// Diálogo com a lista de dispositivos MIDI (conectar/desconectar),
-/// atualizada ao vivo por hot-plug enquanto está aberto.
+/// O estado do teclado em palavras e ícone (U15): "Conectar" com o teclado
+/// riscado, "Teclado ✓" conectado — não um ponto colorido. Toque abre
+/// [showMidiDevicePicker].
+class MidiStatusPill extends StatelessWidget {
+  const MidiStatusPill({super.key, required this.deviceManager});
+
+  final MidiDeviceManager deviceManager;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListenableBuilder(
+      listenable: deviceManager.connected,
+      builder: (context, _) {
+        final device = deviceManager.connected.value;
+        final connected = device != null;
+        return Tooltip(
+          message: connected
+              ? 'Teclado MIDI: ${device.name}'
+              : 'Conectar teclado MIDI',
+          child: Material(
+            color: kChipBg,
+            shape: const StadiumBorder(),
+            child: InkWell(
+              customBorder: const StadiumBorder(),
+              onTap: () =>
+                  unawaited(showMidiDevicePicker(context, deviceManager)),
+              child: Container(
+                height: 44,
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                alignment: Alignment.center,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      connected ? Icons.piano : Icons.piano_off,
+                      size: 20,
+                      color: connected ? kGoodColor : kInk,
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      connected ? 'Teclado ✓' : 'Conectar',
+                      maxLines: 1,
+                      style: TextStyle(
+                        fontSize: 13.5,
+                        fontWeight: FontWeight.w600,
+                        color: connected ? kGoodColor : kInk,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+/// A orientação de quem ainda não tem teclado ligado. Só o Android avisa do
+/// Bluetooth: é onde "ainda não funciona" é verdade hoje (M01: o plugin BLE
+/// está pendente).
+String midiHelpText({required bool android}) =>
+    'Ligue o teclado ao celular com um cabo USB (pode ser preciso um '
+    'adaptador). Ele conecta sozinho.'
+    '${android ? '\nTeclados por Bluetooth ainda não funcionam.' : ''}';
+
+/// Diálogo do teclado MIDI: o que está conectado, a lista de aparelhos
+/// (atualizada ao vivo por hot-plug enquanto está aberto) e, sem nenhum, a
+/// orientação para ligar um e o botão de procurar de novo.
 Future<void> showMidiDevicePicker(
   BuildContext context,
   MidiDeviceManager deviceManager, {
   VoidCallback? onCalibrate,
 }) {
+  final searching = ValueNotifier<bool>(false);
+  Future<void> search() async {
+    searching.value = true;
+    try {
+      await deviceManager.refresh();
+    } finally {
+      searching.value = false;
+    }
+  }
+
   return showDialog<void>(
     context: context,
     builder: (context) => AlertDialog(
-      title: const Text('Dispositivo MIDI'),
+      title: const Text('Teclado MIDI'),
       content: SizedBox(
         width: 360,
         child: ListenableBuilder(
@@ -57,6 +140,7 @@ Future<void> showMidiDevicePicker(
             deviceManager.devices,
             deviceManager.connected,
             deviceManager.lastError,
+            searching,
           ]),
           builder: (context, _) {
             final devices = deviceManager.devices.value;
@@ -68,7 +152,7 @@ Future<void> showMidiDevicePicker(
               children: [
                 if (error != null) ...[
                   Text(
-                    error,
+                    'Não deu para conectar. $error',
                     style: TextStyle(
                       color: Theme.of(context).colorScheme.error,
                     ),
@@ -76,26 +160,54 @@ Future<void> showMidiDevicePicker(
                   const SizedBox(height: 8),
                 ],
                 if (devices.isEmpty)
-                  const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 24),
-                    child: Text('Nenhum dispositivo MIDI encontrado.'),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Icon(
+                          Icons.piano_off,
+                          size: 36,
+                          color: kInkCaption,
+                        ),
+                        const SizedBox(height: 8),
+                        const Text(
+                          'Nenhum teclado encontrado',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          midiHelpText(
+                            android:
+                                defaultTargetPlatform == TargetPlatform.android,
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        FilledButton.tonal(
+                          onPressed: searching.value ? null : search,
+                          child: searching.value
+                              ? const SizedBox(
+                                  width: 18,
+                                  height: 18,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : const Text('Procurar de novo'),
+                        ),
+                      ],
+                    ),
                   )
                 else
                   for (final device in devices)
-                    ListTile(
-                      leading: Icon(
-                        connected?.id == device.id
-                            ? Icons.check_circle
-                            : Icons.piano,
-                        color: connected?.id == device.id
-                            ? Theme.of(context).colorScheme.primary
-                            : null,
-                      ),
-                      title: Text(device.name),
-                      subtitle: Text(device.type.wireValue),
-                      onTap: () => connected?.id == device.id
-                          ? deviceManager.disconnect()
-                          : deviceManager.connect(device),
+                    _deviceTile(
+                      device,
+                      isConnected: connected?.id == device.id,
+                      deviceManager: deviceManager,
+                      context: context,
                     ),
               ],
             );
@@ -119,5 +231,31 @@ Future<void> showMidiDevicePicker(
         ),
       ],
     ),
+  ).whenComplete(searching.dispose);
+}
+
+Widget _deviceTile(
+  MidiDevice device, {
+  required bool isConnected,
+  required MidiDeviceManager deviceManager,
+  required BuildContext context,
+}) {
+  final type = midiDeviceTypeLabel(device.type);
+  final state = isConnected ? 'Conectado' : 'Toque para conectar';
+  return ListTile(
+    leading: Icon(
+      isConnected ? Icons.check_circle : Icons.piano,
+      color: isConnected ? Theme.of(context).colorScheme.primary : null,
+    ),
+    title: Text(device.name),
+    subtitle: Text(type.isEmpty ? state : '$state · $type'),
+    // Conectado: a ação é o botão "Desconectar", não o toque na linha.
+    trailing: isConnected
+        ? TextButton(
+            onPressed: deviceManager.disconnect,
+            child: const Text('Desconectar'),
+          )
+        : null,
+    onTap: isConnected ? null : () => deviceManager.connect(device),
   );
 }

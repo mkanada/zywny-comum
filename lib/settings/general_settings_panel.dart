@@ -201,9 +201,9 @@ class GeneralSettingsPanel extends StatelessWidget {
           device == null ? Icons.piano_outlined : Icons.piano,
           size: 20,
         ),
-        title: const Text('Dispositivo'),
+        title: const Text('Teclado MIDI'),
         subtitle: Text(device?.name ?? 'nenhum conectado'),
-        trailing: const Text('escolher'),
+        trailing: Text(device == null ? 'Conectar' : 'Trocar'),
         onTap: () =>
             unawaited(showMidiDevicePicker(context, midiDeviceManager)),
       ),
