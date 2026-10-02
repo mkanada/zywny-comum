@@ -223,7 +223,7 @@ Future<void> showMidiDevicePicker(
                     Navigator.of(context).pop();
                     onCalibrate();
                   },
-            child: const Text('Calibrar latência'),
+            child: const Text('Ajustar o atraso'),
           ),
         TextButton(
           onPressed: () => Navigator.of(context).pop(),

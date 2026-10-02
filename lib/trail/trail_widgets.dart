@@ -722,7 +722,7 @@ class TrailNSelector extends StatelessWidget {
       children: [
         const Expanded(
           child: Text(
-            'Compassos por trecho',
+            'Compassos por trecho da trilha',
             style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
           ),
         ),

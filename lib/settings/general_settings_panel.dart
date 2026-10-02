@@ -11,6 +11,7 @@ import '../midi/midi_device_manager.dart';
 import '../midi/midi_device_picker.dart';
 import '../practice/practice_colors.dart';
 import '../trail/trail_widgets.dart';
+import '../ui/theme.dart';
 import 'app_settings.dart';
 import 'color_picker.dart';
 
@@ -144,12 +145,17 @@ class GeneralSettingsPanel extends StatelessWidget {
       const _Header('Som'),
       SwitchListTile(
         dense: true,
-        title: const Text('Som do app'),
-        subtitle: const Text(
-          'toca a partitura; desligado, só destaca as notas',
-        ),
+        title: const Text('Som'),
+        subtitle: const Text('o app toca a música'),
         value: settings.soundOn,
         onChanged: busy ? null : (v) => settings.soundOn = v,
+      ),
+      const Padding(
+        padding: EdgeInsets.fromLTRB(16, 4, 16, 0),
+        child: Text(
+          'O som sai por',
+          style: TextStyle(fontSize: 12, color: kInkCaption),
+        ),
       ),
       Padding(
         padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
@@ -159,12 +165,12 @@ class GeneralSettingsPanel extends StatelessWidget {
             ButtonSegment(
               value: SoundOutput.appSynth,
               icon: Icon(Icons.graphic_eq, size: 18),
-              label: Text('Sintetizador'),
+              label: Text('Celular'),
             ),
             ButtonSegment(
               value: SoundOutput.midiKeyboard,
               icon: Icon(Icons.piano, size: 18),
-              label: Text('Teclado MIDI'),
+              label: Text('Teclado'),
             ),
           ],
           selected: {settings.output},
@@ -174,24 +180,24 @@ class GeneralSettingsPanel extends StatelessWidget {
       if (toMidi)
         SwitchListTile(
           dense: true,
-          title: const Text('Instrumentos da partitura'),
-          subtitle: const Text('manda Program Change ao teclado'),
+          title: const Text('Trocar o timbre do teclado'),
+          subtitle: const Text('usa o instrumento da partitura'),
           value: settings.useScoreInstruments,
           onChanged: (v) => settings.useScoreInstruments = v,
         ),
       ListTile(
         dense: true,
         leading: const Icon(Icons.library_music, size: 20),
-        title: const Text('Soundfont do sintetizador'),
-        subtitle: Text(customSoundFont ? 'personalizado' : 'TimGM6mb (padrão)'),
-        trailing: const Text('trocar'),
+        title: const Text('Timbre do piano'),
+        subtitle: Text(customSoundFont ? 'personalizado' : 'padrão'),
+        trailing: const _RowAction('Trocar'),
         onTap: busy ? null : onChooseSoundFont,
       ),
       if (customSoundFont)
         ListTile(
           dense: true,
           leading: const Icon(Icons.restore, size: 20),
-          title: const Text('Voltar ao soundfont padrão'),
+          title: const Text('Voltar ao timbre padrão'),
           onTap: busy ? null : onResetSoundFont,
         ),
       const _Header('Teclado MIDI'),
@@ -203,35 +209,35 @@ class GeneralSettingsPanel extends StatelessWidget {
         ),
         title: const Text('Teclado MIDI'),
         subtitle: Text(device?.name ?? 'nenhum conectado'),
-        trailing: Text(device == null ? 'Conectar' : 'Trocar'),
+        trailing: _RowAction(device == null ? 'Conectar' : 'Trocar'),
         onTap: () =>
             unawaited(showMidiDevicePicker(context, midiDeviceManager)),
       ),
       if (live != null) ...[
         SwitchListTile(
           dense: true,
-          title: const Text('Monitor MIDI'),
-          subtitle: const Text('o teclado soa pelo app (teclado sem som)'),
+          title: const Text('Ouvir o que eu toco pelo celular'),
+          subtitle: const Text('para teclado sem som próprio'),
           value: live.monitorOn,
           onChanged: busy ? null : live.onMonitorChanged,
         ),
         ListTile(
           dense: true,
           leading: const Icon(Icons.timer_outlined, size: 20),
-          title: const Text('Latência do teclado'),
+          title: const Text('Atraso do teclado'),
           subtitle: Text(
             live.inputLatencyMs == 0
-                ? 'não calibrada'
+                ? 'não ajustado'
                 : '${live.inputLatencyMs.round()} ms',
           ),
-          trailing: const Text('calibrar'),
+          trailing: const _RowAction('Ajustar'),
           enabled: device != null,
           onTap: live.onCalibrate,
         ),
         ListTile(
           dense: true,
           leading: const Icon(Icons.keyboard_alt_outlined, size: 20),
-          title: const Text('Painel do monitor MIDI'),
+          title: const Text('Ver as teclas que chegam'),
           onTap: live.onOpenMidiPanel,
         ),
       ],
@@ -246,35 +252,35 @@ class GeneralSettingsPanel extends StatelessWidget {
       ),
       const _Header('Cores'),
       _ColorRow(
-        label: 'Nota destacada',
-        hint: 'na reprodução e, no treino, a nota certa',
+        label: 'Nota certa',
+        hint: 'e a nota que soa ao ouvir',
         value: settings.highlightColor,
         defaultValue: kPracticeCorrectColor,
         onChanged: (c) => settings.highlightColor = c,
       ),
       _ColorRow(
-        label: 'Treino: nota em espera',
+        label: 'Nota esperada',
         hint: 'a que o app aguarda você tocar',
         value: settings.practicePendingColor,
         defaultValue: kPracticePendingColor,
         onChanged: (c) => settings.practicePendingColor = c,
       ),
       _ColorRow(
-        label: 'Treino: nota errada',
+        label: 'Nota errada',
         hint: 'pisca na nota esperada mais próxima',
         value: settings.practiceWrongColor,
         defaultValue: kPracticeWrongColor,
         onChanged: (c) => settings.practiceWrongColor = c,
       ),
       _ColorRow(
-        label: 'Haste de virada',
+        label: 'Barra de virada de página',
         hint: 'a barra que varre a página',
         value: settings.barColor,
         defaultValue: kDefaultBarColor,
         onChanged: (c) => settings.barColor = c,
       ),
       _SliderRow(
-        label: 'Largura do halo',
+        label: 'Brilho em volta da nota',
         value: settings.haloWidth,
         min: 0,
         max: 3,
@@ -284,6 +290,25 @@ class GeneralSettingsPanel extends StatelessWidget {
       const SizedBox(height: 12),
     ];
   }
+}
+
+/// Ação à direita de uma linha das configurações ("Trocar", "Conectar",
+/// "Ajustar"): inicial maiúscula e cor de destaque, para ler como botão. A
+/// linha inteira continua sendo o alvo do toque.
+class _RowAction extends StatelessWidget {
+  const _RowAction(this.label);
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) => Text(
+    label,
+    style: const TextStyle(
+      fontSize: 13.5,
+      fontWeight: FontWeight.w600,
+      color: kAccent,
+    ),
+  );
 }
 
 /// Troca o N geral com aviso: os hinos sem N próprio recomeçam a trilha
@@ -296,8 +321,8 @@ Future<void> _changeTrailN(
   if (value == settings.trailMeasures) return;
   final ok = await confirmTrailReset(
     context,
-    title: 'Mudar o padrão?',
-    message: 'Os hinos sem N próprio recomeçam a trilha.',
+    title: 'Mudar o tamanho dos trechos?',
+    message: 'Os hinos que usam o padrão recomeçam a trilha do começo.',
     confirmLabel: 'Mudar',
   );
   if (!ok) return;

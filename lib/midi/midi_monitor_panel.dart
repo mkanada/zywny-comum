@@ -74,7 +74,7 @@ class _MidiMonitorPanelState extends State<MidiMonitorPanel> {
               children: [
                 Expanded(
                   child: Text(
-                    'Monitor MIDI',
+                    'Teclas que chegam',
                     style: theme.textTheme.titleSmall,
                   ),
                 ),

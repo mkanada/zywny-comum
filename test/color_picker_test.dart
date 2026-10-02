@@ -20,7 +20,7 @@ void main() {
               onPressed: () async {
                 result = await showColorPicker(
                   context,
-                  title: 'Treino: nota em espera',
+                  title: 'Nota esperada',
                   initial: initial,
                   defaultColor: const Color(0xFF2E7D32),
                 );

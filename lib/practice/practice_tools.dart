@@ -206,7 +206,7 @@ class _CalibrationDialogState extends State<_CalibrationDialog> {
   Widget build(BuildContext context) {
     final result = _result;
     return AlertDialog(
-      title: const Text('Calibrar latência'),
+      title: const Text('Ajustar o atraso'),
       content: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -214,14 +214,14 @@ class _CalibrationDialogState extends State<_CalibrationDialog> {
           Text(switch (_phase) {
             _Phase.idle =>
               'Vão soar $kCalibrationClicks cliques. Aperte qualquer tecla '
-                  'de ${widget.deviceName} junto com cada um, no pulso.',
+                  'do teclado junto com cada um.',
             _Phase.running =>
               'Toque junto com os cliques… '
                   '${_run?.clicksPlayed ?? 0}/$kCalibrationClicks',
             _Phase.done =>
               result == null
                   ? 'Não deu para medir — toque junto de pelo menos 5 cliques.'
-                  : 'Latência: ${result.toStringAsFixed(0)} ms'
+                  : 'Atraso: ${result.toStringAsFixed(0)} ms'
                         '${result > kCalibrationWarnMs ? '\nAlta (> ${kCalibrationWarnMs.round()} ms) — fone Bluetooth?' : ''}',
           }),
           if (_phase == _Phase.running) ...[
