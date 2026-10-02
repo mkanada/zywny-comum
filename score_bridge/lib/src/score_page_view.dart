@@ -11,6 +11,7 @@
 // unidades de viewBox, então redimensionar não recompila nada.
 library;
 
+import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart';
@@ -35,6 +36,7 @@ class ScorePageView extends StatefulWidget {
     this.stats,
     this.overlayIds = const [],
     this.overlayBuilder,
+    this.overlayUniformHeight = false,
     this.onElementTap,
     this.tapClasses,
     this.ghosts,
@@ -85,6 +87,11 @@ class ScorePageView extends StatefulWidget {
   /// cada layout — nada de posição memorizada.
   final Widget? Function(BuildContext context, String id, Rect rect)?
   overlayBuilder;
+
+  /// Iguala a altura dos overlays que estão no mesmo sistema (mesma linha
+  /// da página): cada um ocupa do topo mais alto à base mais baixa do grupo.
+  /// Para fundos de compasso, que senão seguem a bbox de cada um.
+  final bool overlayUniformHeight;
 
   /// Toque num elemento: recebe o id mais específico (menor bbox) sob o
   /// toque, filtrado por [tapClasses]; não dispara em área vazia. Um único
@@ -278,12 +285,18 @@ class ScorePageViewState extends State<ScorePageView> {
     Widget result = base;
     if (builder != null && widget.overlayIds.isNotEmpty) {
       final children = <Widget>[base];
+      final rects = <String, Rect>{};
       for (final id in widget.overlayIds) {
         final ref = geometry.elementOf(id);
         if (ref == null || ref.page != widget.pageIndex) {
           continue;
         }
-        final rect = geometry.rectOf(ref, pageWidth: width);
+        rects[id] = geometry.rectOf(ref, pageWidth: width);
+      }
+      if (widget.overlayUniformHeight) _unifySystemHeights(rects);
+      for (final entry in rects.entries) {
+        final id = entry.key;
+        final rect = entry.value;
         final child = builder(context, id, rect);
         if (child != null) {
           children.add(
@@ -322,6 +335,34 @@ class ScorePageViewState extends State<ScorePageView> {
     }
     return result;
   }
+}
+
+/// Agrupa os retângulos que se sobrepõem na vertical (um sistema) e estica
+/// cada um até o topo e a base do grupo.
+void _unifySystemHeights(Map<String, Rect> rects) {
+  final sorted = rects.entries.toList()
+    ..sort((a, b) => a.value.top.compareTo(b.value.top));
+  var group = <MapEntry<String, Rect>>[];
+  var bottom = double.negativeInfinity;
+  void flush() {
+    if (group.isEmpty) return;
+    final top = group.map((e) => e.value.top).reduce(math.min);
+    final bot = group.map((e) => e.value.bottom).reduce(math.max);
+    for (final e in group) {
+      rects[e.key] = Rect.fromLTRB(e.value.left, top, e.value.right, bot);
+    }
+    group = [];
+  }
+
+  for (final e in sorted) {
+    if (group.isNotEmpty && e.value.top > bottom) {
+      flush();
+      bottom = double.negativeInfinity;
+    }
+    group.add(e);
+    bottom = math.max(bottom, e.value.bottom);
+  }
+  flush();
 }
 
 class _PagePainter extends CustomPainter {

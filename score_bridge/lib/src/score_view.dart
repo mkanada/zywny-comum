@@ -302,6 +302,7 @@ class ScoreView extends StatefulWidget {
     this.curtain,
     this.overlayIds = const [],
     this.overlayBuilder,
+    this.overlayUniformHeight = false,
     this.onElementTap,
     this.tapClasses,
     this.ghosts,
@@ -357,6 +358,7 @@ class ScoreView extends StatefulWidget {
   final Iterable<String> overlayIds;
   final Widget? Function(BuildContext context, String id, Rect rect)?
   overlayBuilder;
+  final bool overlayUniformHeight;
   final void Function(String id)? onElementTap;
   final Set<String>? tapClasses;
 
@@ -907,6 +909,7 @@ class ScoreViewState extends State<ScoreView> with TickerProviderStateMixin {
     stats: _stats,
     overlayIds: widget.overlayIds,
     overlayBuilder: widget.overlayBuilder,
+    overlayUniformHeight: widget.overlayUniformHeight,
     onElementTap: widget.onElementTap,
     tapClasses: widget.tapClasses,
     ghosts: widget.ghosts,
