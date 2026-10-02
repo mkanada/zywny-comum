@@ -71,4 +71,50 @@ void main() {
     await tester.pumpWidget(host(active: false, read: read));
     expect(find.byType(Text), findsNothing);
   });
+
+  group('no celular (U09)', () {
+    Widget phoneHost(CountInTick? Function() read) => Directionality(
+      textDirection: TextDirection.ltr,
+      child: Center(
+        child: SizedBox(
+          width: 700,
+          height: 300,
+          child: CountInOverlay(phone: true, active: true, read: read),
+        ),
+      ),
+    );
+
+    testWidgets(
+      'o número fica inteiro na metade direita e nunca passa de 0,5',
+      (tester) async {
+        CountInTick? tick = (remaining: 4, progress: 0.0);
+        await tester.pumpWidget(phoneHost(() => tick));
+        final box = tester.getRect(find.byType(CountInOverlay));
+        final text = tester.getRect(find.text('4'));
+        expect(text.left, greaterThan(box.center.dx));
+        expect(text.right, lessThanOrEqualTo(box.right));
+        expect(text.height, lessThanOrEqualTo(box.height * 0.45 + 1));
+        expect(opacity(tester), closeTo(kCountInPhoneMaxOpacity, 1e-9));
+
+        for (final p in [0.0, 0.3, 0.75, 1.0]) {
+          tick = (remaining: 4, progress: p);
+          await tester.pump(const Duration(milliseconds: 16));
+          expect(opacity(tester), lessThanOrEqualTo(kCountInPhoneMaxOpacity));
+        }
+      },
+    );
+
+    testWidgets('sem desfoque nem escala', (tester) async {
+      CountInTick? tick = (remaining: 3, progress: 0.8);
+      await tester.pumpWidget(phoneHost(() => tick));
+      expect(find.byType(ImageFiltered), findsNothing);
+      expect(
+        find.descendant(
+          of: find.byType(CountInOverlay),
+          matching: find.byType(Transform),
+        ),
+        findsNothing,
+      );
+    });
+  });
 }

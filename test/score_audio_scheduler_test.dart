@@ -645,7 +645,9 @@ void main() {
         autoTick: false,
       )..beats = metronomeBeats(timeline);
       expect(scheduler.countInTick, isNull);
+      expect(scheduler.isCountingIn, isFalse);
       scheduler.play(from, countIn: true);
+      expect(scheduler.isCountingIn, isTrue); // U09: vale desde o play
       final beatS = (timeline.measures[2].endMs - from) / 3 / 1000;
 
       // 3/4: 3, 2, 1 — nítido no clique, quase no fim antes do próximo.
@@ -659,16 +661,20 @@ void main() {
       expect(scheduler.countInTick!.progress, closeTo(0.25, 0.01));
       engine.now += beatS;
       expect(scheduler.countInTick!.remaining, 1);
+      expect(scheduler.isCountingIn, isTrue);
       engine.now += beatS;
       expect(scheduler.countInTick, isNull);
+      expect(scheduler.isCountingIn, isFalse);
       expect(scheduler.positionMs, greaterThan(from));
 
       // Sem contagem, e depois de pausar no meio dela, não há número.
       scheduler.play(from, countIn: true);
       scheduler.pause();
       expect(scheduler.countInTick, isNull);
+      expect(scheduler.isCountingIn, isFalse);
       scheduler.play(from);
       expect(scheduler.countInTick, isNull);
+      expect(scheduler.isCountingIn, isFalse);
     });
   });
 

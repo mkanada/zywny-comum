@@ -23,13 +23,27 @@ const kCountInGrowth = 0.6;
 /// Desfoque no fim do tempo, em fração do tamanho da fonte.
 const kCountInBlur = 36 / 420;
 
+/// Opacidade máxima da contagem no celular.
+const kCountInPhoneMaxOpacity = 0.5;
+
 /// Opacidade do número em [progress] do tempo: segura um instante nítido e
 /// depois cai até zero.
 double countInOpacityAt(double progress) =>
     (1 - math.pow(progress, 1.4)).clamp(0.0, 1.0).toDouble();
 
 class CountInOverlay extends StatefulWidget {
-  const CountInOverlay({super.key, required this.active, required this.read});
+  const CountInOverlay({
+    super.key,
+    required this.active,
+    required this.read,
+    this.phone = false,
+  });
+
+  /// Celular (U09): o número fica na metade direita da caixa, sem crescer
+  /// nem desfocar e com no máximo [kCountInPhoneMaxOpacity] — o compasso em
+  /// que o aluno vai entrar (à esquerda) fica inteiro à vista. Fora do
+  /// celular, a contagem grande e central de sempre.
+  final bool phone;
 
   /// Há algo tocando: só então [read] é consultado (a cada quadro).
   final bool active;
@@ -91,7 +105,29 @@ class _CountInOverlayState extends State<CountInOverlay>
     );
   }
 
+  Widget _phoneNumber(CountInTick tick, Size box) {
+    final fontSize = math.min(box.height * 0.45, box.width * 0.25);
+    return Opacity(
+      opacity: kCountInPhoneMaxOpacity * countInOpacityAt(tick.progress),
+      child: Align(
+        alignment: const Alignment(0.5, 0),
+        child: Text(
+          '${tick.remaining}',
+          style: TextStyle(
+            fontSize: fontSize,
+            height: 1,
+            fontWeight: FontWeight.w800,
+            color: kCountInColor,
+            decoration: TextDecoration.none,
+            fontFeatures: const [FontFeature.tabularFigures()],
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _number(CountInTick tick, Size box) {
+    if (widget.phone) return _phoneNumber(tick, box);
     final p = tick.progress;
     final fontSize = math.min(box.height * 0.62, box.width * 0.5);
     final sigma = fontSize * kCountInBlur * p;

@@ -155,6 +155,15 @@ class ScoreAudioScheduler {
     return raw;
   }
 
+  /// A contagem inicial ainda não acabou: rodando, com cliques de contagem e
+  /// o relógio musical antes do primeiro tempo. Diferente de [countInTick],
+  /// vale também na espera até o 1º clique soar (U09).
+  bool get isCountingIn {
+    final floor = _floorMs;
+    if (!_running || floor == null || _countIn.isEmpty) return false;
+    return _musicalAt(engine.nowSeconds) < floor;
+  }
+
   /// A contagem inicial em curso (o número que a tela mostra por cima da
   /// partitura), ou `null` fora dela — parado, antes do 1º clique soar ou
   /// com a música já andando.
