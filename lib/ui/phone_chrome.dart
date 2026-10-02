@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../practice/hand.dart';
+import '../practice/study_mode.dart';
 import 'theme.dart';
 import 'widgets.dart';
 
@@ -578,25 +579,35 @@ class PhoneScorePill extends StatelessWidget {
 class PhoneOptionsDrawer extends StatelessWidget {
   const PhoneOptionsDrawer({
     super.key,
-    required this.training,
-    required this.onTrainingChanged,
+    required this.mode,
+    required this.onModeChanged,
     required this.hand,
     required this.onHandChanged,
     required this.tempoPercent,
     required this.onTempoChanged,
     required this.onClose,
+    this.trailMode = false,
+    this.top = const [],
     this.children = const [],
   });
 
-  /// `false` = Ouvir, `true` = Espera. "Tempo real" (T03) ainda não existe
-  /// no app, então não é oferecido.
-  final bool training;
-  final ValueChanged<bool> onTrainingChanged;
+  /// O modo de estudo do treino livre (U11): um seletor só, com uma linha
+  /// explicando o escolhido. [onModeChanged] `null` o desabilita (treino
+  /// rodando).
+  final StudyMode mode;
+  final ValueChanged<StudyMode>? onModeChanged;
   final Hand hand;
   final ValueChanged<Hand> onHandChanged;
   final int tempoPercent;
   final ValueChanged<int> onTempoChanged;
   final VoidCallback onClose;
+
+  /// Na trilha o modo, a mão e o andamento são da etapa: a gaveta não os
+  /// mostra (e abre pelo que vale: [top] e [children]).
+  final bool trailMode;
+
+  /// O que abre a gaveta, antes de modo/mão/andamento (a seção da trilha).
+  final List<Widget> top;
   final List<Widget> children;
 
   @override
@@ -650,46 +661,66 @@ class PhoneOptionsDrawer extends StatelessWidget {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
-                            _Section(
-                              label: 'MODO',
-                              child: Segmented<bool>(
-                                value: training,
-                                options: const [false, true],
-                                labelOf: (t) => t ? 'Espera' : 'Ouvir',
-                                onChanged: onTrainingChanged,
-                              ),
-                            ),
-                            const SizedBox(height: 10),
-                            _Section(
-                              label: 'MÃO',
-                              child: Segmented<Hand>(
-                                value: hand,
-                                options: Hand.values,
-                                labelOf: (h) => h.label,
-                                onChanged: onHandChanged,
-                              ),
-                            ),
-                            const SizedBox(height: 10),
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                const _Caption('ANDAMENTO'),
-                                Text(
-                                  '$tempoPercent%',
-                                  style: const TextStyle(
-                                    fontSize: 13,
-                                    color: kInk,
+                            ...top,
+                            if (!trailMode) ...[
+                              _Section(
+                                label: 'MODO',
+                                child: IgnorePointer(
+                                  ignoring: onModeChanged == null,
+                                  child: Opacity(
+                                    opacity: onModeChanged == null ? 0.5 : 1,
+                                    child: Segmented<StudyMode>(
+                                      value: mode,
+                                      options: StudyMode.values,
+                                      labelOf: (m) => m.label,
+                                      onChanged: (m) => onModeChanged?.call(m),
+                                    ),
                                   ),
                                 ),
-                              ],
-                            ),
-                            Slider(
-                              value: tempoPercent.toDouble().clamp(25, 150),
-                              min: 25,
-                              max: 150,
-                              activeColor: kAccent,
-                              onChanged: (v) => onTempoChanged(v.round()),
-                            ),
+                              ),
+                              Padding(
+                                padding: const EdgeInsets.only(top: 6),
+                                child: Text(
+                                  mode.explanation,
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    color: kInkCaption,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 10),
+                              _Section(
+                                label: 'MÃO',
+                                child: Segmented<Hand>(
+                                  value: hand,
+                                  options: Hand.values,
+                                  labelOf: (h) => h.label,
+                                  onChanged: onHandChanged,
+                                ),
+                              ),
+                              const SizedBox(height: 10),
+                              Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
+                                children: [
+                                  const _Caption('ANDAMENTO'),
+                                  Text(
+                                    '$tempoPercent%',
+                                    style: const TextStyle(
+                                      fontSize: 13,
+                                      color: kInk,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              Slider(
+                                value: tempoPercent.toDouble().clamp(25, 150),
+                                min: 25,
+                                max: 150,
+                                activeColor: kAccent,
+                                onChanged: (v) => onTempoChanged(v.round()),
+                              ),
+                            ],
                             ...children,
                           ],
                         ),
