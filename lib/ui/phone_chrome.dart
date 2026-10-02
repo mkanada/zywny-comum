@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../practice/hand.dart';
 import '../practice/study_mode.dart';
+import 'side_panel.dart';
 import 'theme.dart';
 import 'widgets.dart';
 
@@ -612,126 +613,69 @@ class PhoneOptionsDrawer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Stack(
-      children: [
-        Positioned.fill(
-          child: GestureDetector(
-            behavior: HitTestBehavior.opaque,
-            onTap: onClose,
-            child: const ColoredBox(color: kScrim),
-          ),
-        ),
-        Positioned(
-          right: 0,
-          top: 0,
-          bottom: 0,
-          width: 400,
-          child: Material(
-            color: kSurface,
-            elevation: 8,
-            child: SafeArea(
-              left: false,
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        const Text(
-                          'Opções de estudo',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                            color: kInk,
-                          ),
-                        ),
-                        IconButton(
-                          tooltip: 'Fechar',
-                          onPressed: onClose,
-                          iconSize: 20,
-                          color: kIconQuiet,
-                          icon: const Icon(Icons.close),
-                        ),
-                      ],
+    return PhoneSidePanel(
+      title: 'Opções de estudo',
+      onClose: onClose,
+      child: SingleChildScrollView(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            ...top,
+            if (!trailMode) ...[
+              _Section(
+                label: 'MODO',
+                child: IgnorePointer(
+                  ignoring: onModeChanged == null,
+                  child: Opacity(
+                    opacity: onModeChanged == null ? 0.5 : 1,
+                    child: Segmented<StudyMode>(
+                      value: mode,
+                      options: StudyMode.values,
+                      labelOf: (m) => m.label,
+                      onChanged: (m) => onModeChanged?.call(m),
                     ),
-                    Expanded(
-                      child: SingleChildScrollView(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            ...top,
-                            if (!trailMode) ...[
-                              _Section(
-                                label: 'MODO',
-                                child: IgnorePointer(
-                                  ignoring: onModeChanged == null,
-                                  child: Opacity(
-                                    opacity: onModeChanged == null ? 0.5 : 1,
-                                    child: Segmented<StudyMode>(
-                                      value: mode,
-                                      options: StudyMode.values,
-                                      labelOf: (m) => m.label,
-                                      onChanged: (m) => onModeChanged?.call(m),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                              Padding(
-                                padding: const EdgeInsets.only(top: 6),
-                                child: Text(
-                                  mode.explanation,
-                                  style: const TextStyle(
-                                    fontSize: 12,
-                                    color: kInkCaption,
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(height: 10),
-                              _Section(
-                                label: 'MÃO',
-                                child: Segmented<Hand>(
-                                  value: hand,
-                                  options: Hand.values,
-                                  labelOf: (h) => h.label,
-                                  onChanged: onHandChanged,
-                                ),
-                              ),
-                              const SizedBox(height: 10),
-                              Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceBetween,
-                                children: [
-                                  const _Caption('ANDAMENTO'),
-                                  Text(
-                                    '$tempoPercent%',
-                                    style: const TextStyle(
-                                      fontSize: 13,
-                                      color: kInk,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              Slider(
-                                value: tempoPercent.toDouble().clamp(25, 150),
-                                min: 25,
-                                max: 150,
-                                onChanged: (v) => onTempoChanged(v.round()),
-                              ),
-                            ],
-                            ...children,
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
+                  ),
                 ),
               ),
-            ),
-          ),
+              Padding(
+                padding: const EdgeInsets.only(top: 6),
+                child: Text(
+                  mode.explanation,
+                  style: const TextStyle(fontSize: 12, color: kInkCaption),
+                ),
+              ),
+              const SizedBox(height: 10),
+              _Section(
+                label: 'MÃO',
+                child: Segmented<Hand>(
+                  value: hand,
+                  options: Hand.values,
+                  labelOf: (h) => h.label,
+                  onChanged: onHandChanged,
+                ),
+              ),
+              const SizedBox(height: 10),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const _Caption('ANDAMENTO'),
+                  Text(
+                    '$tempoPercent%',
+                    style: const TextStyle(fontSize: 13, color: kInk),
+                  ),
+                ],
+              ),
+              Slider(
+                value: tempoPercent.toDouble().clamp(25, 150),
+                min: 25,
+                max: 150,
+                onChanged: (v) => onTempoChanged(v.round()),
+              ),
+            ],
+            ...children,
+          ],
         ),
-      ],
+      ),
     );
   }
 }

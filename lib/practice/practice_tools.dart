@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import '../audio/latency_calibration.dart';
 import '../audio/sound_engine.dart';
 import '../midi/midi_input_service.dart';
+import '../ui/side_panel.dart';
 import '../ui/theme.dart';
 import 'measure_text.dart';
 import 'practice_report.dart';
@@ -20,10 +21,12 @@ Future<({int a, int b})?> showLoopSheet(
   required int current,
   ({int a, int b})? initial,
   required VoidCallback onClear,
+  bool sidePanel = false,
 }) {
-  return showModalBottomSheet<({int a, int b})>(
-    context: context,
-    isScrollControlled: true,
+  return showSheetOrSidePanel<({int a, int b})>(
+    context,
+    sidePanel: sidePanel,
+    title: 'Repetir um trecho',
     builder: (context) {
       var a = initial?.a ?? current;
       var b = initial?.b ?? (current + 1 < total ? current + 1 : current);
@@ -37,53 +40,51 @@ Future<({int a, int b})?> showLoopSheet(
             b = v.clamp(0, total - 1);
             if (a > b) a = b;
           });
-          return SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Text(
-                    a == b
-                        ? 'Repetir o compasso ${a + 1}'
-                        : 'Repetir do compasso ${a + 1} ao ${b + 1}',
-                    style: const TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w600,
-                    ),
+          return sheetBody(
+            sidePanel: sidePanel,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  a == b
+                      ? 'Repetir o compasso ${a + 1}'
+                      : 'Repetir do compasso ${a + 1} ao ${b + 1}',
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
                   ),
-                  if (total > 1) ...[
-                    _LoopSlider(
-                      label: 'Início',
-                      value: a,
-                      total: total,
-                      onChanged: setA,
-                      onCurrent: () => setA(current),
-                    ),
-                    _LoopSlider(
-                      label: 'Fim',
-                      value: b,
-                      total: total,
-                      onChanged: setB,
-                      onCurrent: () => setB(current),
-                    ),
-                  ],
-                  const SizedBox(height: 8),
-                  FilledButton(
-                    onPressed: () => Navigator.pop(context, (a: a, b: b)),
-                    child: const Text('Repetir este trecho'),
+                ),
+                if (total > 1) ...[
+                  _LoopSlider(
+                    label: 'Início',
+                    value: a,
+                    total: total,
+                    onChanged: setA,
+                    onCurrent: () => setA(current),
                   ),
-                  if (initial != null)
-                    TextButton(
-                      onPressed: () {
-                        onClear();
-                        Navigator.pop(context);
-                      },
-                      child: const Text('Desligar o loop'),
-                    ),
+                  _LoopSlider(
+                    label: 'Fim',
+                    value: b,
+                    total: total,
+                    onChanged: setB,
+                    onCurrent: () => setB(current),
+                  ),
                 ],
-              ),
+                const SizedBox(height: 8),
+                FilledButton(
+                  onPressed: () => Navigator.pop(context, (a: a, b: b)),
+                  child: const Text('Repetir este trecho'),
+                ),
+                if (initial != null)
+                  TextButton(
+                    onPressed: () {
+                      onClear();
+                      Navigator.pop(context);
+                    },
+                    child: const Text('Desligar o loop'),
+                  ),
+              ],
             ),
           );
         },
@@ -260,6 +261,7 @@ Future<void> showPracticeSummary(
   PracticeReport report, {
   void Function(List<MeasureStats> worst)? onRepeatWorst,
   Widget? legend,
+  bool sidePanel = false,
 }) {
   final worst = report.worstMeasures();
   String signed(double ms) {
@@ -267,91 +269,90 @@ Future<void> showPracticeSummary(
     return '${ms.abs().round()} ms ${ms < 0 ? 'adiantado' : 'atrasado'}';
   }
 
-  return showModalBottomSheet<void>(
-    context: context,
-    isScrollControlled: true,
+  return showSheetOrSidePanel<void>(
+    context,
+    sidePanel: sidePanel,
+    title: 'Resumo do treino',
     builder: (context) {
       var details = false;
       return StatefulBuilder(
-        builder: (context, setState) => SafeArea(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Text(
-                  report.isEmpty
-                      ? 'Nenhuma nota avaliada'
-                      : 'Precisão ${(report.accuracy * 100).round()}%',
-                  style: serifDisplay(fontSize: 22),
-                ),
-                if (!report.isEmpty) ...[
-                  const SizedBox(height: 8),
-                  Wrap(
-                    spacing: 16,
-                    runSpacing: 4,
-                    children: [
-                      _Stat('${report.correct}', 'certas', kGoodColor),
-                      _Stat(
-                        '${report.early + report.late}',
-                        'fora do tempo',
-                        kOkColor,
-                      ),
-                      if (report.wrong > 0 || report.extra == 0)
-                        _Stat('${report.wrong}', 'erradas', kBadColor),
-                      if (report.extra > 0)
-                        _Stat('${report.extra}', 'toques extras', kBadColor),
-                      _Stat('${report.missed}', 'perdidas', kLowScoreColor),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  Text(practiceTimingPhrase(report)),
-                  if (worst.isNotEmpty) ...[
-                    const SizedBox(height: 4),
-                    Text(
-                      'Deram mais trabalho: compassos '
-                      '${joinMeasureNumbers([for (final m in worst) m.index + 1], ranges: false)}.',
+        builder: (context, setState) => sheetBody(
+          sidePanel: sidePanel,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                report.isEmpty
+                    ? 'Nenhuma nota avaliada'
+                    : 'Precisão ${(report.accuracy * 100).round()}%',
+                style: serifDisplay(fontSize: 22),
+              ),
+              if (!report.isEmpty) ...[
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 16,
+                  runSpacing: 4,
+                  children: [
+                    _Stat('${report.correct}', 'certas', kGoodColor),
+                    _Stat(
+                      '${report.early + report.late}',
+                      'fora do tempo',
+                      kOkColor,
                     ),
+                    if (report.wrong > 0 || report.extra == 0)
+                      _Stat('${report.wrong}', 'erradas', kBadColor),
+                    if (report.extra > 0)
+                      _Stat('${report.extra}', 'toques extras', kBadColor),
+                    _Stat('${report.missed}', 'perdidas', kLowScoreColor),
                   ],
-                ],
-                if (legend != null) ...[const SizedBox(height: 12), legend],
-                const SizedBox(height: 12),
-                if (worst.isNotEmpty && onRepeatWorst != null)
-                  FilledButton(
-                    onPressed: () {
-                      Navigator.pop(context);
-                      onRepeatWorst(worst);
-                    },
-                    child: const Text('Repetir os compassos com mais erros'),
-                  ),
-                if (!report.isEmpty)
-                  TextButton(
-                    onPressed: () => setState(() => details = !details),
-                    child: Text(details ? 'Esconder detalhes' : 'Detalhes'),
-                  ),
-                if (details && !report.isEmpty) ...[
-                  Text(
-                    'Em média ${signed(report.meanDeltaMs)} '
-                    '(desvio ${report.meanAbsDeltaMs.round()} ms'
-                    '${report.stdDevMs > 0 ? ', regularidade ±${report.stdDevMs.round()} ms' : ''})',
-                    style: const TextStyle(color: kInkCaption),
-                  ),
-                  for (final m in worst)
-                    Text(
-                      'Compasso ${m.index + 1}'
-                      '${m.pass > 1 ? ' (${m.pass}ª vez)' : ''}: '
-                      '${m.wrong} erradas, ${m.missed} perdidas, '
-                      '${m.imprecise} fora do tempo',
-                    ),
-                  const SizedBox(height: 8),
-                ],
-                TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: const Text('Fechar'),
                 ),
+                const SizedBox(height: 8),
+                Text(practiceTimingPhrase(report)),
+                if (worst.isNotEmpty) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    'Deram mais trabalho: compassos '
+                    '${joinMeasureNumbers([for (final m in worst) m.index + 1], ranges: false)}.',
+                  ),
+                ],
               ],
-            ),
+              if (legend != null) ...[const SizedBox(height: 12), legend],
+              const SizedBox(height: 12),
+              if (worst.isNotEmpty && onRepeatWorst != null)
+                FilledButton(
+                  onPressed: () {
+                    Navigator.pop(context);
+                    onRepeatWorst(worst);
+                  },
+                  child: const Text('Repetir os compassos com mais erros'),
+                ),
+              if (!report.isEmpty)
+                TextButton(
+                  onPressed: () => setState(() => details = !details),
+                  child: Text(details ? 'Esconder detalhes' : 'Detalhes'),
+                ),
+              if (details && !report.isEmpty) ...[
+                Text(
+                  'Em média ${signed(report.meanDeltaMs)} '
+                  '(desvio ${report.meanAbsDeltaMs.round()} ms'
+                  '${report.stdDevMs > 0 ? ', regularidade ±${report.stdDevMs.round()} ms' : ''})',
+                  style: const TextStyle(color: kInkCaption),
+                ),
+                for (final m in worst)
+                  Text(
+                    'Compasso ${m.index + 1}'
+                    '${m.pass > 1 ? ' (${m.pass}ª vez)' : ''}: '
+                    '${m.wrong} erradas, ${m.missed} perdidas, '
+                    '${m.imprecise} fora do tempo',
+                  ),
+                const SizedBox(height: 8),
+              ],
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Fechar'),
+              ),
+            ],
           ),
         ),
       );

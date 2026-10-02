@@ -10,6 +10,7 @@ import 'package:flutter/material.dart';
 
 import '../ui/phone_chrome.dart' show kPhoneTitleBarHeight;
 import '../practice/measure_text.dart';
+import '../ui/side_panel.dart';
 import '../ui/theme.dart';
 import 'stage_result.dart' show StageResult, kTrailPassAccuracy;
 import 'trail_controller.dart' show ReinforcementView;
@@ -195,98 +196,97 @@ Future<StageSummaryAction?> showStageSummary(
   // Fase final reprovada com reforço (J07): o botão principal treina os
   // blocos em vez de tentar de novo.
   int? blockCount,
+
+  // No celular o resumo entra pela lateral e deixa a pauta (com os compassos
+  // de erro marcados) à vista; fora dele, a folha inferior de sempre (U18).
+  bool sidePanel = false,
 }) {
   final passed = result.passed;
   final goal = (kTrailPassAccuracy * 100).round();
-  return showModalBottomSheet<StageSummaryAction>(
-    context: context,
-    isScrollControlled: true,
-    builder: (context) => SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text(stageRef, style: const TextStyle(color: kInkCaption)),
-            const SizedBox(height: 4),
-            Text('${result.percent}%', style: serifDisplay(fontSize: 40)),
-            Text(
-              passed
-                  ? 'Aprovado · meta $goal%'
-                  : 'Precisa de $goal% para passar',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-                color: passed ? kGoodColor : kBadColor,
-              ),
+  return showSheetOrSidePanel<StageSummaryAction>(
+    context,
+    sidePanel: sidePanel,
+    title: 'Resumo da etapa',
+    builder: (context) => sheetBody(
+      sidePanel: sidePanel,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(stageRef, style: const TextStyle(color: kInkCaption)),
+          const SizedBox(height: 4),
+          Text('${result.percent}%', style: serifDisplay(fontSize: 40)),
+          Text(
+            passed ? 'Aprovado · meta $goal%' : 'Precisa de $goal% para passar',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+              color: passed ? kGoodColor : kBadColor,
             ),
-            const SizedBox(height: 8),
-            Text(
-              badLogical.isEmpty
-                  ? 'Nenhum compasso com erro.'
-                  : 'Erros ${badLogical.length == 1 ? 'no compasso' : 'nos compassos'} '
-                        '${joinMeasureNumbers(badLogical)} — marcados na partitura.',
+          ),
+          const SizedBox(height: 8),
+          Text(
+            badLogical.isEmpty
+                ? 'Nenhum compasso com erro.'
+                : 'Erros ${badLogical.length == 1 ? 'no compasso' : 'nos compassos'} '
+                      '${joinMeasureNumbers(badLogical)} — marcados na partitura.',
+          ),
+          const SizedBox(height: 12),
+          if (showBackToCurrent)
+            TextButton(
+              onPressed: () =>
+                  Navigator.pop(context, StageSummaryAction.backToCurrent),
+              child: const Text('Voltar à etapa atual'),
             ),
-            const SizedBox(height: 12),
-            if (showBackToCurrent)
-              TextButton(
-                onPressed: () =>
-                    Navigator.pop(context, StageSummaryAction.backToCurrent),
-                child: const Text('Voltar à etapa atual'),
-              ),
-            if (passed) ...[
+          if (passed) ...[
+            FilledButton(
+              onPressed: () => Navigator.pop(context, StageSummaryAction.next),
+              child: Text(isLast ? 'Concluir' : 'Próxima etapa'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(context, StageSummaryAction.retry),
+              child: const Text('Repetir'),
+            ),
+          ] else ...[
+            if (blockCount != null)
               FilledButton(
                 onPressed: () =>
-                    Navigator.pop(context, StageSummaryAction.next),
-                child: Text(isLast ? 'Concluir' : 'Próxima etapa'),
-              ),
-              TextButton(
+                    Navigator.pop(context, StageSummaryAction.train),
+                child: Text('Treinar os trechos com erro ($blockCount)'),
+              )
+            else
+              FilledButton(
                 onPressed: () =>
                     Navigator.pop(context, StageSummaryAction.retry),
-                child: const Text('Repetir'),
+                child: const Text('Tentar de novo'),
               ),
-            ] else ...[
-              if (blockCount != null)
-                FilledButton(
-                  onPressed: () =>
-                      Navigator.pop(context, StageSummaryAction.train),
-                  child: Text('Treinar os trechos com erro ($blockCount)'),
-                )
-              else
-                FilledButton(
-                  onPressed: () =>
-                      Navigator.pop(context, StageSummaryAction.retry),
-                  child: const Text('Tentar de novo'),
-                ),
-              TextButton(
-                onPressed: () async {
-                  final skip = await showDialog<bool>(
-                    context: context,
-                    builder: (context) => AlertDialog(
-                      title: const Text('Pular etapa?'),
-                      content: const Text('A etapa fica marcada como pulada.'),
-                      actions: [
-                        TextButton(
-                          onPressed: () => Navigator.pop(context, false),
-                          child: const Text('Continuar aqui'),
-                        ),
-                        FilledButton(
-                          onPressed: () => Navigator.pop(context, true),
-                          child: const Text('Pular'),
-                        ),
-                      ],
-                    ),
-                  );
-                  if (skip == true && context.mounted) {
-                    Navigator.pop(context, StageSummaryAction.skip);
-                  }
-                },
-                child: const Text('Pular etapa'),
-              ),
-            ],
+            TextButton(
+              onPressed: () async {
+                final skip = await showDialog<bool>(
+                  context: context,
+                  builder: (context) => AlertDialog(
+                    title: const Text('Pular etapa?'),
+                    content: const Text('A etapa fica marcada como pulada.'),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(context, false),
+                        child: const Text('Continuar aqui'),
+                      ),
+                      FilledButton(
+                        onPressed: () => Navigator.pop(context, true),
+                        child: const Text('Pular'),
+                      ),
+                    ],
+                  ),
+                );
+                if (skip == true && context.mounted) {
+                  Navigator.pop(context, StageSummaryAction.skip);
+                }
+              },
+              child: const Text('Pular etapa'),
+            ),
           ],
-        ),
+        ],
       ),
     ),
   );
@@ -296,33 +296,34 @@ Future<StageSummaryAction?> showStageSummary(
 enum TrailConclusionAction { library, free }
 
 /// Tela de conclusão (J07): a `final.100` aprovada conclui a trilha.
-Future<TrailConclusionAction?> showTrailConclusion(BuildContext context) {
-  return showModalBottomSheet<TrailConclusionAction>(
-    context: context,
-    isScrollControlled: true,
-    builder: (context) => SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text('Trilha concluída!', style: serifDisplay(fontSize: 28)),
-            const SizedBox(height: 4),
-            const Text('A música inteira a 100% foi aprovada.'),
-            const SizedBox(height: 12),
-            FilledButton(
-              onPressed: () =>
-                  Navigator.pop(context, TrailConclusionAction.library),
-              child: const Text('Voltar à biblioteca'),
-            ),
-            TextButton(
-              onPressed: () =>
-                  Navigator.pop(context, TrailConclusionAction.free),
-              child: const Text('Continuar em treino livre'),
-            ),
-          ],
-        ),
+Future<TrailConclusionAction?> showTrailConclusion(
+  BuildContext context, {
+  bool sidePanel = false,
+}) {
+  return showSheetOrSidePanel<TrailConclusionAction>(
+    context,
+    sidePanel: sidePanel,
+    title: 'Trilha concluída',
+    builder: (context) => sheetBody(
+      sidePanel: sidePanel,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text('Trilha concluída!', style: serifDisplay(fontSize: 28)),
+          const SizedBox(height: 4),
+          const Text('A música inteira a 100% foi aprovada.'),
+          const SizedBox(height: 12),
+          FilledButton(
+            onPressed: () =>
+                Navigator.pop(context, TrailConclusionAction.library),
+            child: const Text('Voltar à biblioteca'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, TrailConclusionAction.free),
+            child: const Text('Continuar em treino livre'),
+          ),
+        ],
       ),
     ),
   );
@@ -395,117 +396,68 @@ class TrailDrawer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Stack(
-      children: [
-        Positioned.fill(
-          child: GestureDetector(
-            behavior: HitTestBehavior.opaque,
-            onTap: onClose,
-            child: const ColoredBox(color: kScrim),
-          ),
-        ),
-        Positioned(
-          right: 0,
-          top: 0,
-          bottom: 0,
-          width: 400,
-          child: Material(
-            color: kSurface,
-            elevation: 8,
-            child: SafeArea(
-              left: false,
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        const Text(
-                          'Trilha de estudo',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                            color: kInk,
-                          ),
-                        ),
-                        IconButton(
-                          tooltip: 'Fechar',
-                          onPressed: onClose,
-                          iconSize: 20,
-                          color: kIconQuiet,
-                          icon: const Icon(Icons.close),
-                        ),
-                      ],
-                    ),
-                    // O todo, à vista: quantas etapas da trilha já foram feitas.
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 8),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          TrailProgressBar(
-                            done: progress.doneCount(plan),
-                            skipped: progress.skipped,
-                            total: plan.stages.length,
-                            height: 6,
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            trailProgressText(
-                              done: progress.doneCount(plan),
-                              total: plan.stages.length,
-                              skipped: progress.skipped,
-                            ),
-                            style: const TextStyle(
-                              fontSize: 12,
-                              color: kInkCaption,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    if (currentId != null)
-                      OutlinedButton.icon(
-                        onPressed: onSkipCurrent,
-                        icon: const Icon(Icons.skip_next, size: 18),
-                        label: const Text('Pular etapa atual'),
-                      ),
-                    Expanded(
-                      child: ListView(
-                        children: [
-                          for (var seg = 0; seg < plan.segmentCount; seg++)
-                            _segmentGroup(seg),
-                          _finalGroup(),
-                        ],
-                      ),
-                    ),
-                    if (footer case final footer?)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 6),
-                        child: footer,
-                      ),
-                    TextButton.icon(
-                      onPressed: () async {
-                        final ok = await confirmTrailReset(
-                          context,
-                          title: 'Reiniciar trilha?',
-                          message: 'O progresso deste hino volta a zero. Só este hino.',
-                          confirmLabel: 'Reiniciar',
-                        );
-                        if (ok) onRestartTrail();
-                      },
-                      icon: const Icon(Icons.restart_alt, size: 18),
-                      label: const Text('Reiniciar trilha'),
-                    ),
-                  ],
+    return PhoneSidePanel(
+      title: 'Trilha de estudo',
+      onClose: onClose,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // O todo, à vista: quantas etapas da trilha já foram feitas.
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                TrailProgressBar(
+                  done: progress.doneCount(plan),
+                  skipped: progress.skipped,
+                  total: plan.stages.length,
+                  height: 6,
                 ),
-              ),
+                const SizedBox(height: 4),
+                Text(
+                  trailProgressText(
+                    done: progress.doneCount(plan),
+                    total: plan.stages.length,
+                    skipped: progress.skipped,
+                  ),
+                  style: const TextStyle(fontSize: 12, color: kInkCaption),
+                ),
+              ],
             ),
           ),
-        ),
-      ],
+          if (currentId != null)
+            OutlinedButton.icon(
+              onPressed: onSkipCurrent,
+              icon: const Icon(Icons.skip_next, size: 18),
+              label: const Text('Pular etapa atual'),
+            ),
+          Expanded(
+            child: ListView(
+              children: [
+                for (var seg = 0; seg < plan.segmentCount; seg++)
+                  _segmentGroup(seg),
+                _finalGroup(),
+              ],
+            ),
+          ),
+          if (footer case final footer?)
+            Padding(padding: const EdgeInsets.only(top: 6), child: footer),
+          TextButton.icon(
+            onPressed: () async {
+              final ok = await confirmTrailReset(
+                context,
+                title: 'Reiniciar trilha?',
+                message: 'O progresso deste hino volta a zero. Só este hino.',
+                confirmLabel: 'Reiniciar',
+              );
+              if (ok) onRestartTrail();
+            },
+            icon: const Icon(Icons.restart_alt, size: 18),
+            label: const Text('Reiniciar trilha'),
+          ),
+        ],
+      ),
     );
   }
 
