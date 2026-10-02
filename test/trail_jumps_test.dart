@@ -434,6 +434,10 @@ void main() {
       expect(dones, 1);
       expect(jumped, [5000]);
       final result = practice.stageResult!;
+      expect(practice.liveScore.value, (
+        hits: result.hits,
+        total: result.total,
+      ));
       expect(result.percent, 100);
       expect(result.total, 2);
       practice.stop();
@@ -476,6 +480,10 @@ void main() {
       }
       expect(dones, 1);
       final result = practice.stageResult!;
+      expect(practice.liveScore.value, (
+        hits: result.hits,
+        total: result.total,
+      ));
       expect(result.total, 2);
       expect(result.percent, lessThan(100));
       expect(result.badMeasures, contains(targetMeasure));
@@ -520,6 +528,10 @@ void main() {
       expect(dones, 1);
       expect(jumped, [5000]);
       final result = practice.stageResult!;
+      expect(practice.liveScore.value, (
+        hits: result.hits,
+        total: result.total,
+      ));
       expect(result.percent, 100);
       // Só B1 e D avaliados: nada de C/A2/B2 (vão).
       expect(result.total, 2);
@@ -564,10 +576,64 @@ void main() {
       await Future.delayed(const Duration(milliseconds: 200));
       expect(dones, 1);
       final result = practice.stageResult!;
+      expect(practice.liveScore.value, (
+        hits: result.hits,
+        total: result.total,
+      ));
       expect(result.percent, 100);
       expect(result.total, 2);
       practice.stop();
     });
+
+    test(
+      'ritmo com toque extra: o selo ao vivo é o do resultado (U05)',
+      () async {
+        final track = _houseTrack();
+        final timeline = ScoreTimeline(_houseDoc());
+        final engine = _Engine();
+        final scheduler = ScoreAudioScheduler(
+          engine: engine,
+          track: track,
+          autoTick: false,
+        );
+        final controller = ScoreController(document: _houseDoc());
+        addTearDown(controller.dispose);
+        addTearDown(controller.clearAll);
+        final midi = _Midi();
+        addTearDown(midi.dispose);
+        var dones = 0;
+        final practice = await startStage(
+          track: track,
+          mode: PracticeMode.rhythm,
+          engine: engine,
+          scheduler: scheduler,
+          controller: controller,
+          midi: midi,
+          timeline: timeline,
+          onDone: () => dones++,
+          jumped: <double>[],
+        );
+
+        for (final ms in [1000.0, 5000.0, 5500.0]) {
+          _advanceUntil(engine, scheduler, ms);
+          midi.press(60, atSeconds: engine.now);
+          await pumpEventQueue();
+          midi.release(60, atSeconds: engine.now + 0.01);
+          await pumpEventQueue();
+        }
+        _advanceUntil(engine, scheduler, 7000);
+        await Future.delayed(const Duration(milliseconds: 200));
+        expect(dones, 1);
+        final result = practice.stageResult!;
+        expect(practice.liveScore.value, (
+          hits: result.hits,
+          total: result.total,
+        ));
+        expect(result.total, 3); // 2 alvos + o toque extra
+        expect(result.percent, lessThan(100));
+        practice.stop();
+      },
+    );
   });
 
   group('fixtures (critério 4 parcial)', () {

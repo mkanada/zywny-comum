@@ -27,8 +27,7 @@ class StageResult {
   /// Conta inteira (`~/`) para 90% cravar 90 sem erro de binário.
   int get percent => total == 0 ? 0 : (hits * 100 ~/ total);
 
-  bool get passed =>
-      total > 0 && hits / total >= kTrailPassAccuracy;
+  bool get passed => total > 0 && hits / total >= kTrailPassAccuracy;
 
   /// Do resumo pronto das sessões. No ritmo, `extra` (toque sem alvo) entra
   /// no denominador: sem isso, bater teclas sem parar aprovaria (J00).
@@ -41,11 +40,7 @@ class StageResult {
       for (final m in report.measures)
         if (m.errors + m.imprecise > 0) m.index,
     };
-    return StageResult(
-      hits: report.correct,
-      total: total,
-      badMeasures: bad,
-    );
+    return StageResult(hits: report.correct, total: total, badMeasures: bad);
   }
 }
 
@@ -87,6 +82,11 @@ class WaitTally {
     }
     _current = null;
   }
+
+  /// Passos concluídos de primeira e passos concluídos (o `hits`/`total` de
+  /// [result], sem montar o resultado).
+  int get firstTry => _firstTry;
+  int get done => _done;
 
   StageResult result() =>
       StageResult(hits: _firstTry, total: _done, badMeasures: Set.of(_bad));

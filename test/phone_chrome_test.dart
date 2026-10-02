@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:zywny/ui/phone_chrome.dart';
+import 'package:zywny/ui/theme.dart';
 
 Widget _app(Widget child) => MaterialApp(home: Scaffold(body: child));
 
@@ -116,6 +117,43 @@ void main() {
         tester.widget<IconButton>(find.byType(IconButton)).onPressed,
         isNull,
       );
+    });
+  });
+
+  group('PhoneScorePill', () {
+    Color? percentColor(WidgetTester tester, String text) {
+      final rich = tester.widget<RichText>(find.byType(RichText).last);
+      Color? found;
+      rich.text.visitChildren((span) {
+        if (span is TextSpan && span.text == text) found = span.style?.color;
+        return true;
+      });
+      return found;
+    }
+
+    testWidgets('sem nada avaliado mostra "—"', (tester) async {
+      await tester.pumpWidget(
+        _app(const PhoneScorePill(hits: 0, total: 0, goalPercent: 90)),
+      );
+      expect(find.textContaining('—'), findsOneWidget);
+      expect(find.textContaining('meta 90%'), findsOneWidget);
+    });
+
+    testWidgets('72% é âmbar e 93% é verde', (tester) async {
+      await tester.pumpWidget(
+        _app(const PhoneScorePill(hits: 72, total: 100, goalPercent: 90)),
+      );
+      expect(find.textContaining('72%'), findsOneWidget);
+      expect(percentColor(tester, '72%'), kOkColor);
+      await tester.pumpWidget(
+        _app(const PhoneScorePill(hits: 93, total: 100, goalPercent: 90)),
+      );
+      expect(percentColor(tester, '93%'), kGoodColor);
+    });
+
+    testWidgets('sem meta não mostra a meta', (tester) async {
+      await tester.pumpWidget(_app(const PhoneScorePill(hits: 1, total: 2)));
+      expect(find.textContaining('meta'), findsNothing);
     });
   });
 }

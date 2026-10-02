@@ -463,6 +463,66 @@ class PhoneCountersPill extends StatelessWidget {
   }
 }
 
+/// Selo de acertos do treino com resultado (U05): a porcentagem corrente,
+/// na conta do resumo da etapa, e a [goalPercent] quando há meta. Verde a
+/// partir da meta, âmbar abaixo; neutro sem meta ou sem nada avaliado ("—").
+class PhoneScorePill extends StatelessWidget {
+  const PhoneScorePill({
+    super.key,
+    required this.hits,
+    required this.total,
+    this.goalPercent,
+  });
+
+  final int hits;
+  final int total;
+  final int? goalPercent;
+
+  @override
+  Widget build(BuildContext context) {
+    final percent = total == 0 ? null : hits * 100 ~/ total;
+    final goal = goalPercent;
+    final color = percent == null || goal == null
+        ? kInk
+        : (hits * 100 >= goal * total ? kGoodColor : kOkColor);
+    const tabular = [FontFeature.tabularFigures()];
+    return Container(
+      height: 28,
+      padding: const EdgeInsets.symmetric(horizontal: 10),
+      decoration: BoxDecoration(
+        color: kLibraryCardBg,
+        borderRadius: BorderRadius.circular(14),
+      ),
+      alignment: Alignment.center,
+      child: Text.rich(
+        TextSpan(
+          children: [
+            TextSpan(
+              text: percent == null ? '—' : '$percent%',
+              style: TextStyle(
+                fontWeight: FontWeight.w700,
+                fontSize: 13,
+                color: color,
+                fontFeatures: tabular,
+              ),
+            ),
+            if (goal != null)
+              TextSpan(
+                text: ' · meta $goal%',
+                style: const TextStyle(
+                  fontSize: 12,
+                  color: kInkCaption,
+                  fontFeatures: tabular,
+                ),
+              ),
+          ],
+        ),
+        maxLines: 1,
+      ),
+    );
+  }
+}
+
 /// Gaveta "Opções de estudo" (`CelularPainel`): 400 px à direita sobre um
 /// véu, com o que o artefato pede — modo, mão e andamento — e, embaixo, [children] para o que só o app real tem (som,
 /// monitor MIDI, layout…).

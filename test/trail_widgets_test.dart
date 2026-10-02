@@ -123,7 +123,7 @@ void main() {
       final future = show(tester, percent: 95, last: false);
       await tester.pumpAndSettle();
       expect(find.text('95%'), findsOneWidget);
-      expect(find.text('Aprovado'), findsOneWidget);
+      expect(find.text('Aprovado · meta 90%'), findsOneWidget);
       expect(find.text('Compassos com erro: 7'), findsOneWidget);
       await tester.tap(find.text('Próxima etapa'));
       await tester.pumpAndSettle();
@@ -182,7 +182,8 @@ void main() {
       await tester.pumpWidget(_app(const SizedBox()));
       var future = show(tester, percent: 85, last: false);
       await tester.pumpAndSettle();
-      expect(find.text('Faltou 5%'), findsOneWidget);
+      expect(find.text('Precisa de 90% para passar'), findsOneWidget);
+      expect(find.textContaining('Faltou'), findsNothing);
       await tester.tap(find.text('Tentar de novo'));
       await tester.pumpAndSettle();
       expect(await future, StageSummaryAction.retry);

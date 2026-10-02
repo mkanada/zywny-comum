@@ -200,6 +200,29 @@ class PracticeController {
   ValueListenable<int> get correctCount => _correctCount;
   ValueListenable<int> get wrongCount => _wrongCount;
 
+  final ValueNotifier<({int hits, int total})> _liveScore = ValueNotifier((
+    hits: 0,
+    total: 0,
+  ));
+
+  /// Acertos e total avaliado **até agora**, na mesma conta de
+  /// [stageResult] (U05): modo espera com intervalo = passos de primeira /
+  /// passos concluídos; tempo real = `correct` / avaliadas; ritmo = `correct`
+  /// / (avaliadas + `extra`). Incremental, para não refazer o resumo a cada
+  /// veredito. Sem resultado (modo espera sem intervalo): fica em 0/0.
+  ValueListenable<({int hits, int total})> get liveScore => _liveScore;
+
+  void _liveAdd({required bool hit}) {
+    final now = _liveScore.value;
+    _liveScore.value = (hits: now.hits + (hit ? 1 : 0), total: now.total + 1);
+  }
+
+  void _liveFromTally() {
+    final tally = _tally;
+    if (tally == null) return;
+    _liveScore.value = (hits: tally.firstTry, total: tally.done);
+  }
+
   /// Passo pendente do aluno (para a UI mostrar progresso); `null` quando a
   /// sessão acabou.
   ValueListenable<PracticeStep?> get currentStep => _wait?.current ?? _noStep;
@@ -526,6 +549,7 @@ class PracticeController {
     _rhythmEntries.add(
       RhythmReportEntry(v, index, pass: passOf?.call(index) ?? 1),
     );
+    _liveAdd(hit: v.kind == RhythmVerdictKind.correct);
     final (color, release) = switch (v.kind) {
       RhythmVerdictKind.correct => (correctColor, null),
       RhythmVerdictKind.early ||
@@ -583,6 +607,9 @@ class PracticeController {
         : (_wait?.current.value?.onMs ?? _lastPlayedMusicalMs);
     final index = measureIndexAt?.call(ms) ?? 0;
     _entries.add(ReportEntry(verdict, index, pass: passOf?.call(index) ?? 1));
+    if (_wait == null) {
+      _liveAdd(hit: verdict.kind == PracticeVerdictKind.correct);
+    }
   }
 
   void _onVerdict(NoteVerdict verdict) {
@@ -689,12 +716,16 @@ class PracticeController {
         if (_tallyStep != null) {
           _tally?.stepDone();
           _tallyStep = null;
+          _liveFromTally();
         }
         _finishRange();
         return;
       }
       if (_tallyStep == step.index) return;
-      if (_tallyStep != null) _tally?.stepDone();
+      if (_tallyStep != null) {
+        _tally?.stepDone();
+        _liveFromTally();
+      }
       _tally?.stepStarted(step.index, measureIndexAt?.call(step.onMs) ?? 0);
       _tallyStep = step.index;
       _setBrake(step.onMs);

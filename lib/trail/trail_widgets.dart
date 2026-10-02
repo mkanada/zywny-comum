@@ -196,7 +196,7 @@ Future<StageSummaryAction?> showStageSummary(
   int? blockCount,
 }) {
   final passed = result.passed;
-  final missing = (kTrailPassAccuracy * 100).round() - result.percent;
+  final goal = (kTrailPassAccuracy * 100).round();
   return showModalBottomSheet<StageSummaryAction>(
     context: context,
     backgroundColor: kSurface,
@@ -212,7 +212,9 @@ Future<StageSummaryAction?> showStageSummary(
             const SizedBox(height: 4),
             Text('${result.percent}%', style: serifDisplay(fontSize: 40)),
             Text(
-              passed ? 'Aprovado' : 'Faltou $missing%',
+              passed
+                  ? 'Aprovado · meta $goal%'
+                  : 'Precisa de $goal% para passar',
               style: TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.w600,

@@ -625,6 +625,10 @@ void main() {
       }
       expect(dones, 1);
       final result = practice.stageResult!;
+      expect(practice.liveScore.value, (
+        hits: result.hits,
+        total: result.total,
+      ));
       expect(result.percent, 100);
       // O passo seguinte ao intervalo não foi cobrado.
       final expectedSteps = track
@@ -681,6 +685,10 @@ void main() {
       }
       expect(dones, 1);
       final result = practice.stageResult!;
+      expect(practice.liveScore.value, (
+        hits: result.hits,
+        total: result.total,
+      ));
       expect(result.total, greaterThan(1));
       expect(result.percent, lessThan(100));
       expect(result.badMeasures, contains(targetMeasure));
@@ -740,6 +748,12 @@ void main() {
           _advanceUntil(engine, scheduler, interval.endMs + 1000);
           await Future.delayed(const Duration(milliseconds: 150));
           final result = practice.stageResult;
+          // O selo ao vivo (U05) é a mesma conta do resultado, também com
+          // tudo perdido (silêncio).
+          expect(practice.liveScore.value, (
+            hits: result?.hits ?? 0,
+            total: result?.total ?? 0,
+          ));
           practice.stop();
           return (dones: dones, percent: result?.percent, total: result?.total);
         }
