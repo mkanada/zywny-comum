@@ -817,6 +817,77 @@ void main() {
       practice.stop();
     });
 
+    test('tempo real: toque errado logo depois do fim não marca compasso de '
+        'fora do intervalo (U12)', () async {
+      final track = _loadTrack('erik-satie.vsb');
+      final doc = _loadDoc('erik-satie.vsb');
+      final timeline = ScoreTimeline(doc);
+      final interval = twoBars(timeline);
+      final engine = FakeSoundEngine();
+      final scheduler = ScoreAudioScheduler(
+        engine: engine,
+        track: track,
+        autoTick: false,
+      );
+      final scoreController = ScoreController(document: doc);
+      addTearDown(scoreController.dispose);
+      addTearDown(scoreController.clearAll);
+      final midi = FakeMidiInput();
+      addTearDown(midi.dispose);
+      var dones = 0;
+      final practice = PracticeController(
+        midiInput: midi,
+        track: track,
+        scheduler: scheduler,
+        controller: scoreController,
+        hand: Hand.direita,
+        mode: PracticeMode.realtime,
+        measureIndexAt: timeline.measureIndexAt,
+        passOf: (i) => timeline.measures[i].pass,
+        range: interval,
+        onRangeDone: () => dones++,
+      );
+      addTearDown(practice.dispose);
+
+      practice.start();
+      final mine = track.events
+          .where(
+            (e) =>
+                Hand.direita.studentStaves.contains(e.staff) &&
+                !e.ornament &&
+                e.onMs >= interval.startMs &&
+                e.onMs < interval.endMs,
+          )
+          .toList();
+      for (final e in mine) {
+        _advanceUntil(engine, scheduler, e.onMs);
+        midi.press(e.pitch, atSeconds: engine.now);
+        await pumpEventQueue();
+      }
+      // Uma tecla sem alvo, já depois do fim do intervalo (dentro da folga em
+      // que o último toque ainda poderia casar).
+      _advanceUntil(engine, scheduler, interval.endMs + 40);
+      midi.press(30, atSeconds: engine.now);
+      await pumpEventQueue();
+      _advanceUntil(engine, scheduler, interval.endMs + 1000);
+      await Future.delayed(const Duration(milliseconds: 150));
+      expect(dones, 1);
+      final inRange = {
+        for (var i = 0; i < timeline.measures.length; i++)
+          if (timeline.measures[i].startMs >= interval.startMs &&
+              timeline.measures[i].startMs < interval.endMs)
+            i,
+      };
+      final result = practice.stageResult!;
+      for (final bad in result.badMeasures) {
+        expect(inRange, contains(bad), reason: 'compasso $bad fora do trecho');
+      }
+      for (final m in practice.report.measures) {
+        expect(inRange, contains(m.index), reason: 'compasso ${m.index}');
+      }
+      practice.stop();
+    });
+
     test('ritmo: no tempo → 100%; extra na pausa → abaixo de 100%', () async {
       Future<int?> run({required bool extra}) async {
         final track = _loadTrack('erik-satie.vsb');

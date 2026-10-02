@@ -9,6 +9,7 @@ library;
 import 'package:flutter/material.dart';
 
 import '../ui/phone_chrome.dart' show kPhoneTitleBarHeight;
+import '../practice/measure_text.dart';
 import '../ui/theme.dart';
 import 'stage_result.dart' show StageResult, kTrailPassAccuracy;
 import 'trail_controller.dart' show ReinforcementView;
@@ -224,8 +225,9 @@ Future<StageSummaryAction?> showStageSummary(
             const SizedBox(height: 8),
             Text(
               badLogical.isEmpty
-                  ? 'Sem compassos com erro apontados'
-                  : 'Compassos com erro: ${badLogical.join(', ')}',
+                  ? 'Nenhum compasso com erro.'
+                  : 'Erros ${badLogical.length == 1 ? 'no compasso' : 'nos compassos'} '
+                        '${joinMeasureNumbers(badLogical)} — marcados na partitura.',
             ),
             const SizedBox(height: 12),
             if (showBackToCurrent)

@@ -124,7 +124,10 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('95%'), findsOneWidget);
       expect(find.text('Aprovado · meta 90%'), findsOneWidget);
-      expect(find.text('Compassos com erro: 7'), findsOneWidget);
+      expect(
+        find.text('Erros no compasso 7 — marcados na partitura.'),
+        findsOneWidget,
+      );
       await tester.tap(find.text('Próxima etapa'));
       await tester.pumpAndSettle();
       expect(await future, StageSummaryAction.next);

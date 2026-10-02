@@ -8,6 +8,7 @@ import '../audio/latency_calibration.dart';
 import '../audio/sound_engine.dart';
 import '../midi/midi_input_service.dart';
 import '../ui/theme.dart';
+import 'measure_text.dart';
 import 'practice_report.dart';
 
 /// Escolha do trecho: dois compassos (índices 0-based em ordem de execução —
@@ -252,7 +253,10 @@ class _CalibrationDialogState extends State<_CalibrationDialog> {
 }
 
 /// Resumo do treino em tempo real (T03). [onRepeatWorst] recebe os compassos
-/// (ocorrências) com mais erros; `null` desabilita o botão.
+/// (ocorrências) com mais erros; `null` desabilita o botão. Fala português
+/// (U12): a precisão, as contagens, uma frase sobre o tempo e os compassos
+/// que deram mais trabalho; os números (milissegundos, uma linha por compasso)
+/// ficam atrás de "Detalhes".
 Future<void> showPracticeSummary(
   BuildContext context,
   PracticeReport report, {
@@ -269,78 +273,92 @@ Future<void> showPracticeSummary(
     context: context,
     backgroundColor: kSurface,
     isScrollControlled: true,
-    builder: (context) => SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text(
-              report.isEmpty
-                  ? 'Nenhuma nota avaliada'
-                  : 'Precisão ${(report.accuracy * 100).round()}%',
-              style: serifDisplay(fontSize: 22),
-            ),
-            if (!report.isEmpty) ...[
-              const SizedBox(height: 8),
-              Wrap(
-                spacing: 16,
-                runSpacing: 4,
-                children: [
-                  _Stat('${report.correct}', 'certas', kGoodColor),
-                  _Stat(
-                    '${report.early + report.late}',
-                    'fora do tempo',
-                    kOkColor,
-                  ),
-                  if (report.wrong > 0 || report.extra == 0)
-                    _Stat('${report.wrong}', 'erradas', kBadColor),
-                  if (report.extra > 0)
-                    _Stat('${report.extra}', 'toques extras', kBadColor),
-                  _Stat('${report.missed}', 'perdidas', kLowScoreColor),
-                ],
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Em média ${signed(report.meanDeltaMs)} '
-                '(desvio ${report.meanAbsDeltaMs.round()} ms'
-                '${report.stdDevMs > 0 ? ', regularidade ±${report.stdDevMs.round()} ms' : ''})',
-                style: const TextStyle(color: kInkCaption),
-              ),
-              if (worst.isNotEmpty) ...[
-                const SizedBox(height: 12),
-                const Text(
-                  'Compassos com mais erros',
-                  style: TextStyle(fontWeight: FontWeight.w600),
+    builder: (context) {
+      var details = false;
+      return StatefulBuilder(
+        builder: (context, setState) => SafeArea(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  report.isEmpty
+                      ? 'Nenhuma nota avaliada'
+                      : 'Precisão ${(report.accuracy * 100).round()}%',
+                  style: serifDisplay(fontSize: 22),
                 ),
-                for (final m in worst)
-                  Text(
-                    'Compasso ${m.index + 1}'
-                    '${m.pass > 1 ? ' (${m.pass}ª vez)' : ''}: '
-                    '${m.wrong} erradas, ${m.missed} perdidas, '
-                    '${m.imprecise} fora do tempo',
+                if (!report.isEmpty) ...[
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 16,
+                    runSpacing: 4,
+                    children: [
+                      _Stat('${report.correct}', 'certas', kGoodColor),
+                      _Stat(
+                        '${report.early + report.late}',
+                        'fora do tempo',
+                        kOkColor,
+                      ),
+                      if (report.wrong > 0 || report.extra == 0)
+                        _Stat('${report.wrong}', 'erradas', kBadColor),
+                      if (report.extra > 0)
+                        _Stat('${report.extra}', 'toques extras', kBadColor),
+                      _Stat('${report.missed}', 'perdidas', kLowScoreColor),
+                    ],
                   ),
+                  const SizedBox(height: 8),
+                  Text(practiceTimingPhrase(report)),
+                  if (worst.isNotEmpty) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      'Deram mais trabalho: compassos '
+                      '${joinMeasureNumbers([for (final m in worst) m.index + 1], ranges: false)}.',
+                    ),
+                  ],
+                ],
+                if (legend != null) ...[const SizedBox(height: 12), legend],
+                const SizedBox(height: 12),
+                if (worst.isNotEmpty && onRepeatWorst != null)
+                  FilledButton(
+                    onPressed: () {
+                      Navigator.pop(context);
+                      onRepeatWorst(worst);
+                    },
+                    child: const Text('Repetir os compassos com mais erros'),
+                  ),
+                if (!report.isEmpty)
+                  TextButton(
+                    onPressed: () => setState(() => details = !details),
+                    child: Text(details ? 'Esconder detalhes' : 'Detalhes'),
+                  ),
+                if (details && !report.isEmpty) ...[
+                  Text(
+                    'Em média ${signed(report.meanDeltaMs)} '
+                    '(desvio ${report.meanAbsDeltaMs.round()} ms'
+                    '${report.stdDevMs > 0 ? ', regularidade ±${report.stdDevMs.round()} ms' : ''})',
+                    style: const TextStyle(color: kInkCaption),
+                  ),
+                  for (final m in worst)
+                    Text(
+                      'Compasso ${m.index + 1}'
+                      '${m.pass > 1 ? ' (${m.pass}ª vez)' : ''}: '
+                      '${m.wrong} erradas, ${m.missed} perdidas, '
+                      '${m.imprecise} fora do tempo',
+                    ),
+                  const SizedBox(height: 8),
+                ],
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Fechar'),
+                ),
               ],
-            ],
-            if (legend != null) ...[const SizedBox(height: 12), legend],
-            const SizedBox(height: 12),
-            if (worst.isNotEmpty && onRepeatWorst != null)
-              FilledButton(
-                onPressed: () {
-                  Navigator.pop(context);
-                  onRepeatWorst(worst);
-                },
-                child: const Text('Repetir os compassos com mais erros'),
-              ),
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Fechar'),
             ),
-          ],
+          ),
         ),
-      ),
-    ),
+      );
+    },
   );
 }
 

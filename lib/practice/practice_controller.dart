@@ -544,8 +544,7 @@ class PracticeController {
   }
 
   void _onRhythmVerdict(RhythmVerdict v) {
-    final ms = v.onMs ?? _lastPlayedMusicalMs;
-    final index = measureIndexAt?.call(ms) ?? 0;
+    final index = _measureAt(v.onMs ?? _lastPlayedMusicalMs);
     _rhythmEntries.add(
       RhythmReportEntry(v, index, pass: passOf?.call(index) ?? 1),
     );
@@ -601,11 +600,26 @@ class PracticeController {
     return tied == null ? [id] : [id, ...tied];
   }
 
+  /// O compasso (ocorrência) de um veredito no instante [ms]. Numa passagem
+  /// única o instante é preso ao intervalo: uma tecla sem alvo apertada na
+  /// folga depois do fim (ou antes do início) pertence ao último (primeiro)
+  /// compasso do trecho, não ao vizinho de fora (U12).
+  int _measureAt(double ms) {
+    final range = this.range;
+    if (range != null) {
+      final last = range.endMs > range.startMs
+          ? range.endMs - 1
+          : range.startMs;
+      ms = ms.clamp(range.startMs, last).toDouble();
+    }
+    return measureIndexAt?.call(ms) ?? 0;
+  }
+
   void _record(NoteVerdict verdict) {
     final ms = verdict.eventId != null
         ? _eventOnMs(verdict.eventId!)
         : (_wait?.current.value?.onMs ?? _lastPlayedMusicalMs);
-    final index = measureIndexAt?.call(ms) ?? 0;
+    final index = _measureAt(ms);
     _entries.add(ReportEntry(verdict, index, pass: passOf?.call(index) ?? 1));
     if (_wait == null) {
       _liveAdd(hit: verdict.kind == PracticeVerdictKind.correct);
