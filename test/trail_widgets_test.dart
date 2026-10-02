@@ -4,24 +4,31 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:zywny/trail/stage_result.dart';
 import 'package:zywny/trail/trail_progress.dart';
 import 'package:zywny/trail/trail_widgets.dart';
+import 'package:zywny/ui/phone_chrome.dart';
 
-Widget _app(Widget child) =>
-    MaterialApp(home: Scaffold(body: child));
+Widget _app(Widget child) => MaterialApp(home: Scaffold(body: child));
 
 void main() {
   group('texto da faixa', () {
     test('trecho e estado', () {
-      expect(trailStripTextFor(6, 1, 'Notas juntas'), 'Trecho 2/6 · Notas juntas');
+      expect(
+        trailStripTextFor(6, 1, 'Notas juntas'),
+        'Trecho 2/6 · Notas juntas',
+      );
       expect(
         trailStripTextFor(6, null, 'Tudo junto no ritmo 100%'),
         'Fase final · Tudo junto no ritmo 100%',
       );
       const empty = TrailProgress(n: 5, total: 1);
       expect(trailStateText(empty, 't0.notasD'), '');
-      const done = TrailProgress(n: 5, total: 2, records: {
-        'a': StageRecord(state: StageState.aprovada, best: 92),
-        'b': StageRecord(state: StageState.pulada, best: 0),
-      });
+      const done = TrailProgress(
+        n: 5,
+        total: 2,
+        records: {
+          'a': StageRecord(state: StageState.aprovada, best: 92),
+          'b': StageRecord(state: StageState.pulada, best: 0),
+        },
+      );
       expect(trailStateText(done, 'a'), '92%');
       expect(trailStateText(done, 'b'), 'pulada');
     });
@@ -64,6 +71,38 @@ void main() {
       await tester.tap(find.byTooltip('Parar etapa'));
       expect(stops, 1);
     });
+  });
+
+  group('TrailTitleChip na barra do título', () {
+    for (final size in const [Size(844, 390), Size(640, 360)]) {
+      testWidgets(
+        'título longo em ${size.width.toInt()}×${size.height.toInt()}',
+        (tester) async {
+          tester.view.physicalSize = size;
+          tester.view.devicePixelRatio = 1;
+          addTearDown(tester.view.reset);
+          var taps = 0;
+          await tester.pumpWidget(
+            _app(
+              PhoneTitleBar(
+                number: 123,
+                title: 'Um título de hino bem comprido que passa de quarenta',
+                onBack: () {},
+                center: TrailTitleChip(
+                  text: 'Trecho 2/6 · Tudo junto no ritmo 75%',
+                  stateText: '98%',
+                  onTap: () => taps++,
+                ),
+                trailing: const [PhoneStatusPill(text: 'Esperando · mão dir.')],
+              ),
+            ),
+          );
+          expect(tester.takeException(), isNull);
+          await tester.tap(find.textContaining('Trecho 2/6'));
+          expect(taps, 1);
+        },
+      );
+    }
   });
 
   group('showStageSummary', () {
@@ -121,9 +160,8 @@ void main() {
 
     testWidgets('conclusão: biblioteca ou treino livre', (tester) async {
       await tester.pumpWidget(_app(const SizedBox()));
-      Future<TrailConclusionAction?> conclude() => showTrailConclusion(
-        tester.element(find.byType(Scaffold)),
-      );
+      Future<TrailConclusionAction?> conclude() =>
+          showTrailConclusion(tester.element(find.byType(Scaffold)));
       var future = conclude();
       await tester.pumpAndSettle();
       expect(find.text('Trilha concluída!'), findsOneWidget);

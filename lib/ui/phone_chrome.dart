@@ -184,6 +184,7 @@ class PhoneTitleBar extends StatelessWidget {
     required this.number,
     required this.title,
     required this.onBack,
+    this.center,
     this.trailing = const [],
   });
 
@@ -191,6 +192,10 @@ class PhoneTitleBar extends StatelessWidget {
   final int? number;
   final String title;
   final VoidCallback onBack;
+
+  /// Bloco entre o título e os selos (a etapa da trilha, U01); título e
+  /// bloco dividem o espaço e cortam com reticências, nada estoura.
+  final Widget? center;
   final List<Widget> trailing;
 
   @override
@@ -233,6 +238,10 @@ class PhoneTitleBar extends StatelessWidget {
               style: serifDisplay(fontSize: 18),
             ),
           ),
+          if (center case final center?) ...[
+            const SizedBox(width: 12),
+            Expanded(child: center),
+          ],
           for (final widget in trailing) ...[const SizedBox(width: 8), widget],
         ],
       ),

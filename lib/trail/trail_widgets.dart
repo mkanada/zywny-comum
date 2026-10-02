@@ -8,6 +8,7 @@ library;
 
 import 'package:flutter/material.dart';
 
+import '../ui/phone_chrome.dart' show kPhoneTitleBarHeight;
 import '../ui/theme.dart';
 import 'stage_result.dart' show StageResult, kTrailPassAccuracy;
 import 'trail_controller.dart' show ReinforcementView;
@@ -117,6 +118,59 @@ class TrailStrip extends StatelessWidget {
   }
 }
 
+/// A informação da trilha na barra do título do celular (U01): etapa, estado
+/// e um "▾" que avisa que toca para abrir a gaveta. Sem [onTap] (trilha
+/// indisponível) é só texto. Não ocupa área da partitura.
+class TrailTitleChip extends StatelessWidget {
+  const TrailTitleChip({
+    super.key,
+    required this.text,
+    this.stateText = '',
+    this.onTap,
+  });
+
+  final String text;
+  final String stateText;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: Container(
+        height: kPhoneTitleBarHeight,
+        alignment: Alignment.centerLeft,
+        child: Text.rich(
+          TextSpan(
+            children: [
+              TextSpan(
+                text: text,
+                style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              if (stateText.isNotEmpty)
+                TextSpan(
+                  text: ' · $stateText',
+                  style: const TextStyle(fontSize: 12, color: kInkCaption),
+                ),
+              if (onTap != null)
+                const TextSpan(
+                  text: ' ▾',
+                  style: TextStyle(fontSize: 12, color: kInkCaption),
+                ),
+            ],
+          ),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+      ),
+    );
+  }
+}
+
 /// Altura fixa da faixa (não muda a caixa da partitura).
 const double kTrailStripHeight = 34;
 
@@ -156,10 +210,7 @@ Future<StageSummaryAction?> showStageSummary(
           children: [
             Text(stageRef, style: const TextStyle(color: kInkCaption)),
             const SizedBox(height: 4),
-            Text(
-              '${result.percent}%',
-              style: serifDisplay(fontSize: 40),
-            ),
+            Text('${result.percent}%', style: serifDisplay(fontSize: 40)),
             Text(
               passed ? 'Aprovado' : 'Faltou $missing%',
               style: TextStyle(
@@ -177,10 +228,8 @@ Future<StageSummaryAction?> showStageSummary(
             const SizedBox(height: 12),
             if (showBackToCurrent)
               TextButton(
-                onPressed: () => Navigator.pop(
-                  context,
-                  StageSummaryAction.backToCurrent,
-                ),
+                onPressed: () =>
+                    Navigator.pop(context, StageSummaryAction.backToCurrent),
                 child: const Text('Voltar à etapa atual'),
               ),
             if (passed) ...[
@@ -197,13 +246,9 @@ Future<StageSummaryAction?> showStageSummary(
             ] else ...[
               if (blockCount != null)
                 FilledButton(
-                  onPressed: () => Navigator.pop(
-                    context,
-                    StageSummaryAction.train,
-                  ),
-                  child: Text(
-                    'Treinar os trechos com erro ($blockCount)',
-                  ),
+                  onPressed: () =>
+                      Navigator.pop(context, StageSummaryAction.train),
+                  child: Text('Treinar os trechos com erro ($blockCount)'),
                 )
               else
                 FilledButton(
@@ -217,9 +262,7 @@ Future<StageSummaryAction?> showStageSummary(
                     context: context,
                     builder: (context) => AlertDialog(
                       title: const Text('Pular etapa?'),
-                      content: const Text(
-                        'A etapa fica marcada como pulada.',
-                      ),
+                      content: const Text('A etapa fica marcada como pulada.'),
                       actions: [
                         TextButton(
                           onPressed: () => Navigator.pop(context, false),
@@ -267,10 +310,8 @@ Future<TrailConclusionAction?> showTrailConclusion(BuildContext context) {
             const Text('A música inteira a 100% foi aprovada.'),
             const SizedBox(height: 12),
             FilledButton(
-              onPressed: () => Navigator.pop(
-                context,
-                TrailConclusionAction.library,
-              ),
+              onPressed: () =>
+                  Navigator.pop(context, TrailConclusionAction.library),
               child: const Text('Voltar à biblioteca'),
             ),
             TextButton(
@@ -412,8 +453,7 @@ class TrailDrawer extends StatelessWidget {
                         final ok = await confirmTrailReset(
                           context,
                           title: 'Reiniciar trilha?',
-                          message:
-                              'O progresso deste hino volta a zero. Só este hino.',
+                          message: 'O progresso deste hino volta a zero. Só este hino.',
                           confirmLabel: 'Reiniciar',
                         );
                         if (ok) onRestartTrail();
@@ -511,9 +551,7 @@ class TrailDrawer extends StatelessWidget {
       initiallyExpanded:
           finals.any((s) => s.id == currentId) || blocks.isNotEmpty,
       title: Text(
-        finals.isEmpty
-            ? 'Fase final'
-            : 'Fase final · $done/${finals.length}',
+        finals.isEmpty ? 'Fase final' : 'Fase final · $done/${finals.length}',
         style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
       ),
       children: [
