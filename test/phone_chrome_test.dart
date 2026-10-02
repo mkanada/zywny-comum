@@ -72,4 +72,50 @@ void main() {
     await tester.pump();
     expect(find.text('Conecte o teclado para praticar'), findsNothing);
   });
+
+  group('PhoneSoundButton', () {
+    for (final on in [true, false]) {
+      testWidgets('som ${on ? 'ligado' : 'desligado'}', (tester) async {
+        var taps = 0;
+        await tester.pumpWidget(
+          _app(
+            PhoneTitleBar(
+              number: 5,
+              title: 'Hino',
+              onBack: () {},
+              trailing: [
+                PhoneSoundButton(
+                  on: on,
+                  tooltip: on ? 'Som ligado' : 'Som desligado',
+                  onPressed: () => taps++,
+                ),
+              ],
+            ),
+          ),
+        );
+        expect(
+          find.byIcon(on ? Icons.volume_up : Icons.volume_off),
+          findsOneWidget,
+        );
+        await tester.tap(find.byTooltip(on ? 'Som ligado' : 'Som desligado'));
+        expect(taps, 1);
+      });
+    }
+
+    testWidgets('desabilitado sem retorno', (tester) async {
+      await tester.pumpWidget(
+        _app(
+          const PhoneSoundButton(
+            on: true,
+            tooltip: 'Som ligado',
+            onPressed: null,
+          ),
+        ),
+      );
+      expect(
+        tester.widget<IconButton>(find.byType(IconButton)).onPressed,
+        isNull,
+      );
+    });
+  });
 }

@@ -264,6 +264,41 @@ class PhoneTitleBar extends StatelessWidget {
   }
 }
 
+/// Alto-falante da barra do título (U04): o estado do som de agora e um
+/// toque para trocá-lo. [onPressed] `null` desabilita (treino em curso).
+class PhoneSoundButton extends StatelessWidget {
+  const PhoneSoundButton({
+    super.key,
+    required this.on,
+    required this.tooltip,
+    required this.onPressed,
+    this.loading = false,
+  });
+
+  final bool on;
+  final bool loading;
+  final String tooltip;
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return IconButton(
+      tooltip: tooltip,
+      onPressed: loading ? null : onPressed,
+      iconSize: 22,
+      visualDensity: VisualDensity.compact,
+      color: on ? kAccentDark : kInkCaption,
+      icon: loading
+          ? const SizedBox(
+              width: 18,
+              height: 18,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            )
+          : Icon(on ? Icons.volume_up : Icons.volume_off),
+    );
+  }
+}
+
 /// Aviso da trilha sem teclado conectado (U03): toque abre a lista de
 /// dispositivos.
 class PhoneKeyboardNotice extends StatelessWidget {

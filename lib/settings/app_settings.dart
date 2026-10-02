@@ -46,7 +46,9 @@ class AppSettings extends ChangeNotifier {
 
   SoundOutput _output = SoundOutput.appSynth;
   bool _useScoreInstruments = false;
-  bool _soundOn = false;
+  // Ligado por padrão (U04): o primeiro play de uma instalação nova soa;
+  // quem gravou desligado continua desligado (`load` só troca se há chave).
+  bool _soundOn = true;
   bool _metronomeOn = false;
   PracticeMode _practiceMode = PracticeMode.wait;
   // Verde, não o vermelho padrão do player: é também a cor da nota certa
