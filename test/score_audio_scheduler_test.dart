@@ -672,6 +672,58 @@ void main() {
     });
   });
 
+  group('contagem: quantos tempos', () {
+    // [perBar] batidas por compasso, uma a cada 500 ms.
+    List<Beat> bars(List<int> perBar) {
+      final beats = <Beat>[];
+      var ms = 0.0;
+      for (var m = 0; m < perBar.length; m++) {
+        for (var k = 0; k < perBar[m]; k++) {
+          beats.add(Beat(ms, accent: k == 0, measure: m));
+          ms += 500;
+        }
+      }
+      return beats;
+    }
+
+    List<bool> accents(List<Beat> clicks) => [for (final c in clicks) c.accent];
+
+    test('compasso cheio: 1 compasso, forte no 1º clique', () {
+      final clicks = countInBeats(bars([4, 4, 4]), 2000);
+      expect([for (final c in clicks) c.ms], [0, 500, 1000, 1500]);
+      expect(accents(clicks), [true, false, false, false]);
+    });
+
+    test('anacruse de 1 tempo em 4/4: conta os 3 que faltam', () {
+      final clicks = countInBeats(bars([1, 4, 4, 4]), 0);
+      expect([for (final c in clicks) c.ms], [-1500, -1000, -500]);
+      expect(accents(clicks), [true, false, false]);
+    });
+
+    test('anacruse de 1 tempo em 3/4: 2 é pouco, entra mais um compasso', () {
+      final clicks = countInBeats(bars([1, 3, 3, 3]), 0);
+      expect(clicks.length, 5);
+      expect(accents(clicks), [true, false, false, true, false]);
+      expect(clicks.last.ms, -500);
+    });
+
+    test('anacruse de 3 tempos em 4/4: 1 é pouco, conta 5', () {
+      final clicks = countInBeats(bars([3, 4, 4, 4]), 0);
+      expect(accents(clicks), [true, false, false, false, true]);
+    });
+
+    test('2/4: dois compassos', () {
+      final clicks = countInBeats(bars([2, 2, 2]), 1000);
+      expect(accents(clicks), [true, false, true, false]);
+    });
+
+    test('o número da tela começa no total de cliques', () {
+      final clicks = countInBeats(bars([1, 4, 4, 4]), 0);
+      expect(countInTickAt(clicks, 0, -1500)!.remaining, 3);
+      expect(countInTickAt(clicks, 0, -1)!.remaining, 1);
+    });
+  });
+
   group('T04 calibração', () {
     test('mediana sem os 2 primeiros cliques', () {
       final clicks = [for (var i = 0; i < 8; i++) 1.0 + i * 0.6];

@@ -293,7 +293,7 @@ class ScoreAudioScheduler {
   /// Começa (ou retoma) a tocar a partir de [fromMs]. Manda o Program
   /// Change de cada canal (uma vez, aqui) e liga a agenda.
   ///
-  /// [countIn]: antes de [fromMs], 1 compasso de cliques (a contagem inicial,
+  /// [countIn]: antes de [fromMs], os cliques de `countInBeats` (a contagem inicial,
   /// T04) — a posição fica parada em [fromMs] enquanto eles soam.
   void play(double fromMs, {double? speed, bool countIn = false}) {
     engine.allNotesOff();

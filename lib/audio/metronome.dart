@@ -93,9 +93,18 @@ List<Beat> metronomeBeats(ScoreTimeline timeline) {
   return beats;
 }
 
-/// Cliques da contagem inicial para começar em [fromMs]: as batidas do
-/// compasso que contém [fromMs], deslocadas para antes dele (o 1º clique é
-/// o forte). `[]` se não houver batidas.
+/// Menor contagem inicial: com menos de 3 tempos não dá para sentir o
+/// andamento.
+const int kMinCountInBeats = 3;
+
+/// Cliques da contagem inicial para começar em [fromMs], no espaçamento das
+/// batidas do compasso que contém [fromMs]. `[]` se não houver batidas.
+///
+/// Compasso cheio: 1 compasso de cliques. Compasso incompleto (anacruse): só
+/// os tempos que faltam para completá-lo — a música entra no tempo certo do
+/// compasso. Nos dois casos, com menos de [kMinCountInBeats] cliques entra
+/// mais um compasso cheio antes (2/4 conta 4; anacruse de 1 tempo em 3/4
+/// conta 5). O clique forte cai no 1º tempo de cada compasso contado.
 List<Beat> countInBeats(List<Beat> beats, double fromMs) {
   if (beats.isEmpty) return const [];
   // Compasso que contém [fromMs]: o da última batida em ou antes dele.
@@ -106,11 +115,43 @@ List<Beat> countInBeats(List<Beat> beats, double fromMs) {
   final spacing = bar.length >= 2
       ? bar[1].ms - bar[0].ms
       : (idx + 1 < beats.length ? beats[idx + 1].ms - beats[idx].ms : 500.0);
-  final n = bar.length;
+  final full = _fullBarBeats(beats);
+  // Tempos que o compasso incompleto ocupa no fim do compasso cheio.
+  final pickup = bar.length < full ? bar.length : 0;
+  var n = pickup > 0 ? full - pickup : bar.length;
+  while (n < kMinCountInBeats) {
+    n += full;
+  }
   return [
-    for (var i = 0; i < n; i++)
-      Beat(fromMs - (n - i) * spacing, accent: i == 0, measure: measure),
+    for (var left = n; left >= 1; left--)
+      Beat(
+        fromMs - left * spacing,
+        accent: (full - pickup - left) % full == 0,
+        measure: measure,
+      ),
   ];
+}
+
+/// Batidas do compasso cheio: a quantidade mais comum entre os compassos
+/// (a mesma ideia de `trail_path.dart` para achar os incompletos).
+int _fullBarBeats(List<Beat> beats) {
+  final perMeasure = <int, int>{};
+  for (final b in beats) {
+    perMeasure[b.measure] = (perMeasure[b.measure] ?? 0) + 1;
+  }
+  final votes = <int, int>{};
+  for (final n in perMeasure.values) {
+    votes[n] = (votes[n] ?? 0) + 1;
+  }
+  var best = 1;
+  var bestVotes = 0;
+  votes.forEach((n, v) {
+    if (v > bestVotes || (v == bestVotes && n > best)) {
+      best = n;
+      bestVotes = v;
+    }
+  });
+  return best;
 }
 
 /// Um instante da contagem inicial: quantos tempos ainda faltam (o número

@@ -115,7 +115,15 @@ fn render_block(
             cursor = offset;
         }
         let e = heap.pop().expect("peek acabou de confirmar um elemento");
-        synth.process_midi_message(0, e.msg[0] as i32, e.msg[1] as i32, e.msg[2] as i32);
+        // O rustysynth quer canal e comando separados (`0x99` = Note On no
+        // canal 9): com o status inteiro só o canal 0 soava.
+        let status = e.msg[0];
+        synth.process_midi_message(
+            (status & 0x0F) as i32,
+            (status & 0xF0) as i32,
+            e.msg[1] as i32,
+            e.msg[2] as i32,
+        );
     }
     if cursor < block_len {
         synth.render(&mut left[cursor..], &mut right[cursor..]);
@@ -454,6 +462,27 @@ mod tests {
             return 0.0;
         }
         (buf.iter().map(|s| s * s).sum::<f32>() / buf.len() as f32).sqrt()
+    }
+
+    /// O metrônomo clica no canal 9 (percussão): um status com canal
+    /// diferente de 0 tem de chegar ao sintetizador.
+    #[test]
+    fn nota_fora_do_canal_0_soa() {
+        let Some(synth) = test_synth() else {
+            eprintln!(
+                "SKIP: nenhum .sf2 de teste (defina ZYWNY_TEST_SF2 ou instale timgm6mb-soundfont)"
+            );
+            return;
+        };
+        let mut core = EngineCore::new(synth, Arc::new(AtomicU64::new(0)));
+        core.apply_command(Command::Note {
+            frame: 0,
+            msg: [0x99, 76, 100],
+        });
+        let mut left = vec![0f32; 4096];
+        let mut right = vec![0f32; 4096];
+        core.render(0, &mut left, &mut right);
+        assert!(rms(&left) > 0.0, "o clique do canal 9 deveria soar");
     }
 
     #[test]
