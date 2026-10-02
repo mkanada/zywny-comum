@@ -33,3 +33,7 @@ const kPracticeOffBeatColor = Color(0xFFC07A00);
 /// Tempo real: nota que passou sem ser tocada.
 const kPracticeMissedColor = Color(0xFF8E8E93);
 const kPracticeMissedHold = Duration(milliseconds: 500);
+
+/// A mão que o app toca no treino de uma mão só (U08): cinza claro, mais
+/// fraco que o de perdida, para a outra pauta não parecer "toque esta".
+const kPracticeAppHandColor = Color(0xFFB8B8BD);

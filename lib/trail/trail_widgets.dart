@@ -370,6 +370,7 @@ class TrailDrawer extends StatelessWidget {
     required this.onSkipCurrent,
     required this.onRestartTrail,
     this.blocks = const [],
+    this.footer,
   });
 
   final TrailPlan plan;
@@ -388,6 +389,9 @@ class TrailDrawer extends StatelessWidget {
   /// Blocos de reforço à vista (J07): o grupo "Fase final" os lista
   /// enquanto existirem (só leitura — roda-se pela faixa).
   final List<ReinforcementView> blocks;
+
+  /// Acima de "Reiniciar trilha": a legenda das cores do treino (U08).
+  final Widget? footer;
 
   @override
   Widget build(BuildContext context) {
@@ -450,6 +454,11 @@ class TrailDrawer extends StatelessWidget {
                         ],
                       ),
                     ),
+                    if (footer case final footer?)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 6),
+                        child: footer,
+                      ),
                     TextButton.icon(
                       onPressed: () async {
                         final ok = await confirmTrailReset(

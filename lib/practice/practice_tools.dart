@@ -257,6 +257,7 @@ Future<void> showPracticeSummary(
   BuildContext context,
   PracticeReport report, {
   void Function(List<MeasureStats> worst)? onRepeatWorst,
+  Widget? legend,
 }) {
   final worst = report.worstMeasures();
   String signed(double ms) {
@@ -322,6 +323,7 @@ Future<void> showPracticeSummary(
                   ),
               ],
             ],
+            if (legend != null) ...[const SizedBox(height: 12), legend],
             const SizedBox(height: 12),
             if (worst.isNotEmpty && onRepeatWorst != null)
               FilledButton(

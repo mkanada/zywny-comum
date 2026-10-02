@@ -207,6 +207,12 @@ class ScorePlayer {
   /// que acender — não recolore as que já estão em `attack`/`hold`.
   Color highlightColor;
 
+  /// Cor própria de algumas notas (o treino de uma mão pinta a mão do app
+  /// de cinza): consultada a cada id que acende — no avanço e no [seek] —,
+  /// com o id da **cena** (`-rend<N>` já resolvido);
+  /// `null` (ou o retorno `null`) usa [highlightColor].
+  Color? Function(String id)? highlightColorOf;
+
   /// Onde, na viewport, o compasso corrente fica no modo contínuo.
   final double scrollAlignment;
   final Duration scrollDuration;
@@ -375,18 +381,39 @@ class ScorePlayer {
     for (final id in e.off) {
       controller.release(id);
     }
-    if (e.on.isNotEmpty) {
-      controller.highlightAll(
-        e.on,
-        color: highlightColor,
-        hold: _kForever,
-        release: release,
-      );
-    }
+    if (e.on.isNotEmpty) _highlight(e.on);
     if (e.tempo != null) {
       _tempo.value = e.tempo;
     }
     onEntry?.call(e);
+  }
+
+  /// Acende [ids] na [highlightColor], ou na de [highlightColorOf] para os
+  /// ids que ela pinta.
+  void _highlight(Iterable<String> ids) {
+    final colorOf = highlightColorOf;
+    if (colorOf == null) {
+      controller.highlightAll(
+        ids,
+        color: highlightColor,
+        hold: _kForever,
+        release: release,
+      );
+      return;
+    }
+    final byColor = <Color, List<String>>{};
+    for (final id in ids) {
+      (byColor[colorOf(document.sceneIdOf(id) ?? id) ?? highlightColor] ??= [])
+          .add(id);
+    }
+    byColor.forEach((color, group) {
+      controller.highlightAll(
+        group,
+        color: color,
+        hold: _kForever,
+        release: release,
+      );
+    });
   }
 
   /// Vai para [position], recalculando o estado do zero: nenhum destaque
@@ -415,14 +442,7 @@ class ScorePlayer {
     }
     _next = i;
     _tempo.value = tempo;
-    if (active.isNotEmpty) {
-      controller.highlightAll(
-        active,
-        color: highlightColor,
-        hold: _kForever,
-        release: release,
-      );
-    }
+    if (active.isNotEmpty) _highlight(active);
     _publish(seeking: true);
   }
 
