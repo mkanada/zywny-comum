@@ -30,6 +30,8 @@ class PhoneRail extends StatelessWidget {
     this.playTooltip,
     this.onRestart,
     this.onMeasureTap,
+    this.onListen,
+    this.listening = false,
   });
 
   final bool playing;
@@ -47,6 +49,10 @@ class PhoneRail extends StatelessWidget {
   final int? measure;
   final int? totalMeasures;
   final VoidCallback? onMeasureTap;
+
+  /// "Ouvir o trecho" da trilha (U03): `null` fora da trilha — sem botão.
+  final VoidCallback? onListen;
+  final bool listening;
 
   final int tempoPercent;
   final String handLabel;
@@ -79,6 +85,15 @@ class PhoneRail extends StatelessWidget {
                 playIcon ??
                 Icon(playing ? Icons.pause : Icons.play_arrow, size: 24),
           ),
+          if (onListen != null)
+            IconButton(
+              tooltip: listening ? 'Parar de ouvir' : 'Ouvir o trecho',
+              onPressed: onListen,
+              iconSize: 22,
+              visualDensity: VisualDensity.compact,
+              color: kAccentDark,
+              icon: Icon(listening ? Icons.stop : Icons.hearing),
+            ),
           IconButton(
             tooltip: 'Reiniciar',
             onPressed: onRestart,
@@ -244,6 +259,40 @@ class PhoneTitleBar extends StatelessWidget {
           ],
           for (final widget in trailing) ...[const SizedBox(width: 8), widget],
         ],
+      ),
+    );
+  }
+}
+
+/// Aviso da trilha sem teclado conectado (U03): toque abre a lista de
+/// dispositivos.
+class PhoneKeyboardNotice extends StatelessWidget {
+  const PhoneKeyboardNotice({super.key, required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 210),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.piano_off, size: 18, color: kInkCaption),
+            const SizedBox(width: 6),
+            Flexible(
+              child: Text(
+                'Conecte o teclado para praticar',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontSize: 12, color: kInkCaption),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
