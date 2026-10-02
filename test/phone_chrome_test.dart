@@ -43,6 +43,69 @@ void main() {
       );
     }
 
+    for (final size in const [Size(844, 390), Size(640, 360)]) {
+      testWidgets(
+        'modo trilha: andamento da etapa só de leitura, sem mão (${size.width.toInt()}×${size.height.toInt()})',
+        (tester) async {
+          tester.view.physicalSize = size;
+          tester.view.devicePixelRatio = 1;
+          addTearDown(tester.view.reset);
+          var options = 0;
+          await tester.pumpWidget(
+            _app(
+              Align(
+                alignment: Alignment.centerRight,
+                child: PhoneRail(
+                  playing: false,
+                  onPlayPause: () {},
+                  measure: 5,
+                  totalMeasures: 30,
+                  tempoPercent: 100,
+                  handLabel: 'Dir.',
+                  onOptions: () => options++,
+                  onListen: () {},
+                  stageTempo: '50%',
+                ),
+              ),
+            ),
+          );
+          expect(tester.takeException(), isNull);
+          expect(find.text('50%'), findsOneWidget);
+          expect(find.text('da etapa'), findsOneWidget);
+          expect(find.text('mão'), findsNothing);
+          expect(find.text('100%'), findsNothing);
+          await tester.tap(find.text('50%'), warnIfMissed: false);
+          expect(options, 0);
+        },
+      );
+    }
+
+    testWidgets('etapa do modo espera mostra "livre"', (tester) async {
+      await tester.pumpWidget(
+        _app(
+          PhoneRail(
+            playing: false,
+            onPlayPause: () {},
+            measure: 1,
+            totalMeasures: 30,
+            tempoPercent: 100,
+            handLabel: 'Dir.',
+            onOptions: () {},
+            stageTempo: 'livre',
+            stageTempoCaption: 'sem tempo',
+          ),
+        ),
+      );
+      expect(find.text('livre'), findsOneWidget);
+      expect(find.text('sem tempo'), findsOneWidget);
+    });
+
+    testWidgets('fora da trilha mantém andamento e mão', (tester) async {
+      await tester.pumpWidget(_app(_rail()));
+      expect(find.text('100%'), findsOneWidget);
+      expect(find.text('mão'), findsOneWidget);
+    });
+
     testWidgets('fora da trilha não existe', (tester) async {
       await tester.pumpWidget(_app(_rail()));
       expect(find.byTooltip('Ouvir o trecho'), findsNothing);

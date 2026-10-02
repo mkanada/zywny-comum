@@ -70,6 +70,22 @@ class TrailPath {
     return null;
   }
 
+  /// O número que a tela mostra (1-based, nos compassos do caminho) do
+  /// compasso que contém a ocorrência [occurrence]; `null` fora do caminho.
+  /// Mesma numeração da gaveta e do resumo (U07).
+  int? numberOf(int occurrence) {
+    final i = logicalOf(occurrence);
+    return i == null ? null : logical[i].number;
+  }
+
+  /// Início (ms musicais) do compasso de número [number] do caminho.
+  double? startMsOfNumber(int number) {
+    for (final m in logical) {
+      if (m.number == number) return m.startMs;
+    }
+    return null;
+  }
+
   /// O caminho de [timeline], pelas regras do J00 (ver o topo do arquivo).
   static TrailPath fromTimeline(ScoreTimeline timeline) {
     final measures = timeline.measures;
@@ -270,7 +286,9 @@ double _groupQuarters(List<_Chosen> group, double full) {
 List<List<_Chosen>> _glueIncomplete(List<_Chosen> chosen, double? full) {
   final groups = <List<_Chosen>>[];
   if (full == null) {
-    return [for (final c in chosen) [c]];
+    return [
+      for (final c in chosen) [c],
+    ];
   }
   var i = 0;
   while (i < chosen.length) {

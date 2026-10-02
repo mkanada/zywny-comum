@@ -277,6 +277,20 @@ void main() {
     });
   });
 
+  group('número do compasso no caminho (U07)', () {
+    test('ocorrência → número do caminho, igual ao da gaveta', () {
+      final path = _housePath();
+      // Ocorrências do caminho: [0, 1, 5, 6] (A, B, D, E; a casa 1 fica fora).
+      expect(path.numberOf(0), 1);
+      expect(path.numberOf(5), 3);
+      expect(path.numberOf(6), 4);
+      expect(path.numberOf(2), isNull); // casa descartada: fora do caminho
+      expect(path.numberOf(5), path.logical[2].number);
+      expect(path.startMsOfNumber(3), path.logical[2].startMs);
+      expect(path.startMsOfNumber(99), isNull);
+    });
+  });
+
   group('compassos marcados na pauta (U02)', () {
     test('trecho 1 e 2 com casas; fase final vazia', () {
       final timeline = ScoreTimeline(_houseDoc());

@@ -32,6 +32,8 @@ class PhoneRail extends StatelessWidget {
     this.onMeasureTap,
     this.onListen,
     this.listening = false,
+    this.stageTempo,
+    this.stageTempoCaption = 'da etapa',
   });
 
   final bool playing;
@@ -53,6 +55,12 @@ class PhoneRail extends StatelessWidget {
   /// "Ouvir o trecho" da trilha (U03): `null` fora da trilha — sem botão.
   final VoidCallback? onListen;
   final bool listening;
+
+  /// Modo trilha (U07): o andamento **da etapa** ("50%", ou "livre" no modo
+  /// espera), só para ler — não abre nada — e sem o botão de mão, que a
+  /// etapa decide. `null` = barra do treino livre.
+  final String? stageTempo;
+  final String stageTempoCaption;
 
   final int tempoPercent;
   final String handLabel;
@@ -108,24 +116,65 @@ class PhoneRail extends StatelessWidget {
             tooltip: 'Ir para compasso',
             onTap: onMeasureTap,
           ),
-          _RailButton(
-            top: '$tempoPercent%',
-            bottom: 'andamento',
-            tooltip: 'Andamento',
-            onTap: onOptions,
-          ),
-          _RailButton(
-            top: handLabel,
-            bottom: 'mão',
-            tooltip: 'Mão',
-            onTap: onOptions,
-          ),
+          if (stageTempo case final tempo?)
+            _RailReadout(top: tempo, bottom: stageTempoCaption)
+          else ...[
+            _RailButton(
+              top: '$tempoPercent%',
+              bottom: 'andamento',
+              tooltip: 'Andamento',
+              onTap: onOptions,
+            ),
+            _RailButton(
+              top: handLabel,
+              bottom: 'mão',
+              tooltip: 'Mão',
+              onTap: onOptions,
+            ),
+          ],
           IconButton(
             tooltip: 'Mais opções',
             onPressed: onOptions,
             iconSize: 22,
             color: kIconQuiet,
             icon: const Icon(Icons.more_horiz),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Valor só de leitura da barra (sem toque, sem dica de ação): o andamento
+/// da etapa na trilha.
+class _RailReadout extends StatelessWidget {
+  const _RailReadout({required this.top, required this.bottom});
+
+  final String top;
+  final String bottom;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 64,
+      height: 48,
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Text(
+            top,
+            maxLines: 1,
+            style: const TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w600,
+              height: 1.15,
+              color: kInk,
+            ),
+          ),
+          Text(
+            bottom,
+            maxLines: 1,
+            style: const TextStyle(fontSize: 10.5, color: kInkCaption),
           ),
         ],
       ),
