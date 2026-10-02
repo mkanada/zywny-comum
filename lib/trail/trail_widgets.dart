@@ -616,6 +616,9 @@ class TrailProgressBar extends StatelessWidget {
         child: ColoredBox(
           color: kBorderSoft,
           child: Row(
+            // Sem isto as fatias (ColoredBox sem filho) encolhem a altura 0 e
+            // a barra aparece vazia.
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               if (approved > 0)
                 Expanded(
