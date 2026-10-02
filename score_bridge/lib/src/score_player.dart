@@ -28,6 +28,13 @@
 // ela difere; em `continuousScroll` não há haste, e a rolagem acompanha o
 // compasso corrente (`scrollToId`).
 //
+// LIGADURAS (`mergeTies`): o timemap do Verovio acende cada nota de uma
+// ligadura no instante em que ela está escrita (a cabeça apaga quando a
+// continuação começa). Com `mergeTies`, a cadeia vira um destaque só — todas
+// acendem no ataque da cabeça e apagam juntas no fim da última — porque é
+// uma tecla só. As cadeias vêm de `MidiNote.tied` (`midi.json`); sem ele,
+// nada muda. `ScoreTimeline` continua com o timemap cru.
+//
 // PÁGINAS ALTERNATIVAS (P04b): a página de repouso e a de trás da haste vêm
 // de `ScoreTimeline.restViewAt`/`curtainAt` (a rota de P00/P04a) — em
 // execução, a vista pode mostrar uma alternativa num salto de repetição.
@@ -67,6 +74,87 @@ abstract class PlaybackClock {
   bool get isRunning;
 }
 
+/// [entries] (em ordem de `tstamp`) com cada cadeia de ligadura de [midi]
+/// fundida num destaque só: as continuações passam a acender na entrada em
+/// que a cabeça acende, e a cadeia inteira apaga na entrada em que a última
+/// continuação apagava. Entradas sem ligadura voltam as mesmas; sem [midi]
+/// (ou sem ligaduras), devolve [entries].
+List<TimemapEntry> mergeTiedEntries(List<TimemapEntry> entries, VsbMidi? midi) {
+  final chains = <String, List<String>>{
+    for (final note in midi?.notes ?? const <MidiNote>[])
+      if (note.tied.isNotEmpty) note.id: note.tied,
+  };
+  if (chains.isEmpty) {
+    return entries;
+  }
+  final on = <int, List<String>>{};
+  final off = <int, List<String>>{};
+  List<String> onOf(int i) => on[i] ??= [...entries[i].on];
+  List<String> offOf(int i) => off[i] ??= [...entries[i].off];
+
+  // Primeira entrada a partir de [from] que acende/apaga [id]; -1 se não há.
+  int find(int from, String id, {required bool lit}) {
+    for (var i = from; i < entries.length; i++) {
+      final ids = lit ? on[i] ?? entries[i].on : off[i] ?? entries[i].off;
+      if (ids.contains(id)) {
+        return i;
+      }
+    }
+    return -1;
+  }
+
+  for (var i = 0; i < entries.length; i++) {
+    for (final head in entries[i].on) {
+      final tied = chains[head];
+      if (tied == null) {
+        continue;
+      }
+      // Percorre a cadeia: cada elo apaga (e o seguinte acende) depois de
+      // onde o anterior acendeu.
+      final merged = <String>[head];
+      var from = i;
+      var lastOff = find(i, head, lit: false);
+      for (final id in tied) {
+        final at = find(from, id, lit: true);
+        if (at < 0) {
+          break; // continuação fora do timemap: a cadeia para aqui.
+        }
+        if (lastOff >= 0) {
+          offOf(lastOff).remove(merged.last);
+        }
+        onOf(at).remove(id);
+        onOf(i).add(id);
+        merged.add(id);
+        from = at;
+        lastOff = find(at, id, lit: false);
+      }
+      if (lastOff >= 0 && merged.length > 1) {
+        final list = offOf(lastOff);
+        list.remove(merged.last);
+        list.addAll(merged);
+      }
+    }
+  }
+
+  return [
+    for (var i = 0; i < entries.length; i++)
+      if (on.containsKey(i) || off.containsKey(i))
+        TimemapEntry(
+          qstamp: entries[i].qstamp,
+          qfrac: entries[i].qfrac,
+          tstamp: entries[i].tstamp,
+          on: on[i] ?? entries[i].on,
+          off: off[i] ?? entries[i].off,
+          restsOn: entries[i].restsOn,
+          restsOff: entries[i].restsOff,
+          tempo: entries[i].tempo,
+          measureOn: entries[i].measureOn,
+        )
+      else
+        entries[i],
+  ];
+}
+
 class ScorePlayer {
   ScorePlayer({
     required this.document,
@@ -80,11 +168,15 @@ class ScorePlayer {
     this.scrollDuration = const Duration(milliseconds: 300),
     this.singleNoteDelay = const Duration(milliseconds: 500),
     this.onEntry,
+    bool mergeTies = false,
     // Repassado a `ScoreTimeline` (P04a): `false` desliga a rota de páginas
     // alternativas — a vista, em execução, só mostra páginas normais, como
     // antes de P04a/P04b.
     bool useAlternates = true,
   }) : timeline = ScoreTimeline(document, useAlternates: useAlternates) {
+    _entries = mergeTies
+        ? mergeTiedEntries(timeline.entries, document.midi)
+        : timeline.entries;
     _measureIndex = ValueNotifier<int>(0);
     _tempo = ValueNotifier<double?>(null);
     _publish(force: true);
@@ -117,6 +209,10 @@ class ScorePlayer {
   final void Function(TimemapEntry entry)? onEntry;
 
   final ScoreTimeline timeline;
+
+  /// As entradas que o player aplica: as de [timeline], com as ligaduras
+  /// fundidas se `mergeTies` (ver LIGADURAS no cabeçalho do arquivo).
+  late final List<TimemapEntry> _entries;
 
   /// Teto de cada movimento da haste e largura dela; `null` lê da vista (ou
   /// usa os padrões). Se personalizar, passe os **mesmos** valores ao
@@ -238,7 +334,7 @@ class ScorePlayer {
 
   void _advanceToMs(double ms) {
     _positionMs = ms;
-    final entries = timeline.entries;
+    final entries = _entries;
     while (_next < entries.length && entries[_next].tstamp <= ms) {
       _apply(entries[_next]);
       _next++;
@@ -276,7 +372,7 @@ class ScorePlayer {
     );
     _positionMs = ms;
     controller.clearHighlights();
-    final entries = timeline.entries;
+    final entries = _entries;
     final active = <String>{};
     double? tempo;
     var i = 0;

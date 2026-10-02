@@ -78,7 +78,7 @@ library;
 import 'dart:math' as math;
 
 import 'model.dart';
-import 'score_view.dart' show SweepCurtain, sweepEndX;
+import 'score_view.dart' show SweepCurtain, revealBlurAt, sweepEndX;
 
 /// Uma ocorrência de compasso na ordem de execução (E02b): um compasso
 /// repetido aparece uma vez por passagem.
@@ -565,7 +565,8 @@ class ScoreTimeline {
       if (edge != null) {
         return SweepCurtain(
           pageIndex: run.view.index,
-          edgeX: edge,
+          edgeX: edge.x,
+          blur: edge.blur,
           sequence: run.view.sequence,
           targetPageIndex: next.view.index,
           targetSequence: next.view.sequence,
@@ -575,22 +576,31 @@ class ScoreTimeline {
     return null;
   }
 
-  double? _multiMeasureEdge(double ms, _Measure m, double d, double end) {
+  /// Borda da haste e desfoque da página revelada ([SweepCurtain.blur]):
+  /// inteiro na entrada e na espera, caindo a zero no começo da saída
+  /// ([revealBlurAt]).
+  ({double x, double blur})? _multiMeasureEdge(
+    double ms,
+    _Measure m,
+    double d,
+    double end,
+  ) {
     final s = m.startMs;
     final e = m.endMs;
     if (ms < s || ms >= e + d) {
       return null;
     }
     if (ms < s + d) {
-      return m.left * ((ms - s) / d);
+      return (x: m.left * ((ms - s) / d), blur: 1);
     }
     if (ms < e) {
-      return m.left;
+      return (x: m.left, blur: 1);
     }
-    return m.left + (end - m.left) * ((ms - e) / d);
+    final out = (ms - e) / d;
+    return (x: m.left + (end - m.left) * out, blur: revealBlurAt(out));
   }
 
-  double? _singleMeasureEdge(
+  ({double x, double blur})? _singleMeasureEdge(
     double ms,
     _Run run,
     _Run? prev,
@@ -637,11 +647,12 @@ class ScoreTimeline {
       }
     }
     if (ms >= concStart) {
-      return pos + (end - pos) * ((ms - concStart) / d);
+      final out = (ms - concStart) / d;
+      return (x: pos + (end - pos) * out, blur: revealBlurAt(out));
     }
     if (ms < appear + d) {
-      return pos * ((ms - appear) / d);
+      return (x: pos * ((ms - appear) / d), blur: 1);
     }
-    return pos;
+    return (x: pos, blur: 1);
   }
 }

@@ -112,3 +112,21 @@ List<Beat> countInBeats(List<Beat> beats, double fromMs) {
       Beat(fromMs - (n - i) * spacing, accent: i == 0, measure: measure),
   ];
 }
+
+/// Um instante da contagem inicial: quantos tempos ainda faltam (o número
+/// que a tela mostra, regressivo: 4, 3, 2, 1 num 4/4) e a fração já
+/// decorrida do tempo corrente (`0` no clique, quase `1` antes do próximo).
+typedef CountInTick = ({int remaining, double progress});
+
+/// Onde a contagem [clicks] (ver [countInBeats]) está no instante musical
+/// [ms], sabendo que ela termina em [endMs] (o `fromMs` da música). `null`
+/// antes do 1º clique e depois do fim.
+CountInTick? countInTickAt(List<Beat> clicks, double endMs, double ms) {
+  if (clicks.isEmpty) return null;
+  final first = clicks.first.ms;
+  if (ms < first || ms >= endMs) return null;
+  final n = clicks.length;
+  final beats = (ms - first) / (endMs - first) * n;
+  final beat = beats.floor().clamp(0, n - 1);
+  return (remaining: n - beat, progress: (beats - beat).clamp(0.0, 1.0));
+}

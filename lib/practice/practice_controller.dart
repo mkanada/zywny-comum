@@ -6,6 +6,7 @@
 
 import 'dart:async';
 import 'dart:math' as math;
+import 'dart:ui' show Color;
 
 import 'package:flutter/foundation.dart';
 import 'package:score_bridge/score_bridge.dart';
@@ -57,13 +58,12 @@ class PracticeController {
     this.onRangeDone,
     this.rangeJumps = const [],
     this.onRangeJump,
+    this.correctColor = kPracticeCorrectColor,
+    this.wrongColor = kPracticeWrongColor,
   }) : _midiInput = midiInput, // ignore: prefer_initializing_formals
        _track = track {
     if (range != null) {
-      assert(
-        range!.startMs < range!.endMs,
-        'range precisa de startMs < endMs',
-      );
+      assert(range!.startMs < range!.endMs, 'range precisa de startMs < endMs');
     }
     _noteSub = _midiInput.notes.listen(_onNote);
     // As sessões avaliam só o que toca: no intervalo, sem os saltos (J08).
@@ -106,6 +106,12 @@ class PracticeController {
   }
 
   final PracticeMode mode;
+
+  /// Cores da nota certa e do pulso de nota errada (configuráveis em
+  /// Cores); mutáveis para o host trocar no meio do treino. Valem para o
+  /// próximo veredito.
+  Color correctColor;
+  Color wrongColor;
 
   /// Compasso (ocorrência, índice de `ScoreTimeline.measures`) em `ms`
   /// musicais — para o [report]. `null`: tudo cai no compasso 0.
@@ -503,7 +509,7 @@ class PracticeController {
       RhythmReportEntry(v, index, pass: passOf?.call(index) ?? 1),
     );
     final (color, release) = switch (v.kind) {
-      RhythmVerdictKind.correct => (kPracticeCorrectColor, null),
+      RhythmVerdictKind.correct => (correctColor, null),
       RhythmVerdictKind.early ||
       RhythmVerdictKind.late => (kPracticeOffBeatColor, null),
       _ => (kPracticeMissedColor, kPracticeMissedHold),
@@ -514,23 +520,19 @@ class PracticeController {
       case RhythmVerdictKind.late:
         _correctCount.value++;
         _soundMagic(v.eventIds, v.velocity);
-        for (final id in v.eventIds) {
-          controller.highlight(
-            id,
-            color: color,
-            release: kPracticeCorrectRelease,
-          );
-        }
+        controller.highlightAll(
+          v.eventIds.expand(_chainOf),
+          color: color,
+          release: kPracticeCorrectRelease,
+        );
       case RhythmVerdictKind.missed:
-        for (final id in v.eventIds) {
-          controller.highlight(
-            id,
-            color: color,
-            attack: kPracticeWrongAttack,
-            hold: release!,
-            release: kPracticeWrongRelease,
-          );
-        }
+        controller.highlightAll(
+          v.eventIds.expand(_chainOf),
+          color: color,
+          attack: kPracticeWrongAttack,
+          hold: release!,
+          release: kPracticeWrongRelease,
+        );
       case RhythmVerdictKind.extra:
         _wrongCount.value++;
         _extraBlink.value++;
@@ -542,6 +544,19 @@ class PracticeController {
   double _eventOnMs(String id) {
     final map = _onMsById ??= {for (final e in _track.events) e.id: e.onMs};
     return map[id] ?? 0;
+  }
+
+  Map<String, List<String>>? _tiedById;
+
+  /// [id] e as continuações da ligadura dele: a cadeia acende inteira (é
+  /// uma tecla só), na mesma cor.
+  List<String> _chainOf(String id) {
+    final map = _tiedById ??= {
+      for (final e in _track.events)
+        if (e.tied.isNotEmpty) e.id: e.tied,
+    };
+    final tied = map[id];
+    return tied == null ? [id] : [id, ...tied];
   }
 
   void _record(NoteVerdict verdict) {
@@ -559,9 +574,9 @@ class PracticeController {
       case PracticeVerdictKind.correct:
         _correctCount.value++;
         if (verdict.eventId != null) {
-          controller.highlight(
-            verdict.eventId!,
-            color: kPracticeCorrectColor,
+          controller.highlightAll(
+            _chainOf(verdict.eventId!),
+            color: correctColor,
             release: kPracticeCorrectRelease,
           );
         }
@@ -573,9 +588,9 @@ class PracticeController {
             ? _nearestExpectedId(verdict.pitch)
             : _nearestEventId(verdict.pitch, _lastPlayedMusicalMs);
         if (nearestId != null) {
-          controller.highlight(
-            nearestId,
-            color: kPracticeWrongColor,
+          controller.highlightAll(
+            _chainOf(nearestId),
+            color: wrongColor,
             attack: kPracticeWrongAttack,
             hold: kPracticeWrongHold,
             release: kPracticeWrongRelease,
@@ -585,16 +600,16 @@ class PracticeController {
       case PracticeVerdictKind.late:
         _correctCount.value++;
         if (verdict.eventId != null) {
-          controller.highlight(
-            verdict.eventId!,
+          controller.highlightAll(
+            _chainOf(verdict.eventId!),
             color: kPracticeOffBeatColor,
             release: kPracticeCorrectRelease,
           );
         }
       case PracticeVerdictKind.missed:
         if (verdict.eventId != null) {
-          controller.highlight(
-            verdict.eventId!,
+          controller.highlightAll(
+            _chainOf(verdict.eventId!),
             color: kPracticeMissedColor,
             attack: kPracticeWrongAttack,
             hold: kPracticeMissedHold,

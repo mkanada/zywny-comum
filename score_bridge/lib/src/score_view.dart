@@ -4,7 +4,11 @@
 // TRÊS MODOS ([ScorePageMode]):
 //   * `pagedSweep` (padrão): uma página por vez; a virada é a **haste** de
 //     A03b — a página atual (A) e a seguinte (B) ficam uma sobre a outra e uma
-//     faixa azul varre A da esquerda para a direita, revelando B.
+//     faixa azul varre A da esquerda para a direita, revelando B. Com
+//     `revealBlurSigma`, B aparece desfocada enquanto a haste não começa a
+//     sair (o foco fica em A) e o desfoque some nos primeiros 30% da saída
+//     ([revealBlurAt]) — o olho precisa achar a próxima nota antes de a
+//     haste terminar.
 //   * `pagedSlide`: a trilha horizontal; a virada é uma translação só, sem
 //     haste.
 //   * `continuousScroll`: páginas empilhadas numa lista virtualizada.
@@ -36,6 +40,7 @@
 library;
 
 import 'dart:async';
+import 'dart:ui' show ImageFilter;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/rendering.dart' show ScrollCacheExtent;
@@ -57,6 +62,14 @@ const kDefaultMaxSweepDuration = Duration(seconds: 1);
 /// Azul de alto contraste sobre papel branco (padrão de [ScoreView.barColor]).
 const kDefaultBarColor = Color(0xFF1565C0);
 
+/// Fração da saída da haste em que a página revelada já está nítida.
+const kRevealBlurClearAt = 0.3;
+
+/// Desfoque da página revelada com a haste em [out] (0–1) da saída: inteiro
+/// no começo, zero a partir de [kRevealBlurClearAt].
+double revealBlurAt(double out) =>
+    (1 - out / kRevealBlurClearAt).clamp(0.0, 1.0);
+
 /// Estado da haste, sempre derivado de fora (A05b/E03a): o widget só obedece.
 @immutable
 class SweepCurtain {
@@ -66,7 +79,13 @@ class SweepCurtain {
     this.sequence,
     this.targetPageIndex,
     this.targetSequence,
+    this.blur = 0,
   });
+
+  /// Quanto do desfoque de [ScoreView.revealBlurSigma] cai sobre a página
+  /// revelada: `1` enquanto a haste entra e espera (o foco ainda é a página
+  /// A), caindo até `0` no começo da saída ([revealBlurAt]).
+  final double blur;
 
   /// A página A, a que está sendo varrida (dentro de [sequence]).
   final int pageIndex;
@@ -106,11 +125,18 @@ class SweepCurtain {
       other.edgeX == edgeX &&
       other.sequence == sequence &&
       other.targetPageIndex == targetPageIndex &&
-      other.targetSequence == targetSequence;
+      other.targetSequence == targetSequence &&
+      other.blur == blur;
 
   @override
-  int get hashCode =>
-      Object.hash(pageIndex, edgeX, sequence, targetPageIndex, targetSequence);
+  int get hashCode => Object.hash(
+    pageIndex,
+    edgeX,
+    sequence,
+    targetPageIndex,
+    targetSequence,
+    blur,
+  );
 
   @override
   String toString() =>
@@ -270,6 +296,7 @@ class ScoreView extends StatefulWidget {
     this.haloSigmaScale = 1.0,
     this.barColor = kDefaultBarColor,
     this.barWidth,
+    this.revealBlurSigma = 0,
     this.maxSweepDuration = kDefaultMaxSweepDuration,
     this.slideDuration = const Duration(milliseconds: 300),
     this.curtain,
@@ -308,6 +335,12 @@ class ScoreView extends StatefulWidget {
   /// Largura da haste em unidades de viewBox; `null` = `2 ×` a cabeça de nota
   /// preta ([defaultBarWidth]).
   final double? barWidth;
+
+  /// Desfoque máximo (sigma, em unidades de viewBox, como [barWidth]) da
+  /// página que a haste revela; a cada instante vale isto vezes
+  /// [SweepCurtain.blur]. `0` (padrão) não desfoca — a árvore fica idêntica
+  /// à de antes.
+  final double revealBlurSigma;
 
   /// Duração de cada movimento da haste no modo manual (`nextPage` sem
   /// `curtain` externo). O `D` da regra de A05b é `min(este teto, compasso/4)`.
@@ -716,9 +749,13 @@ class ScoreViewState extends State<ScoreView> with TickerProviderStateMixin {
 
   void _onSweepTick() {
     final t = Curves.easeInOut.transform(_sweepAnim.value);
+    final edgeX = _sweepFrom + (_sweepTo - _sweepFrom) * t;
+    // Sem player não há fase de espera: a varredura inteira é a saída.
+    final end = _endX(PageRef(_sweepPage));
     _manual.value = SweepCurtain(
       pageIndex: _sweepPage,
-      edgeX: _sweepFrom + (_sweepTo - _sweepFrom) * t,
+      edgeX: edgeX,
+      blur: end > 0 ? revealBlurAt(edgeX / end) : 0,
     );
   }
 
@@ -938,11 +975,21 @@ class ScoreViewState extends State<ScoreView> with TickerProviderStateMixin {
       final barPx = barWidth * pageA.fit.scale * s;
       final barLeft = (edge - barPx).clamp(offset.dx, offset.dx + size.width);
       final barRight = edge.clamp(offset.dx, offset.dx + size.width);
+      Widget target = _centered(curtain.target, box);
+      if (widget.revealBlurSigma > 0) {
+        final sigma =
+            widget.revealBlurSigma * pageA.fit.scale * s * curtain.blur;
+        target = ImageFiltered(
+          enabled: sigma > 0,
+          imageFilter: ImageFilter.blur(sigmaX: sigma, sigmaY: sigma),
+          child: target,
+        );
+      }
       stack = Stack(
         textDirection: TextDirection.ltr,
         fit: StackFit.expand,
         children: [
-          _centered(curtain.target, box),
+          target,
           ClipRect(clipper: _RightOfClipper(edge), child: _centered(a, box)),
           if (barRight > barLeft)
             Positioned(

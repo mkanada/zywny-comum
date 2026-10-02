@@ -16,6 +16,7 @@
 
 import 'dart:async';
 import 'dart:io';
+import 'dart:ui' show Color;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -54,6 +55,7 @@ class FakeSoundEngine implements SoundEngine {
   void allNotesOff() {
     allNotesOffCalls++;
   }
+
   @override
   Future<void> dispose() async {}
 }
@@ -365,6 +367,59 @@ void main() {
       },
     );
 
+    test('ligadura: a nota certa pinta a cadeia inteira, na cor '
+        'configurada', () async {
+      final track = _loadTrack('maple-leaf-rag.vsb');
+      final doc = _loadDoc('maple-leaf-rag.vsb');
+      final engine = FakeSoundEngine();
+      final scheduler = ScoreAudioScheduler(
+        engine: engine,
+        track: track,
+        autoTick: false,
+      );
+      final scoreController = ScoreController(document: doc);
+      addTearDown(scoreController.dispose);
+      addTearDown(scoreController.clearAll);
+      final midi = FakeMidiInput();
+      addTearDown(midi.dispose);
+
+      final head = track.events.firstWhere((e) => e.tied.isNotEmpty);
+      const correct = Color(0xFF00838F);
+      final practice = PracticeController(
+        midiInput: midi,
+        track: track,
+        scheduler: scheduler,
+        controller: scoreController,
+        hand: head.staff == 1 ? Hand.direita : Hand.esquerda,
+        correctColor: correct,
+      );
+      addTearDown(practice.dispose);
+
+      practice.start();
+      // Toca passo a passo até o da cabeça da ligadura.
+      while (true) {
+        final step = practice.currentStep.value!;
+        expect(step.onMs, lessThanOrEqualTo(head.onMs));
+        _advanceUntil(engine, scheduler, step.onMs);
+        for (final e in step.notes) {
+          midi.press(e.pitch, atSeconds: engine.now);
+        }
+        await pumpEventQueue();
+        for (final e in step.notes) {
+          midi.release(e.pitch, atSeconds: engine.now);
+        }
+        await pumpEventQueue();
+        if (step.notes.any((e) => e.id == head.id)) break;
+      }
+
+      for (final id in [head.id, ...head.tied]) {
+        expect(scoreController.colorOf(id), correct, reason: 'nota $id');
+      }
+      // A continuação não vira passo: a espera é só pela cabeça.
+      final next = practice.currentStep.value;
+      expect(next?.notes.map((e) => e.id), isNot(contains(head.tied.first)));
+    });
+
     test('tecla errada vira fantasma na coluna do passo; certa não', () async {
       final track = _loadTrack('satie-fantasma.vsb');
       final doc = _loadDoc('satie-fantasma.vsb');
@@ -631,78 +686,74 @@ void main() {
       expect(result.badMeasures, contains(targetMeasure));
     });
 
-    test('tempo real: no tempo → 100%; sem tocar → 0% só do intervalo',
-        () async {
-      Future<({int dones, int? percent, int? total})> run(
-        bool play,
-      ) async {
-        final track = _loadTrack('erik-satie.vsb');
-        final doc = _loadDoc('erik-satie.vsb');
-        final timeline = ScoreTimeline(doc);
-        final interval = twoBars(timeline);
-        final engine = FakeSoundEngine();
-        final scheduler = ScoreAudioScheduler(
-          engine: engine,
-          track: track,
-          autoTick: false,
-        );
-        final scoreController = ScoreController(document: doc);
-        addTearDown(scoreController.dispose);
-        addTearDown(scoreController.clearAll);
-        final midi = FakeMidiInput();
-        addTearDown(midi.dispose);
-        var dones = 0;
-        final practice = PracticeController(
-          midiInput: midi,
-          track: track,
-          scheduler: scheduler,
-          controller: scoreController,
-          hand: Hand.direita,
-          mode: PracticeMode.realtime,
-          measureIndexAt: timeline.measureIndexAt,
-          passOf: (i) => timeline.measures[i].pass,
-          range: interval,
-          onRangeDone: () => dones++,
-        );
-        addTearDown(practice.dispose);
+    test(
+      'tempo real: no tempo → 100%; sem tocar → 0% só do intervalo',
+      () async {
+        Future<({int dones, int? percent, int? total})> run(bool play) async {
+          final track = _loadTrack('erik-satie.vsb');
+          final doc = _loadDoc('erik-satie.vsb');
+          final timeline = ScoreTimeline(doc);
+          final interval = twoBars(timeline);
+          final engine = FakeSoundEngine();
+          final scheduler = ScoreAudioScheduler(
+            engine: engine,
+            track: track,
+            autoTick: false,
+          );
+          final scoreController = ScoreController(document: doc);
+          addTearDown(scoreController.dispose);
+          addTearDown(scoreController.clearAll);
+          final midi = FakeMidiInput();
+          addTearDown(midi.dispose);
+          var dones = 0;
+          final practice = PracticeController(
+            midiInput: midi,
+            track: track,
+            scheduler: scheduler,
+            controller: scoreController,
+            hand: Hand.direita,
+            mode: PracticeMode.realtime,
+            measureIndexAt: timeline.measureIndexAt,
+            passOf: (i) => timeline.measures[i].pass,
+            range: interval,
+            onRangeDone: () => dones++,
+          );
+          addTearDown(practice.dispose);
 
-        practice.start();
-        final mine = track.events
-            .where(
-              (e) =>
-                  Hand.direita.studentStaves.contains(e.staff) &&
-                  !e.ornament &&
-                  e.onMs >= interval.startMs &&
-                  e.onMs < interval.endMs,
-            )
-            .toList();
-        if (play) {
-          for (final e in mine) {
-            _advanceUntil(engine, scheduler, e.onMs);
-            midi.press(e.pitch, atSeconds: engine.now);
-            await pumpEventQueue();
+          practice.start();
+          final mine = track.events
+              .where(
+                (e) =>
+                    Hand.direita.studentStaves.contains(e.staff) &&
+                    !e.ornament &&
+                    e.onMs >= interval.startMs &&
+                    e.onMs < interval.endMs,
+              )
+              .toList();
+          if (play) {
+            for (final e in mine) {
+              _advanceUntil(engine, scheduler, e.onMs);
+              midi.press(e.pitch, atSeconds: engine.now);
+              await pumpEventQueue();
+            }
           }
+          _advanceUntil(engine, scheduler, interval.endMs + 1000);
+          await Future.delayed(const Duration(milliseconds: 150));
+          final result = practice.stageResult;
+          practice.stop();
+          return (dones: dones, percent: result?.percent, total: result?.total);
         }
-        _advanceUntil(engine, scheduler, interval.endMs + 1000);
-        await Future.delayed(const Duration(milliseconds: 150));
-        final result = practice.stageResult;
-        practice.stop();
-        return (
-          dones: dones,
-          percent: result?.percent,
-          total: result?.total,
-        );
-      }
 
-      final ok = await run(true);
-      expect(ok.dones, 1);
-      expect(ok.percent, 100);
+        final ok = await run(true);
+        expect(ok.dones, 1);
+        expect(ok.percent, 100);
 
-      final silent = await run(false);
-      expect(silent.dones, 1);
-      expect(silent.percent, 0);
-      expect(silent.total, greaterThan(0));
-    });
+        final silent = await run(false);
+        expect(silent.dones, 1);
+        expect(silent.percent, 0);
+        expect(silent.total, greaterThan(0));
+      },
+    );
 
     test('tempo real sem tocar: nenhum missed fora do intervalo', () async {
       final track = _loadTrack('erik-satie.vsb');
@@ -787,17 +838,17 @@ void main() {
         practice.start();
         final onsets =
             (track.events
-                    .where(
-                      (e) =>
-                          Hand.direita.studentStaves.contains(e.staff) &&
-                          !e.ornament &&
-                          e.onMs >= interval.startMs &&
-                          e.onMs < interval.endMs,
-                    )
-                    .map((e) => e.onMs)
-                    .toSet()
-                    .toList()
-                  ..sort());
+                .where(
+                  (e) =>
+                      Hand.direita.studentStaves.contains(e.staff) &&
+                      !e.ornament &&
+                      e.onMs >= interval.startMs &&
+                      e.onMs < interval.endMs,
+                )
+                .map((e) => e.onMs)
+                .toSet()
+                .toList()
+              ..sort());
         for (final ms in onsets) {
           _advanceUntil(engine, scheduler, ms);
           midi.press(60, atSeconds: engine.now);

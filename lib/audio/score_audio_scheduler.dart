@@ -155,6 +155,15 @@ class ScoreAudioScheduler {
     return raw;
   }
 
+  /// A contagem inicial em curso (o número que a tela mostra por cima da
+  /// partitura), ou `null` fora dela — parado, antes do 1º clique soar ou
+  /// com a música já andando.
+  CountInTick? get countInTick {
+    final floor = _floorMs;
+    if (!_running || floor == null || _countIn.isEmpty) return null;
+    return countInTickAt(_countIn, floor, _musicalAt(engine.nowSeconds));
+  }
+
   /// Posição musical que o relógio do dispositivo marcava (ou marcará) em
   /// [deviceSeconds], pela âncora corrente — para converter o carimbo de uma
   /// tecla em tempo musical (T03).
@@ -190,17 +199,11 @@ class ScoreAudioScheduler {
   /// (casas não finais, voltas descartadas). Não move a posição: o salto
   /// acontece quando o horizonte alcança `startMs`. [clearJumps] desliga.
   void setJumps(List<({double startMs, double endMs})> jumps) {
-    assert(
-      _loopStartMs == null,
-      'saltos e loop A-B são mutuamente exclusivos',
-    );
+    assert(_loopStartMs == null, 'saltos e loop A-B são mutuamente exclusivos');
     var prevEnd = double.negativeInfinity;
     for (final jump in jumps) {
       assert(jump.startMs < jump.endMs, 'salto precisa de startMs < endMs');
-      assert(
-        jump.startMs >= prevEnd,
-        'saltos em ordem e sem sobreposição',
-      );
+      assert(jump.startMs >= prevEnd, 'saltos em ordem e sem sobreposição');
       prevEnd = jump.endMs;
     }
     _jumps = List.of(jumps);
@@ -270,6 +273,19 @@ class ScoreAudioScheduler {
     _countIn = const [];
   }
 
+  /// Leva a âncora de [musicalMs] de "agora" para o primeiro instante que
+  /// ainda dá para agendar. `nowSeconds` é o que se ouve agora, e o motor só
+  /// aceita eventos a partir de `earliestScheduleSeconds` (a latência de
+  /// saída à frente): ancorada em "agora", a primeira nota era empurrada
+  /// para lá enquanto as seguintes saíam na hora — soava atrasada e curta.
+  /// A posição fica parada em [musicalMs] até o som chegar.
+  void _anchorAtEarliest(double musicalMs) {
+    final earliest = engine.earliestScheduleSeconds;
+    if (earliest <= _deviceT0) return;
+    _deviceT0 = earliest;
+    _floorMs = musicalMs;
+  }
+
   void _armTimer() {
     if (_autoTick) _timer ??= Timer.periodic(tickInterval, (_) => pump());
   }
@@ -282,6 +298,7 @@ class ScoreAudioScheduler {
   void play(double fromMs, {double? speed, bool countIn = false}) {
     engine.allNotesOff();
     _reanchor(fromMs, speed: speed);
+    _anchorAtEarliest(fromMs);
     if (countIn) {
       final clicks = countInBeats(beats, fromMs);
       if (clicks.isNotEmpty) {
@@ -316,6 +333,7 @@ class ScoreAudioScheduler {
     final wasRunning = _running;
     _reanchor(toMs);
     if (wasRunning) {
+      _anchorAtEarliest(toMs);
       _armTimer();
       pump();
     }
@@ -411,8 +429,7 @@ class ScoreAudioScheduler {
       while (guard++ < 64) {
         ({double startMs, double endMs})? gap;
         for (final jump in _jumps) {
-          if (jump.startMs >= _scheduledUpToMs &&
-              horizonMs >= jump.startMs) {
+          if (jump.startMs >= _scheduledUpToMs && horizonMs >= jump.startMs) {
             gap = jump;
             break;
           }

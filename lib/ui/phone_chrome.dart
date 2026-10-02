@@ -28,6 +28,7 @@ class PhoneRail extends StatelessWidget {
     required this.onOptions,
     this.playIcon,
     this.playTooltip,
+    this.onRestart,
     this.onMeasureTap,
   });
 
@@ -37,6 +38,10 @@ class PhoneRail extends StatelessWidget {
   final VoidCallback? onPlayPause;
   final Widget? playIcon;
   final String? playTooltip;
+
+  /// Volta ao começo (da música, do trecho em repetição ou da etapa);
+  /// `null` desabilita o botão.
+  final VoidCallback? onRestart;
 
   /// Compasso atual (base 1) e total; `null` enquanto não há partitura.
   final int? measure;
@@ -73,6 +78,14 @@ class PhoneRail extends StatelessWidget {
             icon:
                 playIcon ??
                 Icon(playing ? Icons.pause : Icons.play_arrow, size: 24),
+          ),
+          IconButton(
+            tooltip: 'Reiniciar',
+            onPressed: onRestart,
+            iconSize: 24,
+            visualDensity: VisualDensity.compact,
+            color: kInk,
+            icon: const Icon(Icons.skip_previous),
           ),
           _RailButton(
             top: measure == null ? '—' : '$measure',

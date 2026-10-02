@@ -4,28 +4,15 @@ import 'dart:io';
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:score_bridge/score_bridge.dart' show kDefaultBarColor;
 
 import '../audio/soundfont_store.dart';
 import '../midi/midi_device_manager.dart';
 import '../midi/midi_device_picker.dart';
+import '../practice/practice_colors.dart';
 import '../trail/trail_widgets.dart';
 import 'app_settings.dart';
-
-/// Palette offered by [_ColorRow] for the highlight and page-turn-bar
-/// pickers — curated and fixed, so the panel stays a predictable size and
-/// the app doesn't need a color-picker package for two swatches.
-const List<Color> kColorPalette = [
-  Color(0xFFD32F2F), // vermelho — padrão do destaque
-  Color(0xFF1565C0), // azul — padrão da haste
-  Color(0xFFF57C00),
-  Color(0xFF2E7D32),
-  Color(0xFF6A1B9A),
-  Color(0xFF00838F),
-  Color(0xFFAD1457),
-  Color(0xFFF9A825),
-  Color(0xFF283593),
-  Color(0xFF5D4037),
-];
+import 'color_picker.dart';
 
 /// Abre o seletor de arquivos para um `.sf2` e devolve os bytes; `null` se
 /// o usuário cancelou. No Android o filtro por extensão volta vazio (o SAF
@@ -259,9 +246,32 @@ class GeneralSettingsPanel extends StatelessWidget {
       ),
       const _Header('Cores'),
       _ColorRow(
-        label: 'Cor da nota destacada',
+        label: 'Nota destacada',
+        hint: 'na reprodução e, no treino, a nota certa',
         value: settings.highlightColor,
+        defaultValue: kPracticeCorrectColor,
         onChanged: (c) => settings.highlightColor = c,
+      ),
+      _ColorRow(
+        label: 'Treino: nota em espera',
+        hint: 'a que o app aguarda você tocar',
+        value: settings.practicePendingColor,
+        defaultValue: kPracticePendingColor,
+        onChanged: (c) => settings.practicePendingColor = c,
+      ),
+      _ColorRow(
+        label: 'Treino: nota errada',
+        hint: 'pisca na nota esperada mais próxima',
+        value: settings.practiceWrongColor,
+        defaultValue: kPracticeWrongColor,
+        onChanged: (c) => settings.practiceWrongColor = c,
+      ),
+      _ColorRow(
+        label: 'Haste de virada',
+        hint: 'a barra que varre a página',
+        value: settings.barColor,
+        defaultValue: kDefaultBarColor,
+        onChanged: (c) => settings.barColor = c,
       ),
       _SliderRow(
         label: 'Largura do halo',
@@ -270,11 +280,6 @@ class GeneralSettingsPanel extends StatelessWidget {
         max: 3,
         formatValue: (v) => v <= 0 ? 'desligado' : '${v.toStringAsFixed(1)}×',
         onChanged: (v) => settings.haloWidth = v,
-      ),
-      _ColorRow(
-        label: 'Cor da haste de virada',
-        value: settings.barColor,
-        onChanged: (c) => settings.barColor = c,
       ),
       const SizedBox(height: 12),
     ];
@@ -388,89 +393,47 @@ class _Header extends StatelessWidget {
   );
 }
 
-/// A label and a row of tappable color swatches from [kColorPalette]. If
-/// [value] isn't one of them (a leftover from a previous session, say), it's
-/// prepended so the current color is always shown and stays selectable.
+/// Uma cor das configurações: o nome, para que serve e a amostra; o toque
+/// abre o seletor ([showColorPicker]).
 class _ColorRow extends StatelessWidget {
   const _ColorRow({
     required this.label,
+    required this.hint,
     required this.value,
+    required this.defaultValue,
     required this.onChanged,
   });
 
   final String label;
+  final String hint;
   final Color value;
+  final Color defaultValue;
   final ValueChanged<Color> onChanged;
 
   @override
   Widget build(BuildContext context) {
-    final palette = kColorPalette.contains(value)
-        ? kColorPalette
-        : [value, ...kColorPalette];
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(label, style: Theme.of(context).textTheme.bodySmall),
-          const SizedBox(height: 6),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              for (final c in palette)
-                _Swatch(
-                  color: c,
-                  selected: c == value,
-                  onTap: () => onChanged(c),
-                ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _Swatch extends StatelessWidget {
-  const _Swatch({
-    required this.color,
-    required this.selected,
-    required this.onTap,
-  });
-
-  final Color color;
-  final bool selected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      customBorder: const CircleBorder(),
-      onTap: onTap,
-      child: Container(
-        width: 28,
+    return ListTile(
+      dense: true,
+      title: Text(label),
+      subtitle: Text(hint),
+      trailing: Container(
+        width: 44,
         height: 28,
         decoration: BoxDecoration(
-          color: color,
-          shape: BoxShape.circle,
-          border: Border.all(
-            color: selected
-                ? Theme.of(context).colorScheme.onSurface
-                : Colors.black26,
-            width: selected ? 2.5 : 1,
-          ),
+          color: value,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: Colors.black26),
         ),
-        child: selected
-            ? Icon(
-                Icons.check,
-                size: 16,
-                color: color.computeLuminance() > 0.5
-                    ? Colors.black
-                    : Colors.white,
-              )
-            : null,
       ),
+      onTap: () async {
+        final picked = await showColorPicker(
+          context,
+          title: label,
+          initial: value,
+          defaultColor: defaultValue,
+        );
+        if (picked != null) onChanged(picked);
+      },
     );
   }
 }

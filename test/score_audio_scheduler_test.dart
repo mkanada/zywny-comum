@@ -188,6 +188,37 @@ void main() {
       });
     }
 
+    test('com latência de saída, a primeira nota não sai atrasada em relação '
+        'às seguintes, e a posição espera o som chegar', () {
+      final engine = FakeSoundEngine(latency: 0.15);
+      final track = _loadTrack('erik-satie.vsb');
+      final scheduler = ScoreAudioScheduler(
+        engine: engine,
+        track: track,
+        autoTick: false,
+      );
+      final first = track.events.first;
+      final later = track.events.firstWhere((e) => e.onMs > first.onMs + 500);
+
+      scheduler.play(first.onMs);
+      // O que se ouve ainda não chegou à primeira nota: a posição espera.
+      engine.now += 0.1;
+      scheduler.pump();
+      expect(scheduler.positionMs, first.onMs);
+      _advanceUntil(engine, scheduler, later.onMs + 1);
+
+      final ons = engine.scheduled.where((m) => m.status & 0xF0 == 0x90);
+      final firstAt = ons.firstWhere((m) => m.d1 == first.pitch).at;
+      final laterAt = ons
+          .firstWhere((m) => m.d1 == later.pitch && m.at > firstAt + 0.4)
+          .at;
+      expect(firstAt, closeTo(0.15, 1e-9));
+      expect(
+        laterAt - firstAt,
+        closeTo((later.onMs - first.onMs) / 1000, 0.0015),
+      );
+    });
+
     test(
       'pause no meio chama allNotesOff; nada é agendado depois até o play',
       () {
@@ -597,6 +628,47 @@ void main() {
         ),
         isEmpty,
       );
+    });
+
+    test('contagem: o número regride a cada tempo e some ao começar', () {
+      final engine = FakeSoundEngine(latency: 0);
+      final doc = VsbDocument.fromBytes(
+        Uint8List.fromList(
+          File('test/fixtures/erik-satie.vsb').readAsBytesSync(),
+        ),
+      );
+      final timeline = ScoreTimeline(doc);
+      final from = timeline.measures[2].startMs.toDouble();
+      final scheduler = ScoreAudioScheduler(
+        engine: engine,
+        track: PerformanceTrack.fromDocument(doc),
+        autoTick: false,
+      )..beats = metronomeBeats(timeline);
+      expect(scheduler.countInTick, isNull);
+      scheduler.play(from, countIn: true);
+      final beatS = (timeline.measures[2].endMs - from) / 3 / 1000;
+
+      // 3/4: 3, 2, 1 — nítido no clique, quase no fim antes do próximo.
+      expect(scheduler.countInTick!.remaining, 3);
+      expect(scheduler.countInTick!.progress, closeTo(0, 1e-6));
+      engine.now += beatS * 0.75;
+      expect(scheduler.countInTick!.remaining, 3);
+      expect(scheduler.countInTick!.progress, closeTo(0.75, 0.01));
+      engine.now += beatS * 0.5;
+      expect(scheduler.countInTick!.remaining, 2);
+      expect(scheduler.countInTick!.progress, closeTo(0.25, 0.01));
+      engine.now += beatS;
+      expect(scheduler.countInTick!.remaining, 1);
+      engine.now += beatS;
+      expect(scheduler.countInTick, isNull);
+      expect(scheduler.positionMs, greaterThan(from));
+
+      // Sem contagem, e depois de pausar no meio dela, não há número.
+      scheduler.play(from, countIn: true);
+      scheduler.pause();
+      expect(scheduler.countInTick, isNull);
+      scheduler.play(from);
+      expect(scheduler.countInTick, isNull);
     });
   });
 

@@ -1,9 +1,10 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/painting.dart';
-import 'package:score_bridge/score_bridge.dart'
-    show kDefaultBarColor, kDefaultHighlightColor;
+import 'package:score_bridge/score_bridge.dart' show kDefaultBarColor;
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../practice/practice_colors.dart'
+    show kPracticeCorrectColor, kPracticePendingColor, kPracticeWrongColor;
 import '../practice/practice_controller.dart' show PracticeMode;
 import '../trail/trail_stage.dart'
     show kTrailDefaultMeasures, kTrailMinMeasures;
@@ -33,9 +34,10 @@ class AppSettings extends ChangeNotifier {
   static const _kUseScoreInstruments = 'sound_use_score_instruments';
   static const _kSoundOn = 'sound_on';
   static const _kMetronome = 'practice_metronome';
-  static const _kCountIn = 'practice_count_in';
   static const _kPracticeMode = 'practice_mode';
   static const _kHighlightColor = 'ui_highlight_color';
+  static const _kPracticePendingColor = 'ui_practice_pending_color';
+  static const _kPracticeWrongColor = 'ui_practice_wrong_color';
   static const _kHaloWidth = 'ui_halo_width';
   static const _kBarColor = 'ui_bar_color';
   static const _kTrailMeasures = 'trail_measures';
@@ -46,9 +48,12 @@ class AppSettings extends ChangeNotifier {
   bool _useScoreInstruments = false;
   bool _soundOn = false;
   bool _metronomeOn = false;
-  bool _countInOn = false;
   PracticeMode _practiceMode = PracticeMode.wait;
-  Color _highlightColor = kDefaultHighlightColor;
+  // Verde, não o vermelho padrão do player: é também a cor da nota certa
+  // no treino, e vermelho lá é a errada.
+  Color _highlightColor = kPracticeCorrectColor;
+  Color _practicePendingColor = kPracticePendingColor;
+  Color _practiceWrongColor = kPracticeWrongColor;
   double _haloWidth = 1.0;
   Color _barColor = kDefaultBarColor;
   int _trailMeasures = kTrailDefaultMeasures;
@@ -88,14 +93,6 @@ class AppSettings extends ChangeNotifier {
     _changed(_prefs.setBool(_kMetronome, value));
   }
 
-  /// Um compasso de contagem antes de o treino começar.
-  bool get countInOn => _countInOn;
-  set countInOn(bool value) {
-    if (value == _countInOn) return;
-    _countInOn = value;
-    _changed(_prefs.setBool(_kCountIn, value));
-  }
-
   /// Espera, tempo real ou ritmo — o tipo de treino que "Espera" arma.
   PracticeMode get practiceMode => _practiceMode;
   set practiceMode(PracticeMode value) {
@@ -104,12 +101,30 @@ class AppSettings extends ChangeNotifier {
     _changed(_prefs.setString(_kPracticeMode, value.name));
   }
 
-  /// Cor da nota destacada durante a execução.
+  /// Cor da nota destacada durante a execução — e, no treino, da nota que
+  /// o aluno tocou certa.
   Color get highlightColor => _highlightColor;
   set highlightColor(Color value) {
     if (value == _highlightColor) return;
     _highlightColor = value;
     _changed(_prefs.setInt(_kHighlightColor, value.toARGB32()));
+  }
+
+  /// Treino: cor da nota que o app está esperando o aluno tocar.
+  Color get practicePendingColor => _practicePendingColor;
+  set practicePendingColor(Color value) {
+    if (value == _practicePendingColor) return;
+    _practicePendingColor = value;
+    _changed(_prefs.setInt(_kPracticePendingColor, value.toARGB32()));
+  }
+
+  /// Treino: cor do pulso na nota esperada quando o aluno toca a tecla
+  /// errada.
+  Color get practiceWrongColor => _practiceWrongColor;
+  set practiceWrongColor(Color value) {
+    if (value == _practiceWrongColor) return;
+    _practiceWrongColor = value;
+    _changed(_prefs.setInt(_kPracticeWrongColor, value.toARGB32()));
   }
 
   /// Multiplicador do raio do halo da nota destacada; `0` desliga.
@@ -166,9 +181,10 @@ class AppSettings extends ChangeNotifier {
     final instruments = await read(() => _prefs.getBool(_kUseScoreInstruments));
     final soundOn = await read(() => _prefs.getBool(_kSoundOn));
     final metronome = await read(() => _prefs.getBool(_kMetronome));
-    final countIn = await read(() => _prefs.getBool(_kCountIn));
     final mode = await read(() => _prefs.getString(_kPracticeMode));
     final highlight = await read(() => _prefs.getInt(_kHighlightColor));
+    final pending = await read(() => _prefs.getInt(_kPracticePendingColor));
+    final wrong = await read(() => _prefs.getInt(_kPracticeWrongColor));
     final halo = await read(() => _prefs.getDouble(_kHaloWidth));
     final bar = await read(() => _prefs.getInt(_kBarColor));
     final trailMeasures = await read(() => _prefs.getInt(_kTrailMeasures));
@@ -177,9 +193,10 @@ class AppSettings extends ChangeNotifier {
     _useScoreInstruments = instruments ?? _useScoreInstruments;
     _soundOn = soundOn ?? _soundOn;
     _metronomeOn = metronome ?? _metronomeOn;
-    _countInOn = countIn ?? _countInOn;
     _practiceMode = byName(PracticeMode.values, mode) ?? _practiceMode;
     if (highlight != null) _highlightColor = Color(highlight);
+    if (pending != null) _practicePendingColor = Color(pending);
+    if (wrong != null) _practiceWrongColor = Color(wrong);
     if (halo != null) _haloWidth = halo.clamp(0.0, 3.0);
     if (bar != null) _barColor = Color(bar);
     if (trailMeasures != null) {

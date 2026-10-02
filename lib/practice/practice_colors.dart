@@ -1,18 +1,20 @@
 import 'package:flutter/material.dart';
 
-/// Cores do modo treino (T02). "Esperado agora" não tem cor própria aqui:
-/// a nota pendente do aluno já acende com a cor de destaque padrão do
-/// player (`ScoreController.kDefaultHighlightColor`, configurável em
-/// Opções) assim que o freio do relógio estaciona no `onMs` dela — mesmo
-/// mecanismo que já destaca a mão que o app está tocando.
+/// Cores do modo treino (T02). A nota pendente ("esperado agora") acende
+/// pelo player, assim que o freio do relógio estaciona no `onMs` dela —
+/// mesmo mecanismo que já destaca a mão que o app está tocando —, e troca de
+/// cor quando o aluno acerta. Pendente, certa e errada são configuráveis em
+/// Cores (`AppSettings.practicePendingColor`, `highlightColor` — a certa é a
+/// mesma do destaque da reprodução — e `practiceWrongColor`); as daqui são
+/// os padrões.
 
 /// Nota certa: verde, some com fade curto.
 const kPracticeCorrectColor = Color(0xFF2E7D32);
 const kPracticeCorrectRelease = Duration(milliseconds: 400);
 
 /// Nota pendente ("esperado agora") durante o treino: azul — distinta do
-/// vermelho de errada e do verde de certa. Fora do treino continua valendo
-/// `kDefaultHighlightColor` (vermelho escuro, configurável em Opções).
+/// vermelho de errada e do verde de certa. Fora do treino vale a cor de
+/// destaque da reprodução (`AppSettings.highlightColor`).
 const kPracticePendingColor = Color(0xFF1E88E5);
 
 /// Nota errada: pisca em vermelho na nota esperada mais próxima (a nota
