@@ -206,6 +206,27 @@ void main() {
               }
               held = pitches;
             } else {
+              // Antes, uma nota do acorde sozinha (e solta): o acorde
+              // continua todo azul e o passo não anda.
+              if (pitches.length > 1) {
+                midi.key(pitches.first, on: true, at: t);
+                await pumpEventQueue();
+                midi.key(pitches.first, on: false, at: t + 0.1);
+                await pumpEventQueue();
+                final still = practice.currentStep.value;
+                final colors = [
+                  for (final e in step.notes)
+                    controller.colorOf(doc.sceneIdOf(e.id) ?? e.id) ??
+                        controller.colorOf(e.id),
+                ];
+                if (still?.index != step.index ||
+                    colors.any((c) => c != kPracticePendingColor)) {
+                  problems.add(
+                    '$id passo ${step.index}: nota ${pitches.first} sozinha '
+                    'mudou o acorde (cores $colors, passo ${still?.index})',
+                  );
+                }
+              }
               // O aluno toca o acorde junto e solta antes do próximo.
               for (final p in pitches) {
                 midi.key(p, on: true, at: t);

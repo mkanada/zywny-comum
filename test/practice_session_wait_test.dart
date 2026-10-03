@@ -256,10 +256,37 @@ void main() {
       session.noteOn(67, atMs: 1100);
       expect(session.done, isFalse);
       expect(session.current.value!.remaining, {60, 64});
+      // Nenhuma nota solta vira "certa": o acerto só sai com o acorde todo.
       expect(
-        verdicts.where((v) => v.kind == PracticeVerdictKind.correct).length,
-        3,
+        verdicts.where((v) => v.kind == PracticeVerdictKind.correct),
+        isEmpty,
       );
+    });
+
+    test('nota certa do acorde não é avaliada sozinha: os acertos saem '
+        'todos juntos quando o acorde fecha', () {
+      final session = WaitModeSession([
+        PracticeStep(
+          index: 0,
+          onMs: 0,
+          notes: [_ev('c', 60, 0), _ev('e', 64, 0), _ev('g', 67, 0)],
+          remaining: {60, 64, 67},
+        ),
+      ]);
+      final verdicts = <NoteVerdict>[];
+      session.verdicts.listen(verdicts.add);
+      session.noteOn(60, atMs: 0);
+      session.noteOn(64, atMs: 40);
+      expect(verdicts, isEmpty);
+      session.noteOn(67, atMs: 90);
+      expect(session.done, isTrue);
+      expect(verdicts.map((v) => v.kind), [
+        PracticeVerdictKind.correct,
+        PracticeVerdictKind.correct,
+        PracticeVerdictKind.correct,
+      ]);
+      expect(verdicts.map((v) => v.pitch).toSet(), {60, 64, 67});
+      expect(verdicts.firstWhere((v) => v.pitch == 67).deltaMs, 90);
     });
 
     test('nota segurada através da janela continua valendo: o que soa '

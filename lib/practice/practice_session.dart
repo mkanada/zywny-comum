@@ -119,6 +119,11 @@ class WaitModeSession {
   Set<int> _blocked = {};
   double? _firstHitAtMs;
 
+  /// Notas certas do acorde pendente, ainda sem veredito: o `correct` só
+  /// sai quando o acorde fecha, todas juntas — antes disso a UI continua
+  /// mostrando o acorde inteiro como esperado.
+  final Map<int, ({double atMs, int velocity})> _hits = {};
+
   final ValueNotifier<PracticeStep?> _current = ValueNotifier(null);
 
   /// Passo atual, com `remaining` sempre atualizado; `null` quando a peça
@@ -178,6 +183,7 @@ class WaitModeSession {
         final step = _steps[_index];
         _remaining = step.notes.map((e) => e.pitch).toSet();
         _blocked = _held.intersection(_remaining);
+        _hits.clear();
         _firstHitAtMs = null;
         _publish(step);
       }
@@ -187,21 +193,35 @@ class WaitModeSession {
     final step = _steps[_index];
     _firstHitAtMs ??= atMs;
     _remaining.remove(pitch);
-    _verdicts.add(
-      NoteVerdict(
-        eventId: step.notes.firstWhere((e) => e.pitch == pitch).id,
-        pitch: pitch,
-        kind: PracticeVerdictKind.correct,
-        deltaMs: atMs - _firstHitAtMs!,
-        velocity: velocity,
-      ),
-    );
+    _hits[pitch] = (atMs: atMs, velocity: velocity);
 
     if (_remaining.isEmpty) {
-      _startStep(_index + 1);
+      _completeStep();
     } else {
       _publish(step);
     }
+  }
+
+  /// O acorde fechou: um `correct` por nota, todos de uma vez, e o passo
+  /// seguinte. `deltaMs` conta da primeira nota do acorde.
+  void _completeStep() {
+    final step = _steps[_index];
+    final first = _hits.values.isEmpty
+        ? 0.0
+        : _hits.values.map((h) => h.atMs).reduce((a, b) => a < b ? a : b);
+    for (final pitch in step.notes.map((e) => e.pitch).toSet()) {
+      final hit = _hits[pitch];
+      _verdicts.add(
+        NoteVerdict(
+          eventId: step.notes.firstWhere((e) => e.pitch == pitch).id,
+          pitch: pitch,
+          kind: PracticeVerdictKind.correct,
+          deltaMs: hit == null ? 0 : hit.atMs - first,
+          velocity: hit?.velocity ?? 0,
+        ),
+      );
+    }
+    _startStep(_index + 1);
   }
 
   /// Tecla solta: limpa o bloqueio de "precisa soltar e apertar de novo"
@@ -215,6 +235,7 @@ class WaitModeSession {
     if (!_remaining.contains(pitch) &&
         step.notes.any((e) => e.pitch == pitch)) {
       _remaining.add(pitch);
+      _hits.remove(pitch);
       if (_remaining.length == step.notes.map((e) => e.pitch).toSet().length) {
         _firstHitAtMs = null;
       }
@@ -239,6 +260,7 @@ class WaitModeSession {
     final step = _steps[index];
     _remaining = step.notes.map((e) => e.pitch).toSet();
     _blocked = _held.intersection(_remaining);
+    _hits.clear();
     _firstHitAtMs = null;
     _publish(step);
   }
@@ -253,9 +275,10 @@ class WaitModeSession {
   void _restartChord() {
     final step = _steps[_index];
     _remaining = step.notes.map((e) => e.pitch).toSet().difference(_held);
+    _hits.removeWhere((pitch, _) => !_held.contains(pitch));
     _firstHitAtMs = null;
     if (_remaining.isEmpty) {
-      _startStep(_index + 1);
+      _completeStep();
     } else {
       _publish(step);
     }
