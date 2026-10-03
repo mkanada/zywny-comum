@@ -235,12 +235,8 @@ class PhoneTitleBar extends StatelessWidget {
     required this.title,
     required this.onBack,
     this.center,
-    this.keyLabel,
     this.trailing = const [],
   });
-
-  /// Acidentes da armadura ("2 bemóis"); `null` até ler a partitura.
-  final String? keyLabel;
 
   /// Número do hinário; `null` sem hino aberto.
   final int? number;
@@ -292,14 +288,6 @@ class PhoneTitleBar extends StatelessWidget {
               style: serifDisplay(fontSize: 18),
             ),
           ),
-          if (keyLabel case final label?) ...[
-            const SizedBox(width: 8),
-            Text(
-              label,
-              maxLines: 1,
-              style: const TextStyle(fontSize: 12, color: kInkCaption),
-            ),
-          ],
           if (center case final center?) ...[
             const SizedBox(width: 12),
             Expanded(child: center),
@@ -846,15 +834,4 @@ class _Caption extends StatelessWidget {
       color: kInkCaption,
     ),
   );
-}
-
-/// Acidentes da armadura, para a barra do título: `fifths` do MusicXML
-/// (positivo = sustenidos, negativo = bemóis).
-String keySignatureLabel(int fifths) {
-  final n = fifths.abs();
-  if (n == 0) return 'sem acidentes';
-  final what = fifths > 0
-      ? (n == 1 ? 'sustenido' : 'sustenidos')
-      : (n == 1 ? 'bemol' : 'bemóis');
-  return '$n $what';
 }

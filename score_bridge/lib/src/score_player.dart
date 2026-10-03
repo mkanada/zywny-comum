@@ -68,6 +68,12 @@ export 'score_timeline.dart' show MeasureInfo, ScoreTimeline;
 /// qualquer peça.
 const _kForever = Duration(days: 365);
 
+/// O timemap do Verovio traz `tstamp` em ms inteiros, mas o relógio de áudio
+/// para no `onMs` exato da nota (2307,69 no freio do modo espera, contra a
+/// entrada em 2308): sem folga a nota pendente nunca acenderia. Uma entrada
+/// vale a partir de `tstamp - tolerância`.
+const _kTstampToleranceMs = 1.0;
+
 /// Abaixo disso, uma posição de [PlaybackClock] que recuou é jitter do
 /// relógio de áudio interpolado, não um seek do host — ignore.
 const _kClockSeekToleranceMs = 20.0;
@@ -370,7 +376,8 @@ class ScorePlayer {
   void _advanceToMs(double ms) {
     _positionMs = ms;
     final entries = _entries;
-    while (_next < entries.length && entries[_next].tstamp <= ms) {
+    while (_next < entries.length &&
+        entries[_next].tstamp <= ms + _kTstampToleranceMs) {
       _apply(entries[_next]);
       _next++;
     }
@@ -433,7 +440,8 @@ class ScorePlayer {
     final active = <String>{};
     double? tempo;
     var i = 0;
-    while (i < entries.length && entries[i].tstamp <= ms) {
+    while (i < entries.length &&
+        entries[i].tstamp <= ms + _kTstampToleranceMs) {
       final e = entries[i];
       active.removeAll(e.off);
       active.addAll(e.on);
