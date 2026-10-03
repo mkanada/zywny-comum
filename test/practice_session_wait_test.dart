@@ -33,34 +33,74 @@ SoundEvent _ev(String id, int pitch, double onMs, {int staff = 1}) =>
 
 void main() {
   group('WaitModeSession', () {
-    test('acorde de 3 notas tocado em qualquer ordem dentro de 300ms avança; '
-        'nota errada no meio conta 1 wrong e não atrapalha', () {
-      final steps = [
+    test(
+      'acorde de 3 notas tocado em qualquer ordem dentro de 300ms avança',
+      () {
+        final steps = [
+          PracticeStep(
+            index: 0,
+            onMs: 0,
+            notes: [_ev('c', 60, 0), _ev('e', 64, 0), _ev('g', 67, 0)],
+            remaining: {60, 64, 67},
+          ),
+        ];
+        final session = WaitModeSession(steps);
+        final verdicts = <NoteVerdict>[];
+        session.verdicts.listen(verdicts.add);
+
+        session.noteOn(64, atMs: 0);
+        session.noteOn(60, atMs: 120);
+        session.noteOn(67, atMs: 260); // última, dentro dos 300ms
+
+        expect(session.done, isTrue);
+        expect(
+          verdicts.where((v) => v.kind == PracticeVerdictKind.wrong).length,
+          0,
+        );
+        expect(
+          verdicts.where((v) => v.kind == PracticeVerdictKind.correct).length,
+          3,
+        );
+      },
+    );
+
+    test('nota errada no meio do acorde recomeça a tentativa: precisa soltar '
+        'e tocar o acorde inteiro de novo', () {
+      final session = WaitModeSession([
         PracticeStep(
           index: 0,
           onMs: 0,
-          notes: [_ev('c', 60, 0), _ev('e', 64, 0), _ev('g', 67, 0)],
-          remaining: {60, 64, 67},
+          notes: [_ev('c', 60, 0), _ev('e', 64, 0)],
+          remaining: {60, 64},
         ),
-      ];
-      final session = WaitModeSession(steps);
-      final verdicts = <NoteVerdict>[];
-      session.verdicts.listen(verdicts.add);
-
-      session.noteOn(64, atMs: 0);
-      session.noteOn(72, atMs: 50); // errada, fora do acorde
-      session.noteOn(60, atMs: 120);
-      session.noteOn(67, atMs: 260); // última, dentro dos 300ms
-
+      ]);
+      session.noteOn(60, atMs: 0);
+      session.noteOn(72, atMs: 50); // errada
+      session.noteOn(64, atMs: 100); // com a 60 ainda presa: não fecha
+      expect(session.done, isFalse);
+      expect(session.current.value!.remaining, {60});
+      session.noteOff(60);
+      session.noteOff(72);
+      session.noteOn(60, atMs: 200); // 64 segurada + 60 de novo
       expect(session.done, isTrue);
-      expect(
-        verdicts.where((v) => v.kind == PracticeVerdictKind.wrong).length,
-        1,
-      );
-      expect(
-        verdicts.where((v) => v.kind == PracticeVerdictKind.correct).length,
-        3,
-      );
+    });
+
+    test('soltar uma nota antes de o acorde fechar a faz faltar de novo', () {
+      final session = WaitModeSession([
+        PracticeStep(
+          index: 0,
+          onMs: 0,
+          notes: [_ev('c', 60, 0), _ev('e', 64, 0)],
+          remaining: {60, 64},
+        ),
+      ]);
+      session.noteOn(60, atMs: 0);
+      session.noteOff(60);
+      session.noteOn(64, atMs: 100);
+      expect(session.done, isFalse);
+      expect(session.current.value!.remaining, {60});
+      session.noteOn(60, atMs: 150);
+      expect(session.done, isTrue);
     });
 
     test('remaining encolhe a cada nota certa, sem avançar o passo', () {

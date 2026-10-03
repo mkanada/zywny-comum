@@ -161,6 +161,8 @@ class WaitModeSession {
     _held.add(pitch);
 
     if (!_remaining.contains(pitch)) {
+      // Nota que já vale no acorde (repetida sem soltar) não é erro.
+      if (_steps[_index].notes.any((e) => e.pitch == pitch)) return;
       _verdicts.add(
         NoteVerdict(
           pitch: pitch,
@@ -169,6 +171,16 @@ class WaitModeSession {
           velocity: velocity,
         ),
       );
+      // Errada no meio de um acorde: o acorde só vale com todas as notas
+      // certas e juntas, então a tentativa recomeça — as teclas ainda
+      // seguradas precisam ser soltas e apertadas de novo.
+      if (_firstHitAtMs != null) {
+        final step = _steps[_index];
+        _remaining = step.notes.map((e) => e.pitch).toSet();
+        _blocked = _held.intersection(_remaining);
+        _firstHitAtMs = null;
+        _publish(step);
+      }
       return;
     }
 
@@ -193,10 +205,21 @@ class WaitModeSession {
   }
 
   /// Tecla solta: limpa o bloqueio de "precisa soltar e apertar de novo"
-  /// para essa tecla.
+  /// para essa tecla. Soltar uma nota certa antes de o acorde fechar a faz
+  /// faltar de novo: o acorde só vale com todas as notas juntas.
   void noteOff(int pitch) {
     _held.remove(pitch);
     _blocked.remove(pitch);
+    if (done) return;
+    final step = _steps[_index];
+    if (!_remaining.contains(pitch) &&
+        step.notes.any((e) => e.pitch == pitch)) {
+      _remaining.add(pitch);
+      if (_remaining.length == step.notes.map((e) => e.pitch).toSet().length) {
+        _firstHitAtMs = null;
+      }
+      _publish(step);
+    }
   }
 
   /// T04 (loop A-B): reinicia no primeiro passo a partir de `onMs`.

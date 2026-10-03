@@ -36,6 +36,8 @@ class PhoneRail extends StatelessWidget {
     this.listening = false,
     this.stageTempo,
     this.stageTempoCaption = 'da etapa',
+    this.stageHand,
+    this.onStageTap,
   });
 
   final bool playing;
@@ -63,6 +65,13 @@ class PhoneRail extends StatelessWidget {
   /// etapa decide. `null` = barra do treino livre.
   final String? stageTempo;
   final String stageTempoCaption;
+
+  /// Mão da etapa (modo trilha), abreviada; `null` fora da trilha.
+  final String? stageHand;
+
+  /// Toque no andamento/mão da etapa: leva à lista de etapas, onde a etapa
+  /// é escolhida — esses valores não se editam aqui, mas não ficam mudos.
+  final VoidCallback? onStageTap;
 
   final int tempoPercent;
   final String handLabel;
@@ -118,9 +127,21 @@ class PhoneRail extends StatelessWidget {
             tooltip: 'Ir para compasso',
             onTap: onMeasureTap,
           ),
-          if (stageTempo case final tempo?)
-            _RailReadout(top: tempo, bottom: stageTempoCaption)
-          else ...[
+          if (stageTempo case final tempo?) ...[
+            if (stageHand case final hand?)
+              _RailButton(
+                top: hand,
+                bottom: 'mão da etapa',
+                tooltip: 'Mão da etapa — ver etapas',
+                onTap: onStageTap,
+              ),
+            _RailButton(
+              top: tempo,
+              bottom: stageTempoCaption,
+              tooltip: 'Andamento da etapa — ver etapas',
+              onTap: onStageTap,
+            ),
+          ] else ...[
             _RailButton(
               top: '$tempoPercent%',
               bottom: 'andamento',
@@ -140,43 +161,6 @@ class PhoneRail extends StatelessWidget {
             iconSize: 22,
             color: kIconQuiet,
             icon: const Icon(Icons.more_horiz),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-/// Valor só de leitura da barra (sem toque, sem dica de ação): o andamento
-/// da etapa na trilha.
-class _RailReadout extends StatelessWidget {
-  const _RailReadout({required this.top, required this.bottom});
-
-  final String top;
-  final String bottom;
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      width: 64,
-      height: 48,
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Text(
-            top,
-            maxLines: 1,
-            style: const TextStyle(
-              fontSize: 15,
-              fontWeight: FontWeight.w600,
-              height: 1.15,
-              color: kInk,
-            ),
-          ),
-          Text(
-            bottom,
-            maxLines: 1,
-            style: const TextStyle(fontSize: 10.5, color: kInkCaption),
           ),
         ],
       ),
@@ -251,8 +235,12 @@ class PhoneTitleBar extends StatelessWidget {
     required this.title,
     required this.onBack,
     this.center,
+    this.keyLabel,
     this.trailing = const [],
   });
+
+  /// Acidentes da armadura ("2 bemóis"); `null` até ler a partitura.
+  final String? keyLabel;
 
   /// Número do hinário; `null` sem hino aberto.
   final int? number;
@@ -304,6 +292,14 @@ class PhoneTitleBar extends StatelessWidget {
               style: serifDisplay(fontSize: 18),
             ),
           ),
+          if (keyLabel case final label?) ...[
+            const SizedBox(width: 8),
+            Text(
+              label,
+              maxLines: 1,
+              style: const TextStyle(fontSize: 12, color: kInkCaption),
+            ),
+          ],
           if (center case final center?) ...[
             const SizedBox(width: 12),
             Expanded(child: center),
@@ -850,4 +846,15 @@ class _Caption extends StatelessWidget {
       color: kInkCaption,
     ),
   );
+}
+
+/// Acidentes da armadura, para a barra do título: `fifths` do MusicXML
+/// (positivo = sustenidos, negativo = bemóis).
+String keySignatureLabel(int fifths) {
+  final n = fifths.abs();
+  if (n == 0) return 'sem acidentes';
+  final what = fifths > 0
+      ? (n == 1 ? 'sustenido' : 'sustenidos')
+      : (n == 1 ? 'bemol' : 'bemóis');
+  return '$n $what';
 }

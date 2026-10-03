@@ -226,7 +226,9 @@ Future<StageSummaryAction?> showStageSummary(
           ),
           const SizedBox(height: 8),
           Text(
-            badLogical.isEmpty
+            result.nothingToPlay
+                ? 'Esta mão não tem notas neste trecho.'
+                : badLogical.isEmpty
                 ? 'Nenhum compasso com erro.'
                 : 'Erros ${badLogical.length == 1 ? 'no compasso' : 'nos compassos'} '
                       '${joinMeasureNumbers(badLogical)} — marcados na partitura.',

@@ -13,21 +13,28 @@ class StageResult {
     required this.hits,
     required this.total,
     required this.badMeasures,
+    this.nothingToPlay = false,
   });
 
   final int hits;
   final int total;
 
+  /// A mão do aluno não tem nota nenhuma neste trecho (só pausa ou nota
+  /// ligada de antes): não há o que errar, a etapa conta como cumprida.
+  final bool nothingToPlay;
+
   /// Ocorrências com algum erro ou imprecisão.
   final Set<int> badMeasures;
 
-  double get accuracy => total == 0 ? 0 : hits / total;
+  double get accuracy => nothingToPlay ? 1 : (total == 0 ? 0 : hits / total);
 
   /// Porcentagem inteira, arredondada para baixo: 89,9% não vira 90.
   /// Conta inteira (`~/`) para 90% cravar 90 sem erro de binário.
-  int get percent => total == 0 ? 0 : (hits * 100 ~/ total);
+  int get percent =>
+      nothingToPlay ? 100 : (total == 0 ? 0 : (hits * 100 ~/ total));
 
-  bool get passed => total > 0 && hits / total >= kTrailPassAccuracy;
+  bool get passed =>
+      nothingToPlay || (total > 0 && hits / total >= kTrailPassAccuracy);
 
   /// Do resumo pronto das sessões. No ritmo, `extra` (toque sem alvo) entra
   /// no denominador: sem isso, bater teclas sem parar aprovaria (J00).

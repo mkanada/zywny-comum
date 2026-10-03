@@ -248,6 +248,14 @@ class PracticeController {
     if (wait != null) {
       if (range != null) {
         wait.resetTo(range.startMs);
+        // Sem nenhum passo no trecho (mão só com pausa): a sessão já nasce
+        // sem passo e não avisa mudança nenhuma — encerra aqui, senão a
+        // etapa tocaria sozinha e ficaria sem resumo.
+        final first = wait.current.value;
+        if (first == null || first.onMs >= range.endMs) {
+          _finishRange();
+          return;
+        }
         _setBrake(wait.current.value?.onMs);
         scheduler.setStopAt(range.endMs);
         scheduler.setJumps(rangeJumps);
@@ -427,8 +435,14 @@ class PracticeController {
     final tally = _tally;
     if (tally != null) {
       final result = tally.result();
-      if (result.total > 0 || _rangeDone) return result;
-      return null;
+      if (result.total > 0) return result;
+      if (!_rangeDone) return null;
+      return StageResult(
+        hits: 0,
+        total: 0,
+        badMeasures: const {},
+        nothingToPlay: true,
+      );
     }
     if (hasVerdicts || _rangeDone) {
       return StageResult.fromReport(
