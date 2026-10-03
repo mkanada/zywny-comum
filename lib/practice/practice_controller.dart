@@ -257,7 +257,7 @@ class PracticeController {
           return;
         }
         _setBrake(wait.current.value?.onMs);
-        scheduler.setStopAt(range.endMs);
+        scheduler.setStopAt(range.endMs - kRangeBoundaryToleranceMs);
         scheduler.setJumps(rangeJumps);
         scheduler.onJump = onRangeJump;
       } else {
@@ -269,7 +269,7 @@ class PracticeController {
       _resetTimed(startMs, untilMs: _loopEndMs ?? range?.endMs);
       scheduler.setBrake(null);
       if (range != null) {
-        scheduler.setStopAt(range.endMs);
+        scheduler.setStopAt(range.endMs - kRangeBoundaryToleranceMs);
         scheduler.setJumps(rangeJumps);
         scheduler.onJump = onRangeJump;
       }
@@ -281,7 +281,10 @@ class PracticeController {
     }
     // Intervalo sem passo/evento (só pausa): o reset acima já terminou.
     if (_rangeDone) return;
-    scheduler.play(range?.startMs ?? fromMs, countIn: countIn);
+    scheduler.play(
+      range == null ? fromMs : range.startMs - kRangeBoundaryToleranceMs,
+      countIn: countIn,
+    );
   }
 
   /// Loop A-B no treino (T04). Espera: ao passar o último passo de

@@ -166,8 +166,10 @@ bool _hasNotes(
   Set<int> staves,
 ) {
   for (final e in track.events) {
-    if (e.onMs >= endMs) break;
-    if (e.onMs >= startMs && staves.contains(e.staff) && !e.ornament) {
+    if (e.onMs >= endMs - kRangeBoundaryToleranceMs) break;
+    if (e.onMs >= startMs - kRangeBoundaryToleranceMs &&
+        staves.contains(e.staff) &&
+        !e.ornament) {
       return true;
     }
   }

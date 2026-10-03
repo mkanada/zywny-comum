@@ -324,4 +324,17 @@ void main() {
       );
     });
   });
+
+  test('rangeView: barra arredondada — a nota de 9230,77 é do compasso que '
+      'começa em 9231, não do que termina nele', () {
+    final track = PerformanceTrack.fromEvents([
+      _ev('a', 60, 6923.08),
+      _ev('b', 62, 9230.77),
+      _ev('c', 64, 9500),
+    ]);
+    final first = track.rangeView(startMs: 6923, endMs: 9231);
+    expect(first.events.map((e) => e.id), ['a']);
+    final next = track.rangeView(startMs: 9231, endMs: 11538);
+    expect(next.events.map((e) => e.id), ['b', 'c']);
+  });
 }
