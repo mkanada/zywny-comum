@@ -488,6 +488,9 @@ void main() {
       final targetMeasure = timeline.measureIndexAt(target.onMs);
       midi.press(200, atSeconds: engine.now);
       await pumpEventQueue();
+      // Enquanto a errada estiver apertada o acorde não fecha.
+      midi.release(200, atSeconds: engine.now);
+      await pumpEventQueue();
       var guard = 0;
       while (dones == 0 && guard++ < 100) {
         await playStep(midi, engine, scheduler, practice);

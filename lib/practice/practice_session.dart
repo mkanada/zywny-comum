@@ -71,6 +71,13 @@ const double kWaitChordWindowMs = 300;
 
 /// Modo espera (T01): o tempo não anda até o acorde certo ser tocado.
 /// Dirigido só por [noteOn]/[noteOff] — sem relógio interno.
+///
+/// O acorde fecha quando todas as notas dele estão apertadas juntas e
+/// nenhuma tecla errada está apertada: é o estado das teclas que decide, não
+/// a ordem. Uma errada no meio não zera a tentativa — soltá-la com o acorde
+/// todo seguro fecha o passo. Teclas que já estavam apertadas quando o passo
+/// começou (a mão ainda no acorde anterior, no legato) não contam como
+/// erradas: só as apertadas durante o passo.
 class WaitModeSession {
   WaitModeSession(
     List<PracticeStep> steps, {
@@ -124,6 +131,10 @@ class WaitModeSession {
   /// mostrando o acorde inteiro como esperado.
   final Map<int, ({double atMs, int velocity})> _hits = {};
 
+  /// Teclas erradas apertadas durante o passo e ainda seguradas: enquanto
+  /// houver alguma, o acorde não fecha.
+  final Set<int> _wrongHeld = {};
+
   final ValueNotifier<PracticeStep?> _current = ValueNotifier(null);
 
   /// Passo atual, com `remaining` sempre atualizado; `null` quando a peça
@@ -168,6 +179,9 @@ class WaitModeSession {
     if (!_remaining.contains(pitch)) {
       // Nota que já vale no acorde (repetida sem soltar) não é erro.
       if (_steps[_index].notes.any((e) => e.pitch == pitch)) return;
+      // Errada: o acorde não fecha enquanto ela estiver apertada. As certas
+      // já seguradas continuam valendo.
+      _wrongHeld.add(pitch);
       _verdicts.add(
         NoteVerdict(
           pitch: pitch,
@@ -176,29 +190,22 @@ class WaitModeSession {
           velocity: velocity,
         ),
       );
-      // Errada no meio de um acorde: o acorde só vale com todas as notas
-      // certas e juntas, então a tentativa recomeça — as teclas ainda
-      // seguradas precisam ser soltas e apertadas de novo.
-      if (_firstHitAtMs != null) {
-        final step = _steps[_index];
-        _remaining = step.notes.map((e) => e.pitch).toSet();
-        _blocked = _held.intersection(_remaining);
-        _hits.clear();
-        _firstHitAtMs = null;
-        _publish(step);
-      }
       return;
     }
 
-    final step = _steps[_index];
     _firstHitAtMs ??= atMs;
     _remaining.remove(pitch);
     _hits[pitch] = (atMs: atMs, velocity: velocity);
+    _completeOrPublish();
+  }
 
-    if (_remaining.isEmpty) {
+  /// Fecha o passo se o acorde está todo apertado e nenhuma errada está;
+  /// senão republica o que falta.
+  void _completeOrPublish() {
+    if (_remaining.isEmpty && _wrongHeld.isEmpty) {
       _completeStep();
     } else {
-      _publish(step);
+      _publish(_steps[_index]);
     }
   }
 
@@ -226,11 +233,17 @@ class WaitModeSession {
 
   /// Tecla solta: limpa o bloqueio de "precisa soltar e apertar de novo"
   /// para essa tecla. Soltar uma nota certa antes de o acorde fechar a faz
-  /// faltar de novo: o acorde só vale com todas as notas juntas.
+  /// faltar de novo: o acorde só vale com todas as notas juntas. Soltar a
+  /// última errada com o acorde todo apertado fecha o passo.
   void noteOff(int pitch) {
     _held.remove(pitch);
     _blocked.remove(pitch);
+    final wasWrong = _wrongHeld.remove(pitch);
     if (done) return;
+    if (wasWrong) {
+      if (_remaining.isEmpty && _wrongHeld.isEmpty) _completeStep();
+      return;
+    }
     final step = _steps[_index];
     if (!_remaining.contains(pitch) &&
         step.notes.any((e) => e.pitch == pitch)) {
@@ -261,6 +274,8 @@ class WaitModeSession {
     _remaining = step.notes.map((e) => e.pitch).toSet();
     _blocked = _held.intersection(_remaining);
     _hits.clear();
+    // O que ainda está apertado de antes não é erro deste passo.
+    _wrongHeld.clear();
     _firstHitAtMs = null;
     _publish(step);
   }
@@ -271,17 +286,18 @@ class WaitModeSession {
   /// O ataque atual ainda não está em [_held] aqui: se for nota do passo,
   /// cai em [_remaining] e o fluxo normal o conta como primeiro da nova
   /// tentativa; se for errada, só emite o veredito. Pode concluir o passo
-  /// (tudo segurado) e avançar.
+  /// (tudo segurado, nenhuma errada) e avançar. Tecla ainda presa desde o
+  /// passo anterior ([_blocked]) continua faltando: precisa ser solta e
+  /// apertada de novo.
   void _restartChord() {
     final step = _steps[_index];
-    _remaining = step.notes.map((e) => e.pitch).toSet().difference(_held);
+    _remaining = step.notes
+        .map((e) => e.pitch)
+        .toSet()
+        .difference(_held.difference(_blocked));
     _hits.removeWhere((pitch, _) => !_held.contains(pitch));
     _firstHitAtMs = null;
-    if (_remaining.isEmpty) {
-      _completeStep();
-    } else {
-      _publish(step);
-    }
+    _completeOrPublish();
   }
 
   void _publish(PracticeStep step) {

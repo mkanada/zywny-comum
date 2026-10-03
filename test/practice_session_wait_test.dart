@@ -64,8 +64,50 @@ void main() {
       },
     );
 
-    test('nota errada no meio do acorde recomeça a tentativa: precisa soltar '
-        'e tocar o acorde inteiro de novo', () {
+    test('tecla errada apertada segura o acorde: soltá-la com o acorde todo '
+        'apertado fecha o passo', () {
+      final session = WaitModeSession([
+        PracticeStep(
+          index: 0,
+          onMs: 0,
+          notes: [_ev('c', 60, 0), _ev('e', 64, 0)],
+          remaining: {60, 64},
+        ),
+      ]);
+      final verdicts = <NoteVerdict>[];
+      session.verdicts.listen(verdicts.add);
+      session.noteOn(60, atMs: 0);
+      session.noteOn(72, atMs: 50); // errada
+      session.noteOn(64, atMs: 100); // acorde todo, mas a 72 ainda presa
+      expect(session.done, isFalse);
+      expect(session.current.value!.remaining, isEmpty);
+      expect(verdicts.map((v) => v.kind), [PracticeVerdictKind.wrong]);
+      session.noteOff(72);
+      expect(session.done, isTrue);
+      expect(
+        verdicts.where((v) => v.kind == PracticeVerdictKind.correct).length,
+        2,
+      );
+    });
+
+    test('errada apertada antes do acorde também segura', () {
+      final session = WaitModeSession([
+        PracticeStep(
+          index: 0,
+          onMs: 0,
+          notes: [_ev('c', 60, 0), _ev('e', 64, 0)],
+          remaining: {60, 64},
+        ),
+      ]);
+      session.noteOn(62, atMs: 0); // errada, sozinha
+      session.noteOn(60, atMs: 20);
+      session.noteOn(64, atMs: 40);
+      expect(session.done, isFalse);
+      session.noteOff(62);
+      expect(session.done, isTrue);
+    });
+
+    test('soltar a errada com o acorde incompleto não fecha', () {
       final session = WaitModeSession([
         PracticeStep(
           index: 0,
@@ -75,13 +117,67 @@ void main() {
         ),
       ]);
       session.noteOn(60, atMs: 0);
-      session.noteOn(72, atMs: 50); // errada
-      session.noteOn(64, atMs: 100); // com a 60 ainda presa: não fecha
+      session.noteOn(72, atMs: 10);
+      session.noteOff(72);
+      expect(session.done, isFalse);
+      expect(session.current.value!.remaining, {64});
+      session.noteOn(64, atMs: 60);
+      expect(session.done, isTrue);
+    });
+
+    test('legato: tecla do acorde anterior ainda segura não é errada no '
+        'passo seguinte', () {
+      final session = WaitModeSession([
+        PracticeStep(
+          index: 0,
+          onMs: 0,
+          notes: [_ev('c', 60, 0), _ev('e', 64, 0)],
+          remaining: {60, 64},
+        ),
+        PracticeStep(
+          index: 1,
+          onMs: 500,
+          notes: [_ev('d', 62, 500), _ev('f', 65, 500)],
+          remaining: {62, 65},
+        ),
+      ]);
+      final verdicts = <NoteVerdict>[];
+      session.verdicts.listen(verdicts.add);
+      session.noteOn(60, atMs: 0);
+      session.noteOn(64, atMs: 10);
+      expect(session.current.value!.index, 1);
+      // 60 e 64 continuam apertadas enquanto o acorde novo entra.
+      session.noteOn(62, atMs: 600);
+      session.noteOn(65, atMs: 620);
+      expect(session.done, isTrue);
+      expect(
+        verdicts.where((v) => v.kind == PracticeVerdictKind.wrong),
+        isEmpty,
+      );
+    });
+
+    test('janela estourada não conta a tecla presa desde o passo anterior', () {
+      final session = WaitModeSession([
+        PracticeStep(
+          index: 0,
+          onMs: 0,
+          notes: [_ev('a', 60, 0)],
+          remaining: {60},
+        ),
+        PracticeStep(
+          index: 1,
+          onMs: 500,
+          notes: [_ev('b', 60, 500), _ev('c', 64, 500), _ev('d', 67, 500)],
+          remaining: {60, 64, 67},
+        ),
+      ]);
+      session.noteOn(60, atMs: 0); // fecha o passo 0 e continua presa
+      session.noteOn(64, atMs: 100);
+      session.noteOn(67, atMs: 600); // fora da janela: recomeça
       expect(session.done, isFalse);
       expect(session.current.value!.remaining, {60});
       session.noteOff(60);
-      session.noteOff(72);
-      session.noteOn(60, atMs: 200); // 64 segurada + 60 de novo
+      session.noteOn(60, atMs: 700);
       expect(session.done, isTrue);
     });
 
@@ -341,6 +437,7 @@ void main() {
       session.noteOff(60);
       session.noteOn(72, atMs: 500); // errada, fora da janela: recomeça
       expect(session.current.value!.remaining, {60, 64, 67});
+      session.noteOff(72);
       session.noteOn(60, atMs: 550);
       session.noteOn(64, atMs: 600);
       session.noteOn(67, atMs: 650);

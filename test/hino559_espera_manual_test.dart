@@ -1,8 +1,9 @@
 // Teste manual: modo espera no 1º trecho do hino 559, com o render Verovio
 // de verdade e as peças ligadas como no app (agendador + relógio de áudio no
 // player + `PracticeController` com intervalo). O teclado é simulado: em cada
-// passo, a nota pendente precisa estar acesa (azul) antes de o aluno tocar e
-// o passo só avança com o acorde todo apertado.
+// passo, a nota pendente precisa estar acesa (azul) antes de o aluno tocar,
+// uma nota certa fica verde só enquanto apertada e o passo só avança com o
+// acorde todo apertado.
 //
 // Depende da libverovio.so do verovio_flutter_bridge (pulado sem ela):
 //
@@ -22,6 +23,7 @@ import 'package:zywny/audio/score_audio_scheduler.dart';
 import 'package:zywny/audio/sound_engine.dart';
 import 'package:zywny/midi/midi_input_service.dart';
 import 'package:zywny/music/performance_track.dart';
+import 'package:zywny/practice/app_hand.dart';
 import 'package:zywny/practice/practice_colors.dart';
 import 'package:zywny/practice/practice_controller.dart';
 import 'package:zywny/trail/trail_path.dart';
@@ -127,6 +129,15 @@ void main() {
             highlightColor: kPracticePendingColor,
             mergeTies: true,
           )..clock = AudioPlaybackClock(scheduler);
+          // Como no app: no modo espera as notas do aluno são do
+          // PracticeController, o player não as acende.
+          final studentNotes = {
+            for (final id in studentHandNoteIds(track, stage.phase.hand)) ...[
+              id,
+              doc.sceneIdOf(id) ?? id,
+            ],
+          };
+          player.skipHighlight = studentNotes.contains;
           final midi = _Midi();
           var done = false;
           final practice = PracticeController(
@@ -206,11 +217,23 @@ void main() {
               }
               held = pitches;
             } else {
-              // Antes, uma nota do acorde sozinha (e solta): o acorde
-              // continua todo azul e o passo não anda.
+              // Antes, uma nota do acorde sozinha: verde enquanto apertada;
+              // solta, o acorde volta todo a azul e o passo não anda.
               if (pitches.length > 1) {
                 midi.key(pitches.first, on: true, at: t);
                 await pumpEventQueue();
+                final alone = step.notes.firstWhere(
+                  (e) => e.pitch == pitches.first,
+                );
+                final aloneColor =
+                    controller.colorOf(doc.sceneIdOf(alone.id) ?? alone.id) ??
+                    controller.colorOf(alone.id);
+                if (aloneColor != kPracticeCorrectColor) {
+                  problems.add(
+                    '$id passo ${step.index}: nota ${pitches.first} apertada '
+                    'sozinha não ficou verde ($aloneColor)',
+                  );
+                }
                 midi.key(pitches.first, on: false, at: t + 0.1);
                 await pumpEventQueue();
                 final still = practice.currentStep.value;

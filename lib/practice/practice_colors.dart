@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 
-/// Cores do modo treino (T02). A nota pendente ("esperado agora") acende
-/// pelo player, assim que o freio do relógio estaciona no `onMs` dela —
-/// mesmo mecanismo que já destaca a mão que o app está tocando —, e troca de
-/// cor quando o aluno acerta. Pendente, certa e errada são configuráveis em
+/// Cores do modo treino (T02). No modo espera a nota pendente ("esperado
+/// agora") é cor fixa posta pelo `PracticeController` enquanto o passo
+/// espera, e a certa acende por cima dela enquanto a tecla está apertada; no
+/// tempo real e no ritmo a pendente acende pelo player, como a mão que o app
+/// está tocando. Pendente, certa e errada são configuráveis em
 /// Cores (`AppSettings.practicePendingColor`, `highlightColor` — a certa é a
 /// mesma do destaque da reprodução — e `practiceWrongColor`); as daqui são
 /// os padrões.
@@ -19,7 +20,7 @@ const kPracticePendingColor = Color(0xFF1E88E5);
 
 /// Nota errada: pisca em vermelho na nota esperada mais próxima (a nota
 /// errada em si pode não existir na partitura) — um pulso só, sem repetir
-/// sozinho.
+/// sozinho. No modo espera com fantasma, a errada aparece só na fantasma.
 const kPracticeWrongColor = Color(0xFFC62828);
 const kPracticeWrongAttack = Duration(milliseconds: 60);
 const kPracticeWrongHold = Duration(milliseconds: 150);

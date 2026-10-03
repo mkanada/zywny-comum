@@ -38,8 +38,9 @@ enum PracticeMode {
 
 /// Modo espera (T02): o aluno escolhe [hand], o app agenda a outra no
 /// [scheduler] (freio incluso) e cada nota tocada no [midiInput] alimenta o
-/// [WaitModeSession] — que devolve as cores certo/errado para o
-/// [ScoreController] e o pitch errado para o teclado desenhado.
+/// [WaitModeSession] — que devolve as cores esperada/certa para o
+/// [ScoreController] (ver "três camadas" em [_paintStep]) e o pitch errado
+/// para a fantasma e o teclado desenhado.
 class PracticeController {
   PracticeController({
     required MidiInputService midiInput,
@@ -61,6 +62,7 @@ class PracticeController {
     this.onWaitTarget,
     this.correctColor = kPracticeCorrectColor,
     this.wrongColor = kPracticeWrongColor,
+    this._pendingColor = kPracticePendingColor,
   }) : _midiInput = midiInput, // ignore: prefer_initializing_formals
        _track = track {
     if (range != null) {
@@ -86,6 +88,7 @@ class PracticeController {
       if (range != null) _tally = WaitTally();
       _verdictSub = wait.verdicts.listen(_onVerdict);
       wait.current.addListener(_onStepChanged);
+      _paintStep();
       _syncGhostExpected();
     } else if (mode == PracticeMode.rhythm) {
       final rhythm = RhythmSession.forStaves(
@@ -113,6 +116,16 @@ class PracticeController {
   /// próximo veredito.
   Color correctColor;
   Color wrongColor;
+
+  /// Modo espera: cor das notas do passo pendente (a camada do meio, ver
+  /// [_paintStep]). Trocar recolore o passo atual na hora.
+  Color get pendingColor => _pendingColor;
+  Color _pendingColor;
+  set pendingColor(Color value) {
+    if (value == _pendingColor) return;
+    _pendingColor = value;
+    controller.setColors({for (final id in _expectedIds) id: value});
+  }
 
   /// Compasso (ocorrência, índice de `ScoreTimeline.measures`) em `ms`
   /// musicais — para o [report]. `null`: tudo cai no compasso 0.
@@ -473,6 +486,10 @@ class PracticeController {
     scheduler.pause();
     _releaseMagic();
     controller.releaseAll();
+    _clearExpected();
+    _paintedStep = null;
+    _litStep.clear();
+    _litDone.clear();
     ghosts?.clear();
     _wrongPitches.value = const {};
   }
@@ -513,6 +530,7 @@ class PracticeController {
         );
       }
       wait?.noteOff(note.pitch);
+      _releaseDone(note.pitch);
       ghosts?.release(note.pitch);
       if (_wrongPitches.value.contains(note.pitch)) {
         _wrongPitches.value = Set.of(_wrongPitches.value)..remove(note.pitch);
@@ -649,7 +667,9 @@ class PracticeController {
     switch (verdict.kind) {
       case PracticeVerdictKind.correct:
         _correctCount.value++;
-        if (verdict.eventId != null) {
+        if (_wait != null) {
+          _closeHit(verdict.pitch);
+        } else if (verdict.eventId != null) {
           controller.highlightAll(
             _chainOf(verdict.eventId!),
             color: correctColor,
@@ -660,8 +680,11 @@ class PracticeController {
         _wrongCount.value++;
         _wrongPitches.value = Set.of(_wrongPitches.value)..add(verdict.pitch);
         ghosts?.press(verdict.pitch);
+        // Modo espera com fantasma: a errada aparece só nela, enquanto a
+        // tecla estiver apertada; as esperadas ficam como estão (pintar a
+        // mais próxima de vermelho parecia dizer que ela é que está errada).
         final nearestId = _wait != null
-            ? _nearestExpectedId(verdict.pitch)
+            ? (ghosts == null ? _nearestExpectedId(verdict.pitch) : null)
             : _nearestEventId(verdict.pitch, _lastPlayedMusicalMs);
         if (nearestId != null) {
           controller.highlightAll(
@@ -752,6 +775,7 @@ class PracticeController {
         _finishRange();
         return;
       }
+      _paintStep();
       if (_tallyStep == step.index) return;
       if (_tallyStep != null) {
         _tally?.stepDone();
@@ -771,8 +795,114 @@ class PracticeController {
         return;
       }
     }
+    _paintStep();
     _setBrake(wait.current.value?.onMs);
     _syncGhostExpected();
+  }
+
+  // -------------------------------------------------------------------------
+  // Cores do modo espera: três camadas por nota
+  // -------------------------------------------------------------------------
+  //
+  // Embaixo, a cor da partitura. No meio, a de "esperada" nas notas do passo
+  // pendente — cor fixa do `ScoreController` (`setColors`), que fica até o
+  // passo fechar. Em cima, a de "certa" enquanto a tecla está apertada —
+  // destaque animado, que ao apagar volta à cor fixa, então soltar uma nota
+  // antes de o acorde fechar a devolve a "esperada". A errada vai para a
+  // fantasma (ver [_onVerdict]). O player não acende as notas do aluno no
+  // modo espera (`ScorePlayer.skipHighlight`, ligado pelo host).
+
+  static const Duration _kForever = Duration(days: 365);
+
+  /// Ids com a cor de "esperada" agora: as notas do passo pendente, com as
+  /// continuações de ligadura.
+  List<String> _expectedIds = const [];
+
+  /// Índice do passo cujas cores estão na tela.
+  int? _paintedStep;
+
+  /// Notas certas apertadas do passo pendente, por tecla: acesas na cor de
+  /// certa até a tecla soltar ou o acorde fechar.
+  final Map<int, List<String>> _litStep = {};
+
+  /// Notas de acordes já fechados ainda com a tecla apertada: continuam na
+  /// cor de certa e apagam quando a tecla solta.
+  final Map<int, List<String>> _litDone = {};
+
+  /// Ids das notas do passo atual com a tecla [pitch], ligaduras inclusas
+  /// (duas pautas podem ter a mesma tecla no mesmo instante).
+  List<String> _stepIdsOf(PracticeStep step, int pitch) => [
+    for (final e in step.notes)
+      if (e.pitch == pitch) ..._chainOf(e.id),
+  ];
+
+  /// Põe na tela o passo publicado pela sessão: troca a camada do meio
+  /// quando o passo muda e acende/apaga as certas conforme `remaining`.
+  void _paintStep() {
+    final step = _wait?.current.value;
+    if (step?.index != _paintedStep) {
+      // Passo novo: o que estava aceso do anterior sem ele fechar (loop,
+      // salto) apaga; o que fechou já passou para [_litDone].
+      for (final ids in _litStep.values) {
+        _releaseIds(ids, Duration.zero);
+      }
+      _litStep.clear();
+      _paintedStep = step?.index;
+      _clearExpected();
+      if (step != null) {
+        _expectedIds = [for (final e in step.notes) ..._chainOf(e.id)];
+        controller.setColors({for (final id in _expectedIds) id: pendingColor});
+      }
+    }
+    if (step == null) return;
+    for (final pitch in step.notes.map((e) => e.pitch).toSet()) {
+      final hit = !step.remaining.contains(pitch);
+      final lit = _litStep[pitch];
+      if (hit && lit == null) {
+        final ids = _stepIdsOf(step, pitch);
+        controller.highlightAll(ids, color: correctColor, hold: _kForever);
+        _litStep[pitch] = ids;
+      } else if (!hit && lit != null) {
+        // Soltou antes de o acorde fechar: volta a "esperada" na hora.
+        _releaseIds(lit, Duration.zero);
+        _litStep.remove(pitch);
+      }
+    }
+  }
+
+  /// O acorde fechou com [pitch] apertada: a nota fica na cor de certa até
+  /// a tecla soltar ([_releaseDone]). Chamado antes de a sessão publicar o
+  /// passo seguinte, com o passo que fechou ainda em `current`.
+  void _closeHit(int pitch) {
+    var ids = _litStep.remove(pitch);
+    if (ids == null) {
+      // A última nota do acorde: fechou sem republicar o passo.
+      final step = _wait?.current.value;
+      ids = step == null ? const <String>[] : _stepIdsOf(step, pitch);
+      controller.highlightAll(ids, color: correctColor, hold: _kForever);
+    }
+    final previous = _litDone[pitch];
+    if (previous != null) _releaseIds(previous, kPracticeCorrectRelease);
+    _litDone[pitch] = ids;
+  }
+
+  /// Tecla [pitch] solta: a nota de acorde fechado que ela segurava apaga.
+  void _releaseDone(int pitch) {
+    final ids = _litDone.remove(pitch);
+    if (ids != null) _releaseIds(ids, kPracticeCorrectRelease);
+  }
+
+  void _releaseIds(List<String> ids, Duration duration) {
+    for (final id in ids) {
+      controller.release(id, duration: duration);
+    }
+  }
+
+  void _clearExpected() {
+    for (final id in _expectedIds) {
+      controller.clearColor(id);
+    }
+    _expectedIds = const [];
   }
 
   /// Todas as notas do passo (não só as que faltam): a colisão da fantasma

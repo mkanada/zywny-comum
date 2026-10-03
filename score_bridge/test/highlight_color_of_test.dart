@@ -43,4 +43,32 @@ void main() {
       controller.dispose();
     }
   });
+
+  testWidgets('skipHighlight: o player não acende nem apaga as notas do '
+      'host', (tester) async {
+    final bytes = File('test/fixtures/r13-um-compasso.vsb').readAsBytesSync();
+    final doc = VsbDocument.fromBytes(bytes);
+    final controller = ScoreController(document: doc);
+    const green = Color(0xFF2E7D32);
+    final player = ScorePlayer(
+      document: doc,
+      controller: controller,
+      release: Duration.zero,
+    );
+    try {
+      player.skipHighlight = (id) => id == 'm1n1';
+      player.seek(Duration.zero);
+      expect(controller.colorOf('m1n1'), isNull);
+
+      // O host acende; o `off` do timemap não apaga.
+      controller.highlight('m1n1', color: green, hold: const Duration(days: 1));
+      player.advance(const Duration(milliseconds: 4100));
+      expect(controller.colorOf('m1n1'), green);
+      expect(controller.colorOf('m2n1'), kDefaultHighlightColor);
+    } finally {
+      controller.clearAll();
+      player.dispose();
+      controller.dispose();
+    }
+  });
 }

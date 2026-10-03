@@ -219,6 +219,12 @@ class ScorePlayer {
   /// `null` (ou o retorno `null`) usa [highlightColor].
   Color? Function(String id)? highlightColorOf;
 
+  /// Notas que o player não acende nem apaga, porque o host as pinta por
+  /// conta própria (o modo espera do zywny cuida das notas do aluno).
+  /// Consultada com o id da **cena**, como [highlightColorOf]; `null` não
+  /// pula nenhuma.
+  bool Function(String id)? skipHighlight;
+
   /// Onde, na viewport, o compasso corrente fica no modo contínuo.
   final double scrollAlignment;
   final Duration scrollDuration;
@@ -386,6 +392,7 @@ class ScorePlayer {
 
   void _apply(TimemapEntry e) {
     for (final id in e.off) {
+      if (_skips(id)) continue;
       controller.release(id);
     }
     if (e.on.isNotEmpty) _highlight(e.on);
@@ -395,9 +402,19 @@ class ScorePlayer {
     onEntry?.call(e);
   }
 
+  /// [id] é do host ([skipHighlight]).
+  bool _skips(String id) {
+    final skip = skipHighlight;
+    return skip != null && skip(document.sceneIdOf(id) ?? id);
+  }
+
   /// Acende [ids] na [highlightColor], ou na de [highlightColorOf] para os
-  /// ids que ela pinta.
+  /// ids que ela pinta; os de [skipHighlight] ficam de fora.
   void _highlight(Iterable<String> ids) {
+    if (skipHighlight != null) {
+      ids = ids.where((id) => !_skips(id)).toList();
+      if (ids.isEmpty) return;
+    }
     final colorOf = highlightColorOf;
     if (colorOf == null) {
       controller.highlightAll(

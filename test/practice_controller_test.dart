@@ -521,6 +521,122 @@ void main() {
       expect(practice.wrongPitches.value, isNot(contains(wrongPitch)));
     });
 
+    test('espera em camadas: esperada embaixo, certa por cima enquanto a '
+        'tecla está apertada, errada só na fantasma', () async {
+      final track = _loadTrack('satie-fantasma.vsb');
+      final doc = _loadDoc('satie-fantasma.vsb');
+      final engine = FakeSoundEngine();
+      final scheduler = ScoreAudioScheduler(
+        engine: engine,
+        track: track,
+        autoTick: false,
+      );
+      final scoreController = ScoreController(document: doc);
+      addTearDown(scoreController.dispose);
+      addTearDown(scoreController.clearAll);
+      final ghosts = GhostController()..attachDocument(doc);
+      addTearDown(ghosts.dispose);
+      final midi = FakeMidiInput();
+      addTearDown(midi.dispose);
+      final practice = PracticeController(
+        midiInput: midi,
+        track: track,
+        scheduler: scheduler,
+        controller: scoreController,
+        hand: Hand.direita,
+        ghosts: ghosts,
+      );
+      addTearDown(practice.dispose);
+      practice.start();
+
+      Color? color(SoundEvent e) => scoreController.colorOf(e.id);
+
+      // Anda até um acorde de duas teclas ou mais.
+      var step = practice.currentStep.value!;
+      var guard = 0;
+      while (step.notes.map((e) => e.pitch).toSet().length < 2) {
+        expect(guard++, lessThan(200), reason: 'sem acorde no começo');
+        for (final e in step.notes) {
+          midi.press(e.pitch, atSeconds: engine.now);
+        }
+        await pumpEventQueue();
+        for (final e in step.notes) {
+          midi.release(e.pitch, atSeconds: engine.now);
+        }
+        await pumpEventQueue();
+        step = practice.currentStep.value!;
+      }
+      final pitches = step.notes.map((e) => e.pitch).toSet().toList();
+      for (final e in step.notes) {
+        expect(color(e), kPracticePendingColor, reason: 'esperada ${e.id}');
+      }
+
+      // Uma nota sozinha: certa enquanto apertada, esperada ao soltar.
+      final first = step.notes.firstWhere((e) => e.pitch == pitches.first);
+      midi.press(first.pitch, atSeconds: engine.now);
+      await pumpEventQueue();
+      expect(color(first), kPracticeCorrectColor);
+      for (final e in step.notes.where((e) => e.pitch != first.pitch)) {
+        expect(color(e), kPracticePendingColor);
+      }
+      midi.release(first.pitch, atSeconds: engine.now);
+      await pumpEventQueue();
+      expect(color(first), kPracticePendingColor);
+      expect(practice.currentStep.value!.index, step.index);
+
+      // Errada: fantasma, e as esperadas continuam esperadas.
+      final wrong = pitches.reduce((a, b) => a > b ? a : b) + 1;
+      midi.press(wrong, atSeconds: engine.now);
+      await pumpEventQueue();
+      expect(ghosts.visible, hasLength(1));
+      for (final e in step.notes) {
+        expect(color(e), kPracticePendingColor);
+      }
+
+      // O acorde todo com a errada ainda apertada: certas, mas não fecha.
+      for (final p in pitches) {
+        midi.press(p, atSeconds: engine.now);
+      }
+      await pumpEventQueue();
+      expect(practice.currentStep.value!.index, step.index);
+      for (final e in step.notes) {
+        expect(color(e), kPracticeCorrectColor);
+      }
+
+      // Soltar a errada fecha: o acorde fica verde (teclas apertadas) e o
+      // passo seguinte acende como esperado.
+      midi.release(wrong, atSeconds: engine.now);
+      await pumpEventQueue();
+      final next = practice.currentStep.value!;
+      expect(next.index, step.index + 1);
+      for (final e in step.notes) {
+        expect(color(e), kPracticeCorrectColor);
+      }
+      for (final e in next.notes) {
+        expect(color(e), kPracticePendingColor);
+      }
+      // Soltas, as notas do acorde fechado apagam (fade de certa).
+      for (final p in pitches) {
+        midi.release(p, atSeconds: engine.now);
+      }
+      await pumpEventQueue();
+      for (final e in step.notes) {
+        expect(scoreController.colors.containsKey(e.id), isTrue);
+        expect(color(e), isNot(kPracticePendingColor));
+      }
+
+      // Trocar a cor de esperada recolore o passo na hora.
+      const blue = Color(0xFF3949AB);
+      practice.pendingColor = blue;
+      for (final e in next.notes) {
+        expect(color(e), blue);
+      }
+      practice.stop();
+      for (final e in next.notes) {
+        expect(color(e), isNot(blue));
+      }
+    });
+
     test('stop() solta o freio e limpa os destaques', () async {
       final track = _loadTrack('maple-leaf-rag.vsb');
       final doc = _loadDoc('maple-leaf-rag.vsb');
@@ -678,6 +794,9 @@ void main() {
       final target = practice.currentStep.value!;
       final targetMeasure = timeline.measureIndexAt(target.onMs);
       midi.press(200, atSeconds: engine.now);
+      await pumpEventQueue();
+      // Enquanto a errada estiver apertada o acorde não fecha.
+      midi.release(200, atSeconds: engine.now);
       await pumpEventQueue();
       var guard = 0;
       while (dones == 0 && guard++ < 100) {
