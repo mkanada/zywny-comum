@@ -5,6 +5,7 @@ library;
 import 'package:score_bridge/score_bridge.dart' show MeasureInfo;
 
 import '../music/performance_track.dart';
+import '../practice/hand.dart';
 import '../practice/practice_controller.dart' show PracticeMode;
 import 'trail_path.dart';
 import 'trail_segments.dart';
@@ -73,11 +74,18 @@ class TrailPlan {
     return count;
   }
 
+  /// [phases]/[speeds]: as etapas (na ordem em que entram em cada trecho)
+  /// e os andamentos que o aluno escolheu nas configurações (`null`: todas,
+  /// na ordem de [TrailPhase]). Os ids não mudam com a escolha, então o
+  /// progresso das etapas que ficam continua valendo. A fase final não é
+  /// filtrada.
   static TrailPlan build(
     TrailPath path,
     PerformanceTrack track, {
     required int n,
     bool includeFinal = true,
+    List<TrailPhase>? phases,
+    Set<double>? speeds,
   }) {
     final segments = cutSegments(path, n);
     if (segments.isEmpty) return TrailPlan(n: n, stages: const []);
@@ -89,15 +97,14 @@ class TrailPlan {
       // linear simplesmente o atravessa.
       if (!right && !left) continue;
       final both = right && left;
-      final phases = <TrailPhase>[
-        if (right) TrailPhase.notasD,
-        if (left) TrailPhase.notasE,
-        if (both) TrailPhase.notasJ,
-        if (right) TrailPhase.ritmoD,
-        if (left) TrailPhase.ritmoE,
-        if (both) TrailPhase.junto,
-      ];
-      for (final phase in phases) {
+      // Cada etapa só onde a(s) mão(s) dela têm nota no trecho.
+      bool fits(TrailPhase p) => switch (p.hand) {
+        Hand.direita => right,
+        Hand.esquerda => left,
+        Hand.ambas => both,
+      };
+      final segPhases = (phases ?? TrailPhase.values).where(fits);
+      for (final phase in segPhases) {
         if (phase.mode == PracticeMode.wait) {
           stages.add(
             TrailStage(
@@ -114,6 +121,7 @@ class TrailPlan {
           );
         } else {
           for (final speed in kTrailSpeeds) {
+            if (speeds != null && !speeds.contains(speed)) continue;
             final pct = (speed * 100).round();
             stages.add(
               TrailStage(

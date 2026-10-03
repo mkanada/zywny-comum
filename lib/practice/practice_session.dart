@@ -357,10 +357,11 @@ class RealtimeSession {
       StreamController<NoteVerdict>.broadcast(sync: true);
   Stream<NoteVerdict> get verdicts => _verdicts.stream;
 
-  /// Janelas de parede convertidas para ms musicais — a `speed` 0.5 a
-  /// música anda devagar: 75 ms de parede viram 37,5 ms musicais.
-  double get _okMs => windowOkMs * speed;
-  double get _maxMs => windowMaxMs * speed;
+  /// As janelas valem no andamento original e ficam em ms musicais: o rigor
+  /// acompanha o andamento — a `speed` 0.5 os 75 ms viram 150 ms de parede
+  /// (metade do andamento, metade do rigor).
+  double get _okMs => windowOkMs;
+  double get _maxMs => windowMaxMs;
 
   /// Nota tocada, já em ms musicais. Casa com o evento pendente de mesmo
   /// pitch mais próximo dentro de [_maxMs]. Ornamentos entram como

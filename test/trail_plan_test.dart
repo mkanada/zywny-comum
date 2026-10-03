@@ -64,12 +64,12 @@ void main() {
           't0.notasD',
           't0.notasE',
           't0.notasJ',
-          't0.ritmoD.50',
-          't0.ritmoD.75',
-          't0.ritmoD.100',
-          't0.ritmoE.50',
-          't0.ritmoE.75',
-          't0.ritmoE.100',
+          't0.tempoD.50',
+          't0.tempoD.75',
+          't0.tempoD.100',
+          't0.tempoE.50',
+          't0.tempoE.75',
+          't0.tempoE.100',
           't0.junto.50',
           't0.junto.75',
           't0.junto.100',
@@ -87,6 +87,53 @@ void main() {
       expect(plan.stages.last.endMs, 6000);
     });
 
+    test('só as etapas e andamentos escolhidos; ids iguais aos do plano '
+        'completo', () {
+      final track = PerformanceTrack.fromEvents([
+        _ev(1, 100),
+        _ev(2, 200),
+        _ev(1, 4100),
+        _ev(2, 4200),
+      ]);
+      final plan = TrailPlan.build(
+        _path(6),
+        track,
+        n: 5,
+        phases: [TrailPhase.notasJ, TrailPhase.junto],
+        speeds: {0.75, 1.0},
+      );
+      expect(
+        [for (final s in plan.stages) s.id],
+        [
+          't0.notasJ',
+          't0.junto.75',
+          't0.junto.100',
+          't1.notasJ',
+          't1.junto.75',
+          't1.junto.100',
+          'final.50',
+          'final.75',
+          'final.100',
+        ],
+      );
+    });
+
+    test('na ordem escolhida', () {
+      final track = PerformanceTrack.fromEvents([_ev(1, 100), _ev(2, 200)]);
+      final plan = TrailPlan.build(
+        _path(4),
+        track,
+        n: 5,
+        includeFinal: false,
+        phases: [TrailPhase.tempoD, TrailPhase.notasD, TrailPhase.junto],
+        speeds: {1.0},
+      );
+      expect(
+        [for (final s in plan.stages) s.id],
+        ['t0.tempoD.100', 't0.notasD', 't0.junto.100'],
+      );
+    });
+
     test('trecho sem a esquerda -> 4 etapas, sem E nem juntas', () {
       final track = PerformanceTrack.fromEvents([
         _ev(1, 100),
@@ -95,12 +142,10 @@ void main() {
       ]);
       final plan = TrailPlan.build(_path(6), track, n: 5);
       final seg1 = plan.stages.where((s) => s.segment == 1).toList();
-      expect([for (final s in seg1) s.id], [
-        't1.notasD',
-        't1.ritmoD.50',
-        't1.ritmoD.75',
-        't1.ritmoD.100',
-      ]);
+      expect(
+        [for (final s in seg1) s.id],
+        ['t1.notasD', 't1.tempoD.50', 't1.tempoD.75', 't1.tempoD.100'],
+      );
       expect(plan.stages.where((s) => s.id.startsWith('t1.notasE')), isEmpty);
       expect(plan.stages.where((s) => s.id.startsWith('t1.junto')), isEmpty);
     });
@@ -118,26 +163,29 @@ void main() {
       n: 5,
     );
 
-    test('atual abre, aprovar/pular avança, pulada que passa vira aprovada', () {
-      final p = plan();
-      var progress = TrailProgress(n: 5, total: p.stages.length);
-      expect(progress.current(p)?.id, 't0.notasD');
-      expect(progress.isOpen(p, 't0.notasD'), isTrue);
-      expect(progress.isOpen(p, 't0.notasE'), isFalse);
+    test(
+      'atual abre, aprovar/pular avança, pulada que passa vira aprovada',
+      () {
+        final p = plan();
+        var progress = TrailProgress(n: 5, total: p.stages.length);
+        expect(progress.current(p)?.id, 't0.notasD');
+        expect(progress.isOpen(p, 't0.notasD'), isTrue);
+        expect(progress.isOpen(p, 't0.notasE'), isFalse);
 
-      progress = progress.recordResult('t0.notasD', _pct(9, 10));
-      expect(progress.stateOf('t0.notasD'), StageState.aprovada);
-      expect(progress.current(p)?.id, 't0.notasE');
+        progress = progress.recordResult('t0.notasD', _pct(9, 10));
+        expect(progress.stateOf('t0.notasD'), StageState.aprovada);
+        expect(progress.current(p)?.id, 't0.notasE');
 
-      progress = progress.skip('t0.notasE');
-      expect(progress.stateOf('t0.notasE'), StageState.pulada);
-      expect(progress.current(p)?.id, 't0.notasJ');
-      expect(progress.doneCount(p), 2);
+        progress = progress.skip('t0.notasE');
+        expect(progress.stateOf('t0.notasE'), StageState.pulada);
+        expect(progress.current(p)?.id, 't0.notasJ');
+        expect(progress.doneCount(p), 2);
 
-      progress = progress.recordResult('t0.notasE', _pct(19, 20));
-      expect(progress.stateOf('t0.notasE'), StageState.aprovada);
-      expect(progress.current(p)?.id, 't0.notasJ');
-    });
+        progress = progress.recordResult('t0.notasE', _pct(19, 20));
+        expect(progress.stateOf('t0.notasE'), StageState.aprovada);
+        expect(progress.current(p)?.id, 't0.notasJ');
+      },
+    );
 
     test('refazer nunca rebaixa; best só sobe', () {
       const base = TrailProgress(n: 5, total: 27);
@@ -223,17 +271,12 @@ void main() {
       expect((await store.load(5)).isDefault, isFalse);
       expect((await store.load(6)).trailMeasures, isNull);
 
-      final clamped = HymnSettings.fromJson({
-        'trailMeasures': 1,
-      });
+      final clamped = HymnSettings.fromJson({'trailMeasures': 1});
       expect(clamped.trailMeasures, kTrailMinMeasures);
     });
 
     test('efetivo é o da música, senão o geral', () {
-      expect(
-        effectiveTrailMeasures(general: 5, hymn: null),
-        5,
-      );
+      expect(effectiveTrailMeasures(general: 5, hymn: null), 5);
       expect(effectiveTrailMeasures(general: 5, hymn: 8), 8);
     });
   });

@@ -300,10 +300,7 @@ Future<void> showPracticeSummary(
                       'fora do tempo',
                       kOkColor,
                     ),
-                    if (report.wrong > 0 || report.extra == 0)
-                      _Stat('${report.wrong}', 'erradas', kBadColor),
-                    if (report.extra > 0)
-                      _Stat('${report.extra}', 'toques extras', kBadColor),
+                    _Stat('${report.wrong}', 'erradas', kBadColor),
                     _Stat('${report.missed}', 'perdidas', kLowScoreColor),
                   ],
                 ),

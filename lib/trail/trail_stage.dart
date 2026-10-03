@@ -12,13 +12,17 @@ const int kTrailMinMeasures = 3;
 /// Degraus de andamento das fases com tempo (fração do original).
 const List<double> kTrailSpeeds = [0.5, 0.75, 1.0];
 
-/// Tipo de exercício de uma etapa (J00, "Etapas de um trecho").
+/// Tipo de exercício de uma etapa (J00, "Etapas de um trecho"), na ordem
+/// padrão: as notas de cada mão e juntas, depois as notas no ritmo de cada
+/// mão (o app toca a outra) e juntas. A ordem e quais entram o aluno muda
+/// nas configurações. (O treino de ritmo com qualquer tecla saiu: na
+/// prática não ajudava.)
 enum TrailPhase {
   notasD(PracticeMode.wait, Hand.direita, 'Notas da direita'),
   notasE(PracticeMode.wait, Hand.esquerda, 'Notas da esquerda'),
   notasJ(PracticeMode.wait, Hand.ambas, 'Notas juntas'),
-  ritmoD(PracticeMode.rhythm, Hand.direita, 'Ritmo da direita'),
-  ritmoE(PracticeMode.rhythm, Hand.esquerda, 'Ritmo da esquerda'),
+  tempoD(PracticeMode.realtime, Hand.direita, 'Direita no ritmo'),
+  tempoE(PracticeMode.realtime, Hand.esquerda, 'Esquerda no ritmo'),
   junto(PracticeMode.realtime, Hand.ambas, 'Tudo junto no ritmo');
 
   const TrailPhase(this.mode, this.hand, this.label);
@@ -45,7 +49,7 @@ class TrailStage {
     this.isReinforcement = false,
   });
 
-  /// `t<trecho>.<fase>[.<degrau>]` (`t0.notasD`, `t0.ritmoE.75`,
+  /// `t<trecho>.<fase>[.<degrau>]` (`t0.notasD`, `t0.tempoE.75`,
   /// `t0.junto.100`) ou `final.50/75/100` na fase final.
   final String id;
 
@@ -58,7 +62,7 @@ class TrailStage {
   final double startMs;
   final double endMs;
 
-  /// O que a faixa e a gaveta mostram ("Ritmo da esquerda 75%").
+  /// O que a faixa e a gaveta mostram ("Tudo junto no ritmo 75%").
   final String label;
 
   /// Compassos lógicos do trecho (índices em `TrailPath.logical`); na fase
@@ -72,6 +76,5 @@ class TrailStage {
 }
 
 /// Rótulo de etapa: a fase mais o degrau em porcentagem, quando houver.
-String trailStageLabel(TrailPhase phase, double? speed) => speed == null
-    ? phase.label
-    : '${phase.label} ${(speed * 100).round()}%';
+String trailStageLabel(TrailPhase phase, double? speed) =>
+    speed == null ? phase.label : '${phase.label} ${(speed * 100).round()}%';

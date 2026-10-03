@@ -72,6 +72,7 @@ void main() {
       ValueChanged<String>? onSelect,
       VoidCallback? onSkip,
       VoidCallback? onRestart,
+      ValueChanged<String>? onRepeat,
     }) => tester.pumpWidget(
       _app(
         TrailDrawer(
@@ -83,9 +84,35 @@ void main() {
           onSelectStage: onSelect ?? (_) {},
           onSkipCurrent: onSkip ?? () {},
           onRestartTrail: onRestart ?? () {},
+          onRepeatStage: onRepeat,
         ),
       ),
     );
+
+    testWidgets('repetir: só nas feitas (aprovada ou pulada)', (tester) async {
+      final plan = _plan();
+      var progress = TrailProgress(n: 5, total: plan.stages.length);
+      progress = progress.recordResult(
+        't0.notasD',
+        const StageResult(hits: 23, total: 25, badMeasures: {}),
+      );
+      progress = progress.skip('t0.notasE');
+      final repeated = <String>[];
+      await pumpDrawer(
+        tester,
+        plan: plan,
+        progress: progress,
+        onRepeat: repeated.add,
+      );
+      expect(find.byTooltip('Repetir etapa'), findsNWidgets(2));
+      await tester.tap(find.byTooltip('Repetir etapa').first);
+      await tester.pump();
+      expect(repeated, ['t0.notasD']);
+
+      // Sem retorno (etapa rodando): sem botão.
+      await pumpDrawer(tester, plan: plan, progress: progress);
+      expect(find.byTooltip('Repetir etapa'), findsNothing);
+    });
 
     testWidgets('o cabeçalho mostra o todo: barra e "N de M etapas" (U13)', (
       tester,

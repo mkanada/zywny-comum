@@ -96,6 +96,31 @@ void main() {
     expect(stored.stateOf('t0.notasD'), StageState.aprovada);
   });
 
+  test('repetir pelo resumo: a aprovada continua selecionada, não a '
+      'seguinte', () async {
+    final c = controller();
+    final done = c.selected!;
+    expect(done.id, 't0.notasD');
+    await c.recordDone(_pct(10, 10));
+    // Aprovada: a atual já andou para a seguinte.
+    expect(c.selected?.id, 't0.notasE');
+    c.repeat(done);
+    expect(c.selected?.id, 't0.notasD');
+    c.next();
+    expect(c.selected?.id, 't0.notasE');
+  });
+
+  test('com etapa rodando a seleção não muda', () async {
+    final c = controller();
+    await c.recordDone(_pct(10, 10));
+    c.setRunning(true);
+    c.select('t0.notasD');
+    expect(c.selected?.id, 't0.notasE');
+    c.setRunning(false);
+    c.select('t0.notasD');
+    expect(c.selected?.id, 't0.notasD');
+  });
+
   test('skipSelected só pula pendente', () async {
     final c = controller();
     await c.skipSelected();
@@ -110,9 +135,13 @@ void main() {
 
   test('corte diferente começa vazio', () {
     final c = controller(
-      progress: const TrailProgress(n: 4, total: 99, records: {
-        't0.notasD': StageRecord(state: StageState.aprovada, best: 95),
-      }),
+      progress: const TrailProgress(
+        n: 4,
+        total: 99,
+        records: {
+          't0.notasD': StageRecord(state: StageState.aprovada, best: 95),
+        },
+      ),
     );
     expect(c.progress.n, 5);
     expect(c.progress.doneCount(c.plan), 0);
@@ -123,10 +152,7 @@ void main() {
     final c = controller(hymn: null);
     await c.recordDone(_pct(9, 10));
     expect(c.progress.stateOf('t0.notasD'), StageState.aprovada);
-    expect(
-      await SharedPreferencesAsync().getString('trail_12'),
-      isNull,
-    );
+    expect(await SharedPreferencesAsync().getString('trail_12'), isNull);
   });
 
   test('freeMode e running avisam', () {

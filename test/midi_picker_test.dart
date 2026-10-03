@@ -134,7 +134,7 @@ void main() {
     expect(find.text('Toque para conectar · USB'), findsOneWidget);
   });
 
-  testWidgets('o botão da biblioteca diz "Conectar" e muda ao conectar', (
+  testWidgets('o botão da biblioteca é só o ícone e muda ao conectar', (
     tester,
   ) async {
     await tester.pumpWidget(
@@ -142,13 +142,12 @@ void main() {
         home: Scaffold(body: MidiStatusPill(deviceManager: manager)),
       ),
     );
-    expect(find.text('Conectar'), findsOneWidget);
+    expect(find.text('Conectar'), findsNothing);
     expect(find.byIcon(Icons.piano_off), findsOneWidget);
     expect(find.byTooltip('Conectar teclado MIDI'), findsOneWidget);
     midi.list = [_usb('1', 'Teclado digital')];
     await manager.refresh();
     await tester.pump();
-    expect(find.text('Teclado ✓'), findsOneWidget);
     expect(find.byIcon(Icons.piano), findsOneWidget);
     expect(find.byTooltip('Teclado MIDI: Teclado digital'), findsOneWidget);
   });

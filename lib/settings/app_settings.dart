@@ -5,9 +5,14 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../practice/practice_colors.dart'
     show kPracticeCorrectColor, kPracticePendingColor, kPracticeWrongColor;
-import '../practice/practice_controller.dart' show PracticeMode;
+import '../practice/practice_controller.dart'
+    show PracticeMode, kDefaultRhythmToleranceMs;
 import '../trail/trail_stage.dart'
-    show kTrailDefaultMeasures, kTrailMinMeasures;
+    show TrailPhase, kTrailDefaultMeasures, kTrailMinMeasures, kTrailSpeeds;
+
+/// Limites da margem do tempo real nas configurações.
+const double kMinRhythmToleranceMs = 30;
+const double kMaxRhythmToleranceMs = 200;
 
 /// Saída de som (K03/M03): o sintetizador do app (`.sf2`) ou o teclado MIDI
 /// conectado, tocando no som próprio do piano digital do usuário.
@@ -41,6 +46,10 @@ class AppSettings extends ChangeNotifier {
   static const _kHaloWidth = 'ui_halo_width';
   static const _kBarColor = 'ui_bar_color';
   static const _kTrailMeasures = 'trail_measures';
+  static const _kTrailPhases = 'trail_phases';
+  static const _kTrailPhaseOrder = 'trail_phase_order';
+  static const _kTrailSpeeds = 'trail_speeds';
+  static const _kRhythmTolerance = 'rhythm_tolerance_ms';
 
   final SharedPreferencesAsync _prefs;
 
@@ -59,6 +68,10 @@ class AppSettings extends ChangeNotifier {
   double _haloWidth = 1.0;
   Color _barColor = kDefaultBarColor;
   int _trailMeasures = kTrailDefaultMeasures;
+  Set<TrailPhase> _trailPhases = {...TrailPhase.values};
+  List<TrailPhase> _trailPhaseOrder = TrailPhase.values;
+  Set<double> _trailSpeeds = {...kTrailSpeeds};
+  double _rhythmToleranceMs = kDefaultRhythmToleranceMs;
 
   /// `true` depois do primeiro [load] — antes disso valem os padrões.
   bool get loaded => _loaded;
@@ -95,7 +108,7 @@ class AppSettings extends ChangeNotifier {
     _changed(_prefs.setBool(_kMetronome, value));
   }
 
-  /// Espera, tempo real ou ritmo — o tipo de treino que "Espera" arma.
+  /// Espera ou tempo real — o tipo de treino que "Espera" arma.
   PracticeMode get practiceMode => _practiceMode;
   set practiceMode(PracticeMode value) {
     if (value == _practiceMode) return;
@@ -154,6 +167,73 @@ class AppSettings extends ChangeNotifier {
     _changed(_prefs.setInt(_kTrailMeasures, clamped));
   }
 
+  /// Etapas que entram na trilha de cada trecho (padrão: todas). Nunca
+  /// vazio — tirar a última é ignorado.
+  Set<TrailPhase> get trailPhases => _trailPhases;
+  set trailPhases(Set<TrailPhase> value) {
+    if (value.isEmpty || setEquals(value, _trailPhases)) return;
+    _trailPhases = {...value};
+    _changed(
+      _prefs.setStringList(_kTrailPhases, [
+        for (final p in TrailPhase.values)
+          if (value.contains(p)) p.name,
+      ]),
+    );
+  }
+
+  /// Ordem das etapas em cada trecho (todas, marcadas ou não).
+  List<TrailPhase> get trailPhaseOrder => _trailPhaseOrder;
+  set trailPhaseOrder(List<TrailPhase> value) {
+    final order = _completeOrder(value);
+    if (listEquals(order, _trailPhaseOrder)) return;
+    _trailPhaseOrder = order;
+    _changed(
+      _prefs.setStringList(_kTrailPhaseOrder, [for (final p in order) p.name]),
+    );
+  }
+
+  /// As etapas que entram na trilha, na ordem escolhida.
+  List<TrailPhase> get trailPlanPhases => [
+    for (final p in _trailPhaseOrder)
+      if (_trailPhases.contains(p)) p,
+  ];
+
+  /// [order] sem repetidas e com as que faltarem no fim (na ordem padrão).
+  static List<TrailPhase> _completeOrder(Iterable<TrailPhase> order) {
+    final seen = <TrailPhase>{...order};
+    return List.unmodifiable([
+      ...seen,
+      for (final p in TrailPhase.values)
+        if (!seen.contains(p)) p,
+    ]);
+  }
+
+  /// Andamentos (de [kTrailSpeeds]) das etapas no ritmo dos trechos
+  /// (padrão: todos). Nunca vazio.
+  Set<double> get trailSpeeds => _trailSpeeds;
+  set trailSpeeds(Set<double> value) {
+    final valid = value.where(kTrailSpeeds.contains).toSet();
+    if (valid.isEmpty || setEquals(valid, _trailSpeeds)) return;
+    _trailSpeeds = valid;
+    _changed(
+      _prefs.setStringList(_kTrailSpeeds, [
+        for (final s in kTrailSpeeds)
+          if (valid.contains(s)) '${(s * 100).round()}',
+      ]),
+    );
+  }
+
+  /// Margem do tempo real em ms no andamento original (ver
+  /// `PracticeController.rhythmToleranceMs`), entre
+  /// [kMinRhythmToleranceMs] e [kMaxRhythmToleranceMs].
+  double get rhythmToleranceMs => _rhythmToleranceMs;
+  set rhythmToleranceMs(double value) {
+    final v = value.clamp(kMinRhythmToleranceMs, kMaxRhythmToleranceMs);
+    if (v == _rhythmToleranceMs) return;
+    _rhythmToleranceMs = v;
+    _changed(_prefs.setDouble(_kRhythmTolerance, v));
+  }
+
   void _changed(Future<void> write) {
     notifyListeners();
     write.catchError((Object e) {
@@ -190,6 +270,12 @@ class AppSettings extends ChangeNotifier {
     final halo = await read(() => _prefs.getDouble(_kHaloWidth));
     final bar = await read(() => _prefs.getInt(_kBarColor));
     final trailMeasures = await read(() => _prefs.getInt(_kTrailMeasures));
+    final trailPhases = await read(() => _prefs.getStringList(_kTrailPhases));
+    final trailSpeeds = await read(() => _prefs.getStringList(_kTrailSpeeds));
+    final phaseOrder = await read(
+      () => _prefs.getStringList(_kTrailPhaseOrder),
+    );
+    final tolerance = await read(() => _prefs.getDouble(_kRhythmTolerance));
 
     _output = byName(SoundOutput.values, output) ?? _output;
     _useScoreInstruments = instruments ?? _useScoreInstruments;
@@ -205,6 +291,30 @@ class AppSettings extends ChangeNotifier {
       _trailMeasures = trailMeasures < kTrailMinMeasures
           ? kTrailMinMeasures
           : trailMeasures;
+    }
+    if (trailPhases != null) {
+      final phases = {
+        for (final name in trailPhases) ?byName(TrailPhase.values, name),
+      };
+      if (phases.isNotEmpty) _trailPhases = phases;
+    }
+    if (phaseOrder != null) {
+      _trailPhaseOrder = _completeOrder([
+        for (final name in phaseOrder) ?byName(TrailPhase.values, name),
+      ]);
+    }
+    if (trailSpeeds != null) {
+      final speeds = {
+        for (final s in kTrailSpeeds)
+          if (trailSpeeds.contains('${(s * 100).round()}')) s,
+      };
+      if (speeds.isNotEmpty) _trailSpeeds = speeds;
+    }
+    if (tolerance != null) {
+      _rhythmToleranceMs = tolerance.clamp(
+        kMinRhythmToleranceMs,
+        kMaxRhythmToleranceMs,
+      );
     }
     _loaded = true;
     notifyListeners();

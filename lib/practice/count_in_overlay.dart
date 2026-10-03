@@ -1,5 +1,5 @@
 // Contagem regressiva por cima da partitura: no compasso a mais que antecede
-// tudo o que anda no tempo (play, tempo real, ritmo), o número de tempos que
+// tudo o que anda no tempo (play, tempo real), o número de tempos que
 // faltam aparece grande e nítido no clique e esmaece até o clique seguinte —
 // cresce, desfoca e fica transparente.
 //

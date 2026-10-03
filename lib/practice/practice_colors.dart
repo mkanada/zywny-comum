@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 /// Cores do modo treino (T02). No modo espera a nota pendente ("esperado
 /// agora") é cor fixa posta pelo `PracticeController` enquanto o passo
 /// espera, e a certa acende por cima dela enquanto a tecla está apertada; no
-/// tempo real e no ritmo a pendente acende pelo player, como a mão que o app
+/// tempo real a pendente acende pelo player, como a mão que o app
 /// está tocando. Pendente, certa e errada são configuráveis em
 /// Cores (`AppSettings.practicePendingColor`, `highlightColor` — a certa é a
 /// mesma do destaque da reprodução — e `practiceWrongColor`); as daqui são

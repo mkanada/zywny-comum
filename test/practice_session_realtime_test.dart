@@ -107,47 +107,45 @@ void main() {
       expect(missedIds, skippedIds);
     });
 
-    group(
-      'a speed 0.5 (janelas de parede 75/150ms viram 37.5/75ms musicais)',
-      () {
-        test('exatamente na borda da janela ok (37.5ms) ainda é correct', () {
-          final session = RealtimeSession([_ev('a', 60, 1000)], speed: 0.5);
-          final verdicts = <NoteVerdict>[];
-          session.verdicts.listen(verdicts.add);
+    group('a speed 0.5 as janelas musicais não mudam (75/150 ms musicais = '
+        '150/300 ms de parede: metade do rigor)', () {
+      test('exatamente na borda da janela ok (75ms) ainda é correct', () {
+        final session = RealtimeSession([_ev('a', 60, 1000)], speed: 0.5);
+        final verdicts = <NoteVerdict>[];
+        session.verdicts.listen(verdicts.add);
 
-          session.noteOn(60, 1000 + 37.5);
-          expect(verdicts.single.kind, PracticeVerdictKind.correct);
-        });
+        session.noteOn(60, 1000 + 75);
+        expect(verdicts.single.kind, PracticeVerdictKind.correct);
+      });
 
-        test('logo além da janela ok vira late, não correct', () {
-          final session = RealtimeSession([_ev('a', 60, 1000)], speed: 0.5);
-          final verdicts = <NoteVerdict>[];
-          session.verdicts.listen(verdicts.add);
+      test('logo além da janela ok vira late, não correct', () {
+        final session = RealtimeSession([_ev('a', 60, 1000)], speed: 0.5);
+        final verdicts = <NoteVerdict>[];
+        session.verdicts.listen(verdicts.add);
 
-          session.noteOn(60, 1000 + 38);
-          expect(verdicts.single.kind, PracticeVerdictKind.late);
-        });
+        session.noteOn(60, 1000 + 76);
+        expect(verdicts.single.kind, PracticeVerdictKind.late);
+      });
 
-        test('exatamente na borda da janela máxima (75ms) ainda casa', () {
-          final session = RealtimeSession([_ev('a', 60, 1000)], speed: 0.5);
-          final verdicts = <NoteVerdict>[];
-          session.verdicts.listen(verdicts.add);
+      test('exatamente na borda da janela máxima (150ms) ainda casa', () {
+        final session = RealtimeSession([_ev('a', 60, 1000)], speed: 0.5);
+        final verdicts = <NoteVerdict>[];
+        session.verdicts.listen(verdicts.add);
 
-          session.noteOn(60, 1000 + 75);
-          expect(verdicts.single.kind, PracticeVerdictKind.late);
-        });
+        session.noteOn(60, 1000 + 150);
+        expect(verdicts.single.kind, PracticeVerdictKind.late);
+      });
 
-        test('logo além da janela máxima não casa mais: wrong', () {
-          final session = RealtimeSession([_ev('a', 60, 1000)], speed: 0.5);
-          final verdicts = <NoteVerdict>[];
-          session.verdicts.listen(verdicts.add);
+      test('logo além da janela máxima não casa mais: wrong', () {
+        final session = RealtimeSession([_ev('a', 60, 1000)], speed: 0.5);
+        final verdicts = <NoteVerdict>[];
+        session.verdicts.listen(verdicts.add);
 
-          session.noteOn(60, 1000 + 76);
-          expect(verdicts.single.kind, PracticeVerdictKind.wrong);
-          expect(verdicts.single.eventId, isNull);
-        });
-      },
-    );
+        session.noteOn(60, 1000 + 151);
+        expect(verdicts.single.kind, PracticeVerdictKind.wrong);
+        expect(verdicts.single.eventId, isNull);
+      });
+    });
 
     test('sem candidata na janela: wrong, sem eventId', () {
       final session = RealtimeSession([_ev('a', 60, 1000)], speed: 1);

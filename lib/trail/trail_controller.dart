@@ -37,8 +37,8 @@ class TrailController extends ChangeNotifier {
     required this.store,
     required this.hymnNumber,
   }) : _progress = progress.n == plan.n
-            ? progress
-            : TrailProgress(n: plan.n, total: plan.stages.length);
+           ? progress
+           : TrailProgress(n: plan.n, total: plan.stages.length);
 
   final TrailPath path;
   final TrailPlan plan;
@@ -56,6 +56,8 @@ class TrailController extends ChangeNotifier {
   /// A etapa que a faixa mostra e o começar arma (a atual por padrão; o
   /// bloco de reforço corrente enquanto houver reforço).
   TrailStage? get selected {
+    final pinned = _pinnedBlock;
+    if (pinned != null) return pinned;
     final id = _selectedId;
     if (id != null) {
       for (final s in plan.stages) {
@@ -67,19 +69,42 @@ class TrailController extends ChangeNotifier {
     return progress.current(plan);
   }
 
-  /// Só etapa aberta pode ser selecionada (a atual e as anteriores).
+  /// Só etapa aberta pode ser selecionada (a atual e as anteriores). Com
+  /// etapa rodando a seleção não muda: quem chama encerra a etapa antes.
   void select(String id) {
-    if (!progress.isOpen(plan, id)) return;
-    if (_selectedId == id) return;
+    if (_running || !progress.isOpen(plan, id)) return;
+    if (_selectedId == id && _pinnedBlock == null) return;
     _selectedId = id;
+    _pinnedBlock = null;
     notifyListeners();
   }
 
   /// Volta à atual (a primeira pendente) — o "próxima etapa" do resumo.
   void next() {
-    if (_selectedId == null) return;
+    if (_running) return;
+    if (_selectedId == null && _pinnedBlock == null) return;
     _selectedId = null;
+    _pinnedBlock = null;
     notifyListeners();
+  }
+
+  /// Bloco de reforço que o "repetir" do resumo prendeu na seleção: ao ser
+  /// aprovado, o bloco corrente já passou para o seguinte.
+  TrailStage? _pinnedBlock;
+
+  /// "Repetir" do resumo: volta a selecionar [stage], a que acabou de rodar.
+  /// Ao aprovar, a atual (a primeira pendente) já andou para a seguinte —
+  /// sem isto o começar armaria a próxima etapa. Um bloco de reforço que
+  /// não existe mais (o reforço acabou) não é preso: vale a atual.
+  void repeat(TrailStage stage) {
+    if (_running) return;
+    if (stage.isReinforcement) {
+      if (blockIndexOf(stage) == null) return;
+      _pinnedBlock = stage;
+      notifyListeners();
+      return;
+    }
+    select(stage.id);
   }
 
   StageResult? _lastResult;
@@ -243,8 +268,7 @@ class TrailController extends ChangeNotifier {
       return false;
     }
     final bad = <int>{
-      for (final occurrence in result.badMeasures)
-        ?path.logicalOf(occurrence),
+      for (final occurrence in result.badMeasures) ?path.logicalOf(occurrence),
     };
     final blocks = reinforcementBlocks(bad, path.measureCount);
     if (blocks.isEmpty) return false;
@@ -264,6 +288,7 @@ class TrailController extends ChangeNotifier {
   /// todos feitos, o reforço sai e a final reabre.
   void recordBlockDone(int index, StageResult result) {
     if (index < 0 || index >= _blocks.length) return;
+    _pinnedBlock = null;
     if (result.passed) {
       _blockStates[index] = StageState.aprovada;
       _maybeClearReinforcement();
@@ -275,8 +300,8 @@ class TrailController extends ChangeNotifier {
   /// final reabre.
   void skipBlock(int index) {
     if (index < 0 || index >= _blocks.length) return;
-    if ((_blockStates[index] ?? StageState.pendente) !=
-        StageState.pendente) {
+    _pinnedBlock = null;
+    if ((_blockStates[index] ?? StageState.pendente) != StageState.pendente) {
       return;
     }
     _blockStates[index] = StageState.pulada;

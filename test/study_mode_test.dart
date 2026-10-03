@@ -34,14 +34,14 @@ Widget _drawer({
 
 void main() {
   group('StudyMode ↔ (treino armado, modo de treino)', () {
-    test('as quatro combinações, de ida e volta', () {
+    test('as combinações, de ida e volta', () {
       expect(
         StudyMode.of(training: false, mode: PracticeMode.wait),
         StudyMode.listen,
       );
       // Sem treino armado o modo de treino guardado não importa.
       expect(
-        StudyMode.of(training: false, mode: PracticeMode.rhythm),
+        StudyMode.of(training: false, mode: PracticeMode.realtime),
         StudyMode.listen,
       );
       expect(
@@ -51,10 +51,6 @@ void main() {
       expect(
         StudyMode.of(training: true, mode: PracticeMode.realtime),
         StudyMode.realtime,
-      );
-      expect(
-        StudyMode.of(training: true, mode: PracticeMode.rhythm),
-        StudyMode.rhythm,
       );
       for (final m in StudyMode.values) {
         final practice = m.practiceMode;
@@ -91,8 +87,8 @@ void main() {
       await tester.pumpWidget(_drawer(onModeChanged: (m) => chosen = m));
       await tester.tap(find.text('Tempo real'));
       expect(chosen, StudyMode.realtime);
-      await tester.tap(find.text('Ritmo'));
-      expect(chosen, StudyMode.rhythm);
+      await tester.tap(find.text('Ouvir'));
+      expect(chosen, StudyMode.listen);
     });
 
     testWidgets('com o retorno nulo (treino rodando) o seletor não responde', (
@@ -100,7 +96,7 @@ void main() {
     ) async {
       await tester.pumpWidget(_drawer());
       // Sem retorno: nenhum toque no seletor tem efeito nem lança.
-      await tester.tap(find.text('Ritmo'), warnIfMissed: false);
+      await tester.tap(find.text('Tempo real'), warnIfMissed: false);
       expect(tester.takeException(), isNull);
     });
 

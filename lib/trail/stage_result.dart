@@ -36,13 +36,9 @@ class StageResult {
   bool get passed =>
       nothingToPlay || (total > 0 && hits / total >= kTrailPassAccuracy);
 
-  /// Do resumo pronto das sessões. No ritmo, `extra` (toque sem alvo) entra
-  /// no denominador: sem isso, bater teclas sem parar aprovaria (J00).
-  factory StageResult.fromReport(
-    PracticeReport report, {
-    required bool rhythm,
-  }) {
-    final total = report.total + (rhythm ? report.extra : 0);
+  /// Do resumo pronto das sessões.
+  factory StageResult.fromReport(PracticeReport report) {
+    final total = report.total;
     final bad = <int>{
       for (final m in report.measures)
         if (m.errors + m.imprecise > 0) m.index,

@@ -2,7 +2,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:zywny/practice/practice_report.dart';
 import 'package:zywny/practice/practice_session.dart';
-import 'package:zywny/practice/rhythm_session.dart';
 import 'package:zywny/trail/reinforcement.dart';
 import 'package:zywny/trail/stage_result.dart';
 
@@ -19,7 +18,7 @@ void main() {
         _e(PracticeVerdictKind.late, 1),
         _e(PracticeVerdictKind.missed, 2),
       ]);
-      final r = StageResult.fromReport(ok, rhythm: false);
+      final r = StageResult.fromReport(ok);
       expect(r.hits, 18);
       expect(r.total, 20);
       expect(r.percent, 90);
@@ -31,33 +30,9 @@ void main() {
         _e(PracticeVerdictKind.late, 1),
         _e(PracticeVerdictKind.missed, 2),
       ]);
-      final r2 = StageResult.fromReport(bad, rhythm: false);
+      final r2 = StageResult.fromReport(bad);
       expect(r2.percent, 85);
       expect(r2.passed, isFalse);
-    });
-
-    test('ritmo: 10 certas + 2 extra -> 83% reprovado', () {
-      final report = PracticeReport.rhythm([
-        for (var i = 0; i < 10; i++)
-          RhythmReportEntry(
-            RhythmVerdict(
-              kind: RhythmVerdictKind.correct,
-              deltaMs: 0,
-              eventIds: const ['x'],
-            ),
-            0,
-          ),
-        for (var i = 0; i < 2; i++)
-          const RhythmReportEntry(
-            RhythmVerdict(kind: RhythmVerdictKind.extra, deltaMs: 0),
-            0,
-          ),
-      ]);
-      final r = StageResult.fromReport(report, rhythm: true);
-      expect(r.hits, 10);
-      expect(r.total, 12);
-      expect(r.percent, 83);
-      expect(r.passed, isFalse);
     });
 
     test('899/1000 -> 89, reprovado; total 0 -> reprovado', () {

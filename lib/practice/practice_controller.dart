@@ -5,35 +5,30 @@
 // núcleo puro.
 
 import 'dart:async';
-import 'dart:math' as math;
 import 'dart:ui' show Color;
 
 import 'package:flutter/foundation.dart';
 import 'package:score_bridge/score_bridge.dart';
 
 import '../audio/score_audio_scheduler.dart';
-import '../audio/sound_engine.dart';
 import '../midi/midi_input_service.dart';
-import '../midi/midi_monitor.dart' show kMidiMonitorChannel;
 import '../music/performance_track.dart';
 import '../trail/stage_result.dart';
 import 'hand.dart';
 import 'practice_colors.dart';
 import 'practice_report.dart';
 import 'practice_session.dart';
-import 'rhythm_session.dart';
 
 /// Como o treino conduz o tempo (T03).
+/// Margem padrão do tempo real (ver [PracticeController.rhythmToleranceMs]).
+const double kDefaultRhythmToleranceMs = 75;
+
 enum PracticeMode {
   /// Modo espera (T02): o tempo para até o aluno tocar o passo.
   wait,
 
   /// Tempo real (T03): a música anda e cada nota recebe veredito na hora.
   realtime,
-
-  /// Ritmo (T05): a música anda e o aluno aperta qualquer tecla no instante
-  /// de cada ataque; só o tempo é avaliado.
-  rhythm,
 }
 
 /// Modo espera (T02): o aluno escolhe [hand], o app agenda a outra no
@@ -54,7 +49,6 @@ class PracticeController {
     this.mode = PracticeMode.wait,
     this.measureIndexAt,
     this.passOf,
-    this.magicEngine,
     this.range,
     this.onRangeDone,
     this.rangeJumps = const [],
@@ -63,6 +57,7 @@ class PracticeController {
     this.correctColor = kPracticeCorrectColor,
     this.wrongColor = kPracticeWrongColor,
     this._pendingColor = kPracticePendingColor,
+    this.rhythmToleranceMs = kDefaultRhythmToleranceMs,
   }) : _midiInput = midiInput, // ignore: prefer_initializing_formals
        _track = track {
     if (range != null) {
@@ -90,19 +85,13 @@ class PracticeController {
       wait.current.addListener(_onStepChanged);
       _paintStep();
       _syncGhostExpected();
-    } else if (mode == PracticeMode.rhythm) {
-      final rhythm = RhythmSession.forStaves(
-        sessionTrack,
-        staves: hand.studentStaves,
-        speed: scheduler.speed,
-      );
-      _rhythm = rhythm;
-      _rhythmSub = rhythm.verdicts.listen(_onRhythmVerdict);
     } else {
       final rt = RealtimeSession.forStaves(
         sessionTrack,
         staves: hand.studentStaves,
         speed: scheduler.speed,
+        windowOkMs: rhythmToleranceMs,
+        windowMaxMs: rhythmToleranceMs * 2,
       );
       _rt = rt;
       _verdictSub = rt.verdicts.listen(_onVerdict);
@@ -136,10 +125,10 @@ class PracticeController {
   final int Function(int measureIndex)? passOf;
   final PerformanceTrack _track;
 
-  /// Modo ritmo, "piano mágico" (D-RITMO a): o toque que casa soa as notas
-  /// esperadas do onset neste motor, no canal do monitor. `null`: mudo (o
-  /// piano digital com saída MIDI, M03, soa a tecla real por conta própria).
-  final SoundEngine? magicEngine;
+  /// Tempo real: a margem (ms, no andamento original) para a nota contar
+  /// como certa; até o dobro dela é "fora do tempo", além disso, perdida.
+  /// Em ms musicais, então afrouxa junto com o andamento.
+  final double rhythmToleranceMs;
 
   final MidiInputService _midiInput;
   final ScoreAudioScheduler scheduler;
@@ -197,8 +186,6 @@ class PracticeController {
   bool _rangeDone = false;
   WaitModeSession? _wait;
   RealtimeSession? _rt;
-  RhythmSession? _rhythm;
-  StreamSubscription<RhythmVerdict>? _rhythmSub;
 
   late final StreamSubscription<PlayedNote> _noteSub;
   StreamSubscription<NoteVerdict>? _verdictSub;
@@ -220,9 +207,9 @@ class PracticeController {
 
   /// Acertos e total avaliado **até agora**, na mesma conta de
   /// [stageResult] (U05): modo espera com intervalo = passos de primeira /
-  /// passos concluídos; tempo real = `correct` / avaliadas; ritmo = `correct`
-  /// / (avaliadas + `extra`). Incremental, para não refazer o resumo a cada
-  /// veredito. Sem resultado (modo espera sem intervalo): fica em 0/0.
+  /// passos concluídos; tempo real = `correct` / avaliadas. Incremental,
+  /// para não refazer o resumo a cada veredito. Sem resultado (modo espera
+  /// sem intervalo): fica em 0/0.
   ValueListenable<({int hits, int total})> get liveScore => _liveScore;
 
   void _liveAdd({required bool hit}) {
@@ -358,34 +345,27 @@ class PracticeController {
   final List<ReportEntry> _entries = [];
 
   /// Resumo do que foi avaliado até agora.
-  PracticeReport get report => _rhythm != null
-      ? PracticeReport.rhythm(_rhythmEntries, speed: scheduler.speed)
-      : PracticeReport(_entries, speed: scheduler.speed);
+  PracticeReport get report => PracticeReport(_entries, speed: scheduler.speed);
 
   /// `true` se já houve algum veredito (para decidir se vale mostrar o
   /// resumo).
-  bool get hasVerdicts => _entries.isNotEmpty || _rhythmEntries.isNotEmpty;
+  bool get hasVerdicts => _entries.isNotEmpty;
 
   /// Chamado ~a cada 30 ms no tempo real: dispara os `missed`, fecha a volta
   /// do loop quando a posição recua e sinaliza o fim da peça.
-  bool get _timed => _rt != null || _rhythm != null;
+  bool get _timed => _rt != null;
 
   void _resetTimed(double fromMs, {double? untilMs}) {
     _rt?.resetTo(fromMs, untilMs: untilMs);
-    _rhythm?.resetTo(fromMs, untilMs: untilMs);
   }
 
   void _tickTimed(double ms) {
     _rt?.tick(ms);
-    _rhythm?.tick(ms);
   }
 
   /// Folga (ms musicais) depois da qual um alvo sem toque vira `missed`.
   double get _slackMs {
-    final rt = _rt;
-    if (rt != null) return rt.windowMaxMs * rt.speed;
-    final r = _rhythm!;
-    return r.windowMaxMs * r.speed;
+    return _rt!.windowMaxMs;
   }
 
   void _tick() {
@@ -461,10 +441,7 @@ class PracticeController {
       );
     }
     if (hasVerdicts || _rangeDone) {
-      return StageResult.fromReport(
-        report,
-        rhythm: mode == PracticeMode.rhythm,
-      );
+      return StageResult.fromReport(report);
     }
     return null;
   }
@@ -484,7 +461,6 @@ class PracticeController {
     scheduler.clearJumps();
     scheduler.onJump = null;
     scheduler.pause();
-    _releaseMagic();
     controller.releaseAll();
     _clearExpected();
     _paintedStep = null;
@@ -508,27 +484,9 @@ class PracticeController {
           note.atSeconds - inputLatencyMs / 1000,
         );
         _lastPlayedMusicalMs = musicalMs;
-        final rhythm = _rhythm;
-        if (rhythm != null) {
-          _keysDown++;
-          _pressVelocity = note.velocity;
-          rhythm.hit(
-            musicalMs,
-            atMs: note.atSeconds * 1000 - inputLatencyMs,
-            velocity: note.velocity,
-          );
-        } else {
-          _rt!.noteOn(note.pitch, musicalMs, velocity: note.velocity);
-        }
+        _rt!.noteOn(note.pitch, musicalMs, velocity: note.velocity);
       }
     } else {
-      if (_rhythm != null) {
-        _keysDown = math.max(0, _keysDown - 1);
-        if (_keysDown == 0) _releaseMagic();
-        _rhythm!.release(
-          scheduler.musicalAtDevice(note.atSeconds - inputLatencyMs / 1000),
-        );
-      }
       wait?.noteOff(note.pitch);
       _releaseDone(note.pitch);
       ghosts?.release(note.pitch);
@@ -539,81 +497,6 @@ class PracticeController {
   }
 
   double _lastPlayedMusicalMs = 0;
-
-  // -------------------------------------------------------------------------
-  // Ritmo (T05)
-  // -------------------------------------------------------------------------
-
-  final List<RhythmReportEntry> _rhythmEntries = [];
-  final ValueNotifier<int> _extraBlink = ValueNotifier(0);
-  int _keysDown = 0;
-  int _pressVelocity = 80;
-  final List<int> _magicPitches = [];
-  Map<String, int>? _pitchById;
-
-  /// Sobe a cada toque sem alvo (`extra`): a UI pisca o indicador de toque.
-  ValueListenable<int> get extraBlink => _extraBlink;
-
-  void _releaseMagic() {
-    final engine = magicEngine;
-    if (engine != null) {
-      for (final p in _magicPitches) {
-        engine.send([0x80 | kMidiMonitorChannel, p, 0]);
-      }
-    }
-    _magicPitches.clear();
-  }
-
-  void _soundMagic(List<String> eventIds, int velocity) {
-    final engine = magicEngine;
-    if (engine == null) return;
-    _releaseMagic();
-    final map = _pitchById ??= {for (final e in _track.events) e.id: e.pitch};
-    final v = velocity > 0 ? velocity : _pressVelocity;
-    for (final id in eventIds) {
-      final pitch = map[id];
-      if (pitch == null) continue;
-      _magicPitches.add(pitch);
-      engine.send([0x90 | kMidiMonitorChannel, pitch, v]);
-    }
-  }
-
-  void _onRhythmVerdict(RhythmVerdict v) {
-    final index = _measureAt(v.onMs ?? _lastPlayedMusicalMs);
-    _rhythmEntries.add(
-      RhythmReportEntry(v, index, pass: passOf?.call(index) ?? 1),
-    );
-    _liveAdd(hit: v.kind == RhythmVerdictKind.correct);
-    final (color, release) = switch (v.kind) {
-      RhythmVerdictKind.correct => (correctColor, null),
-      RhythmVerdictKind.early ||
-      RhythmVerdictKind.late => (kPracticeOffBeatColor, null),
-      _ => (kPracticeMissedColor, kPracticeMissedHold),
-    };
-    switch (v.kind) {
-      case RhythmVerdictKind.correct:
-      case RhythmVerdictKind.early:
-      case RhythmVerdictKind.late:
-        _correctCount.value++;
-        _soundMagic(v.eventIds, v.velocity);
-        controller.highlightAll(
-          v.eventIds.expand(_chainOf),
-          color: color,
-          release: kPracticeCorrectRelease,
-        );
-      case RhythmVerdictKind.missed:
-        controller.highlightAll(
-          v.eventIds.expand(_chainOf),
-          color: color,
-          attack: kPracticeWrongAttack,
-          hold: release!,
-          release: kPracticeWrongRelease,
-        );
-      case RhythmVerdictKind.extra:
-        _wrongCount.value++;
-        _extraBlink.value++;
-    }
-  }
 
   Map<String, double>? _onMsById;
 
@@ -919,13 +802,9 @@ class PracticeController {
     _tickTimer?.cancel();
     unawaited(_noteSub.cancel());
     unawaited(_verdictSub?.cancel());
-    unawaited(_rhythmSub?.cancel());
-    _releaseMagic();
     _wait?.current.removeListener(_onStepChanged);
     _wait?.dispose();
     _rt?.dispose();
-    _rhythm?.dispose();
-    _extraBlink.dispose();
     _wrongPitches.dispose();
     _correctCount.dispose();
     _wrongCount.dispose();

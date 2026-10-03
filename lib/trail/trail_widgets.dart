@@ -177,7 +177,7 @@ class TrailTitleChip extends StatelessWidget {
 const double kTrailStripHeight = 34;
 
 /// O que o resumo devolve: o botão que o aluno tocou.
-enum StageSummaryAction { next, retry, skip, backToCurrent, train }
+enum StageSummaryAction { next, retry, skip, train }
 
 /// Resumo da etapa (folha nova, não o `showPracticeSummary`): porcentagem
 /// grande, aprovado/faltou, compassos com erro (números lógicos) e os botões
@@ -189,9 +189,6 @@ Future<StageSummaryAction?> showStageSummary(
   required StageResult result,
   required List<int> badLogical,
   required bool isLast,
-
-  // Etapa refeita fora da atual (J06): oferece voltar a ela.
-  bool showBackToCurrent = false,
 
   // Fase final reprovada com reforço (J07): o botão principal treina os
   // blocos em vez de tentar de novo.
@@ -234,12 +231,6 @@ Future<StageSummaryAction?> showStageSummary(
                       '${joinMeasureNumbers(badLogical)} — marcados na partitura.',
           ),
           const SizedBox(height: 12),
-          if (showBackToCurrent)
-            TextButton(
-              onPressed: () =>
-                  Navigator.pop(context, StageSummaryAction.backToCurrent),
-              child: const Text('Voltar à etapa atual'),
-            ),
           if (passed) ...[
             FilledButton(
               onPressed: () => Navigator.pop(context, StageSummaryAction.next),
@@ -372,6 +363,7 @@ class TrailDrawer extends StatelessWidget {
     required this.onSelectStage,
     required this.onSkipCurrent,
     required this.onRestartTrail,
+    this.onRepeatStage,
     this.blocks = const [],
     this.footer,
   });
@@ -388,6 +380,10 @@ class TrailDrawer extends StatelessWidget {
   final ValueChanged<String> onSelectStage;
   final VoidCallback onSkipCurrent;
   final VoidCallback onRestartTrail;
+
+  /// Repetir uma etapa já feita (aprovada ou pulada): seleciona e já começa.
+  /// `null` (etapa rodando): sem o botão.
+  final ValueChanged<String>? onRepeatStage;
 
   /// Blocos de reforço à vista (J07): o grupo "Fase final" os lista
   /// enquanto existirem (só leitura — roda-se pela faixa).
@@ -510,14 +506,32 @@ class TrailDrawer extends StatelessWidget {
       icon = Icons.circle_outlined;
       iconColor = kInkCaption;
     }
+    final repeat = onRepeatStage;
+    final canRepeat = open && state != StageState.pendente && repeat != null;
+    final trailingText = trailing.isEmpty
+        ? null
+        : Text(trailing, style: const TextStyle(fontSize: 12));
     return ListTile(
       dense: true,
       enabled: open,
       leading: Icon(icon, size: 20, color: iconColor),
       title: Text(label, style: const TextStyle(fontSize: 14)),
-      trailing: trailing.isEmpty
-          ? null
-          : Text(trailing, style: const TextStyle(fontSize: 12)),
+      trailing: canRepeat
+          ? Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                ?trailingText,
+                IconButton(
+                  tooltip: 'Repetir etapa',
+                  visualDensity: VisualDensity.compact,
+                  iconSize: 20,
+                  color: kAccentDark,
+                  onPressed: () => repeat(id),
+                  icon: const Icon(Icons.replay),
+                ),
+              ],
+            )
+          : trailingText,
       onTap: open ? () => onSelectStage(id) : null,
     );
   }

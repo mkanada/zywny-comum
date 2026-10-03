@@ -10,6 +10,7 @@ import '../audio/soundfont_store.dart';
 import '../midi/midi_device_manager.dart';
 import '../midi/midi_device_picker.dart';
 import '../practice/practice_colors.dart';
+import '../trail/trail_stage.dart' show kTrailSpeeds;
 import '../trail/trail_widgets.dart';
 import '../ui/theme.dart';
 import 'app_settings.dart';
@@ -250,6 +251,88 @@ class GeneralSettingsPanel extends StatelessWidget {
           onChanged: (v) => unawaited(_changeTrailN(context, settings, v)),
         ),
       ),
+      const Padding(
+        padding: EdgeInsets.fromLTRB(16, 8, 16, 0),
+        child: Text(
+          'Etapas de cada trecho (arraste para mudar a ordem)',
+          style: TextStyle(fontSize: 13, color: kInkCaption),
+        ),
+      ),
+      // Arrastar pela alça muda a ordem; a caixa liga e desliga a etapa.
+      ReorderableListView(
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        buildDefaultDragHandles: false,
+        onReorderItem: (from, to) {
+          final order = [...settings.trailPhaseOrder];
+          order.insert(to, order.removeAt(from));
+          settings.trailPhaseOrder = order;
+        },
+        children: [
+          for (final (i, phase) in settings.trailPhaseOrder.indexed)
+            CheckboxListTile(
+              key: ValueKey(phase),
+              dense: true,
+              controlAffinity: ListTileControlAffinity.leading,
+              title: Text(phase.label),
+              value: settings.trailPhases.contains(phase),
+              // A última marcada não sai: a trilha precisa de alguma etapa.
+              onChanged:
+                  settings.trailPhases.length == 1 &&
+                      settings.trailPhases.contains(phase)
+                  ? null
+                  : (on) => settings.trailPhases = on == true
+                        ? {...settings.trailPhases, phase}
+                        : ({...settings.trailPhases}..remove(phase)),
+              secondary: ReorderableDragStartListener(
+                index: i,
+                child: const Icon(Icons.drag_handle, color: kInkCaption),
+              ),
+            ),
+        ],
+      ),
+      _SliderRow(
+        label: 'Margem do tempo (no andamento original)',
+        value: settings.rhythmToleranceMs,
+        min: kMinRhythmToleranceMs,
+        max: kMaxRhythmToleranceMs,
+        step: 5,
+        formatValue: (v) => '±${v.round()} ms',
+        onChanged: (v) => settings.rhythmToleranceMs = v,
+      ),
+      const Padding(
+        padding: EdgeInsets.symmetric(horizontal: 16),
+        child: Text(
+          'Quanto a nota pode sair antes ou depois e ainda contar como certa. '
+          'Mais devagar, a margem cresce junto: a 50%, vale o dobro.',
+          style: TextStyle(fontSize: 12, color: kInkCaption),
+        ),
+      ),
+      Padding(
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+        child: Wrap(
+          spacing: 8,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: [
+            const Text(
+              'Andamentos no ritmo',
+              style: TextStyle(fontSize: 13, color: kInkCaption),
+            ),
+            for (final speed in kTrailSpeeds)
+              FilterChip(
+                label: Text('${(speed * 100).round()}%'),
+                selected: settings.trailSpeeds.contains(speed),
+                onSelected:
+                    settings.trailSpeeds.length == 1 &&
+                        settings.trailSpeeds.contains(speed)
+                    ? null
+                    : (on) => settings.trailSpeeds = on
+                          ? {...settings.trailSpeeds, speed}
+                          : ({...settings.trailSpeeds}..remove(speed)),
+              ),
+          ],
+        ),
+      ),
       const _Header('Cores'),
       _ColorRow(
         label: 'Nota certa',
@@ -474,12 +557,14 @@ class _SliderRow extends StatelessWidget {
     required this.max,
     required this.formatValue,
     required this.onChanged,
+    this.step = 0.1,
   });
 
   final String label;
   final double value;
   final double min;
   final double max;
+  final double step;
   final String Function(double value) formatValue;
   final ValueChanged<double> onChanged;
 
@@ -505,7 +590,7 @@ class _SliderRow extends StatelessWidget {
               value: value.clamp(min, max),
               min: min,
               max: max,
-              divisions: ((max - min) / 0.1).round(),
+              divisions: ((max - min) / step).round(),
               onChanged: onChanged,
             ),
           ),

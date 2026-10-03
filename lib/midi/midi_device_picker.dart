@@ -63,36 +63,21 @@ class MidiStatusPill extends StatelessWidget {
           message: connected
               ? 'Teclado MIDI: ${device.name}'
               : 'Conectar teclado MIDI',
+          // Só o ícone: teclado (verde) ou teclado riscado — a palavra
+          // sobrava ao lado dele.
           child: Material(
             color: kChipBg,
-            shape: const StadiumBorder(),
+            shape: const CircleBorder(),
             child: InkWell(
-              customBorder: const StadiumBorder(),
+              customBorder: const CircleBorder(),
               onTap: () =>
                   unawaited(showMidiDevicePicker(context, deviceManager)),
-              child: Container(
-                height: 44,
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                alignment: Alignment.center,
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      connected ? Icons.piano : Icons.piano_off,
-                      size: 20,
-                      color: connected ? kGoodColor : kInk,
-                    ),
-                    const SizedBox(width: 6),
-                    Text(
-                      connected ? 'Teclado ✓' : 'Conectar',
-                      maxLines: 1,
-                      style: TextStyle(
-                        fontSize: 13.5,
-                        fontWeight: FontWeight.w600,
-                        color: connected ? kGoodColor : kInk,
-                      ),
-                    ),
-                  ],
+              child: SizedBox.square(
+                dimension: 44,
+                child: Icon(
+                  connected ? Icons.piano : Icons.piano_off,
+                  size: 22,
+                  color: connected ? kGoodColor : kInk,
                 ),
               ),
             ),

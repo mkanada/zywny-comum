@@ -8,7 +8,6 @@ import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
 
 import 'practice_session.dart';
-import 'rhythm_session.dart';
 
 /// Um veredito e o compasso (ocorrência) onde ele caiu.
 @immutable
@@ -58,63 +57,10 @@ class MeasureStats {
   );
 }
 
-/// Um veredito de ritmo (T05) e o compasso (ocorrência) onde caiu. Os
-/// `extra` não têm compasso próprio e só entram na contagem.
-@immutable
-class RhythmReportEntry {
-  const RhythmReportEntry(this.verdict, this.measureIndex, {this.pass = 1});
-
-  final RhythmVerdict verdict;
-  final int measureIndex;
-  final int pass;
-}
-
 class PracticeReport {
-  /// Resumo do treino de rítmica (T05): um onset é um veredito; `extra`
-  /// (toque sem alvo) conta em [extra] e não entra em [total]/[accuracy]. O
-  /// [meanDeltaMs] é a tendência (negativo = corre) e [stdDevMs] a
-  /// regularidade.
-  factory PracticeReport.rhythm(
-    Iterable<RhythmReportEntry> entries, {
-    double speed = 1,
-  }) {
-    var extra = 0;
-    final mapped = <ReportEntry>[];
-    for (final e in entries) {
-      final v = e.verdict;
-      if (v.kind == RhythmVerdictKind.extra) {
-        extra++;
-        continue;
-      }
-      mapped.add(
-        ReportEntry(
-          NoteVerdict(
-            eventId: v.eventIds.isEmpty ? null : v.eventIds.first,
-            pitch: 0,
-            kind: switch (v.kind) {
-              RhythmVerdictKind.correct => PracticeVerdictKind.correct,
-              RhythmVerdictKind.early => PracticeVerdictKind.early,
-              RhythmVerdictKind.late => PracticeVerdictKind.late,
-              _ => PracticeVerdictKind.missed,
-            },
-            deltaMs: v.deltaMs,
-            velocity: v.velocity,
-          ),
-          e.measureIndex,
-          pass: e.pass,
-        ),
-      );
-    }
-    return PracticeReport(mapped, speed: speed, extra: extra);
-  }
-
   /// [speed]: andamento da sessão — os `deltaMs` do tempo real são musicais,
   /// e o resumo mostra ms de parede (o que o aluno sente).
-  factory PracticeReport(
-    Iterable<ReportEntry> entries, {
-    double speed = 1,
-    int extra = 0,
-  }) {
+  factory PracticeReport(Iterable<ReportEntry> entries, {double speed = 1}) {
     final byMeasure = <int, MeasureStats>{};
     var correct = 0, early = 0, late = 0, wrong = 0, missed = 0;
     var deltaSum = 0.0, deltaAbsSum = 0.0, deltaCount = 0;
@@ -155,7 +101,6 @@ class PracticeReport {
       sq += (w - mean) * (w - mean);
     }
     return PracticeReport._(
-      extra: extra,
       stdDevMs: deltaCount == 0 ? 0 : math.sqrt(sq / deltaCount),
       correct: correct,
       early: early,
@@ -169,7 +114,6 @@ class PracticeReport {
   }
 
   const PracticeReport._({
-    required this.extra,
     required this.stdDevMs,
     required this.correct,
     required this.early,
@@ -186,9 +130,6 @@ class PracticeReport {
   final int late;
   final int wrong;
   final int missed;
-
-  /// Toques sem alvo (só no modo ritmo); fora de [total].
-  final int extra;
 
   /// Desvio-padrão do delta nas notas casadas, ms de parede — regularidade
   /// (quanto menor, mais constante).

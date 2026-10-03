@@ -11,10 +11,7 @@ enum StudyMode {
   wait('Espera', 'A música espera você acertar a nota.'),
 
   /// Tempo real (T03).
-  realtime('Tempo real', 'A música não espera; cada nota é avaliada.'),
-
-  /// Treino de rítmica (T05).
-  rhythm('Ritmo', 'Qualquer tecla vale; só o tempo é avaliado.');
+  realtime('Tempo real', 'A música não espera; cada nota é avaliada.');
 
   const StudyMode(this.label, this.explanation);
 
@@ -28,7 +25,6 @@ enum StudyMode {
       : switch (mode) {
           PracticeMode.wait => StudyMode.wait,
           PracticeMode.realtime => StudyMode.realtime,
-          PracticeMode.rhythm => StudyMode.rhythm,
         };
 
   /// `true` nos três modos de treino.
@@ -39,6 +35,5 @@ enum StudyMode {
     StudyMode.listen => null,
     StudyMode.wait => PracticeMode.wait,
     StudyMode.realtime => PracticeMode.realtime,
-    StudyMode.rhythm => PracticeMode.rhythm,
   };
 }
