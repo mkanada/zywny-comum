@@ -96,6 +96,36 @@ String midiHelpText({required bool android}) =>
     'adaptador). Ele conecta sozinho.'
     '${android ? '\nTeclados por Bluetooth ainda não funcionam.' : ''}';
 
+/// O que dizer quando o navegador não deixa listar teclados (Web, W03):
+/// título, explicação e se vale oferecer o botão de pedir a permissão.
+({String title, String body, String? action}) midiUnavailableText(
+  MidiUnavailable reason,
+) => switch (reason) {
+  MidiUnavailable.unsupported => (
+    title: 'Este navegador não fala com teclados MIDI',
+    body:
+        'Para tocar com um teclado, abra o zywny no Chrome ou no Edge '
+        '(no Safari e no iPhone não funciona). A partitura e o som '
+        'continuam funcionando aqui.',
+    action: null,
+  ),
+  MidiUnavailable.notAsked => (
+    title: 'Usar um teclado MIDI',
+    body:
+        'Ligue o teclado ao computador com o cabo USB. O navegador vai '
+        'pedir permissão para acessar os aparelhos MIDI.',
+    action: 'Ativar o MIDI',
+  ),
+  MidiUnavailable.denied => (
+    title: 'O navegador não liberou o MIDI',
+    body:
+        'No Chrome e no Edge, clique no cadeado ao lado do endereço, '
+        'permita "Dispositivos MIDI" e tente de novo. O Firefox só libera '
+        'o MIDI com um complemento: prefira o Chrome ou o Edge.',
+    action: 'Tentar de novo',
+  ),
+};
+
 /// Diálogo do teclado MIDI: o que está conectado, a lista de aparelhos
 /// (atualizada ao vivo por hot-plug enquanto está aberto) e, sem nenhum, a
 /// orientação para ligar um e o botão de procurar de novo.
@@ -125,12 +155,17 @@ Future<void> showMidiDevicePicker(
             deviceManager.devices,
             deviceManager.connected,
             deviceManager.lastError,
+            deviceManager.unavailable,
             searching,
           ]),
           builder: (context, _) {
             final devices = deviceManager.devices.value;
             final connected = deviceManager.connected.value;
             final error = deviceManager.lastError.value;
+            final unavailable = deviceManager.unavailable.value;
+            final unavailableText = unavailable == null
+                ? null
+                : midiUnavailableText(unavailable);
             return Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -156,33 +191,41 @@ Future<void> showMidiDevicePicker(
                           color: kInkCaption,
                         ),
                         const SizedBox(height: 8),
-                        const Text(
-                          'Nenhum teclado encontrado',
-                          style: TextStyle(
+                        Text(
+                          unavailableText?.title ?? 'Nenhum teclado encontrado',
+                          style: const TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.w600,
                           ),
                         ),
                         const SizedBox(height: 6),
                         Text(
-                          midiHelpText(
-                            android:
-                                defaultTargetPlatform == TargetPlatform.android,
-                          ),
+                          unavailableText?.body ??
+                              midiHelpText(
+                                android:
+                                    defaultTargetPlatform ==
+                                    TargetPlatform.android,
+                              ),
                         ),
-                        const SizedBox(height: 12),
-                        FilledButton.tonal(
-                          onPressed: searching.value ? null : search,
-                          child: searching.value
-                              ? const SizedBox(
-                                  width: 18,
-                                  height: 18,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
+                        if (unavailableText == null ||
+                            unavailableText.action != null) ...[
+                          const SizedBox(height: 12),
+                          FilledButton.tonal(
+                            onPressed: searching.value ? null : search,
+                            child: searching.value
+                                ? const SizedBox(
+                                    width: 18,
+                                    height: 18,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                    ),
+                                  )
+                                : Text(
+                                    unavailableText?.action ??
+                                        'Procurar de novo',
                                   ),
-                                )
-                              : const Text('Procurar de novo'),
-                        ),
+                          ),
+                        ],
                       ],
                     ),
                   )

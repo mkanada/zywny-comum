@@ -1,0 +1,13 @@
+{
+  "name": "zywny-web-audio",
+  "private": true,
+  "description": "Bundle do SpessaSynth para o zywny na Web (W04) — ver tool/build_audio_web.sh",
+  "type": "module",
+  "dependencies": {
+    "spessasynth_core": "^4.3.22",
+    "spessasynth_lib": "^4.3.14"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.0"
+  }
+}

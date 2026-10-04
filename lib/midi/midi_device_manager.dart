@@ -5,19 +5,73 @@ import 'package:flutter_midi_command/flutter_midi_command.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../diag_log.dart';
+import 'web_midi_access.dart';
+
+/// Por que a lista de teclados não existe (só na Web, W03): `null` em
+/// [MidiDeviceManager.unavailable] quer dizer que o MIDI está acessível.
+enum MidiUnavailable {
+  /// O navegador não tem Web MIDI (Safari, iOS, Firefox sem add-on).
+  unsupported,
+
+  /// O navegador ainda não perguntou: a pergunta de permissão só abre num
+  /// clique do usuário ([MidiDeviceManager.refresh] a partir do seletor).
+  notAsked,
+
+  /// O usuário (ou a política do navegador) recusou o acesso.
+  denied,
+}
 
 /// Lista dispositivos MIDI, conecta, guarda o último escolhido e conecta
 /// sozinho — na abertura do app e a cada hot-plug (M01, critério de aceite
 /// 1): plugou o fio, o teclado entra, sem passar pela configuração. Não decodifica mensagens: isso é `MidiInputService`.
 class MidiDeviceManager {
-  MidiDeviceManager({MidiCommand? midi, SharedPreferencesAsync? prefs})
-    : _midi = midi ?? MidiCommand(),
-      _prefs = prefs ?? SharedPreferencesAsync() {
-    _setupSub = _midi.onMidiSetupChanged?.listen((c) {
+  /// [isWeb], [webSupported] e [webGranted] existem para testar o caminho da
+  /// Web fora do navegador; o padrão é o ambiente de verdade.
+  MidiDeviceManager({
+    MidiCommand? midi,
+    SharedPreferencesAsync? prefs,
+    bool isWeb = kIsWeb,
+    bool Function()? webSupported,
+    Future<bool> Function()? webGranted,
+  }) : _midi = midi ?? MidiCommand(),
+       _prefs = prefs ?? SharedPreferencesAsync(),
+       _isWeb = isWeb {
+    if (!isWeb) {
+      _listenSetup();
+      unawaited(refresh());
+      return;
+    }
+    // Na Web, mexer no plugin (até assinar `onMidiSetupChanged`) já pede o
+    // acesso ao navegador — então só se começa se não vai abrir pergunta
+    // sozinha, na abertura do app (W03: a pergunta vem de um clique).
+    unawaited(_startWeb(webSupported ?? () => webMidiSupported, webGranted));
+  }
+
+  final bool _isWeb;
+
+  /// `null` com o MIDI acessível; senão o motivo (Web, W03).
+  final ValueNotifier<MidiUnavailable?> unavailable = ValueNotifier(null);
+
+  Future<void> _startWeb(
+    bool Function() supported,
+    Future<bool> Function()? granted,
+  ) async {
+    if (!supported()) {
+      unavailable.value = MidiUnavailable.unsupported;
+      return;
+    }
+    if (await (granted ?? webMidiGranted)()) {
+      await refresh();
+    } else if (!_disposed) {
+      unavailable.value = MidiUnavailable.notAsked;
+    }
+  }
+
+  void _listenSetup() {
+    _setupSub ??= _midi.onMidiSetupChanged?.listen((c) {
       DiagLog.log('midi-dev', 'setup mudou: $c');
       refresh();
     });
-    unawaited(refresh());
   }
 
   static const _kLastDeviceIdKey = 'midi_last_device_id';
@@ -60,8 +114,23 @@ class MidiDeviceManager {
   String? _pausedName;
 
   Future<void> _refreshOnce() async {
-    final list = await _midi.devices ?? const <MidiDevice>[];
+    final List<MidiDevice> list;
+    try {
+      list = await _midi.devices ?? const <MidiDevice>[];
+    } on Object catch (e) {
+      if (!_isWeb) rethrow;
+      // Web: sem Web MIDI (UnsupportedError do plugin) ou acesso recusado.
+      DiagLog.log('midi-dev', 'Web MIDI indisponível: $e');
+      if (_disposed) return;
+      unavailable.value = e is UnsupportedError
+          ? MidiUnavailable.unsupported
+          : MidiUnavailable.denied;
+      devices.value = const [];
+      return;
+    }
     if (_disposed) return;
+    unavailable.value = null;
+    if (_isWeb) _listenSetup();
     devices.value = list;
     DiagLog.log(
       'midi-dev',
@@ -176,5 +245,6 @@ class MidiDeviceManager {
     devices.dispose();
     connected.dispose();
     lastError.dispose();
+    unavailable.dispose();
   }
 }
