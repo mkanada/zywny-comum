@@ -22,7 +22,7 @@ import 'color_picker.dart';
 Future<Uint8List?> pickSoundFontBytes() async {
   final file = await openFile(
     acceptedTypeGroups: [
-      Platform.isAndroid
+      !kIsWeb && Platform.isAndroid
           ? const XTypeGroup(label: 'soundfont')
           : const XTypeGroup(label: 'soundfont', extensions: ['sf2']),
     ],
