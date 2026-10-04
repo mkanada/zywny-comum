@@ -12,9 +12,13 @@ import '../midi/midi_device_picker.dart';
 import '../practice/practice_colors.dart';
 import '../trail/trail_stage.dart' show kTrailSpeeds;
 import '../trail/trail_widgets.dart';
+import '../library/library_installer.dart';
+import '../library/library_store.dart';
+import '../library/library_term_scope.dart';
 import '../ui/theme.dart';
 import 'app_settings.dart';
 import 'color_picker.dart';
+import 'libraries_section.dart';
 
 /// Abre o seletor de arquivos para um `.sf2` e devolve os bytes; `null` se
 /// o usuário cancelou. No Android o filtro por extensão volta vazio (o SAF
@@ -73,6 +77,7 @@ class GeneralSettingsPanel extends StatelessWidget {
     required this.onResetSoundFont,
     required this.onClose,
     this.live,
+    this.libraries,
   });
 
   final AppSettings settings;
@@ -84,6 +89,10 @@ class GeneralSettingsPanel extends StatelessWidget {
   final VoidCallback onResetSoundFont;
   final VoidCallback onClose;
   final LiveSettingsActions? live;
+
+  /// A seção Bibliotecas — só nas configurações abertas pela biblioteca;
+  /// com uma partitura aberta, trocar de biblioteca não faz sentido.
+  final Widget? libraries;
 
   @override
   Widget build(BuildContext context) {
@@ -108,7 +117,9 @@ class GeneralSettingsPanel extends StatelessWidget {
                         style: theme.textTheme.titleSmall,
                       ),
                       Text(
-                        'valem para todos os hinos',
+                        'valem para ${LibraryTermScope.of(context).todos} '
+                        '${LibraryTermScope.of(context).os} '
+                        '${LibraryTermScope.of(context).plural}',
                         style: theme.textTheme.bodySmall,
                       ),
                     ],
@@ -143,6 +154,7 @@ class GeneralSettingsPanel extends StatelessWidget {
     final device = midiDeviceManager.connected.value;
     final toMidi = settings.output == SoundOutput.midiKeyboard;
     return [
+      ?libraries,
       const _Header('Som'),
       SwitchListTile(
         dense: true,
@@ -186,14 +198,16 @@ class GeneralSettingsPanel extends StatelessWidget {
           value: settings.useScoreInstruments,
           onChanged: (v) => settings.useScoreInstruments = v,
         ),
-      ListTile(
-        dense: true,
-        leading: const Icon(Icons.library_music, size: 20),
-        title: const Text('Timbre do piano'),
-        subtitle: Text(customSoundFont ? 'personalizado' : 'padrão'),
-        trailing: const _RowAction('Trocar'),
-        onTap: busy ? null : onChooseSoundFont,
-      ),
+      // Na Web não há onde guardar o .sf2 escolhido (W04): só o padrão.
+      if (!kIsWeb)
+        ListTile(
+          dense: true,
+          leading: const Icon(Icons.library_music, size: 20),
+          title: const Text('Timbre do piano'),
+          subtitle: Text(customSoundFont ? 'personalizado' : 'padrão'),
+          trailing: const _RowAction('Trocar'),
+          onTap: busy ? null : onChooseSoundFont,
+        ),
       if (customSoundFont)
         ListTile(
           dense: true,
@@ -402,10 +416,13 @@ Future<void> _changeTrailN(
   int value,
 ) async {
   if (value == settings.trailMeasures) return;
+  final term = LibraryTermScope.of(context);
   final ok = await confirmTrailReset(
     context,
     title: 'Mudar o tamanho dos trechos?',
-    message: 'Os hinos que usam o padrão recomeçam a trilha do começo.',
+    message:
+        '${term.os[0].toUpperCase()}${term.os.substring(1)} ${term.plural} '
+        'que usam o padrão recomeçam a trilha do começo.',
     confirmLabel: 'Mudar',
   );
   if (!ok) return;
@@ -421,11 +438,18 @@ class GeneralSettingsScreen extends StatefulWidget {
     required this.settings,
     required this.midiDeviceManager,
     this.soundFonts = const SoundFontStore(),
+    this.libraryStore,
+    this.pickLibraryFile = pickLibraryBytes,
   });
 
   final AppSettings settings;
   final MidiDeviceManager midiDeviceManager;
   final SoundFontStore soundFonts;
+
+  /// As bibliotecas instaladas (a seção Bibliotecas); `null` não mostra a
+  /// seção.
+  final LibraryStore? libraryStore;
+  final Future<Uint8List?> Function() pickLibraryFile;
 
   @override
   State<GeneralSettingsScreen> createState() => _GeneralSettingsScreenState();
@@ -480,6 +504,18 @@ class _GeneralSettingsScreenState extends State<GeneralSettingsScreen> {
                 onChooseSoundFont: () => unawaited(_choose()),
                 onResetSoundFont: () => unawaited(_reset()),
                 onClose: () => Navigator.of(context).pop(),
+                libraries: widget.libraryStore == null
+                    ? null
+                    : LibrariesSection(
+                        store: widget.libraryStore!,
+                        onInstall: () => unawaited(
+                          installLibraryFromFile(
+                            context,
+                            widget.libraryStore!,
+                            pick: widget.pickLibraryFile,
+                          ),
+                        ),
+                      ),
               ),
             ),
           ),

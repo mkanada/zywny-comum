@@ -69,7 +69,7 @@ TrailController _controller({TrailProgress? progress}) {
     plan: plan,
     progress: progress ?? TrailProgress(n: 5, total: plan.stages.length),
     store: TrailProgressStore(),
-    hymnNumber: 12,
+    pieceId: '012',
   );
 }
 
@@ -86,30 +86,31 @@ void main() {
     }
   }
 
-  test('reprovou final.50 com erros em 7,8 → bloco [6-9] a 50% (critério 1)',
-      () async {
-    final c = _controller();
-    await passSegments(c);
-    expect(c.selected?.id, 'final.50');
-    await c.recordDone(_pct(17, 20, {7, 8}));
-    expect(c.progress.stateOf('final.50'), StageState.pendente);
-    expect(c.startReinforcement(_pct(17, 20, {7, 8})), isTrue);
-    expect(c.reinforcing, isTrue);
-    expect(c.reinforcementSpeed, 0.5);
-    expect(
-      [for (final b in c.blockViews) [b.first, b.last]],
-      [
-        [6, 9],
-      ],
-    );
-    expect(
-      c.selected?.label,
-      'Reforço 1/1 · compassos 7–10 · 50%',
-    );
-    c.recordBlockDone(0, _pct(9, 10));
-    expect(c.reinforcing, isFalse);
-    expect(c.selected?.id, 'final.50');
-  });
+  test(
+    'reprovou final.50 com erros em 7,8 → bloco [6-9] a 50% (critério 1)',
+    () async {
+      final c = _controller();
+      await passSegments(c);
+      expect(c.selected?.id, 'final.50');
+      await c.recordDone(_pct(17, 20, {7, 8}));
+      expect(c.progress.stateOf('final.50'), StageState.pendente);
+      expect(c.startReinforcement(_pct(17, 20, {7, 8})), isTrue);
+      expect(c.reinforcing, isTrue);
+      expect(c.reinforcementSpeed, 0.5);
+      expect(
+        [
+          for (final b in c.blockViews) [b.first, b.last],
+        ],
+        [
+          [6, 9],
+        ],
+      );
+      expect(c.selected?.label, 'Reforço 1/1 · compassos 7–10 · 50%');
+      c.recordBlockDone(0, _pct(9, 10));
+      expect(c.reinforcing, isFalse);
+      expect(c.selected?.id, 'final.50');
+    },
+  );
 
   test('dois blocos: pular um e aprovar o outro reabre, sem pular a final '
       '(critério 2)', () async {
@@ -146,10 +147,7 @@ void main() {
       isFalse,
     );
     expect(c.reinforcing, isFalse);
-    expect(
-      c.startReinforcement(_pct(10, 20, const {})),
-      isFalse,
-    );
+    expect(c.startReinforcement(_pct(10, 20, const {})), isFalse);
   });
 
   test('recriar no meio do reforço descarta (critério 5)', () async {

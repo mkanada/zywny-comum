@@ -12,8 +12,8 @@ import 'trail_segments.dart';
 import 'trail_stage.dart';
 
 /// N efetivo da música: o dela, senão o geral (J00).
-int effectiveTrailMeasures({required int general, int? hymn}) =>
-    hymn ?? general;
+int effectiveTrailMeasures({required int general, int? piece}) =>
+    piece ?? general;
 
 /// Vãos (`startMs`, `endMs`) dentro da etapa (J08): os saltos do caminho entre
 /// seus compassos lógicos. O agendador os pula e as sessões nem os avaliam.

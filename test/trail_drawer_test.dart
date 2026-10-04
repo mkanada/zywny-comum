@@ -5,7 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:shared_preferences_platform_interface/in_memory_shared_preferences_async.dart';
 import 'package:shared_preferences_platform_interface/shared_preferences_async_platform_interface.dart';
 import 'package:zywny/music/performance_track.dart';
-import 'package:zywny/settings/hymn_settings.dart';
+import 'package:zywny/settings/piece_settings.dart';
 import 'package:zywny/trail/stage_result.dart';
 import 'package:zywny/trail/trail_controller.dart';
 import 'package:zywny/trail/trail_path.dart';
@@ -234,7 +234,7 @@ void main() {
         plan: plan,
         progress: TrailProgress(n: 5, total: plan.stages.length),
         store: store,
-        hymnNumber: 12,
+        pieceId: '012',
       );
       await controller.recordDone(
         const StageResult(hits: 19, total: 20, badMeasures: {}),
@@ -359,23 +359,23 @@ void main() {
           't0.notasD': StageRecord(state: StageState.aprovada, best: 90),
         },
       );
-      await store.save(12, full);
-      await store.save(13, full);
-      await store.reset(12);
-      expect(store[12], TrailProgress.empty);
-      expect(store[13], full);
+      await store.save('012', full);
+      await store.save('013', full);
+      await store.reset('012');
+      expect(store['012'], TrailProgress.empty);
+      expect(store['013'], full);
     });
 
     test('usar o padrão volta ao N geral', () async {
-      final store = HymnSettingsStore();
-      await store.save(5, const HymnSettings(trailMeasures: 8));
-      expect((await store.load(5)).trailMeasures, 8);
-      await store.save(5, const HymnSettings());
-      final reloaded = await store.load(5);
+      final store = PieceSettingsStore();
+      await store.save('hinos', '005', const PieceSettings(trailMeasures: 8));
+      expect((await store.load('hinos', '005')).trailMeasures, 8);
+      await store.save('hinos', '005', const PieceSettings());
+      final reloaded = await store.load('hinos', '005');
       expect(reloaded.trailMeasures, isNull);
       expect(reloaded.isDefault, isTrue);
       expect(
-        await SharedPreferencesAsync().getString('hymn_settings_5'),
+        await SharedPreferencesAsync().getString('piece_settings_hinos_005'),
         isNull,
       );
     });

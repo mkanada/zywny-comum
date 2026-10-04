@@ -11,6 +11,8 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../library/library_keys.dart';
+import '../library/piece.dart' show kHymnsLibraryId;
 import 'stage_result.dart';
 import 'trail_plan.dart';
 import 'trail_stage.dart';
@@ -125,8 +127,7 @@ class TrailProgress {
   /// Trilha vazia (nada feito, sem corte conhecido).
   static const empty = TrailProgress(n: 0, total: 0);
 
-  StageState stateOf(String id) =>
-      records[id]?.state ?? StageState.pendente;
+  StageState stateOf(String id) => records[id]?.state ?? StageState.pendente;
 
   bool _matches(TrailPlan plan) => plan.n == n;
 
@@ -168,8 +169,7 @@ class TrailProgress {
   }
 
   /// A `final.100` aprovada: a música foi concluída (a biblioteca marca).
-  bool get finalApproved =>
-      records['final.100']?.state == StageState.aprovada;
+  bool get finalApproved => records['final.100']?.state == StageState.aprovada;
 
   /// Feitas sem plano (cache do JSON para a biblioteca — J09).
   int get done =>
@@ -192,7 +192,10 @@ class TrailProgress {
     return TrailProgress(
       n: n,
       total: total,
-      records: {...records, id: StageRecord(state: state, best: best)},
+      records: {
+        ...records,
+        id: StageRecord(state: state, best: best),
+      },
     );
   }
 
@@ -217,9 +220,7 @@ class TrailProgress {
     'n': n,
     'total': total,
     'done': done,
-    'records': {
-      for (final e in records.entries) e.key: e.value.toJson(),
-    },
+    'records': {for (final e in records.entries) e.key: e.value.toJson()},
     'resume': ?resume?.toJson(),
   };
 
@@ -229,9 +230,7 @@ class TrailProgress {
     if (stored is Map) {
       stored.forEach((key, value) {
         if (key is String && value is Map) {
-          records[key] = StageRecord.fromJson(
-            value.cast<String, dynamic>(),
-          );
+          records[key] = StageRecord.fromJson(value.cast<String, dynamic>());
         }
       });
     }
@@ -263,44 +262,43 @@ class TrailProgress {
   int get hashCode => Object.hash(n, total, records, resume);
 }
 
-/// Guarda uma trilha por hino (`trail_<número>`, com `'v': 1`), com
-/// `done`/`total` junto para a biblioteca (J09). Avisa quem escuta a cada
-/// mudança — a biblioteca refaz a linha do hino ao voltar da partitura.
+/// Guarda uma trilha por música (`trail_<biblioteca>_<id>`, com `'v': 1`),
+/// com `done`/`total` junto para a biblioteca (J09). Avisa quem escuta a cada
+/// mudança — a biblioteca refaz a linha da música ao voltar da partitura.
+///
+/// Vale para uma biblioteca por vez: [load] diz qual (a em uso).
 class TrailProgressStore extends ChangeNotifier {
   TrailProgressStore({SharedPreferencesAsync? prefs})
     : _prefs = prefs ?? SharedPreferencesAsync();
 
   final SharedPreferencesAsync _prefs;
-  final Map<int, TrailProgress> _byNumber = {};
+  final Map<String, TrailProgress> _byId = {};
+  String _libraryId = kHymnsLibraryId;
 
-  static String key(int number) => 'trail_$number';
+  String get libraryId => _libraryId;
 
-  /// Hinos da biblioteca embutida (1–600): a leitura em lote dos resumos.
-  static const int kMaxHymnNumber = 600;
+  TrailProgress operator [](String id) => _byId[id] ?? TrailProgress.empty;
 
-  TrailProgress operator [](int number) =>
-      _byNumber[number] ?? TrailProgress.empty;
-
-  /// Garante o hino na memória (uma chave só) — a tela usa isto ao abrir a
+  /// Garante a música na memória (uma chave só) — a tela usa isto ao abrir a
   /// partitura; o `load()` em lote é para a biblioteca (J09).
-  Future<TrailProgress> ensureLoaded(int number) async {
+  Future<TrailProgress> ensureLoaded(String id) async {
     try {
-      final text = await _prefs.getString(key(number));
+      final text = await _prefs.getString(trailKeyFor(_libraryId, id));
       if (text != null) {
-        _byNumber[number] = TrailProgress.fromJson(
+        _byId[id] = TrailProgress.fromJson(
           jsonDecode(text) as Map<String, dynamic>,
         );
       }
     } on Object {
-      _byNumber.remove(number);
+      _byId.remove(id);
     }
-    return this[number];
+    return this[id];
   }
 
   /// Resumo pronto para a biblioteca (J09): sem montar nenhum plano.
   ({int done, int total, int skipped, bool completed, TrailResume? resume})
-  summary(int number) {
-    final p = _byNumber[number] ?? TrailProgress.empty;
+  summary(String id) {
+    final p = _byId[id] ?? TrailProgress.empty;
     return (
       done: p.done,
       total: p.total,
@@ -310,32 +308,38 @@ class TrailProgressStore extends ChangeNotifier {
     );
   }
 
-  Future<void> load() async {
-    _byNumber.clear();
-    for (var number = 1; number <= kMaxHymnNumber; number++) {
+  /// Lê a trilha de cada uma das [ids] de [libraryId] (a que ficou em uso,
+  /// se omitido) — as músicas do catálogo, não um intervalo fixo.
+  Future<void> load(Iterable<String> ids, [String? libraryId]) async {
+    if (libraryId != null) _libraryId = libraryId;
+    _byId.clear();
+    for (final id in ids) {
       try {
-        final text = await _prefs.getString(key(number));
+        final text = await _prefs.getString(trailKeyFor(_libraryId, id));
         if (text == null) continue;
-        _byNumber[number] = TrailProgress.fromJson(
+        _byId[id] = TrailProgress.fromJson(
           jsonDecode(text) as Map<String, dynamic>,
         );
       } on Object {
-        // JSON estragado: trilha vazia, sem exceção (padrão do hymn_progress).
+        // JSON estragado: trilha vazia, sem exceção (padrão do piece_progress).
         continue;
       }
     }
     notifyListeners();
   }
 
-  Future<void> save(int number, TrailProgress progress) {
-    _byNumber[number] = progress;
+  Future<void> save(String id, TrailProgress progress) {
+    _byId[id] = progress;
     notifyListeners();
-    return _prefs.setString(key(number), jsonEncode(progress.toJson()));
+    return _prefs.setString(
+      trailKeyFor(_libraryId, id),
+      jsonEncode(progress.toJson()),
+    );
   }
 
-  Future<void> reset(int number) {
-    _byNumber.remove(number);
+  Future<void> reset(String id) {
+    _byId.remove(id);
     notifyListeners();
-    return _prefs.remove(key(number));
+    return _prefs.remove(trailKeyFor(_libraryId, id));
   }
 }

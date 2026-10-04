@@ -20,7 +20,7 @@ enum SoundOutput { appSynth, midiKeyboard }
 
 /// Configurações **gerais** do app — valem para qualquer hino: som, saída,
 /// metrônomo, cores. (O que é de um hino só — tamanho da notação, layout,
-/// andamento, mão — fica em `HymnSettingsStore`.)
+/// andamento, mão — fica em `PieceSettingsStore`.)
 ///
 /// Cada valor é uma chave própria em [SharedPreferencesAsync], que no
 /// Android/Linux/Windows sobrevive a fechar o app e a instalar uma versão

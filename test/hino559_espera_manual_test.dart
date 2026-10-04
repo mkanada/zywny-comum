@@ -17,6 +17,9 @@ import 'dart:ui' show Color;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+import 'support/hymn_package.dart';
+
 import 'package:score_bridge/score_bridge.dart';
 import 'package:zywny/audio/audio_playback_clock.dart';
 import 'package:zywny/audio/score_audio_scheduler.dart';
@@ -92,10 +95,13 @@ void main() {
       TestWidgetsFlutterBinding.ensureInitialized();
       final tmp = await Directory.systemTemp.createTemp('h559');
       addTearDown(() => tmp.delete(recursive: true));
+      final hymns = await openLocalHymnPackage();
+      if (hymns == null) {
+        markTestSkipped('sem dist/hinos.zywny e keys/ (just pacote-hinos)');
+        return;
+      }
       final input = File('${tmp.path}/559.musicxml')
-        ..writeAsBytesSync(
-          gzip.decode(File('assets/hinos/559.musicxml.gz').readAsBytesSync()),
-        );
+        ..writeAsBytesSync(await hymns.loadScore('559'));
       final doc = await renderScoreToVsb(
         VsbRenderRequest(
           inputPath: input.path,

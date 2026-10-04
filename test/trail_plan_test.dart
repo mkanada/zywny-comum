@@ -5,7 +5,7 @@ import 'package:shared_preferences_platform_interface/in_memory_shared_preferenc
 import 'package:shared_preferences_platform_interface/shared_preferences_async_platform_interface.dart';
 import 'package:zywny/music/performance_track.dart';
 import 'package:zywny/settings/app_settings.dart';
-import 'package:zywny/settings/hymn_settings.dart';
+import 'package:zywny/settings/piece_settings.dart';
 import 'package:zywny/trail/stage_result.dart';
 import 'package:zywny/trail/trail_path.dart';
 import 'package:zywny/trail/trail_plan.dart';
@@ -208,22 +208,22 @@ void main() {
 
     test('grava e volta igual; JSON estragado vira trilha vazia', () async {
       final store = TrailProgressStore();
-      await store.load();
+      await store.load(const ['012']);
       var progress = const TrailProgress(n: 5, total: 27);
       progress = progress.recordResult('t0.notasD', _pct(9, 10));
       progress = progress.skip('t0.notasE');
-      await store.save(12, progress);
+      await store.save('012', progress);
 
       final second = TrailProgressStore();
-      await second.load();
-      expect(second[12], progress);
-      expect(second.summary(12).done, 2);
-      expect(second.summary(12).total, 27);
+      await second.load(const ['012']);
+      expect(second['012'], progress);
+      expect(second.summary('012').done, 2);
+      expect(second.summary('012').total, 27);
 
-      await SharedPreferencesAsync().setString('trail_7', '{quebrado');
+      await SharedPreferencesAsync().setString('trail_hinos_007', '{quebrado');
       final third = TrailProgressStore();
-      await third.load();
-      expect(third[7], TrailProgress.empty);
+      await third.load(const ['007']);
+      expect(third['007'], TrailProgress.empty);
     });
 
     test('n diferente não mistura ids', () {
@@ -265,19 +265,19 @@ void main() {
     });
 
     test('por hino persiste; fora da faixa volta para >= 3', () async {
-      final store = HymnSettingsStore();
-      await store.save(5, const HymnSettings(trailMeasures: 8));
-      expect((await store.load(5)).trailMeasures, 8);
-      expect((await store.load(5)).isDefault, isFalse);
-      expect((await store.load(6)).trailMeasures, isNull);
+      final store = PieceSettingsStore();
+      await store.save('hinos', '005', const PieceSettings(trailMeasures: 8));
+      expect((await store.load('hinos', '005')).trailMeasures, 8);
+      expect((await store.load('hinos', '005')).isDefault, isFalse);
+      expect((await store.load('hinos', '006')).trailMeasures, isNull);
 
-      final clamped = HymnSettings.fromJson({'trailMeasures': 1});
+      final clamped = PieceSettings.fromJson({'trailMeasures': 1});
       expect(clamped.trailMeasures, kTrailMinMeasures);
     });
 
     test('efetivo é o da música, senão o geral', () {
-      expect(effectiveTrailMeasures(general: 5, hymn: null), 5);
-      expect(effectiveTrailMeasures(general: 5, hymn: 8), 8);
+      expect(effectiveTrailMeasures(general: 5, piece: null), 5);
+      expect(effectiveTrailMeasures(general: 5, piece: 8), 8);
     });
   });
 }

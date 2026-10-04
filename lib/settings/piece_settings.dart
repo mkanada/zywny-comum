@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../layout_options.dart';
+import '../library/library_keys.dart';
 import '../practice/hand.dart';
 import '../trail/trail_stage.dart' show kTrailMinMeasures;
 
@@ -15,8 +16,8 @@ const double kSpeedMax = 1.5;
 /// notação e as outras opções de layout) e como ele é estudado (andamento e
 /// mão). Cada hino tem a sua; o que vale para todos está em `AppSettings`.
 @immutable
-class HymnSettings {
-  const HymnSettings({
+class PieceSettings {
+  const PieceSettings({
     this.layout = const {},
     this.pageFitsBox = true,
     this.speed,
@@ -75,7 +76,7 @@ class HymnSettings {
   /// app deixou de ter, valor de outro tipo, escolha que saiu da lista. Os
   /// números são trazidos para a faixa da opção. Assim um JSON gravado por
   /// outra versão do app nunca chega torto ao Verovio.
-  factory HymnSettings.fromJson(Map<String, dynamic> json) {
+  factory PieceSettings.fromJson(Map<String, dynamic> json) {
     final layout = <String, Object>{};
     final stored = json['layout'];
     if (stored is Map) {
@@ -92,7 +93,7 @@ class HymnSettings {
       if (h.name == json['hand']) hand = h;
     }
     final trailMeasures = json['trailMeasures'];
-    return HymnSettings(
+    return PieceSettings(
       layout: layout,
       pageFitsBox: json['fit'] != false,
       speed: speed is num ? speed.toDouble().clamp(kSpeedMin, kSpeedMax) : null,
@@ -126,29 +127,32 @@ class HymnSettings {
   }
 }
 
-/// Guarda um [HymnSettings] por hino em [SharedPreferencesAsync] (chave
-/// `hymn_settings_<número>`), que sobrevive a fechar o app e a atualizá-lo.
-/// Hino sem nada mudado não ocupa chave.
-class HymnSettingsStore {
-  HymnSettingsStore({SharedPreferencesAsync? prefs})
+/// Guarda um [PieceSettings] por música em [SharedPreferencesAsync] (chave
+/// `piece_settings_<biblioteca>_<id>`), que sobrevive a fechar o app e a
+/// atualizá-lo. Música sem nada mudado não ocupa chave.
+class PieceSettingsStore {
+  PieceSettingsStore({SharedPreferencesAsync? prefs})
     : _prefs = prefs ?? SharedPreferencesAsync();
 
   final SharedPreferencesAsync _prefs;
 
-  static String _key(int number) => 'hymn_settings_$number';
-
-  Future<HymnSettings> load(int number) async {
+  Future<PieceSettings> load(String libraryId, String pieceId) async {
     try {
-      final text = await _prefs.getString(_key(number));
-      if (text == null) return const HymnSettings();
-      return HymnSettings.fromJson(jsonDecode(text) as Map<String, dynamic>);
+      final text = await _prefs.getString(
+        pieceSettingsKeyFor(libraryId, pieceId),
+      );
+      if (text == null) return const PieceSettings();
+      return PieceSettings.fromJson(jsonDecode(text) as Map<String, dynamic>);
     } on Object {
-      // Ilegível: o hino abre no padrão em vez de não abrir.
-      return const HymnSettings();
+      // Ilegível: a música abre no padrão em vez de não abrir.
+      return const PieceSettings();
     }
   }
 
-  Future<void> save(int number, HymnSettings settings) => settings.isDefault
-      ? _prefs.remove(_key(number))
-      : _prefs.setString(_key(number), jsonEncode(settings.toJson()));
+  Future<void> save(String libraryId, String pieceId, PieceSettings settings) {
+    final key = pieceSettingsKeyFor(libraryId, pieceId);
+    return settings.isDefault
+        ? _prefs.remove(key)
+        : _prefs.setString(key, jsonEncode(settings.toJson()));
+  }
 }

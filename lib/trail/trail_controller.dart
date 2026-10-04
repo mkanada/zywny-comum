@@ -35,7 +35,7 @@ class TrailController extends ChangeNotifier {
     required this.plan,
     required TrailProgress progress,
     required this.store,
-    required this.hymnNumber,
+    required this.pieceId,
   }) : _progress = progress.n == plan.n
            ? progress
            : TrailProgress(n: plan.n, total: plan.stages.length);
@@ -46,7 +46,7 @@ class TrailController extends ChangeNotifier {
 
   /// Número do hino na biblioteca; `null` fora dela (partitura avulsa): a
   /// trilha vale na sessão, mas não persiste (J03).
-  final int? hymnNumber;
+  final String? pieceId;
 
   TrailProgress _progress;
   TrailProgress get progress => _progress;
@@ -129,8 +129,8 @@ class TrailController extends ChangeNotifier {
     _progress = _stamped(_progress.recordResult(stage.id, result));
     _lastResult = result;
     _lastStage = stage;
-    final number = hymnNumber;
-    if (number != null) await store.save(number, _progress);
+    final id = pieceId;
+    if (id != null) await store.save(id, _progress);
     notifyListeners();
   }
 
@@ -141,8 +141,8 @@ class TrailController extends ChangeNotifier {
     final updated = _progress.skip(stage.id);
     if (identical(updated, _progress)) return;
     _progress = _stamped(updated);
-    final number = hymnNumber;
-    if (number != null) await store.save(number, _progress);
+    final id = pieceId;
+    if (id != null) await store.save(id, _progress);
     notifyListeners();
   }
 

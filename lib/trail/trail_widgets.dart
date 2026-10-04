@@ -8,6 +8,7 @@ library;
 
 import 'package:flutter/material.dart';
 
+import '../library/library_term_scope.dart';
 import '../ui/phone_chrome.dart' show kPhoneTitleBarHeight;
 import '../practice/measure_text.dart';
 import '../ui/side_panel.dart';
@@ -394,6 +395,7 @@ class TrailDrawer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final term = LibraryTermScope.of(context);
     return PhoneSidePanel(
       title: 'Trilha de estudo',
       onClose: onClose,
@@ -446,7 +448,9 @@ class TrailDrawer extends StatelessWidget {
               final ok = await confirmTrailReset(
                 context,
                 title: 'Reiniciar trilha?',
-                message: 'O progresso deste hino volta a zero. Só este hino.',
+                message:
+                    'O progresso ${term.deste} ${term.singular} volta a zero. '
+                    'Só ${term.este} ${term.singular}.',
                 confirmLabel: 'Reiniciar',
               );
               if (ok) onRestartTrail();

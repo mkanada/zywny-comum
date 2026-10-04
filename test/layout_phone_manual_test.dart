@@ -15,6 +15,9 @@ library;
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+
+import 'support/hymn_package.dart';
+
 import 'package:score_bridge/score_bridge.dart';
 import 'package:zywny/layout_options.dart';
 import 'package:zywny/verovio_render.dart';
@@ -70,6 +73,11 @@ void main() {
     timeout: const Timeout(Duration(minutes: 30)),
     () async {
       TestWidgetsFlutterBinding.ensureInitialized();
+      final hymns = await openLocalHymnPackage();
+      if (hymns == null) {
+        markTestSkipped('sem dist/hinos.zywny e keys/ (just pacote-hinos)');
+        return;
+      }
       final tmp = await Directory.systemTemp.createTemp('layout_phone');
       addTearDown(() => tmp.delete(recursive: true));
       final rows = <String>[];
@@ -79,9 +87,7 @@ void main() {
           final perPageAvgs = <double>[];
           final staffDp = <double>[];
           for (final hino in _hinos) {
-            final xml = gzip.decode(
-              File('assets/hinos/$hino.musicxml.gz').readAsBytesSync(),
-            );
+            final xml = await hymns.loadScore(hino);
             final input = File('${tmp.path}/$hino.musicxml')
               ..writeAsBytesSync(xml);
             final doc = await renderScoreToVsb(

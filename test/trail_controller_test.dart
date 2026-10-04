@@ -62,14 +62,14 @@ void main() {
         InMemorySharedPreferencesAsync.empty();
   });
 
-  TrailController controller({int? hymn = 12, TrailProgress? progress}) {
+  TrailController controller({String? piece = '012', TrailProgress? progress}) {
     final plan = _plan();
     return TrailController(
       path: _path(6),
       plan: plan,
       progress: progress ?? TrailProgress(n: 5, total: plan.stages.length),
       store: TrailProgressStore(),
-      hymnNumber: hymn,
+      pieceId: piece,
     );
   }
 
@@ -92,7 +92,7 @@ void main() {
     expect(c.selected?.id, 't0.notasE');
     c.next();
     expect(c.selected?.id, 't0.notasE');
-    final stored = c.store[12];
+    final stored = c.store['012'];
     expect(stored.stateOf('t0.notasD'), StageState.aprovada);
   });
 
@@ -149,7 +149,7 @@ void main() {
   });
 
   test('sem número de hino não persiste', () async {
-    final c = controller(hymn: null);
+    final c = controller(piece: null);
     await c.recordDone(_pct(9, 10));
     expect(c.progress.stateOf('t0.notasD'), StageState.aprovada);
     expect(await SharedPreferencesAsync().getString('trail_12'), isNull);

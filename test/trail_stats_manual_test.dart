@@ -13,6 +13,9 @@ library;
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+
+import 'support/hymn_package.dart';
+
 import 'package:score_bridge/score_bridge.dart';
 import 'package:zywny/music/performance_track.dart';
 import 'package:zywny/trail/trail_path.dart';
@@ -38,12 +41,12 @@ void main() {
         markTestSkipped('artefatos ausentes: ${missing.join(', ')}');
         return;
       }
-      final files = Directory('assets/hinos')
-          .listSync()
-          .whereType<File>()
-          .where((f) => f.path.endsWith('.musicxml.gz'))
-          .toList()
-        ..sort((a, b) => a.path.compareTo(b.path));
+      final hymns = await openLocalHymnPackage();
+      if (hymns == null) {
+        markTestSkipped('sem dist/hinos.zywny e keys/ (just pacote-hinos)');
+        return;
+      }
+      final files = hymns.pieces;
       expect(files, hasLength(600));
 
       final tmp = await Directory.systemTemp.createTemp('trail_stats');
@@ -60,10 +63,9 @@ void main() {
       final jumpKinds = <String, int>{};
 
       for (final f in files) {
-        final name = f.uri.pathSegments.last;
+        final name = f.id;
         try {
-          final gz = f.readAsBytesSync();
-          final xml = gzip.decode(gz);
+          final xml = await hymns.loadScore(f.id);
           final input = File('${tmp.path}/$name.musicxml');
           await input.writeAsBytes(xml, flush: true);
           final out = '${tmp.path}/$name.vsb';
@@ -96,8 +98,7 @@ void main() {
             if (glued.any((n) => n != 1)) split++;
           }
           final track = PerformanceTrack.fromDocument(doc);
-          final stavesOk =
-              track.staves.contains(1) && track.staves.contains(2);
+          final stavesOk = track.staves.contains(1) && track.staves.contains(2);
           if (!stavesOk) stavesOther++;
           final plan = TrailPlan.build(path, track, n: 5);
           if (plan.stages.isEmpty) noTrail++;
