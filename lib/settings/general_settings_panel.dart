@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:score_bridge/score_bridge.dart' show kDefaultBarColor;
 
 import '../audio/soundfont_store.dart';
+import '../course/note_names.dart' show NoteNaming;
 import '../midi/midi_device_manager.dart';
 import '../midi/midi_device_picker.dart';
 import '../practice/practice_colors.dart';
@@ -256,6 +257,35 @@ class GeneralSettingsPanel extends StatelessWidget {
           onTap: live.onOpenMidiPanel,
         ),
       ],
+      const _Header('Texto'),
+      Padding(
+        padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Nomes das notas',
+              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+            ),
+            const SizedBox(height: 6),
+            SegmentedButton<NoteNaming>(
+              showSelectedIcon: false,
+              segments: const [
+                ButtonSegment(
+                  value: NoteNaming.latin,
+                  label: Text('Dó-Ré-Mi'),
+                ),
+                ButtonSegment(
+                  value: NoteNaming.letters,
+                  label: Text('C-D-E'),
+                ),
+              ],
+              selected: {settings.noteNaming},
+              onSelectionChanged: (s) => settings.noteNaming = s.first,
+            ),
+          ],
+        ),
+      ),
       const _Header('Trilha de estudo'),
       Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16),
