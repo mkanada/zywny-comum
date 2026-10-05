@@ -3,21 +3,29 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../course/course_store.dart';
+import '../course/draft/draft_folder.dart' show draftPickerAvailable;
 import '../ui/theme.dart';
 
 /// A seção **Cursos** das configurações gerais (I04): os instalados, instalar
 /// outro e remover. O embutido não aparece (não pode sair). Fala com o
 /// [CourseStore]; quem instala é [onInstall] (o fluxo do I04, que precisa de
 /// uma tela por baixo para os diálogos). Modelo: `LibrariesSection`.
+///
+/// I12: "Abrir pasta de curso (rascunho)…" ([onOpenDraft]) em Linux, Windows
+/// e Web; ausente no Android.
 class CoursesSection extends StatelessWidget {
   const CoursesSection({
     super.key,
     required this.store,
     required this.onInstall,
+    this.onOpenDraft,
   });
 
   final CourseStore store;
   final VoidCallback onInstall;
+
+  /// Abre a pasta como rascunho (I12); `null` esconde o item.
+  final VoidCallback? onOpenDraft;
 
   @override
   Widget build(BuildContext context) {
@@ -53,6 +61,14 @@ class CoursesSection extends StatelessWidget {
             subtitle: const Text('abre um arquivo .zywny'),
             onTap: onInstall,
           ),
+          if (onOpenDraft != null && draftPickerAvailable)
+            ListTile(
+              dense: true,
+              leading: const Icon(Icons.folder_open, size: 20),
+              title: const Text('Abrir pasta de curso (rascunho)…'),
+              subtitle: const Text('vê a pasta sem instalar'),
+              onTap: onOpenDraft,
+            ),
         ],
       ),
     );

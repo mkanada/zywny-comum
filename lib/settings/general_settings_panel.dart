@@ -473,6 +473,7 @@ class GeneralSettingsScreen extends StatefulWidget {
     this.libraryStore,
     this.pickLibraryFile = pickLibraryBytes,
     this.courseStore,
+    this.onOpenDraft,
   });
 
   final AppSettings settings;
@@ -486,6 +487,10 @@ class GeneralSettingsScreen extends StatefulWidget {
 
   /// Os cursos instalados (a seção Cursos, I04); `null` não mostra a seção.
   final CourseStore? courseStore;
+
+  /// I12: abrir a pasta como rascunho (a `LibraryScreen` dona do rascunho
+  /// entrega o abrir dela); `null` esconde o item.
+  final VoidCallback? onOpenDraft;
 
   @override
   State<GeneralSettingsScreen> createState() => _GeneralSettingsScreenState();
@@ -579,6 +584,7 @@ class _GeneralSettingsScreenState extends State<GeneralSettingsScreen> {
                     : CoursesSection(
                         store: widget.courseStore!,
                         onInstall: () => unawaited(_installPackage()),
+                        onOpenDraft: widget.onOpenDraft,
                       ),
               ),
             ),
