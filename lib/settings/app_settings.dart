@@ -3,6 +3,7 @@ import 'package:flutter/painting.dart';
 import 'package:score_bridge/score_bridge.dart' show kDefaultBarColor;
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../course/note_names.dart' show NoteNaming;
 import '../practice/practice_colors.dart'
     show kPracticeCorrectColor, kPracticePendingColor, kPracticeWrongColor;
 import '../practice/practice_controller.dart'
@@ -50,6 +51,9 @@ class AppSettings extends ChangeNotifier {
   static const _kTrailPhaseOrder = 'trail_phase_order';
   static const _kTrailSpeeds = 'trail_speeds';
   static const _kRhythmTolerance = 'rhythm_tolerance_ms';
+  // I05 — nomes das notas na tela (D-LIC-NOMES): Dó–Ré–Mi ou C–D–E.
+  // O interruptor nas configurações é do I09; aqui só a chave e o valor.
+  static const _kNoteNaming = 'ui_note_naming';
 
   final SharedPreferencesAsync _prefs;
 
@@ -72,6 +76,7 @@ class AppSettings extends ChangeNotifier {
   List<TrailPhase> _trailPhaseOrder = TrailPhase.values;
   Set<double> _trailSpeeds = {...kTrailSpeeds};
   double _rhythmToleranceMs = kDefaultRhythmToleranceMs;
+  NoteNaming _noteNaming = NoteNaming.latin;
 
   /// `true` depois do primeiro [load] — antes disso valem os padrões.
   bool get loaded => _loaded;
@@ -234,6 +239,15 @@ class AppSettings extends ChangeNotifier {
     _changed(_prefs.setDouble(_kRhythmTolerance, v));
   }
 
+  /// Nomes das notas na tela (I05, D-LIC-NOMES): `latin` (Dó–Ré–Mi, padrão)
+  /// ou `letters` (C–D–E). O arquivo do curso usa sempre `C4`.
+  NoteNaming get noteNaming => _noteNaming;
+  set noteNaming(NoteNaming value) {
+    if (value == _noteNaming) return;
+    _noteNaming = value;
+    _changed(_prefs.setString(_kNoteNaming, value.wire));
+  }
+
   void _changed(Future<void> write) {
     notifyListeners();
     write.catchError((Object e) {
@@ -276,6 +290,7 @@ class AppSettings extends ChangeNotifier {
       () => _prefs.getStringList(_kTrailPhaseOrder),
     );
     final tolerance = await read(() => _prefs.getDouble(_kRhythmTolerance));
+    final noteNaming = await read(() => _prefs.getString(_kNoteNaming));
 
     _output = byName(SoundOutput.values, output) ?? _output;
     _useScoreInstruments = instruments ?? _useScoreInstruments;
@@ -316,6 +331,7 @@ class AppSettings extends ChangeNotifier {
         kMaxRhythmToleranceMs,
       );
     }
+    _noteNaming = NoteNaming.fromWire(noteNaming);
     _loaded = true;
     notifyListeners();
   }
