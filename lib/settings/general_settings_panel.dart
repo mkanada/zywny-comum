@@ -7,6 +7,8 @@ import 'package:flutter/material.dart';
 import 'package:score_bridge/score_bridge.dart' show kDefaultBarColor;
 
 import '../audio/soundfont_store.dart';
+import '../course/course_installer.dart';
+import '../course/course_store.dart';
 import '../course/note_names.dart' show NoteNaming;
 import '../midi/midi_device_manager.dart';
 import '../midi/midi_device_picker.dart';
@@ -19,6 +21,7 @@ import '../library/library_term_scope.dart';
 import '../ui/theme.dart';
 import 'app_settings.dart';
 import 'color_picker.dart';
+import 'courses_section.dart';
 import 'libraries_section.dart';
 
 /// Abre o seletor de arquivos para um `.sf2` e devolve os bytes; `null` se
@@ -79,6 +82,7 @@ class GeneralSettingsPanel extends StatelessWidget {
     required this.onClose,
     this.live,
     this.libraries,
+    this.courses,
   });
 
   final AppSettings settings;
@@ -94,6 +98,9 @@ class GeneralSettingsPanel extends StatelessWidget {
   /// A seção Bibliotecas — só nas configurações abertas pela biblioteca;
   /// com uma partitura aberta, trocar de biblioteca não faz sentido.
   final Widget? libraries;
+
+  /// A seção Cursos (I04) — junto da de bibliotecas, pelo mesmo motivo.
+  final Widget? courses;
 
   @override
   Widget build(BuildContext context) {
@@ -156,6 +163,7 @@ class GeneralSettingsPanel extends StatelessWidget {
     final toMidi = settings.output == SoundOutput.midiKeyboard;
     return [
       ?libraries,
+      ?courses,
       const _Header('Som'),
       SwitchListTile(
         dense: true,
@@ -271,14 +279,8 @@ class GeneralSettingsPanel extends StatelessWidget {
             SegmentedButton<NoteNaming>(
               showSelectedIcon: false,
               segments: const [
-                ButtonSegment(
-                  value: NoteNaming.latin,
-                  label: Text('Dó-Ré-Mi'),
-                ),
-                ButtonSegment(
-                  value: NoteNaming.letters,
-                  label: Text('C-D-E'),
-                ),
+                ButtonSegment(value: NoteNaming.latin, label: Text('Dó-Ré-Mi')),
+                ButtonSegment(value: NoteNaming.letters, label: Text('C-D-E')),
               ],
               selected: {settings.noteNaming},
               onSelectionChanged: (s) => settings.noteNaming = s.first,
@@ -470,6 +472,7 @@ class GeneralSettingsScreen extends StatefulWidget {
     this.soundFonts = const SoundFontStore(),
     this.libraryStore,
     this.pickLibraryFile = pickLibraryBytes,
+    this.courseStore,
   });
 
   final AppSettings settings;
@@ -480,6 +483,9 @@ class GeneralSettingsScreen extends StatefulWidget {
   /// seção.
   final LibraryStore? libraryStore;
   final Future<Uint8List?> Function() pickLibraryFile;
+
+  /// Os cursos instalados (a seção Cursos, I04); `null` não mostra a seção.
+  final CourseStore? courseStore;
 
   @override
   State<GeneralSettingsScreen> createState() => _GeneralSettingsScreenState();
@@ -518,6 +524,28 @@ class _GeneralSettingsScreenState extends State<GeneralSettingsScreen> {
     await _refresh();
   }
 
+  /// Instala um `.zywny` (biblioteca ou curso, I04) e avisa; a lista da
+  /// seção acompanha sozinha (os stores avisam quem escuta).
+  Future<void> _installPackage() async {
+    final courses = widget.courseStore;
+    final libraries = widget.libraryStore;
+    if (courses == null) return;
+    if (libraries == null) {
+      await installCourseFromFile(
+        context,
+        courses,
+        pick: widget.pickLibraryFile,
+      );
+    } else {
+      await installPackageFromFile(
+        context,
+        libraries,
+        courses,
+        pick: widget.pickLibraryFile,
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -545,6 +573,12 @@ class _GeneralSettingsScreenState extends State<GeneralSettingsScreen> {
                             pick: widget.pickLibraryFile,
                           ),
                         ),
+                      ),
+                courses: widget.courseStore == null
+                    ? null
+                    : CoursesSection(
+                        store: widget.courseStore!,
+                        onInstall: () => unawaited(_installPackage()),
                       ),
               ),
             ),
