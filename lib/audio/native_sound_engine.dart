@@ -206,7 +206,9 @@ class NativeSoundEngine implements SoundEngine {
 
   @override
   void allNotesOff() {
-    _checkStarted();
+    // Chamada de segurança em pause/stop/seek/dispose (Riscos #4 do plano):
+    // sem motor aberto não há nada soando, então não faz nada.
+    if (_engine == nullptr) return;
     _bindings.allNotesOff(_engine);
   }
 

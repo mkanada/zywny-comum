@@ -89,7 +89,12 @@ class WebSoundEngine implements SoundEngine {
   void clearScheduled() => _a.clear();
 
   @override
-  void allNotesOff() => _a.allOff();
+  void allNotesOff() {
+    // Como no nativo: sem áudio aberto não há nada soando.
+    final audio = _audio;
+    if (audio == null) return;
+    audio.allOff();
+  }
 
   @override
   Future<void> dispose() async {
