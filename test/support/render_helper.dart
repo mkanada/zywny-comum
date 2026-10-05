@@ -2,6 +2,7 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:score_bridge/score_bridge.dart';
+import 'package:zywny/render/score_renderer.dart';
 import 'package:zywny/verovio_render.dart';
 
 const _bridge = '/home/mauricio/rust_projects/verovio_flutter_bridge';
@@ -39,5 +40,26 @@ Future<VsbDocument> renderBytes(
     );
   } finally {
     await tmp.delete(recursive: true);
+  }
+}
+
+/// O `ScoreRenderer` dos testes: o mesmo ciclo do app nativo, mas com a
+/// `libverovio.so` e os dados do bridge direto (o `path_provider` do app não
+/// existe em `flutter test`).
+class LibverovioRenderer implements ScoreRenderer {
+  /// Quantas partituras já renderizou (para testes de "uma por rodada").
+  int renders = 0;
+
+  @override
+  Future<RenderedScore> render(ScoreRenderRequest request) async {
+    renders++;
+    final document = await renderBytes(
+      request.source,
+      request.fileName,
+      pageWidth: request.pageWidth,
+      pageHeight: request.pageHeight,
+      options: request.options,
+    );
+    return RenderedScore(document);
   }
 }
