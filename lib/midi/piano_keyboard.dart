@@ -86,9 +86,9 @@ class PianoKeyboardPainter extends CustomPainter {
       );
       final paint = wrong.contains(n)
           ? wrongWhitePaint
-          : (held.contains(n) ? heldWhitePaint : (marked.contains(n)
-                ? markedWhitePaint
-                : whitePaint));
+          : (held.contains(n)
+                ? heldWhitePaint
+                : (marked.contains(n) ? markedWhitePaint : whitePaint));
       canvas.drawRect(rect, paint);
       canvas.drawRect(rect, borderPaint);
     }
@@ -114,9 +114,9 @@ class PianoKeyboardPainter extends CustomPainter {
       );
       final paint = wrong.contains(n)
           ? wrongBlackPaint
-          : (held.contains(n) ? heldBlackPaint : (marked.contains(n)
-                ? markedBlackPaint
-                : blackPaint));
+          : (held.contains(n)
+                ? heldBlackPaint
+                : (marked.contains(n) ? markedBlackPaint : blackPaint));
       canvas.drawRect(rect, paint);
     }
 
