@@ -59,6 +59,8 @@ class AppSettings extends ChangeNotifier {
   // O interruptor nas configurações é do I09; aqui só a chave e o valor.
   static const _kNoteNaming = 'ui_note_naming';
   static const _kCourseTextScale = 'ui_course_text_scale';
+  // Fase Q (Q03): "Abrir as músicas já sem acidentes".
+  static const _kTransposeByDefault = 'score_transpose_default';
 
   final SharedPreferencesAsync _prefs;
 
@@ -83,6 +85,7 @@ class AppSettings extends ChangeNotifier {
   double _rhythmToleranceMs = kDefaultRhythmToleranceMs;
   NoteNaming _noteNaming = NoteNaming.latin;
   double _courseTextScale = 1.0;
+  bool _transposeByDefault = false;
 
   /// `true` depois do primeiro [load] — antes disso valem os padrões.
   bool get loaded => _loaded;
@@ -265,6 +268,16 @@ class AppSettings extends ChangeNotifier {
     _changed(_prefs.setDouble(_kCourseTextScale, v));
   }
 
+  /// "Abrir as músicas já sem acidentes" (fase Q): as que não têm escolha
+  /// própria (`PieceSettings.transpose`) abrem transpostas para a armadura
+  /// vazia. Desligado por padrão.
+  bool get transposeByDefault => _transposeByDefault;
+  set transposeByDefault(bool value) {
+    if (value == _transposeByDefault) return;
+    _transposeByDefault = value;
+    _changed(_prefs.setBool(_kTransposeByDefault, value));
+  }
+
   void _changed(Future<void> write) {
     notifyListeners();
     write.catchError((Object e) {
@@ -309,6 +322,9 @@ class AppSettings extends ChangeNotifier {
     final tolerance = await read(() => _prefs.getDouble(_kRhythmTolerance));
     final noteNaming = await read(() => _prefs.getString(_kNoteNaming));
     final textScale = await read(() => _prefs.getDouble(_kCourseTextScale));
+    final transposeByDefault = await read(
+      () => _prefs.getBool(_kTransposeByDefault),
+    );
 
     _output = byName(SoundOutput.values, output) ?? _output;
     _useScoreInstruments = instruments ?? _useScoreInstruments;
@@ -356,6 +372,7 @@ class AppSettings extends ChangeNotifier {
         kMaxCourseTextScale,
       );
     }
+    _transposeByDefault = transposeByDefault ?? _transposeByDefault;
     _loaded = true;
     notifyListeners();
   }

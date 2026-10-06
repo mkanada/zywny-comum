@@ -9,17 +9,67 @@
 // tem implementação em `flutter test`. O resourcePath aponta direto para o
 // `verovio/data` do verovio_flutter_bridge, que é a mesma árvore que o zip empacota.
 
+import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:score_bridge/score_bridge.dart';
 import 'package:zywny/verovio_render.dart';
 
+import 'support/render_helper.dart';
+
 const _submodule = '/home/mauricio/rust_projects/verovio_flutter_bridge';
 const _libPath = '$_submodule/verovio/bindings/dart/libverovio.so';
 const _resourcePath = '$_submodule/verovio/data';
 const _scorePath = '$_submodule/corpus/mei/Grieg_Little_bird_Op43_No4.mei';
+
+/// Quatro semínimas por compasso em Mi♭ maior (3♭), com uma barra de
+/// repetição no fim: o documento expandido (`-rend`) também sai transposto.
+final Uint8List _eflatMajorXml = () {
+  String note(String step, int alter, int octave) =>
+      '<note><pitch><step>$step</step>'
+      '${alter == 0 ? '' : '<alter>$alter</alter>'}'
+      '<octave>$octave</octave></pitch>'
+      '<duration>1</duration><type>quarter</type></note>';
+  return Uint8List.fromList(
+    utf8.encode('''<?xml version="1.0" encoding="UTF-8"?>
+<score-partwise version="3.1">
+  <part-list><score-part id="P1"><part-name>Piano</part-name></score-part></part-list>
+  <part id="P1">
+    <measure number="1">
+      <attributes>
+        <divisions>1</divisions>
+        <key><fifths>-3</fifths></key>
+        <time><beats>4</beats><beat-type>4</beat-type></time>
+        <clef><sign>G</sign><line>2</line></clef>
+      </attributes>
+      ${note('E', -1, 4)}${note('F', 0, 4)}${note('G', 0, 4)}${note('A', -1, 4)}
+    </measure>
+    <measure number="2">
+      ${note('B', -1, 4)}${note('C', 0, 5)}${note('D', 0, 5)}${note('E', -1, 5)}
+      <barline location="right">
+        <bar-style>light-heavy</bar-style>
+        <repeat direction="backward"/>
+      </barline>
+    </measure>
+  </part>
+</score-partwise>
+'''),
+  );
+}();
+
+/// A mesma semente nos dois renders: os ids de nota saem iguais (Q01).
+Future<VsbDocument> _renderEflat({String? transpose}) => renderBytes(
+  _eflatMajorXml,
+  'hino.musicxml',
+  options: {'xmlIdSeed': 1, 'transpose': ?transpose},
+);
+
+/// Quantos acidentes tem a armadura vigente na primeira nota.
+int _keyAccidentals(VsbDocument doc) =>
+    doc.pitchPos!.events[doc.midi!.notes.first.id]!.key.length;
 
 void main() {
   // `loadScoreFonts` passa pelo `rootBundle`, que exige o binding.
@@ -80,5 +130,51 @@ void main() {
       recorder.endRecording().dispose();
     },
     skip: missing.isEmpty ? null : 'artefatos ausentes: ${missing.join(', ')}',
+  );
+
+  // Q03: a opção `transpose` chega ao Verovio pelo caminho do app. A medição
+  // em hinos de todas as armaduras é do Q01 (transposicao_render_manual_test).
+  test(
+    'transpose "-m3" num hino em 3♭: notas 3 semitons abaixo, mesmos tempos, '
+    'armadura vazia',
+    () async {
+      final original = await _renderEflat();
+      final transposed = await _renderEflat(transpose: '-m3');
+
+      // Sem a opção a partitura é a que está escrita: Mi♭ maior, 3♭.
+      expect(_keyAccidentals(original), 3);
+      expect(original.midi!.notes.first.pitch, 63); // Mi♭4
+
+      final a = original.midi!.notes, b = transposed.midi!.notes;
+      // 8 notas e as 8 da repetição, todas deslocadas uma vez só.
+      expect(a, hasLength(16));
+      expect(a.where((n) => n.id.contains('-rend')), hasLength(8));
+      expect(b, hasLength(a.length));
+      for (var i = 0; i < a.length; i++) {
+        expect(b[i].id, a[i].id, reason: 'mesma semente, mesmo id ($i)');
+        expect(b[i].pitch, a[i].pitch - 3, reason: 'nota $i');
+        expect(b[i].onMs, a[i].onMs, reason: 'início da nota $i');
+        expect(b[i].offMs, a[i].offMs, reason: 'fim da nota $i');
+        expect(
+          [b[i].staff, b[i].layer, b[i].tied],
+          [a[i].staff, a[i].layer, a[i].tied],
+          reason: 'pauta, camada e ligadura da nota $i',
+        );
+      }
+      // Dó maior: sem acidentes na armadura.
+      expect(_keyAccidentals(transposed), 0);
+      expect(transposed.midi!.notes.first.pitch, 60); // Dó4
+
+      // O timemap (o que o player e o treino leem) e o layout não mudam.
+      final tmA = original.timemap!, tmB = transposed.timemap!;
+      expect(tmB, hasLength(tmA.length));
+      for (var i = 0; i < tmA.length; i++) {
+        expect(tmB[i].tstamp, tmA[i].tstamp);
+        expect(tmB[i].on, tmA[i].on);
+        expect(tmB[i].off, tmA[i].off);
+      }
+      expect(transposed.pages, hasLength(original.pages.length));
+    },
+    skip: verovioAvailable ? false : 'libverovio.so do bridge ausente',
   );
 }

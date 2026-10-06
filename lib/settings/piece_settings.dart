@@ -5,12 +5,19 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../layout_options.dart';
 import '../library/library_keys.dart';
+import '../music/transposition.dart';
 import '../practice/hand.dart';
 import '../trail/trail_stage.dart' show kTrailMinMeasures;
 
 /// Andamento que o app aceita (25%–150%, a faixa da gaveta de estudo).
 const double kSpeedMin = 0.25;
 const double kSpeedMax = 1.5;
+
+/// O que `PieceSettings.transpose` guarda quando a pessoa escolheu **não**
+/// transpor esta música (o uníssono perfeito): vence a chave geral "abrir as
+/// músicas já sem acidentes". `Transposition.parse` não o aceita — não é uma
+/// transposição —, então quem lê o campo trata este valor antes.
+const String kTransposeNone = 'P1';
 
 /// Configuração **de um hino**: como a partitura dele é gravada (tamanho da
 /// notação e as outras opções de layout) e como ele é estudado (andamento e
@@ -23,6 +30,7 @@ class PieceSettings {
     this.speed,
     this.hand,
     this.trailMeasures,
+    this.transpose,
   });
 
   /// Só as opções de layout que o usuário tirou do padrão do app (por nome,
@@ -41,12 +49,19 @@ class PieceSettings {
   /// Compassos por trecho só deste hino (J03); `null` = usa o geral.
   final int? trailMeasures;
 
+  /// Transpor este hino (fase Q), o intervalo na sintaxe do Verovio (`-m3`).
+  /// Três estados: `null` (a pessoa não escolheu: vale a chave geral
+  /// `AppSettings.transposeByDefault`), [kTransposeNone] (escolheu "Não") e um
+  /// intervalo que `Transposition.parse` aceita, já no texto canônico.
+  final String? transpose;
+
   bool get isDefault =>
       layout.isEmpty &&
       pageFitsBox &&
       speed == null &&
       hand == null &&
-      trailMeasures == null;
+      trailMeasures == null &&
+      transpose == null;
 
   /// Todas as opções de layout: [defaults] com o que este hino mudou.
   Map<String, Object> layoutOver(Map<String, Object> defaults) => {
@@ -70,6 +85,7 @@ class PieceSettings {
     'speed': ?speed,
     'hand': ?hand?.name,
     'trailMeasures': ?trailMeasures,
+    'tr': ?transpose,
   };
 
   /// Lê o que foi guardado, descartando o que não serve mais: opção que o
@@ -93,6 +109,7 @@ class PieceSettings {
       if (h.name == json['hand']) hand = h;
     }
     final trailMeasures = json['trailMeasures'];
+    final transpose = json['tr'];
     return PieceSettings(
       layout: layout,
       pageFitsBox: json['fit'] != false,
@@ -103,7 +120,15 @@ class PieceSettings {
                 ? kTrailMinMeasures
                 : trailMeasures.round()
           : null,
+      transpose: transpose is String ? _coerceTranspose(transpose) : null,
     );
+  }
+
+  /// [kTransposeNone], ou o texto canônico do intervalo; `null` se o que foi
+  /// guardado não é nenhum dos dois (nunca chega torto ao Verovio).
+  static String? _coerceTranspose(String text) {
+    if (text == kTransposeNone) return kTransposeNone;
+    return Transposition.parse(text)?.interval;
   }
 
   static Object? _coerce(LayoutOption option, Object? value) {
