@@ -15,6 +15,10 @@ import '../trail/trail_stage.dart'
 const double kMinRhythmToleranceMs = 30;
 const double kMaxRhythmToleranceMs = 200;
 
+/// Limites do tamanho do texto dos cursos (o "Aa" da lição).
+const double kMinCourseTextScale = 0.85;
+const double kMaxCourseTextScale = 2.0;
+
 /// Saída de som (K03/M03): o sintetizador do app (`.sf2`) ou o teclado MIDI
 /// conectado, tocando no som próprio do piano digital do usuário.
 enum SoundOutput { appSynth, midiKeyboard }
@@ -54,6 +58,7 @@ class AppSettings extends ChangeNotifier {
   // I05 — nomes das notas na tela (D-LIC-NOMES): Dó–Ré–Mi ou C–D–E.
   // O interruptor nas configurações é do I09; aqui só a chave e o valor.
   static const _kNoteNaming = 'ui_note_naming';
+  static const _kCourseTextScale = 'ui_course_text_scale';
 
   final SharedPreferencesAsync _prefs;
 
@@ -77,6 +82,7 @@ class AppSettings extends ChangeNotifier {
   Set<double> _trailSpeeds = {...kTrailSpeeds};
   double _rhythmToleranceMs = kDefaultRhythmToleranceMs;
   NoteNaming _noteNaming = NoteNaming.latin;
+  double _courseTextScale = 1.0;
 
   /// `true` depois do primeiro [load] — antes disso valem os padrões.
   bool get loaded => _loaded;
@@ -248,6 +254,17 @@ class AppSettings extends ChangeNotifier {
     _changed(_prefs.setString(_kNoteNaming, value.wire));
   }
 
+  /// Multiplicador do texto nas telas dos cursos (lista, curso, lição,
+  /// exercício), por cima do tamanho de fonte do sistema; entre
+  /// [kMinCourseTextScale] e [kMaxCourseTextScale].
+  double get courseTextScale => _courseTextScale;
+  set courseTextScale(double value) {
+    final v = value.clamp(kMinCourseTextScale, kMaxCourseTextScale);
+    if (v == _courseTextScale) return;
+    _courseTextScale = v;
+    _changed(_prefs.setDouble(_kCourseTextScale, v));
+  }
+
   void _changed(Future<void> write) {
     notifyListeners();
     write.catchError((Object e) {
@@ -291,6 +308,7 @@ class AppSettings extends ChangeNotifier {
     );
     final tolerance = await read(() => _prefs.getDouble(_kRhythmTolerance));
     final noteNaming = await read(() => _prefs.getString(_kNoteNaming));
+    final textScale = await read(() => _prefs.getDouble(_kCourseTextScale));
 
     _output = byName(SoundOutput.values, output) ?? _output;
     _useScoreInstruments = instruments ?? _useScoreInstruments;
@@ -332,6 +350,12 @@ class AppSettings extends ChangeNotifier {
       );
     }
     _noteNaming = NoteNaming.fromWire(noteNaming);
+    if (textScale != null) {
+      _courseTextScale = textScale.clamp(
+        kMinCourseTextScale,
+        kMaxCourseTextScale,
+      );
+    }
     _loaded = true;
     notifyListeners();
   }
