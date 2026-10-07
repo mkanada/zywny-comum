@@ -10,7 +10,8 @@
 set -euo pipefail
 
 proj_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-bridge="/home/mauricio/rust_projects/verovio_flutter_bridge"
+source "$(dirname "${BASH_SOURCE[0]}")/verovio_bridge.sh"
+bridge="$verovio_bridge"
 built="$bridge/verovio/emscripten/build/verovio-toolkit-hum.js"
 
 if [[ "${1:-}" != "--no-build" ]]; then

@@ -15,10 +15,9 @@ import 'package:verovio/verovio.dart';
 import 'package:zywny/layout_options.dart';
 import 'package:zywny/verovio_render.dart';
 
-const _submodule = '/home/mauricio/rust_projects/verovio_flutter_bridge';
-const _libPath = '$_submodule/verovio/bindings/dart/libverovio.so';
-const _resourcePath = '$_submodule/verovio/data';
-const _scorePath = '$_submodule/corpus/mei/Grieg_Little_bird_Op43_No4.mei';
+import 'support/render_helper.dart';
+
+final _scorePath = '$kVerovioBridge/corpus/mei/Grieg_Little_bird_Op43_No4.mei';
 
 /// Finds the metadata object of option [key] anywhere in the (grouped)
 /// `getAvailableOptions()` tree.
@@ -87,8 +86,8 @@ void main() {
   });
 
   final missing = [
-    _libPath,
-    _resourcePath,
+    kLibverovioPath,
+    kVerovioDataPath,
     _scorePath,
   ].where((p) => !File(p).existsSync() && !Directory(p).existsSync()).toList();
   final skip = missing.isEmpty
@@ -97,8 +96,8 @@ void main() {
 
   test('a tabela confere com getAvailableOptions() do Verovio', () {
     final toolkit = VerovioToolkit.withResourcePath(
-      Directory(_resourcePath).absolute.path,
-      libraryPath: File(_libPath).absolute.path,
+      Directory(kVerovioDataPath).absolute.path,
+      libraryPath: File(kLibverovioPath).absolute.path,
     );
     final Object? available;
     try {
@@ -188,9 +187,9 @@ void main() {
         .choices;
     for (final font in fonts) {
       expect(
-        Directory('$_resourcePath/$font').existsSync(),
+        Directory('$kVerovioDataPath/$font').existsSync(),
         isTrue,
-        reason: 'fonte $font sem dados em $_resourcePath',
+        reason: 'fonte $font sem dados em $kVerovioDataPath',
       );
     }
   }, skip: skip);
@@ -208,8 +207,8 @@ void main() {
         VsbRenderRequest(
           inputPath: _scorePath,
           outputPath: '${tmp.path}/${n++}.vsb',
-          libraryPath: File(_libPath).absolute.path,
-          resourcePath: Directory(_resourcePath).absolute.path,
+          libraryPath: File(kLibverovioPath).absolute.path,
+          resourcePath: Directory(kVerovioDataPath).absolute.path,
           pageWidth: kFallbackPageWidth,
           pageHeight: kFallbackPageHeight,
           options: options,

@@ -34,9 +34,7 @@ import 'package:zywny/trail/trail_plan.dart';
 import 'package:zywny/trail/trail_stage.dart';
 import 'package:zywny/verovio_render.dart';
 
-const _sub = '/home/mauricio/rust_projects/verovio_flutter_bridge';
-const _libPath = '$_sub/verovio/bindings/dart/libverovio.so';
-const _resourcePath = '$_sub/verovio/data';
+import 'support/render_helper.dart';
 
 class _Engine implements SoundEngine {
   double now = 0;
@@ -86,7 +84,7 @@ class _Midi implements MidiInputService {
 }
 
 void main() {
-  final missing = !File(_libPath).existsSync();
+  final missing = !File(kLibverovioPath).existsSync();
   test(
     '559, trecho 1, notas de cada mão: nota pendente acesa e passo avança',
     skip: missing ? 'sem libverovio.so' : null,
@@ -106,8 +104,8 @@ void main() {
         VsbRenderRequest(
           inputPath: input.path,
           outputPath: '${tmp.path}/559.vsb',
-          libraryPath: _libPath,
-          resourcePath: _resourcePath,
+          libraryPath: kLibverovioPath,
+          resourcePath: kVerovioDataPath,
           pageWidth: kFallbackPageWidth,
           pageHeight: kFallbackPageHeight,
         ),

@@ -18,8 +18,6 @@ import 'package:score_bridge/score_bridge.dart';
 
 import 'support/render_helper.dart';
 
-const _fonte = '/home/mauricio/IdeaProjects/Hymn_Grabber';
-
 /// Hino, armadura (quintas) e o intervalo da tabela do Q00.
 const _hinos = [
   (numero: '013', fifths: -3, intervalo: '-m3', k: -3), // 3♭, 316 notas -rend
@@ -37,10 +35,10 @@ final _rend = RegExp(r'-rend\d+$');
 
 File _musicxml(String numero) {
   for (final pasta in ['musicxml_special', 'musicxml']) {
-    final file = File('$_fonte/$pasta/$numero.musicxml');
+    final file = File('$kHymnGrabber/$pasta/$numero.musicxml');
     if (file.existsSync()) return file;
   }
-  throw StateError('sem o hino $numero em $_fonte');
+  throw StateError('sem o hino $numero em $kHymnGrabber');
 }
 
 /// Armadura vigente (quintas) de um `key` do pitchpos; `null` se não é uma

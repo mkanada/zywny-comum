@@ -2,12 +2,21 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:score_bridge/score_bridge.dart';
+import 'package:zywny/native_paths.dart';
 import 'package:zywny/render/score_renderer.dart';
 import 'package:zywny/verovio_render.dart';
 
-const _bridge = '/home/mauricio/rust_projects/verovio_flutter_bridge';
-const kLibverovioPath = '$_bridge/verovio/bindings/dart/libverovio.so';
-const kVerovioDataPath = '$_bridge/verovio/data';
+/// O checkout do verovio_flutter_bridge (ver [verovioBridgeDir]).
+final kVerovioBridge = verovioBridgeDir();
+final kLibverovioPath = '$kVerovioBridge/verovio/bindings/dart/libverovio.so';
+final kVerovioDataPath = '$kVerovioBridge/verovio/data';
+
+/// O Hymn_Grabber (as partituras dos hinos), vizinho deste repositório;
+/// `HYMN_GRABBER` sobrescreve.
+final kHymnGrabber = switch (Platform.environment['HYMN_GRABBER']) {
+  final env? when env.isNotEmpty => env,
+  _ => '../Hymn_Grabber',
+};
 
 /// A `libverovio.so` do bridge e os dados existem? Sem eles, os testes que
 /// renderizam de verdade são pulados (como o `vsb_render_test.dart`).

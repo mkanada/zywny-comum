@@ -18,9 +18,7 @@ import 'package:zywny/trail/trail_path.dart';
 import 'package:zywny/trail/trail_plan.dart';
 import 'package:zywny/verovio_render.dart';
 
-const _submodule = '/home/mauricio/rust_projects/verovio_flutter_bridge';
-const _libPath = '$_submodule/verovio/bindings/dart/libverovio.so';
-const _resourcePath = '$_submodule/verovio/data';
+import 'support/render_helper.dart';
 
 void main() {
   final dir = Platform.environment['CLASSICS_DIR'];
@@ -50,8 +48,8 @@ void main() {
             VsbRenderRequest(
               inputPath: f.path,
               outputPath: '${tmp.path}/$name.vsb',
-              libraryPath: File(_libPath).absolute.path,
-              resourcePath: Directory(_resourcePath).absolute.path,
+              libraryPath: File(kLibverovioPath).absolute.path,
+              resourcePath: Directory(kVerovioDataPath).absolute.path,
               pageWidth: kFallbackPageWidth,
               pageHeight: kFallbackPageHeight,
             ),

@@ -11,11 +11,12 @@
 # directory to the Toolkit as its resourcePath.
 #
 # Not versioned (see .gitignore) — regenerable and derived from
-# submodule. Re-run after updating /home/mauricio/rust_projects/verovio_flutter_bridge.
+# submodule. Re-run after updating verovio_flutter_bridge.
 set -euo pipefail
 
 proj_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-src="/home/mauricio/rust_projects/verovio_flutter_bridge/verovio/data"
+source "$(dirname "${BASH_SOURCE[0]}")/verovio_bridge.sh"
+src="$verovio_bridge/verovio/data"
 dst="$proj_dir/assets/verovio_data.zip"
 
 [[ -d "$src" ]] || { echo "ERROR: directory not found: $src" >&2; exit 1; }

@@ -20,10 +20,7 @@ import 'package:zywny/verovio_render.dart';
 
 import 'support/render_helper.dart';
 
-const _submodule = '/home/mauricio/rust_projects/verovio_flutter_bridge';
-const _libPath = '$_submodule/verovio/bindings/dart/libverovio.so';
-const _resourcePath = '$_submodule/verovio/data';
-const _scorePath = '$_submodule/corpus/mei/Grieg_Little_bird_Op43_No4.mei';
+final _scorePath = '$kVerovioBridge/corpus/mei/Grieg_Little_bird_Op43_No4.mei';
 
 /// Quatro semínimas por compasso em Mi♭ maior (3♭), com uma barra de
 /// repetição no fim: o documento expandido (`-rend`) também sai transposto.
@@ -76,8 +73,8 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   final missing = [
-    _libPath,
-    _resourcePath,
+    kLibverovioPath,
+    kVerovioDataPath,
     _scorePath,
   ].where((p) => !File(p).existsSync() && !Directory(p).existsSync()).toList();
 
@@ -91,8 +88,8 @@ void main() {
         VsbRenderRequest(
           inputPath: _scorePath,
           outputPath: '${tmp.path}/score.vsb',
-          libraryPath: File(_libPath).absolute.path,
-          resourcePath: Directory(_resourcePath).absolute.path,
+          libraryPath: File(kLibverovioPath).absolute.path,
+          resourcePath: Directory(kVerovioDataPath).absolute.path,
           pageWidth: kFallbackPageWidth,
           pageHeight: kFallbackPageHeight,
         ),

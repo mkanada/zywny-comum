@@ -11,10 +11,11 @@
 set -euo pipefail
 
 proj_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-dart_pkg="/home/mauricio/rust_projects/verovio_flutter_bridge/verovio/bindings/dart"
+source "$(dirname "${BASH_SOURCE[0]}")/verovio_bridge.sh"
+dart_pkg="$verovio_bridge/verovio/bindings/dart"
 abis=(arm64-v8a x86_64)
 
-[[ -x "$dart_pkg/build_android_so.sh" ]] || { echo "ERROR: /home/mauricio/rust_projects/verovio_flutter_bridge not found" >&2; exit 1; }
+[[ -x "$dart_pkg/build_android_so.sh" ]] || { echo "ERROR: $verovio_bridge not found (set VEROVIO_BRIDGE)" >&2; exit 1; }
 
 "$dart_pkg/build_android_so.sh" "${abis[@]}"
 

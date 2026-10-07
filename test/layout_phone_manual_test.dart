@@ -22,9 +22,7 @@ import 'package:score_bridge/score_bridge.dart';
 import 'package:zywny/layout_options.dart';
 import 'package:zywny/verovio_render.dart';
 
-const _submodule = '/home/mauricio/rust_projects/verovio_flutter_bridge';
-const _libPath = '$_submodule/verovio/bindings/dart/libverovio.so';
-const _resourcePath = '$_submodule/verovio/data';
+import 'support/render_helper.dart';
 
 /// Páginas medidas: a do emulador (411×914 dp, dpr 2,625, caixa 2054×912) e
 /// a de um aparelho de 360 dp de altura (1775×780).
@@ -94,8 +92,8 @@ void main() {
               VsbRenderRequest(
                 inputPath: input.path,
                 outputPath: '${tmp.path}/$hino.vsb',
-                libraryPath: File(_libPath).absolute.path,
-                resourcePath: Directory(_resourcePath).absolute.path,
+                libraryPath: File(kLibverovioPath).absolute.path,
+                resourcePath: Directory(kVerovioDataPath).absolute.path,
                 pageWidth: w,
                 pageHeight: h,
                 options: layoutOptionsToSend({
