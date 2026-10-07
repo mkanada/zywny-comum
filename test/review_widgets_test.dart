@@ -9,19 +9,13 @@ Widget _host(Widget child) => MaterialApp(
 
 void main() {
   group('PagePager', () {
-    testWidgets('mostra a página e chama anterior/próxima', (tester) async {
+    testWidgets('chama anterior/próxima', (tester) async {
       var back = 0, next = 0;
       await tester.pumpWidget(
-        _host(
-          PagePager(
-            page: 1,
-            pageCount: 4,
-            onPrevious: () => back++,
-            onNext: () => next++,
-          ),
-        ),
+        _host(PagePager(onPrevious: () => back++, onNext: () => next++)),
       );
-      expect(find.text('2 / 4'), findsOneWidget);
+      // Só as setas: sem o número da página.
+      expect(find.textContaining('/'), findsNothing);
       await tester.tap(find.byTooltip('Página anterior'));
       await tester.tap(find.byTooltip('Próxima página'));
       expect((back, next), (1, 1));
@@ -29,14 +23,7 @@ void main() {
 
     testWidgets('nas pontas o botão fica desabilitado', (tester) async {
       await tester.pumpWidget(
-        _host(
-          const PagePager(
-            page: 0,
-            pageCount: 2,
-            onPrevious: null,
-            onNext: null,
-          ),
-        ),
+        _host(const PagePager(onPrevious: null, onNext: null)),
       );
       final back = tester.widget<IconButton>(
         find.widgetWithIcon(IconButton, Icons.chevron_left),
