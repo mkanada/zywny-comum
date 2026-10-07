@@ -24,12 +24,37 @@ class VisibleGhost {
 }
 
 class _Entry {
-  _Entry(this.pressedAt);
+  _Entry(this.pressedAt, {this.targetIds, this.side = 0});
+  final List<String>? targetIds;
+  final int side;
   GhostNote? ghost;
   final Duration pressedAt;
   Duration? releaseAt;
   double opacity = 1;
 }
+
+/// Uma tecla errada a desenhar fixa na partitura (a revisão do treino): a
+/// coluna dos eventos [targetIds] e o [side] — `-1` tocada antes do tempo
+/// (fantasma à esquerda da coluna), `1` depois (à direita), `0` sem noção de
+/// tempo (em cima da coluna, como no modo espera).
+@immutable
+class GhostRequest {
+  const GhostRequest({
+    required this.key,
+    required this.targetIds,
+    this.side = 0,
+  });
+
+  final int key;
+  final List<String> targetIds;
+  final int side;
+}
+
+/// Quanto a fantasma de uma nota fora do tempo sai da coluna, em larguras
+/// de cabeça de nota (de centro a centro), para a esquerda (antes do tempo)
+/// ou para a direita (depois). No máximo meia cabeça: ela fica colada na
+/// nota esperada, só escorregada para o lado.
+const double kGhostSideOffsetHeads = 0.5;
 
 class _OwnTickerProvider implements TickerProvider {
   @override
@@ -70,15 +95,76 @@ class GhostController extends ChangeNotifier {
     if (identical(_document, document)) return;
     _document = document;
     clear();
+    // Outra gravura: as colunas e páginas da revisão mudaram, refaz.
+    if (_reviewRequests.isNotEmpty) {
+      _computeReview();
+      notifyListeners();
+    }
   }
 
   /// Fantasmas a desenhar agora, com opacidade.
   List<VisibleGhost> get visible => [
     for (final e in _entries.values)
       if (e.ghost case final g?) VisibleGhost(g, e.opacity),
+    for (final g in _review) VisibleGhost(g, 1),
   ];
 
-  bool get isEmpty => _entries.isEmpty;
+  bool get isEmpty => _entries.isEmpty && _review.isEmpty;
+
+  List<GhostRequest> _reviewRequests = const [];
+  List<GhostNote> _review = const [];
+
+  /// As fantasmas fixas da revisão (na ordem em que foram pedidas, as que
+  /// não acharam coluna ficam de fora). Não somem com [clear] nem com o
+  /// fade: só [clearReview] (ou um documento novo) as tira.
+  List<GhostNote> get review => _review;
+
+  /// Mostra [requests] fixas na partitura, no lugar das da revisão anterior.
+  /// Pedidos iguais (mesma tecla, coluna e lado) valem um só.
+  void setReview(Iterable<GhostRequest> requests) {
+    final seen = <String>{};
+    _reviewRequests = [
+      for (final r in requests)
+        if (seen.add('${r.key}|${r.side}|${r.targetIds.join(',')}')) r,
+    ];
+    _computeReview();
+    notifyListeners();
+  }
+
+  void clearReview() {
+    if (_reviewRequests.isEmpty && _review.isEmpty) return;
+    _reviewRequests = const [];
+    _review = const [];
+    notifyListeners();
+  }
+
+  void _computeReview() {
+    final doc = _document;
+    if (doc == null || doc.pitchPos == null) {
+      _review = const [];
+      return;
+    }
+    final groups = <String, List<GhostRequest>>{};
+    for (final r in _reviewRequests) {
+      (groups['${r.side}|${r.targetIds.join(',')}'] ??= []).add(r);
+    }
+    _review = [
+      for (final group in groups.values)
+        ..._placed(doc, group.first.targetIds, group.first.side, [
+          for (final r in group) r.key,
+        ]),
+    ];
+  }
+
+  List<GhostNote> _placed(
+    VsbDocument doc,
+    List<String> targetIds,
+    int side,
+    List<int> keys,
+  ) => [
+    for (final g in doc.ghostsFor(expectedIds: targetIds, wrongKeys: keys))
+      g.shifted(side * g.headWidth * kGhostSideOffsetHeads),
+  ];
 
   /// Ids do(s) evento(s) esperado(s) no instante — **todas** as notas do
   /// acorde (ids do timemap servem; `sceneIdOf` resolve `-rend<N>`). Muda
@@ -89,12 +175,15 @@ class GhostController extends ChangeNotifier {
     _recompute();
   }
 
-  /// Tecla errada apertada.
-  void press(int key) {
+  /// Tecla errada apertada. Sem [targetIds] a fantasma vai para a coluna do
+  /// evento esperado de [setExpected] (modo espera); com eles, para a coluna
+  /// dos eventos indicados, deslocada para a esquerda ([side] `-1`, tocada
+  /// antes do tempo) ou para a direita (`1`, depois) — o tempo real.
+  void press(int key, {List<String>? targetIds, int side = 0}) {
     final old = _entries[key];
     if (old != null && old.releaseAt == null) return;
     _entries.remove(key);
-    _entries[key] = _Entry(_now);
+    _entries[key] = _Entry(_now, targetIds: targetIds, side: side);
     _recompute();
   }
 
@@ -135,13 +224,26 @@ class GhostController extends ChangeNotifier {
           _entries.remove(key);
         }
       } else {
-        final byKey = {
-          for (final g in doc.ghostsFor(
-            expectedIds: _expectedIds,
-            wrongKeys: active,
-          ))
-            g.key: g,
-        };
+        // Uma coluna e um lado por vez: as fantasmas da mesma coluna se
+        // desviam umas das outras (D-FANT-COLISAO).
+        final groups = <String, List<int>>{};
+        for (final key in active) {
+          final entry = _entries[key]!;
+          final ids = entry.targetIds ?? _expectedIds;
+          (groups['${entry.side}|${ids.join(',')}'] ??= []).add(key);
+        }
+        final byKey = <int, GhostNote>{};
+        for (final keys in groups.values) {
+          final entry = _entries[keys.first]!;
+          for (final g in _placed(
+            doc,
+            entry.targetIds ?? _expectedIds,
+            entry.side,
+            keys,
+          )) {
+            byKey[g.key] = g;
+          }
+        }
         for (final key in active) {
           final g = byKey[key];
           if (g == null) {

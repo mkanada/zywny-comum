@@ -262,6 +262,11 @@ Future<void> showPracticeSummary(
   BuildContext context,
   PracticeReport report, {
   void Function(List<MeasureStats> worst)? onRepeatWorst,
+
+  // Notas erradas do treino e o que fazer para vê-las na partitura; `null`
+  // esconde o botão.
+  int wrongCount = 0,
+  VoidCallback? onReview,
   Widget? legend,
   bool sidePanel = false,
 }) {
@@ -325,6 +330,18 @@ Future<void> showPracticeSummary(
                     onRepeatWorst(worst);
                   },
                   child: const Text('Repetir os compassos com mais erros'),
+                ),
+              if (onReview != null && wrongCount > 0)
+                OutlinedButton(
+                  onPressed: () {
+                    Navigator.pop(context);
+                    onReview();
+                  },
+                  child: Text(
+                    wrongCount == 1
+                        ? 'Ver a nota para rever na partitura'
+                        : 'Ver as $wrongCount notas para rever na partitura',
+                  ),
                 ),
               if (!report.isEmpty)
                 TextButton(

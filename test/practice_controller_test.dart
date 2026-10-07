@@ -192,6 +192,149 @@ void main() {
       practice.stop();
     });
 
+    test('tempo real: a nota errada vira marca à esquerda se foi tocada antes '
+        'do tempo e à direita se depois', () async {
+      final track = _loadTrack('satie-fantasma.vsb');
+      final doc = _loadDoc('satie-fantasma.vsb');
+      final timeline = ScoreTimeline(doc);
+      final engine = FakeSoundEngine();
+      final scheduler = ScoreAudioScheduler(
+        engine: engine,
+        track: track,
+        autoTick: false,
+      );
+      final scoreController = ScoreController(document: doc);
+      addTearDown(scoreController.dispose);
+      addTearDown(scoreController.clearAll);
+      final ghosts = GhostController()..attachDocument(doc);
+      addTearDown(ghosts.dispose);
+      final midi = FakeMidiInput();
+      addTearDown(midi.dispose);
+      final practice = PracticeController(
+        midiInput: midi,
+        track: track,
+        scheduler: scheduler,
+        controller: scoreController,
+        hand: Hand.direita,
+        ghosts: ghosts,
+        mode: PracticeMode.realtime,
+        measureIndexAt: timeline.measureIndexAt,
+      );
+      addTearDown(practice.dispose);
+
+      final mine = track.events
+          .where(
+            (e) => Hand.direita.studentStaves.contains(e.staff) && !e.ornament,
+          )
+          .toList();
+      // Um evento afastado dos vizinhos: a mais próxima é inequívoca.
+      final target = mine.firstWhere(
+        (e) => mine.every((o) => o == e || (o.onMs - e.onMs).abs() > 500),
+        orElse: () => mine[mine.length ~/ 2],
+      );
+      int wrongPitchAt(double ms, {int from = 20}) {
+        var pitch = from;
+        while (mine.any((e) => e.pitch == pitch && (e.onMs - ms).abs() < 400)) {
+          pitch++;
+        }
+        return pitch;
+      }
+
+      practice.start();
+      _advanceUntil(engine, scheduler, target.onMs - 200);
+      final early = wrongPitchAt(target.onMs - 200);
+      midi.press(early, atSeconds: engine.now);
+      await pumpEventQueue();
+      _advanceUntil(engine, scheduler, target.onMs + 200);
+      final late = wrongPitchAt(target.onMs + 200, from: early + 1);
+      midi.press(late, atSeconds: engine.now);
+      await pumpEventQueue();
+
+      final marks = practice.wrongMarks;
+      expect(marks, hasLength(2));
+      expect(marks[0].pitch, early);
+      expect(marks[0].side, -1);
+      expect(marks[0].targetIds, contains(target.id));
+      expect(marks[1].pitch, late);
+      expect(marks[1].side, 1);
+      expect(marks[1].targetIds, contains(target.id));
+
+      // As duas aparecem ao vivo, uma de cada lado da coluna.
+      final shown = {for (final v in ghosts.visible) v.ghost.key: v.ghost};
+      expect(shown.keys, containsAll([early, late]));
+
+      // E a revisão as refaz depois do treino, fixas.
+      practice.stop();
+      expect(ghosts.isEmpty, isTrue);
+      ghosts.setReview([for (final m in practice.wrongMarks) m.ghostRequest]);
+      expect(ghosts.review.map((g) => g.key), [early, late]);
+      expect(ghosts.review[0].head.x, lessThan(ghosts.review[1].head.x));
+    });
+
+    test('tempo real: a tecla certa fora do tempo também vira marca, antes à '
+        'esquerda e depois à direita', () async {
+      final track = _loadTrack('satie-fantasma.vsb');
+      final doc = _loadDoc('satie-fantasma.vsb');
+      final timeline = ScoreTimeline(doc);
+      final engine = FakeSoundEngine();
+      final scheduler = ScoreAudioScheduler(
+        engine: engine,
+        track: track,
+        autoTick: false,
+      );
+      final scoreController = ScoreController(document: doc);
+      addTearDown(scoreController.dispose);
+      addTearDown(scoreController.clearAll);
+      final ghosts = GhostController()..attachDocument(doc);
+      addTearDown(ghosts.dispose);
+      final midi = FakeMidiInput();
+      addTearDown(midi.dispose);
+      final practice = PracticeController(
+        midiInput: midi,
+        track: track,
+        scheduler: scheduler,
+        controller: scoreController,
+        hand: Hand.direita,
+        ghosts: ghosts,
+        mode: PracticeMode.realtime,
+        measureIndexAt: timeline.measureIndexAt,
+      );
+      addTearDown(practice.dispose);
+
+      final mine = track.events
+          .where(
+            (e) => Hand.direita.studentStaves.contains(e.staff) && !e.ornament,
+          )
+          .toList();
+      final early = mine[0];
+      final late = mine.firstWhere((e) => e.onMs > early.onMs + 1000);
+
+      practice.start();
+      _advanceUntil(engine, scheduler, early.onMs - 110);
+      midi.press(early.pitch, atSeconds: engine.now);
+      await pumpEventQueue();
+      _advanceUntil(engine, scheduler, late.onMs + 110);
+      midi.press(late.pitch, atSeconds: engine.now);
+      await pumpEventQueue();
+
+      final marks = practice.wrongMarks;
+      expect(marks, hasLength(2));
+      expect(marks.every((m) => m.offBeat), isTrue);
+      expect(marks[0].pitch, early.pitch);
+      expect(marks[0].side, -1);
+      expect(marks[0].targetIds, contains(early.id));
+      expect(marks[1].pitch, late.pitch);
+      expect(marks[1].side, 1);
+      expect(marks[1].targetIds, contains(late.id));
+      // Tocar no tempo (dentro da margem) não marca nada.
+      expect(practice.report.correct, 0);
+      expect(practice.report.early, 1);
+      expect(practice.report.late, 1);
+      practice.stop();
+      ghosts.setReview([for (final m in marks) m.ghostRequest]);
+      expect(ghosts.review.map((g) => g.key), [early.pitch, late.pitch]);
+    });
+
     test('loop A-B: ao concluir o último passo do trecho a sessão recomeça '
         'no início e avisa o host', () async {
       final track = _loadTrack('erik-satie.vsb');

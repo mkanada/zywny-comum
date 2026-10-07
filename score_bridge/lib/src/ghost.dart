@@ -111,6 +111,40 @@ class GhostNote {
     required this.ledgers,
     required this.octaveMarker,
   });
+
+  /// A mesma fantasma deslocada [dx] (unidades de conteúdo da página) na
+  /// horizontal — para a nota tocada antes (`dx < 0`) ou depois (`dx > 0`) do
+  /// tempo, ao lado da coluna do evento esperado em vez de em cima dela.
+  GhostNote shifted(double dx) {
+    if (dx == 0) return this;
+    GhostGlyph move(GhostGlyph g) =>
+        GhostGlyph(glyphId: g.glyphId, x: g.x + dx, y: g.y, sx: g.sx, sy: g.sy);
+    return GhostNote(
+      key: key,
+      page: page,
+      staffId: staffId,
+      loc: loc,
+      locRaw: locRaw,
+      octaveShift: octaveShift,
+      pname: pname,
+      octave: octave,
+      alter: alter,
+      targetId: targetId,
+      head: move(head),
+      headWidth: headWidth,
+      accidental: accidental == null ? null : move(accidental!),
+      ledgers: [
+        for (final l in ledgers)
+          GhostLedger(
+            y: l.y,
+            x1: l.x1 + dx,
+            x2: l.x2 + dx,
+            thickness: l.thickness,
+          ),
+      ],
+      octaveMarker: octaveMarker == null ? null : move(octaveMarker!),
+    );
+  }
 }
 
 class _Located {

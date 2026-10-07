@@ -23,8 +23,10 @@ import 'practice_mode.dart';
 import 'practice_report.dart';
 import 'practice_session.dart';
 import 'shift_detector.dart';
+import 'wrong_mark.dart';
 
 export 'practice_mode.dart';
+export 'wrong_mark.dart';
 
 /// Modo espera (T02): o aluno escolhe [hand], o app agenda a outra no
 /// [scheduler] (freio incluso) e cada nota tocada no [midiInput] alimenta o
@@ -580,7 +582,12 @@ class PracticeController {
       case PracticeVerdictKind.wrong:
         _wrongCount.value++;
         _wrongPitches.value = Set.of(_wrongPitches.value)..add(verdict.pitch);
-        ghosts?.press(verdict.pitch);
+        final mark = _markWrong(verdict.pitch);
+        ghosts?.press(
+          verdict.pitch,
+          targetIds: mark == null || _wait != null ? null : mark.targetIds,
+          side: mark?.side ?? 0,
+        );
         // Modo espera com fantasma: a errada aparece só nela, enquanto a
         // tecla estiver apertada; as esperadas ficam como estão (pintar a
         // mais próxima de vermelho parecia dizer que ela é que está errada).
@@ -602,6 +609,12 @@ class PracticeController {
         _unwatchShift(verdict);
         _correctCount.value++;
         if (verdict.eventId != null) {
+          final mark = _markOffBeat(verdict);
+          ghosts?.press(
+            verdict.pitch,
+            targetIds: mark.targetIds,
+            side: mark.side,
+          );
           controller.highlightAll(
             _chainOf(verdict.eventId!),
             color: kPracticeOffBeatColor,
@@ -619,6 +632,76 @@ class PracticeController {
           );
         }
     }
+  }
+
+  final List<WrongMark> _wrongMarks = [];
+
+  /// As notas erradas da sessão (de altura errada ou fora do tempo), na ordem
+  /// em que foram tocadas, para a revisão no fim do treino. Vale também depois de [stop].
+  List<WrongMark> get wrongMarks => List.unmodifiable(_wrongMarks);
+
+  /// Guarda a nota errada [pitch] em [_wrongMarks]. Modo espera: na coluna
+  /// do passo atual, sem lado (não há tempo certo para errar). Tempo real:
+  /// na coluna do evento mais próximo no tempo, à esquerda se foi tocada
+  /// antes dele e à direita se depois ([WrongMark.nearestColumn]). `null`
+  /// quando não há coluna (passo acabado, ou nenhum evento ao alcance).
+  WrongMark? _markWrong(int pitch) {
+    final WrongMark mark;
+    final wait = _wait;
+    if (wait != null) {
+      final step = wait.current.value;
+      if (step == null) return null;
+      mark = WrongMark(
+        pitch: pitch,
+        targetIds: [for (final e in step.notes) e.id],
+        measureIndex: _measureAt(step.onMs),
+      );
+    } else {
+      final playedMs = _lastPlayedMusicalMs;
+      final column = WrongMark.nearestColumn(
+        _track
+            .startingIn(
+              playedMs - kWrongMarkReachMs,
+              playedMs + kWrongMarkReachMs,
+              staves: hand.studentStaves,
+            )
+            .toList(),
+        playedMs,
+      );
+      if (column == null) return null;
+      mark = WrongMark(
+        pitch: pitch,
+        targetIds: column.ids,
+        side: column.side,
+        measureIndex: _measureAt(column.onMs),
+      );
+    }
+    _wrongMarks.add(mark);
+    return mark;
+  }
+
+  /// Guarda a nota certa tocada fora do tempo ([verdict] adiantado ou
+  /// atrasado) em [_wrongMarks]: na coluna do evento que ela casou, à
+  /// esquerda se veio antes e à direita se depois. A coluna leva o acorde
+  /// todo, para a fantasma não cair em cima das irmãs.
+  WrongMark _markOffBeat(NoteVerdict verdict) {
+    final onMs = _eventOnMs(verdict.eventId!);
+    final mark = WrongMark(
+      pitch: verdict.pitch,
+      targetIds: [
+        for (final e in _track.startingIn(
+          onMs - 0.5,
+          onMs + 0.5,
+          staves: hand.studentStaves,
+        ))
+          if (!e.ornament) e.id,
+      ],
+      side: verdict.kind == PracticeVerdictKind.early ? -1 : 1,
+      measureIndex: _measureAt(onMs),
+      offBeat: true,
+    );
+    _wrongMarks.add(mark);
+    return mark;
   }
 
   /// Q07: as notas esperadas perto de [ms] musicais: no modo espera, o acorde
