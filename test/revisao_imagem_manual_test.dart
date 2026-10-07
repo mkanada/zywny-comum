@@ -1,7 +1,7 @@
 // Gera a imagem da revisão do treino com o código de verdade: uma sessão de
 // tempo real (PracticeController + agendador + notas MIDI simuladas) sobre a
 // Gymnopédie já gravada, as marcas viram fantasmas fixas (GhostController) e
-// a página sai do ScoreView com a ReviewBar por cima.
+// a página sai do ScoreView.
 //
 //   REVISAO_PNG=/caminho/revisao.png flutter test test/revisao_imagem_manual_test.dart
 //
@@ -19,7 +19,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:score_bridge/score_bridge.dart';
 import 'package:zywny/practice/hand.dart';
 import 'package:zywny/practice/practice_controller.dart';
-import 'package:zywny/practice/review_bar.dart';
 import 'package:zywny_audio/performance_track.dart';
 import 'package:zywny_audio/score_audio_scheduler.dart';
 
@@ -170,22 +169,6 @@ void main() {
                     controller: scoreController,
                     mode: ScorePageMode.pagedSweep,
                     ghosts: ghosts,
-                  ),
-                ),
-                Positioned(
-                  left: 8,
-                  right: 8,
-                  bottom: 8,
-                  child: Center(
-                    child: ReviewBar(
-                      count: marks.length,
-                      reviewing: true,
-                      hasSides: true,
-                      onReview: () {},
-                      onPrevious: null,
-                      onNext: null,
-                      onClose: () {},
-                    ),
                   ),
                 ),
               ],

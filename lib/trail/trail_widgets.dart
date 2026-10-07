@@ -12,6 +12,7 @@ import 'package:zywny_library/library_term_scope.dart';
 
 import '../ui/phone_chrome.dart' show kPhoneTitleBarHeight;
 import '../practice/measure_text.dart';
+import '../practice/review_button.dart';
 import '../ui/side_panel.dart';
 import '../ui/theme.dart';
 import 'stage_result.dart' show StagePass, StageResult, kTrailPassAccuracy;
@@ -178,8 +179,9 @@ class TrailTitleChip extends StatelessWidget {
 /// Altura fixa da faixa (não muda a caixa da partitura).
 const double kTrailStripHeight = 34;
 
-/// O que o resumo devolve: o botão que o aluno tocou.
-enum StageSummaryAction { next, retry, skip, train }
+/// O que o resumo devolve: o botão que o aluno tocou. [review] fica na
+/// etapa e abre a revisão das notas erradas na partitura.
+enum StageSummaryAction { next, retry, skip, train, review }
 
 /// Resumo da etapa (folha nova, não o `showPracticeSummary`): porcentagem
 /// grande, aprovado/faltou, compassos com erro (números lógicos) e os botões
@@ -195,6 +197,11 @@ Future<StageSummaryAction?> showStageSummary(
   // Fase final reprovada com reforço (J07): o botão principal treina os
   // blocos em vez de tentar de novo.
   int? blockCount,
+
+  // Notas erradas guardadas para a revisão na partitura (0 esconde o botão)
+  // e se alguma foi fora do tempo (a legenda dos lados).
+  int reviewCount = 0,
+  bool reviewHasSides = false,
 
   // No celular o resumo entra pela lateral e deixa a pauta (com os compassos
   // de erro marcados) à vista; fora dele, a folha inferior de sempre (U18).
@@ -233,6 +240,12 @@ Future<StageSummaryAction?> showStageSummary(
                       '${joinMeasureNumbers(badLogical)} — marcados na partitura.',
           ),
           const SizedBox(height: 12),
+          if (reviewCount > 0)
+            ...reviewButton(
+              hasSides: reviewHasSides,
+              onPressed: () =>
+                  Navigator.pop(context, StageSummaryAction.review),
+            ),
           if (passed) ...[
             FilledButton(
               onPressed: () => Navigator.pop(context, StageSummaryAction.next),

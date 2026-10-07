@@ -1,3 +1,5 @@
+import 'dart:async';
+
 // J05 — Faixa da trilha e resumo da etapa (widgets com controlador falso).
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -131,6 +133,33 @@ void main() {
       await tester.tap(find.text('Próxima etapa'));
       await tester.pumpAndSettle();
       expect(await future, StageSummaryAction.next);
+    });
+
+    testWidgets('com notas erradas: abre a revisão na partitura', (
+      tester,
+    ) async {
+      await tester.pumpWidget(_app(const SizedBox()));
+      final future = showStageSummary(
+        tester.element(find.byType(Scaffold)),
+        stageRef: 'Trecho 1/4 · Notas da direita',
+        result: const StageResult(hits: 80, total: 100, badMeasures: {6}),
+        badLogical: const [7],
+        isLast: false,
+        reviewCount: 3,
+        reviewHasSides: true,
+      );
+      await tester.pumpAndSettle();
+      expect(find.textContaining('antes do tempo fica à esquerda'), findsOne);
+      await tester.tap(find.text('Rever na partitura'));
+      await tester.pumpAndSettle();
+      expect(await future, StageSummaryAction.review);
+    });
+
+    testWidgets('sem notas erradas: sem botão de revisão', (tester) async {
+      await tester.pumpWidget(_app(const SizedBox()));
+      unawaited(show(tester, percent: 95, last: false));
+      await tester.pumpAndSettle();
+      expect(find.text('Rever na partitura'), findsNothing);
     });
 
     testWidgets('aprovado no último: concluir', (tester) async {

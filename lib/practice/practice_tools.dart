@@ -13,6 +13,7 @@ import '../ui/theme.dart';
 import 'latency_calibration.dart';
 import 'measure_text.dart';
 import 'practice_report.dart';
+import 'review_button.dart';
 
 /// Escolha do trecho: dois compassos (índices 0-based em ordem de execução —
 /// com repetição, cada volta é uma ocorrência própria). Devolve `(a, b)` ou
@@ -266,6 +267,7 @@ Future<void> showPracticeSummary(
   // Notas erradas do treino e o que fazer para vê-las na partitura; `null`
   // esconde o botão.
   int wrongCount = 0,
+  bool reviewHasSides = false,
   VoidCallback? onReview,
   Widget? legend,
   bool sidePanel = false,
@@ -332,16 +334,12 @@ Future<void> showPracticeSummary(
                   child: const Text('Repetir os compassos com mais erros'),
                 ),
               if (onReview != null && wrongCount > 0)
-                OutlinedButton(
+                ...reviewButton(
+                  hasSides: reviewHasSides,
                   onPressed: () {
                     Navigator.pop(context);
                     onReview();
                   },
-                  child: Text(
-                    wrongCount == 1
-                        ? 'Ver a nota para rever na partitura'
-                        : 'Ver as $wrongCount notas para rever na partitura',
-                  ),
                 ),
               if (!report.isEmpty)
                 TextButton(
