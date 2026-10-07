@@ -2,7 +2,7 @@
 // hoje) e o que dizer à pessoa. Dart puro (docs/plano/Q07).
 import 'package:meta/meta.dart';
 
-import '../midi/transpose_check.dart' show signedTranspose;
+import 'transpose_check.dart' show signedTranspose;
 
 /// Quantas notas erradas seguidas, todas à mesma distância das esperadas e sem
 /// nenhuma certa no meio, bastam para dizer que o teclado está deslocado. A

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../course/note_names.dart' show NoteNaming;
+import '../music/note_names.dart' show NoteNaming;
 import '../music/tone_choices.dart';
 import '../music/transposition.dart';
 import '../trail/trail_progress.dart' show StudiedTone;

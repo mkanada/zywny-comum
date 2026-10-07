@@ -13,24 +13,15 @@ import 'package:score_bridge/score_bridge.dart';
 import '../audio/score_audio_scheduler.dart';
 import '../midi/midi_input_service.dart';
 import '../music/performance_track.dart';
-import '../trail/stage_result.dart';
+import 'stage_result.dart';
 import 'hand.dart';
 import 'practice_colors.dart';
+import 'practice_mode.dart';
 import 'practice_report.dart';
 import 'practice_session.dart';
 import 'shift_detector.dart';
 
-/// Como o treino conduz o tempo (T03).
-/// Margem padrão do tempo real (ver [PracticeController.rhythmToleranceMs]).
-const double kDefaultRhythmToleranceMs = 75;
-
-enum PracticeMode {
-  /// Modo espera (T02): o tempo para até o aluno tocar o passo.
-  wait,
-
-  /// Tempo real (T03): a música anda e cada nota recebe veredito na hora.
-  realtime,
-}
+export 'practice_mode.dart';
 
 /// Modo espera (T02): o aluno escolhe [hand], o app agenda a outra no
 /// [scheduler] (freio incluso) e cada nota tocada no [midiInput] alimenta o

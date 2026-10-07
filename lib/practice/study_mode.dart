@@ -1,4 +1,4 @@
-import 'practice_controller.dart' show PracticeMode;
+import 'practice_mode.dart' show PracticeMode;
 
 /// Os quatro modos de estudo do treino livre, escolhidos num seletor só na
 /// gaveta (U11). Por baixo continuam dois estados: se o treino está armado

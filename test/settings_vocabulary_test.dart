@@ -8,7 +8,7 @@ import 'package:shared_preferences_platform_interface/in_memory_shared_preferenc
 import 'package:shared_preferences_platform_interface/shared_preferences_async_platform_interface.dart';
 import 'package:zywny/midi/midi_device_manager.dart';
 import 'package:zywny/settings/app_settings.dart';
-import 'package:zywny/settings/general_settings_panel.dart';
+import 'package:zywny/app/general_settings_panel.dart';
 import 'package:zywny/ui/theme.dart';
 
 class _NoDevicesMidi implements MidiCommand {

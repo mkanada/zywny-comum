@@ -4,11 +4,11 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
-import '../audio/latency_calibration.dart';
 import '../audio/sound_engine.dart';
 import '../midi/midi_input_service.dart';
 import '../ui/side_panel.dart';
 import '../ui/theme.dart';
+import 'latency_calibration.dart';
 import 'measure_text.dart';
 import 'practice_report.dart';
 

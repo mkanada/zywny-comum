@@ -7,7 +7,7 @@
 # Packed as a single zip rather than raw files because Flutter's asset
 # bundler lists a directory non-recursively: declaring assets/verovio_data/
 # in pubspec.yaml would silently drop every per-glyph subfolder.
-# lib/verovio_resources.dart unpacks it on first launch and hands the
+# lib/render/verovio_resources.dart unpacks it on first launch and hands the
 # directory to the Toolkit as its resourcePath.
 #
 # Not versioned (see .gitignore) — regenerable and derived from

@@ -1,4 +1,4 @@
-// A tabela de opções do painel (lib/layout_options.dart) contra o Verovio de
+// A tabela de opções do painel (lib/render/layout_options.dart) contra o Verovio de
 // verdade: chaves, tipos, padrões, faixas e listas de escolha vêm de
 // `getAvailableOptions()`, e alguns renders mostram que o exportador `.vsb`
 // respeita as opções — em especial `unit`, que refaz o layout, ao contrário
@@ -12,8 +12,8 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:verovio/verovio.dart';
-import 'package:zywny/layout_options.dart';
-import 'package:zywny/verovio_render.dart';
+import 'package:zywny/render/layout_options.dart';
+import 'package:zywny/render/verovio_render.dart';
 
 import 'support/render_helper.dart';
 

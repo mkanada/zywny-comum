@@ -2,7 +2,7 @@
 library;
 
 import '../practice/hand.dart';
-import '../practice/practice_controller.dart' show PracticeMode;
+import '../practice/practice_mode.dart' show PracticeMode;
 
 /// Compassos por trecho padrão e mínimo (J00). Os degraus 50/75/100 e os 90%
 /// também são constantes do código, não configuração.

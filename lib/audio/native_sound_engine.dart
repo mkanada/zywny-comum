@@ -3,7 +3,7 @@ import 'dart:typed_data';
 
 import 'package:ffi/ffi.dart' as pkg_ffi;
 
-import '../native_paths.dart';
+import 'audio_library_path.dart';
 import 'sound_engine.dart';
 
 /// Espelha `ZyEvent` do header C (`include/zywny_audio.h`, K02): `frame` +

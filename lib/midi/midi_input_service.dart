@@ -5,7 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_midi_command/flutter_midi_command.dart';
 import 'package:flutter_midi_command/flutter_midi_command_messages.dart';
 
-import '../diag_log.dart';
+import '../core/diag_log.dart';
 
 /// Uma nota recebida de um teclado MIDI (M01).
 ///

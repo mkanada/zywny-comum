@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:zywny/splash_screen.dart';
+import 'package:zywny/app/splash_screen.dart';
 
 void main() {
   testWidgets('splash cobre o app e some sozinha', (tester) async {

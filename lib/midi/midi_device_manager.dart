@@ -4,7 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_midi_command/flutter_midi_command.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import '../diag_log.dart';
+import '../core/diag_log.dart';
 import 'web_midi_access.dart';
 
 /// Por que a lista de teclados não existe (só na Web, W03): `null` em

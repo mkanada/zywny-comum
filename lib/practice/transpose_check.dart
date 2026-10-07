@@ -5,12 +5,12 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
-import '../course/note_names.dart' show NoteNaming;
+import '../midi/midi_input_service.dart';
+import '../midi/piano_keyboard.dart';
+import '../music/note_names.dart' show NoteNaming;
 import '../music/transposition.dart';
 import '../settings/app_settings.dart' show KeyboardTransposeBehavior;
 import '../ui/theme.dart';
-import 'midi_input_service.dart';
-import 'piano_keyboard.dart';
 
 /// O Dó central, a tecla que a conferência pede (altura **escrita**).
 const int kCheckKeyMidi = 60;

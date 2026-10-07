@@ -1,6 +1,6 @@
 // M03: toca a partitura no teclado MIDI do próprio usuário, com o mesmo
 // agendador de K04 (ver docs/plano/M03-saida-midi.md).
-import '../diag_log.dart';
+import '../core/diag_log.dart';
 
 import 'dart:async';
 import 'dart:typed_data';

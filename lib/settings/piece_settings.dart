@@ -3,7 +3,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import '../layout_options.dart';
+import '../render/layout_options.dart';
 import '../library/library_keys.dart';
 import '../music/transposition.dart';
 import '../practice/hand.dart';

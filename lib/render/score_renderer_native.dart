@@ -1,10 +1,10 @@
 import 'dart:async';
 import 'dart:io';
 
-import '../native_paths.dart';
-import '../verovio_render.dart';
-import '../verovio_resources.dart';
 import 'score_renderer.dart';
+import 'verovio_paths.dart';
+import 'verovio_render.dart';
+import 'verovio_resources.dart';
 
 ScoreRenderer createScoreRenderer() => NativeScoreRenderer();
 

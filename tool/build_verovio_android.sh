@@ -3,7 +3,7 @@
 # emulator) from verovio_flutter_bridge and stages each one under
 # android/app/src/main/jniLibs/<abi>/libverovio.so, the layout Gradle's
 # default jniLibs source set packages into the APK. At runtime,
-# DynamicLibrary.open('libverovio.so') (bare name, see lib/native_paths.dart)
+# DynamicLibrary.open('libverovio.so') (bare name, see lib/render/verovio_paths.dart)
 # finds it there — no filesystem search needed like on Linux.
 #
 # The bridge's own build_android_so.sh already strips with the NDK's

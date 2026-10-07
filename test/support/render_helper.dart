@@ -2,9 +2,9 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:score_bridge/score_bridge.dart';
-import 'package:zywny/native_paths.dart';
+import 'package:zywny/render/verovio_paths.dart';
 import 'package:zywny/render/score_renderer.dart';
-import 'package:zywny/verovio_render.dart';
+import 'package:zywny/render/verovio_render.dart';
 
 /// O checkout do verovio_flutter_bridge (ver [verovioBridgeDir]).
 final kVerovioBridge = verovioBridgeDir();

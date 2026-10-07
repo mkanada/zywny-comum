@@ -8,11 +8,11 @@ import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:score_bridge/score_bridge.dart';
-import 'package:zywny/audio/latency_calibration.dart';
 import 'package:zywny/audio/metronome.dart';
 import 'package:zywny/audio/score_audio_scheduler.dart';
 import 'package:zywny/audio/sound_engine.dart';
 import 'package:zywny/music/performance_track.dart';
+import 'package:zywny/practice/latency_calibration.dart';
 
 class FakeSoundEngine implements SoundEngine {
   FakeSoundEngine({this.latency = 0.02});

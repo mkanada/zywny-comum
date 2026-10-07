@@ -3,7 +3,7 @@ import 'dart:io';
 import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 
-import '../diag_log.dart';
+import '../core/diag_log.dart';
 
 /// Qual `.sf2` o motor de áudio carrega: o TimGM6mb embutido no app
 /// (`assets/soundfonts/`), a não ser que o usuário tenha escolhido outro —

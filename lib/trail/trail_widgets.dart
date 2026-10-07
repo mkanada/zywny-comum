@@ -13,7 +13,7 @@ import '../ui/phone_chrome.dart' show kPhoneTitleBarHeight;
 import '../practice/measure_text.dart';
 import '../ui/side_panel.dart';
 import '../ui/theme.dart';
-import 'stage_result.dart' show StageResult, kTrailPassAccuracy;
+import 'stage_result.dart' show StagePass, StageResult, kTrailPassAccuracy;
 import 'trail_controller.dart' show ReinforcementView;
 import 'trail_plan.dart';
 import 'trail_progress.dart' show StageState, TrailProgress, TrailResume;
