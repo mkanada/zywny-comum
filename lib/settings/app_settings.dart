@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/painting.dart';
 import 'package:score_bridge/score_bridge.dart' show kDefaultBarColor;
@@ -18,6 +20,41 @@ const double kMaxRhythmToleranceMs = 200;
 /// Limites do tamanho do texto dos cursos (o "Aa" da lição).
 const double kMinCourseTextScale = 0.85;
 const double kMaxCourseTextScale = 2.0;
+
+/// Como o TRANSPOSE de um teclado mexe no MIDI (fase Q, docs/plano/Q00, "O
+/// problema do MIDI do teclado"). Não dá para saber pelo nome do aparelho: a
+/// conferência (Q06) descobre e guarda por teclado. `null` = ainda não
+/// conferido; quem usa supõe `false` enquanto isso.
+@immutable
+class KeyboardTransposeBehavior {
+  const KeyboardTransposeBehavior({this.shiftsOut, this.shiftsIn});
+
+  static const unknown = KeyboardTransposeBehavior();
+
+  /// A conferência (Q06) já descobriu se o teclado transpõe a saída. Quem
+  /// ainda não foi conferido não abre a folha de novo depois que a pessoa
+  /// respondeu.
+  bool get isChecked => shiftsOut != null;
+
+  /// O teclado transpõe também o MIDI que **manda** (a recebida é a soada).
+  final bool? shiftsOut;
+
+  /// O teclado transpõe também o MIDI que **recebe** do app (M03).
+  final bool? shiftsIn;
+
+  @override
+  bool operator ==(Object other) =>
+      other is KeyboardTransposeBehavior &&
+      other.shiftsOut == shiftsOut &&
+      other.shiftsIn == shiftsIn;
+
+  @override
+  int get hashCode => Object.hash(shiftsOut, shiftsIn);
+
+  @override
+  String toString() =>
+      'KeyboardTransposeBehavior(out=$shiftsOut, in=$shiftsIn)';
+}
 
 /// Saída de som (K03/M03): o sintetizador do app (`.sf2`) ou o teclado MIDI
 /// conectado, tocando no som próprio do piano digital do usuário.
@@ -61,6 +98,7 @@ class AppSettings extends ChangeNotifier {
   static const _kCourseTextScale = 'ui_course_text_scale';
   // Fase Q (Q03): "Abrir as músicas já sem acidentes".
   static const _kTransposeByDefault = 'score_transpose_default';
+  static const _kKeyboardTranspose = 'midi_keyboard_transpose';
 
   final SharedPreferencesAsync _prefs;
 
@@ -86,6 +124,7 @@ class AppSettings extends ChangeNotifier {
   NoteNaming _noteNaming = NoteNaming.latin;
   double _courseTextScale = 1.0;
   bool _transposeByDefault = false;
+  Map<String, KeyboardTransposeBehavior> _keyboardTranspose = const {};
 
   /// `true` depois do primeiro [load] — antes disso valem os padrões.
   bool get loaded => _loaded;
@@ -278,6 +317,52 @@ class AppSettings extends ChangeNotifier {
     _changed(_prefs.setBool(_kTransposeByDefault, value));
   }
 
+  /// A última música aberta nesta execução do app estava transposta (Q07): o
+  /// teclado pode ter ficado com o TRANSPOSE ligado. Vale só até fechar o app,
+  /// por isso não é guardado nem avisa quem escuta.
+  bool lastPieceTransposed = false;
+
+  /// O que se sabe do TRANSPOSE de cada teclado, pelo nome do dispositivo MIDI
+  /// (fase Q, Q06 preenche). Teclado não conferido: [KeyboardTransposeBehavior.unknown].
+  KeyboardTransposeBehavior keyboardTransposeOf(String? deviceName) =>
+      _keyboardTranspose[deviceName] ?? KeyboardTransposeBehavior.unknown;
+
+  void setKeyboardTranspose(
+    String deviceName,
+    KeyboardTransposeBehavior behavior,
+  ) {
+    if (keyboardTransposeOf(deviceName) == behavior) return;
+    _keyboardTranspose = {..._keyboardTranspose, deviceName: behavior};
+    _changed(
+      _prefs.setString(
+        _kKeyboardTranspose,
+        jsonEncode({
+          for (final e in _keyboardTranspose.entries)
+            e.key: {'out': ?e.value.shiftsOut, 'in': ?e.value.shiftsIn},
+        }),
+      ),
+    );
+  }
+
+  static Map<String, KeyboardTransposeBehavior> _decodeKeyboardTranspose(
+    String? text,
+  ) {
+    if (text == null) return const {};
+    try {
+      final map = jsonDecode(text) as Map<String, dynamic>;
+      return {
+        for (final e in map.entries)
+          if (e.value case final Map<String, dynamic> v)
+            e.key: KeyboardTransposeBehavior(
+              shiftsOut: v['out'] as bool?,
+              shiftsIn: v['in'] as bool?,
+            ),
+      };
+    } on Object {
+      return const {};
+    }
+  }
+
   void _changed(Future<void> write) {
     notifyListeners();
     write.catchError((Object e) {
@@ -324,6 +409,9 @@ class AppSettings extends ChangeNotifier {
     final textScale = await read(() => _prefs.getDouble(_kCourseTextScale));
     final transposeByDefault = await read(
       () => _prefs.getBool(_kTransposeByDefault),
+    );
+    final keyboardTranspose = await read(
+      () => _prefs.getString(_kKeyboardTranspose),
     );
 
     _output = byName(SoundOutput.values, output) ?? _output;
@@ -373,6 +461,7 @@ class AppSettings extends ChangeNotifier {
       );
     }
     _transposeByDefault = transposeByDefault ?? _transposeByDefault;
+    _keyboardTranspose = _decodeKeyboardTranspose(keyboardTranspose);
     _loaded = true;
     notifyListeners();
   }

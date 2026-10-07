@@ -367,6 +367,7 @@ class TrailDrawer extends StatelessWidget {
     this.onRepeatStage,
     this.blocks = const [],
     this.footer,
+    this.alsoStudied,
   });
 
   final TrailPlan plan;
@@ -392,6 +393,10 @@ class TrailDrawer extends StatelessWidget {
 
   /// Acima de "Reiniciar trilha": a legenda das cores do treino (U08).
   final Widget? footer;
+
+  /// Embaixo do progresso: "Também estudada: original, 3 de 8 etapas" quando
+  /// a música tem trilha em outro tom (fase Q).
+  final String? alsoStudied;
 
   @override
   Widget build(BuildContext context) {
@@ -423,6 +428,11 @@ class TrailDrawer extends StatelessWidget {
                   ),
                   style: const TextStyle(fontSize: 12, color: kInkCaption),
                 ),
+                if (alsoStudied case final text?)
+                  Text(
+                    text,
+                    style: const TextStyle(fontSize: 12, color: kInkCaption),
+                  ),
               ],
             ),
           ),

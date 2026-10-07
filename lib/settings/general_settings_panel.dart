@@ -288,6 +288,14 @@ class GeneralSettingsPanel extends StatelessWidget {
           ],
         ),
       ),
+      const _Header('Transpor'),
+      SwitchListTile(
+        dense: true,
+        title: const Text('Abrir as músicas já sem acidentes'),
+        subtitle: const Text('Cada música pode voltar ao original na gaveta'),
+        value: settings.transposeByDefault,
+        onChanged: (v) => settings.transposeByDefault = v,
+      ),
       const _Header('Trilha de estudo'),
       Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16),

@@ -22,6 +22,7 @@ class MidiMonitorPanel extends StatefulWidget {
     required this.input,
     required this.onClose,
     this.wrong,
+    this.heldPitchOf,
   });
 
   final MidiDeviceManager deviceManager;
@@ -32,6 +33,11 @@ class MidiMonitorPanel extends StatefulWidget {
   /// [held]. `null` fora do modo treino — o teclado volta a só acender o
   /// que está apertado.
   final ValueListenable<Set<int>>? wrong;
+
+  /// Converte a altura que chegou na **escrita** (fase Q): o teclado desenhado
+  /// mostra a tecla que a pessoa aperta, a mesma de [wrong]. `null` = as que
+  /// chegam, sem conversão.
+  final int Function(int received)? heldPitchOf;
 
   @override
   State<MidiMonitorPanel> createState() => _MidiMonitorPanelState();
@@ -115,7 +121,11 @@ class _MidiMonitorPanelState extends State<MidiMonitorPanel> {
               builder: (context, constraints) =>
                   ValueListenableBuilder<Set<int>>(
                     valueListenable: widget.input.held,
-                    builder: (context, held, _) {
+                    builder: (context, received, _) {
+                      final convert = widget.heldPitchOf;
+                      final held = convert == null
+                          ? received
+                          : {for (final p in received) convert(p)};
                       final wrong = widget.wrong;
                       Widget paint(Set<int> wrongPitches) => CustomPaint(
                         size: Size(constraints.maxWidth, 64),

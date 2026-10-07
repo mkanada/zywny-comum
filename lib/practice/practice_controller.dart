@@ -18,6 +18,7 @@ import 'hand.dart';
 import 'practice_colors.dart';
 import 'practice_report.dart';
 import 'practice_session.dart';
+import 'shift_detector.dart';
 
 /// Como o treino conduz o tempo (T03).
 /// Margem padrão do tempo real (ver [PracticeController.rhythmToleranceMs]).
@@ -45,6 +46,9 @@ class PracticeController {
     required this.hand,
     this.ghosts,
     this.inputLatencyMs = 0,
+    this.writtenFromReceived = _samePitch,
+    this.shiftDetector,
+    this.onShift,
     this.onLoopRestart,
     this.mode = PracticeMode.wait,
     this.measureIndexAt,
@@ -99,6 +103,23 @@ class PracticeController {
   }
 
   final PracticeMode mode;
+
+  /// Converte a altura que chegou do teclado na **escrita** (a da partitura):
+  /// com a música transposta, o teclado pode mandar a soada (fase Q,
+  /// `PitchFrame.writtenFromReceived`). O treino todo compara escrita com
+  /// escrita. Chamada a cada nota, então vale o teclado e o tom de agora.
+  final int Function(int received) writtenFromReceived;
+
+  static int _samePitch(int pitch) => pitch;
+
+  /// Q07: vê, a cada nota errada, se o teclado inteiro está deslocado (o
+  /// TRANSPOSE errado). Cada nota errada leva as distâncias às esperadas;
+  /// cada acerto zera a conta. `null` = não vigia.
+  final ShiftDetector? shiftDetector;
+
+  /// Chamado com a distância `d` (tocada − esperada, em altura escrita)
+  /// quando [shiftDetector] dispara.
+  final void Function(int d)? onShift;
 
   /// Cores da nota certa e do pulso de nota errada (configuráveis em
   /// Cores); mutáveis para o host trocar no meio do treino. Valem para o
@@ -471,11 +492,13 @@ class PracticeController {
   }
 
   void _onNote(PlayedNote note) {
+    // Uma conversão só, no topo: daqui para baixo tudo é altura escrita.
+    final pitch = writtenFromReceived(note.pitch);
     final wait = _wait;
     if (note.on) {
       if (wait != null) {
         wait.noteOn(
-          note.pitch,
+          pitch,
           atMs: note.atSeconds * 1000 - inputLatencyMs,
           velocity: note.velocity,
         );
@@ -484,14 +507,14 @@ class PracticeController {
           note.atSeconds - inputLatencyMs / 1000,
         );
         _lastPlayedMusicalMs = musicalMs;
-        _rt!.noteOn(note.pitch, musicalMs, velocity: note.velocity);
+        _rt!.noteOn(pitch, musicalMs, velocity: note.velocity);
       }
     } else {
-      wait?.noteOff(note.pitch);
-      _releaseDone(note.pitch);
-      ghosts?.release(note.pitch);
-      if (_wrongPitches.value.contains(note.pitch)) {
-        _wrongPitches.value = Set.of(_wrongPitches.value)..remove(note.pitch);
+      wait?.noteOff(pitch);
+      _releaseDone(pitch);
+      ghosts?.release(pitch);
+      if (_wrongPitches.value.contains(pitch)) {
+        _wrongPitches.value = Set.of(_wrongPitches.value)..remove(pitch);
       }
     }
   }
@@ -549,6 +572,7 @@ class PracticeController {
     if (verdict.kind == PracticeVerdictKind.wrong) _tally?.wrong();
     switch (verdict.kind) {
       case PracticeVerdictKind.correct:
+        _unwatchShift(verdict);
         _correctCount.value++;
         if (_wait != null) {
           _closeHit(verdict.pitch);
@@ -566,6 +590,7 @@ class PracticeController {
         // Modo espera com fantasma: a errada aparece só nela, enquanto a
         // tecla estiver apertada; as esperadas ficam como estão (pintar a
         // mais próxima de vermelho parecia dizer que ela é que está errada).
+        _watchShift(verdict.pitch);
         final nearestId = _wait != null
             ? (ghosts == null ? _nearestExpectedId(verdict.pitch) : null)
             : _nearestEventId(verdict.pitch, _lastPlayedMusicalMs);
@@ -580,6 +605,7 @@ class PracticeController {
         }
       case PracticeVerdictKind.early:
       case PracticeVerdictKind.late:
+        _unwatchShift(verdict);
         _correctCount.value++;
         if (verdict.eventId != null) {
           controller.highlightAll(
@@ -599,6 +625,36 @@ class PracticeController {
           );
         }
     }
+  }
+
+  /// Q07: as notas esperadas perto de [ms] musicais: no modo espera, o acorde
+  /// do passo; no tempo real, as da janela de 400 ms. Num acorde, a mais
+  /// próxima de uma nota errada nem sempre é a que a pessoa queria tocar, por
+  /// isso o detector recebe as distâncias a todas.
+  Iterable<SoundEvent> _expectedNear(double ms) => _wait != null
+      ? (_wait!.current.value?.notes ?? const <SoundEvent>[])
+      : _track.startingIn(ms - 400, ms + 400, staves: hand.studentStaves);
+
+  /// Q07: conta a nota errada [pitch] no detector de deslocamento.
+  void _watchShift(int pitch) {
+    final detector = shiftDetector;
+    if (detector == null) return;
+    final d = detector.wrong([
+      for (final e in _expectedNear(_lastPlayedMusicalMs)) pitch - e.pitch,
+    ]);
+    if (d != null) onShift?.call(d);
+  }
+
+  /// Q07: o acerto de [verdict] zera a conta do detector (salvo se for um
+  /// acaso do deslocamento, ver [ShiftDetector.correct]).
+  void _unwatchShift(NoteVerdict verdict) {
+    final detector = shiftDetector;
+    if (detector == null) return;
+    final id = verdict.eventId;
+    detector.correct([
+      if (id != null)
+        for (final e in _expectedNear(_eventOnMs(id))) verdict.pitch - e.pitch,
+    ]);
   }
 
   /// Tempo real: id do evento do aluno mais perto em pitch entre os que

@@ -13,6 +13,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../library/library_keys.dart';
 import '../library/piece.dart' show kHymnsLibraryId;
+import '../music/transposition.dart';
 import 'stage_result.dart';
 import 'trail_plan.dart';
 import 'trail_stage.dart';
@@ -262,9 +263,17 @@ class TrailProgress {
   int get hashCode => Object.hash(n, total, records, resume);
 }
 
-/// Guarda uma trilha por música (`trail_<biblioteca>_<id>`, com `'v': 1`),
-/// com `done`/`total` junto para a biblioteca (J09). Avisa quem escuta a cada
-/// mudança — a biblioteca refaz a linha da música ao voltar da partitura.
+/// Uma trilha começada de uma música num tom (`null` = o original).
+typedef StudiedTone = ({Transposition? transposition, TrailProgress progress});
+
+/// Guarda uma trilha por música **e por tom** (`trail_<biblioteca>_<id>`, com
+/// `'v': 1`), com `done`/`total` junto para a biblioteca (J09). Avisa quem
+/// escuta a cada mudança — a biblioteca refaz a linha da música ao voltar da
+/// partitura.
+///
+/// Os ids que a classe recebe são **ids de progresso** ([progressIdFor]): o da
+/// música, no tom original (as chaves de antes da fase Q), ou com o sufixo do
+/// tom transposto — cada tom tem a sua trilha (D-TRP-PROGRESSO).
 ///
 /// Vale para uma biblioteca por vez: [load] diz qual (a em uso).
 class TrailProgressStore extends ChangeNotifier {
@@ -273,6 +282,10 @@ class TrailProgressStore extends ChangeNotifier {
 
   final SharedPreferencesAsync _prefs;
   final Map<String, TrailProgress> _byId = {};
+
+  /// Os ids que já foram procurados nas preferências (achados ou não), para
+  /// [loadMissing] não reler os que não têm trilha.
+  final Set<String> _looked = {};
   String _libraryId = kHymnsLibraryId;
 
   String get libraryId => _libraryId;
@@ -282,6 +295,7 @@ class TrailProgressStore extends ChangeNotifier {
   /// Garante a música na memória (uma chave só) — a tela usa isto ao abrir a
   /// partitura; o `load()` em lote é para a biblioteca (J09).
   Future<TrailProgress> ensureLoaded(String id) async {
+    _looked.add(id);
     try {
       final text = await _prefs.getString(trailKeyFor(_libraryId, id));
       if (text != null) {
@@ -313,7 +327,27 @@ class TrailProgressStore extends ChangeNotifier {
   Future<void> load(Iterable<String> ids, [String? libraryId]) async {
     if (libraryId != null) _libraryId = libraryId;
     _byId.clear();
+    _looked.clear();
+    await _readAll(ids);
+    notifyListeners();
+  }
+
+  /// Lê só as [ids] que ainda não foram procuradas: a biblioteca troca o tom
+  /// em uso de uma música (chave geral, escolha na partitura) e precisa da
+  /// trilha do tom novo sem reler o catálogo inteiro.
+  Future<void> loadMissing(Iterable<String> ids) async {
+    final missing = [
+      for (final id in ids)
+        if (!_looked.contains(id)) id,
+    ];
+    if (missing.isEmpty) return;
+    await _readAll(missing);
+    notifyListeners();
+  }
+
+  Future<void> _readAll(Iterable<String> ids) async {
     for (final id in ids) {
+      _looked.add(id);
       try {
         final text = await _prefs.getString(trailKeyFor(_libraryId, id));
         if (text == null) continue;
@@ -325,10 +359,60 @@ class TrailProgressStore extends ChangeNotifier {
         continue;
       }
     }
-    notifyListeners();
+  }
+
+  /// Os tons em que [pieceId] tem trilha começada (alguma etapa feita): o
+  /// original e os `<id>@<intervalo>` que existem nas preferências. É o que a
+  /// tela da música mostra em "Também estudada". O original vem primeiro; os
+  /// outros, por intervalo.
+  Future<List<StudiedTone>> studiedTones(String pieceId) async {
+    final base = trailKeyFor(_libraryId, pieceId);
+    final found = <StudiedTone>[];
+    try {
+      final keys = await _prefs.getKeys();
+      for (final key in keys) {
+        if (key != base && !key.startsWith('$base@')) continue;
+        final progressId = key.substring('trail_${_libraryId}_'.length);
+        final tone = toneOfProgressId(progressId);
+        if (key != base && tone == null) continue;
+        final text = await _prefs.getString(key);
+        if (text == null) continue;
+        final progress = TrailProgress.fromJson(
+          jsonDecode(text) as Map<String, dynamic>,
+        );
+        if (progress.done > 0) {
+          found.add((transposition: tone, progress: progress));
+        }
+      }
+    } on Object {
+      // Preferência estragada: lista o que deu para ler.
+    }
+    found.sort(
+      (a, b) => (a.transposition?.interval ?? '').compareTo(
+        b.transposition?.interval ?? '',
+      ),
+    );
+    return found;
+  }
+
+  /// Trocar [pieceId] do tom [from] para o tom [to] (`null` = o original)
+  /// deixa para trás uma trilha em andamento? É quando há etapa feita em
+  /// [from] e nenhuma em [to]: a tela pergunta antes ("Em Dó a trilha começa
+  /// do zero. A do tom original fica guardada.").
+  Future<bool> toneChangeStartsOver(
+    String pieceId,
+    Transposition? from,
+    Transposition? to,
+  ) async {
+    if (from == to) return false;
+    final current = await ensureLoaded(progressIdFor(pieceId, from));
+    if (current.done == 0) return false;
+    final target = await ensureLoaded(progressIdFor(pieceId, to));
+    return target.done == 0;
   }
 
   Future<void> save(String id, TrailProgress progress) {
+    _looked.add(id);
     _byId[id] = progress;
     notifyListeners();
     return _prefs.setString(

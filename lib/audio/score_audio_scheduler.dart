@@ -90,6 +90,14 @@ class ScoreAudioScheduler {
   /// Metrônomo ligado: clica em cada batida enquanto toca.
   bool metronomeOn = false;
 
+  /// A altura que o motor recebe para a nota de altura **escrita** `w` (fase
+  /// Q, `PitchFrame`): com a música transposta é a soada, e o agendador não
+  /// sabe nada de transposição. Chamada a cada nota agendada, então vale o
+  /// que estiver certo naquele instante.
+  int Function(int written) pitchOf = _samePitch;
+
+  static int _samePitch(int pitch) => pitch;
+
   /// Avisado (do [pump], até uma janela de [lookahead] antes de o som
   /// voltar) cada vez que uma volta do loop fecha; o argumento é o número
   /// de voltas completas desde [setLoop].
@@ -510,8 +518,9 @@ class ScoreAudioScheduler {
         final offMs = cutMs != null && e.offMs > cutMs ? cutMs : e.offMs;
         final rawOffAt = _deviceAt(offMs) - _kNoteOffLeadSeconds;
         final offAt = _clamp(rawOffAt, earliest).clamp(onAt, double.infinity);
-        midi.add(ScheduledMidi(onAt, 0x90 | e.channel, e.pitch, e.velocity));
-        midi.add(ScheduledMidi(offAt, 0x80 | e.channel, e.pitch, 0));
+        final pitch = pitchOf(e.pitch);
+        midi.add(ScheduledMidi(onAt, 0x90 | e.channel, pitch, e.velocity));
+        midi.add(ScheduledMidi(offAt, 0x80 | e.channel, pitch, 0));
       }
     }
     for (final b in _countIn) {

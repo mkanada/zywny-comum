@@ -44,8 +44,9 @@ class TrailController extends ChangeNotifier {
   final TrailPlan plan;
   final TrailProgressStore store;
 
-  /// Número do hino na biblioteca; `null` fora dela (partitura avulsa): a
-  /// trilha vale na sessão, mas não persiste (J03).
+  /// O id do progresso desta trilha na biblioteca (`progressIdFor`: o da
+  /// música, com o sufixo do tom se transposta); `null` fora dela (partitura
+  /// avulsa): a trilha vale na sessão, mas não persiste (J03).
   final String? pieceId;
 
   TrailProgress _progress;
