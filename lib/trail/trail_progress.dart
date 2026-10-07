@@ -11,9 +11,11 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import '../library/library_keys.dart';
-import '../library/piece.dart' show kHymnsLibraryId;
-import '../music/transposition.dart';
+import 'package:zywny_library/library_keys.dart';
+import 'package:zywny_library/piece.dart' show kHymnsLibraryId;
+
+import 'package:zywny_music/transposition.dart';
+
 import 'stage_result.dart';
 import 'trail_plan.dart';
 import 'trail_stage.dart';

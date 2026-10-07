@@ -3,8 +3,8 @@ import 'dart:async';
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 
-import 'native_sound_engine.dart';
-import 'sound_engine.dart';
+import 'package:zywny_audio/native_sound_engine.dart';
+import 'package:zywny_audio/sound_engine.dart';
 
 /// Painel de depuração do motor de áudio (K02/K03), só com `--debug`: um
 /// botão que carrega um `.sf2` (D-SF ainda aberta — sem asset embutido

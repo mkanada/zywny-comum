@@ -4,7 +4,8 @@ import 'dart:io';
 ///
 /// Search order: explicit env override, the installed Linux bundle layout,
 /// then the project source tree (covers `flutter run` from the project
-/// root). Mirrors `findVerovioLibrary` in `lib/render/verovio_paths.dart`;
+/// root, or the tests from `packages/zywny_audio`). Mirrors
+/// `findVerovioLibrary` in `lib/render/verovio_paths.dart`;
 /// unlike Verovio, this crate lives inside this repo (`native/zywny_audio/`),
 /// not an external one.
 String findAudioLibrary() {
@@ -28,6 +29,9 @@ String findAudioLibrary() {
     // Dev fallback: built in this repo via tool/build_audio_linux.sh, from
     // the project root (how `flutter run`/`just run` are normally invoked).
     'native/zywny_audio/target/release/libzywny_audio.so',
+    // O mesmo, visto de packages/zywny_audio (onde os testes deste pacote
+    // rodam — R15).
+    '../../native/zywny_audio/target/release/libzywny_audio.so',
   ];
   for (final c in candidates) {
     if (File(c).existsSync()) return c;

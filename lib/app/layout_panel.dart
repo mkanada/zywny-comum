@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../render/layout_options.dart';
-import '../library/library_term_scope.dart';
+
+import 'package:zywny_library/library_term_scope.dart';
 
 /// Floating panel with what belongs to **one piece**: the Verovio options of
 /// [kLayoutGroups] (notation size first) and the on-screen zoom. Each piece

@@ -12,7 +12,7 @@ import 'dart:ui' show FontFeature, ImageFilter;
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 
-import '../audio/metronome.dart';
+import 'package:zywny_audio/metronome.dart';
 
 /// Azul da contagem.
 const kCountInColor = Color(0xFF1F4FD8);

@@ -1,0 +1,18 @@
+name: zywny_diag
+description: "Registro de diagnóstico em arquivo do zywny (Android), usado pelo app, pelo som e pelo MIDI (R15)."
+publish_to: 'none'
+version: 1.0.0
+
+environment:
+  sdk: ^3.13.3
+
+# Membro do workspace da raiz (R15).
+resolution: workspace
+
+dependencies:
+  flutter:
+    sdk: flutter
+  path_provider: ^2.1.5
+
+dev_dependencies:
+  flutter_lints: ^6.0.0

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:zywny/audio/metronome.dart';
+import 'package:zywny_audio/metronome.dart';
 import 'package:zywny/practice/count_in_overlay.dart';
 
 void main() {

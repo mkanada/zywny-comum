@@ -1,8 +1,6 @@
 /// Mão que o aluno escolhe tocar no modo treino (T02) — mesmo vocabulário do
-/// painel de opções do mockup (`lib/mockup/practice_state.dart`), extraído
-/// para cá porque `lib/main.dart` (app real) não deve depender de
-/// `lib/mockup/` (tela solta, sem MIDI/áudio real). O mockup volta a
-/// importar este enum em vez de definir o seu próprio.
+/// painel de opções do mockup (`apps/zywny_mockup/lib/mockup/practice_state.dart`),
+/// que importa este enum do app em vez de definir o seu próprio.
 ///
 /// Convenção de pauta (N03): piano, pauta 1 = mão direita, pauta 2 = mão
 /// esquerda.

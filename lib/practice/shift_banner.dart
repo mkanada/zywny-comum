@@ -3,7 +3,8 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
-import '../midi/midi_input_service.dart';
+import 'package:zywny_midi/midi_input_service.dart';
+
 import 'shift_detector.dart';
 
 /// Quanto tempo a faixa fica na tela sozinha.

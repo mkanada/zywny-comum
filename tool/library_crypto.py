@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Chaves e envelope dos pacotes `.zywny` (D-BIB-CIFRA, docs/plano/B00).
 
-O envelope (igual ao de `lib/library/library_envelope.dart`):
+O envelope (igual ao de `packages/zywny_library/lib/library_envelope.dart`):
 
     "ZYWN" | versão(1) | sal(32) | nonce(12) | cifra+tag(AES-256-GCM) | assinatura(64)
 

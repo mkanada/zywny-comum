@@ -10,9 +10,12 @@ import 'dart:ui' show Color;
 import 'package:flutter/foundation.dart';
 import 'package:score_bridge/score_bridge.dart';
 
-import '../audio/score_audio_scheduler.dart';
-import '../midi/midi_input_service.dart';
-import '../music/performance_track.dart';
+import 'package:zywny_audio/score_audio_scheduler.dart';
+
+import 'package:zywny_midi/midi_input_service.dart';
+
+import 'package:zywny_audio/performance_track.dart';
+
 import 'stage_result.dart';
 import 'hand.dart';
 import 'practice_colors.dart';

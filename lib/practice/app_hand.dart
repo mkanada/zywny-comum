@@ -1,4 +1,5 @@
-import '../music/performance_track.dart';
+import 'package:zywny_audio/performance_track.dart';
+
 import 'hand.dart';
 
 /// Ids das notas das pautas que o **app** toca com a mão escolhida (U08), com

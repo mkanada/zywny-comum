@@ -3,9 +3,12 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
-import 'midi_device_manager.dart';
+import 'package:zywny_midi/midi_device_manager.dart';
+
 import 'midi_device_picker.dart';
-import 'midi_input_service.dart';
+
+import 'package:zywny_midi/midi_input_service.dart';
+
 import 'piano_keyboard.dart';
 
 /// Quantas mensagens recentes o painel mostra (M01, "O que fazer" #2).

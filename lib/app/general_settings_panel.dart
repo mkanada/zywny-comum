@@ -6,18 +6,24 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:score_bridge/score_bridge.dart' show kDefaultBarColor;
 
-import '../audio/soundfont_store.dart';
+import 'package:zywny_audio/soundfont_store.dart';
+
 import '../course/course_installer.dart';
 import '../course/course_store.dart';
-import '../music/note_names.dart' show NoteNaming;
-import '../midi/midi_device_manager.dart';
+
+import 'package:zywny_music/note_names.dart' show NoteNaming;
+
+import 'package:zywny_midi/midi_device_manager.dart';
+
 import '../midi/midi_device_picker.dart';
 import '../practice/practice_colors.dart';
 import '../trail/trail_stage.dart' show kTrailSpeeds;
 import '../trail/trail_widgets.dart';
-import '../library/library_installer.dart';
-import '../library/library_store.dart';
-import '../library/library_term_scope.dart';
+
+import 'package:zywny_library/library_installer.dart';
+import 'package:zywny_library/library_store.dart';
+import 'package:zywny_library/library_term_scope.dart';
+
 import '../ui/theme.dart';
 import '../settings/app_settings.dart';
 import '../settings/color_picker.dart';

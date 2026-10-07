@@ -5,7 +5,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences_platform_interface/in_memory_shared_preferences_async.dart';
 import 'package:shared_preferences_platform_interface/shared_preferences_async_platform_interface.dart';
-import 'package:zywny/library/piece.dart';
+import 'package:zywny_library/piece.dart';
 import 'package:zywny/settings/app_settings.dart';
 import 'package:zywny/settings/effective_transposition.dart';
 import 'package:zywny/settings/piece_settings.dart';

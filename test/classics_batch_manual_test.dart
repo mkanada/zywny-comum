@@ -13,7 +13,7 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:score_bridge/score_bridge.dart';
-import 'package:zywny/music/performance_track.dart';
+import 'package:zywny_audio/performance_track.dart';
 import 'package:zywny/trail/trail_path.dart';
 import 'package:zywny/trail/trail_plan.dart';
 import 'package:zywny/render/verovio_render.dart';

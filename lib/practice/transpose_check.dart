@@ -5,10 +5,13 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
-import '../midi/midi_input_service.dart';
+import 'package:zywny_midi/midi_input_service.dart';
+
 import '../midi/piano_keyboard.dart';
-import '../music/note_names.dart' show NoteNaming;
-import '../music/transposition.dart';
+
+import 'package:zywny_music/note_names.dart' show NoteNaming;
+import 'package:zywny_music/transposition.dart';
+
 import '../settings/app_settings.dart' show KeyboardTransposeBehavior;
 import '../ui/theme.dart';
 

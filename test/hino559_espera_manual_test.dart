@@ -21,11 +21,11 @@ import 'package:flutter_test/flutter_test.dart';
 import 'support/hymn_package.dart';
 
 import 'package:score_bridge/score_bridge.dart';
-import 'package:zywny/audio/audio_playback_clock.dart';
-import 'package:zywny/audio/score_audio_scheduler.dart';
-import 'package:zywny/audio/sound_engine.dart';
-import 'package:zywny/midi/midi_input_service.dart';
-import 'package:zywny/music/performance_track.dart';
+import 'package:zywny_audio/audio_playback_clock.dart';
+import 'package:zywny_audio/score_audio_scheduler.dart';
+import 'package:zywny_audio/sound_engine.dart';
+import 'package:zywny_midi/midi_input_service.dart';
+import 'package:zywny_audio/performance_track.dart';
 import 'package:zywny/practice/app_hand.dart';
 import 'package:zywny/practice/practice_colors.dart';
 import 'package:zywny/practice/practice_controller.dart';

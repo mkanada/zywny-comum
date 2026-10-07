@@ -9,7 +9,7 @@ import 'dart:math';
 import 'package:flutter/widgets.dart';
 import 'package:score_bridge/score_bridge.dart';
 
-import '../core/diag_log.dart';
+import 'package:zywny_diag/diag_log.dart';
 
 /// Envolve um `ScoreView` que ocupa a caixa inteira e grava uma medição por
 /// (partitura, tamanho de caixa).

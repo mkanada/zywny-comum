@@ -5,8 +5,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_midi_command/flutter_midi_command.dart';
 
 import '../ui/theme.dart';
-import 'midi_device_manager.dart';
-import 'midi_labels.dart';
+
+import 'package:zywny_midi/midi_device_manager.dart';
+import 'package:zywny_midi/midi_labels.dart';
 
 /// Ícone do teclado MIDI para a AppBar (M01): mostra se algo está
 /// conectado e abre [showMidiDevicePicker] ao tocar.

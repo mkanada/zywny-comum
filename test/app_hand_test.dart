@@ -5,7 +5,7 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:score_bridge/score_bridge.dart';
-import 'package:zywny/music/performance_track.dart';
+import 'package:zywny_audio/performance_track.dart';
 import 'package:zywny/practice/app_hand.dart';
 import 'package:zywny/practice/hand.dart';
 import 'package:zywny/ui/practice_legend.dart';

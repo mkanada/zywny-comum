@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
-import '../music/note_names.dart' show NoteNaming, noteLabel, pitchFromMidi;
+import 'package:zywny_music/note_names.dart'
+    show NoteNaming, noteLabel, pitchFromMidi;
 
 /// Teclado de piano desenhado com `CustomPaint`: o "Monitor MIDI" (M01) usa
 /// com 88 teclas acendendo [held]; a marca `zywny-keyboard` (I05) usa com

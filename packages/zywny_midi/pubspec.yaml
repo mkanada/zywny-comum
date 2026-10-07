@@ -1,0 +1,30 @@
+name: zywny_midi
+description: "A camada MIDI do zywny sem tela (R16): entrada, dispositivos, saída para o teclado como SoundEngine e o monitor."
+publish_to: 'none'
+version: 1.0.0
+
+environment:
+  sdk: ^3.13.3
+
+# Membro do workspace da raiz (R16). Os seletores e painéis (telas) ficam no
+# app, em lib/midi/.
+resolution: workspace
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_midi_command: ^1.3.0
+  # O dispositivo escolhido e as preferências por teclado (M01).
+  shared_preferences: ^2.5.5
+  # Web MIDI (W03), em `web_midi_access_web.dart`.
+  web: ^1.1.0
+  zywny_audio:
+    path: ../zywny_audio
+  zywny_diag:
+    path: ../zywny_diag
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+  shared_preferences_platform_interface: ^2.4.2

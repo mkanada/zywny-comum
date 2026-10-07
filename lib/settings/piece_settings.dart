@@ -4,8 +4,11 @@ import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../render/layout_options.dart';
-import '../library/library_keys.dart';
-import '../music/transposition.dart';
+
+import 'package:zywny_library/library_keys.dart';
+
+import 'package:zywny_music/transposition.dart';
+
 import '../practice/hand.dart';
 import '../trail/trail_stage.dart' show kTrailMinMeasures;
 

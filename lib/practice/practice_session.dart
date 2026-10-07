@@ -8,7 +8,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 
-import '../music/performance_track.dart';
+import 'package:zywny_audio/performance_track.dart';
 
 /// Como uma nota tocada se compara com o que a partitura esperava.
 enum PracticeVerdictKind { correct, wrong, early, late, missed }

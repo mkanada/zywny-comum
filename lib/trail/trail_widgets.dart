@@ -8,7 +8,8 @@ library;
 
 import 'package:flutter/material.dart';
 
-import '../library/library_term_scope.dart';
+import 'package:zywny_library/library_term_scope.dart';
+
 import '../ui/phone_chrome.dart' show kPhoneTitleBarHeight;
 import '../practice/measure_text.dart';
 import '../ui/side_panel.dart';

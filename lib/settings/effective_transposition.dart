@@ -1,5 +1,7 @@
-import '../library/piece.dart';
-import '../music/transposition.dart';
+import 'package:zywny_library/piece.dart';
+
+import 'package:zywny_music/transposition.dart';
+
 import 'app_settings.dart';
 import 'piece_settings.dart';
 

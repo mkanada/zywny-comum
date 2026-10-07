@@ -1,8 +1,8 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
-import 'package:zywny/audio/sound_engine.dart';
-import 'package:zywny/midi/midi_input_service.dart';
+import 'package:zywny_audio/sound_engine.dart';
+import 'package:zywny_midi/midi_input_service.dart';
 
 /// Motor de som falso: o relógio é `now`, que o teste anda à mão.
 class FakeSoundEngine implements SoundEngine {

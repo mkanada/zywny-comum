@@ -29,7 +29,7 @@
 // enquanto os cliques soam.
 import 'dart:async';
 
-import '../music/performance_track.dart';
+import 'performance_track.dart';
 import 'metronome.dart';
 import 'sound_engine.dart';
 

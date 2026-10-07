@@ -1,0 +1,23 @@
+name: zywny_course_format
+description: "O formato dos cursos do zywny (I01) em Dart puro: leitor, modelo, validador e marcas (R14)."
+publish_to: 'none'
+version: 1.0.0
+
+environment:
+  sdk: ^3.13.3
+
+# Membro do workspace da raiz (R14).
+resolution: workspace
+
+dependencies:
+  archive: ^4.0.7
+  meta: ^1.19.0
+  # Só `web_directory_course_files.dart` (a pasta de rascunho na Web, I12).
+  web: ^1.1.0
+  yaml: ^3.1.4
+  zywny_music:
+    path: ../zywny_music
+
+dev_dependencies:
+  lints: ^6.0.0
+  test: ^1.26.2

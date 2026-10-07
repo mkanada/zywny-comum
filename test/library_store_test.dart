@@ -6,11 +6,11 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:shared_preferences_platform_interface/in_memory_shared_preferences_async.dart';
 import 'package:shared_preferences_platform_interface/shared_preferences_async_platform_interface.dart';
-import 'package:zywny/library/library_blob_store.dart';
-import 'package:zywny/library/library_blob_store_native.dart';
-import 'package:zywny/library/library_envelope.dart';
-import 'package:zywny/library/library_package.dart';
-import 'package:zywny/library/library_store.dart';
+import 'package:zywny_library/library_blob_store.dart';
+import 'package:zywny_library/library_blob_store_native.dart';
+import 'package:zywny_library/library_envelope.dart';
+import 'package:zywny_library/library_package.dart';
+import 'package:zywny_library/library_store.dart';
 
 import 'support/library_fixtures.dart';
 

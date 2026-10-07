@@ -2,7 +2,8 @@
 // do exercício). Saiu de `audio/engine_opener.dart` no R03: depende de MIDI e
 // das configurações, que o áudio não importa.
 
-import '../midi/midi_device_manager.dart';
+import 'package:zywny_midi/midi_device_manager.dart';
+
 import '../settings/app_settings.dart';
 
 /// A chave da latência calibrada por par (dispositivo, saída): `'app'` ou

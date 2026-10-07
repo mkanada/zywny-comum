@@ -4,7 +4,8 @@ library;
 
 import 'package:score_bridge/score_bridge.dart' show MeasureInfo;
 
-import '../music/performance_track.dart';
+import 'package:zywny_audio/performance_track.dart';
+
 import '../practice/hand.dart';
 import '../practice/practice_controller.dart' show PracticeMode;
 import 'trail_path.dart';

@@ -3,7 +3,7 @@ import 'dart:convert';
 import 'package:archive/archive.dart';
 import 'package:cryptography/cryptography.dart';
 import 'package:flutter/foundation.dart' show Uint8List;
-import 'package:zywny/library/library_envelope.dart';
+import 'package:zywny_library/library_envelope.dart';
 
 /// Um par de chaves Ed25519 de teste (nunca as de `keys/`).
 class TestKeys {

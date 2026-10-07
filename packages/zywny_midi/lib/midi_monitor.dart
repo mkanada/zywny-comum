@@ -1,6 +1,7 @@
 import 'dart:async';
 
-import '../audio/sound_engine.dart';
+import 'package:zywny_audio/sound_engine.dart';
+
 import 'midi_input_service.dart';
 
 /// Canal MIDI reservado para o monitor (M02): programa piano, separado do

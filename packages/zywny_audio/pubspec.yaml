@@ -1,0 +1,29 @@
+name: zywny_audio
+description: "O som do zywny (R15): a interface SoundEngine, os motores nativo (FFI) e Web (SpessaSynth), o agendador, o metrônomo, o relógio do áudio e a PerformanceTrack."
+publish_to: 'none'
+version: 1.0.0
+
+environment:
+  sdk: ^3.13.3
+
+# Membro do workspace da raiz (R15). Os fontes nativos continuam onde o
+# build do app os espera: a crate em native/zywny_audio (Linux:
+# linux/CMakeLists.txt; Android: tool/build_audio_android.sh) e o
+# SpessaSynth em web_src/ (tool/build_audio_web.sh → web/audio/).
+resolution: workspace
+
+dependencies:
+  flutter:
+    sdk: flutter
+  ffi: ^2.1.0
+  path_provider: ^2.1.5
+  # O `.vsb` (timemap, midi.json) que vira a PerformanceTrack.
+  score_bridge:
+    path: ../../score_bridge
+  zywny_diag:
+    path: ../zywny_diag
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0

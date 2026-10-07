@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 
-import '../music/note_names.dart' show NoteNaming;
-import '../music/tone_choices.dart';
-import '../music/transposition.dart';
+import 'package:zywny_music/note_names.dart' show NoteNaming;
+import 'package:zywny_music/tone_choices.dart';
+import 'package:zywny_music/transposition.dart';
+
 import '../trail/trail_progress.dart' show StudiedTone;
 import 'phone_chrome.dart';
 import 'theme.dart';

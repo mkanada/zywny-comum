@@ -5,7 +5,8 @@ import 'package:flutter/painting.dart';
 import 'package:score_bridge/score_bridge.dart' show kDefaultBarColor;
 import 'package:shared_preferences/shared_preferences.dart';
 
-import '../music/note_names.dart' show NoteNaming;
+import 'package:zywny_music/note_names.dart' show NoteNaming;
+
 import '../practice/practice_colors.dart'
     show kPracticeCorrectColor, kPracticePendingColor, kPracticeWrongColor;
 import '../practice/practice_mode.dart'

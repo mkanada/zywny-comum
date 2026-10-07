@@ -1,13 +1,13 @@
 // M03: toca a partitura no teclado MIDI do próprio usuário, com o mesmo
 // agendador de K04 (ver docs/plano/M03-saida-midi.md).
-import '../core/diag_log.dart';
+import 'package:zywny_diag/diag_log.dart';
 
 import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:flutter_midi_command/flutter_midi_command.dart';
 
-import '../audio/sound_engine.dart';
+import 'package:zywny_audio/sound_engine.dart';
 
 /// Interface única para "quem manda bytes MIDI a um dispositivo" — injetável
 /// para teste (`FakeMidiSender` em test/midi_out_sound_engine_test.dart), sem

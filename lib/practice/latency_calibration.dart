@@ -6,8 +6,9 @@
 // pulso regular tende a ~0 (antecipação), o método dos jogos de ritmo.
 import 'dart:async';
 
-import '../audio/sound_engine.dart';
-import '../midi/midi_input_service.dart';
+import 'package:zywny_audio/sound_engine.dart';
+
+import 'package:zywny_midi/midi_input_service.dart';
 
 const int kCalibrationClicks = 8;
 const int kCalibrationSkip = 2;

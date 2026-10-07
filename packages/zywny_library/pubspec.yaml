@@ -1,0 +1,29 @@
+name: zywny_library
+description: "As bibliotecas instaláveis do zywny (fase B, R17): envelope cifrado e assinado, o zip de dentro, o armazenamento, o instalador, a peça e as chaves de progresso."
+publish_to: 'none'
+version: 1.0.0
+
+environment:
+  sdk: ^3.13.3
+
+# Membro do workspace da raiz (R17). A chave pública vem do
+# `--dart-define=ZYWNY_LIBRARY_KEY` do build do app (`String.fromEnvironment`
+# vale para o programa inteiro, pacotes inclusive).
+resolution: workspace
+
+dependencies:
+  flutter:
+    sdk: flutter
+  archive: ^4.0.7
+  cryptography: ^2.9.0
+  file_selector: ^1.0.3
+  path_provider: ^2.1.5
+  shared_preferences: ^2.5.5
+  web: ^1.1.0
+  zywny_music:
+    path: ../zywny_music
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
