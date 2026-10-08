@@ -18,9 +18,32 @@ const double kPhoneRailWidth = 84;
 /// a partir daqui, o banco de testes largo de sempre (desktop).
 const double kPhoneLayoutMaxWidth = 1000;
 
+/// As chaves que o tutorial (`lib/tutorial/`) usa para apontar os botões da
+/// barra lateral. Nulas fora dele: cada botão só leva a sua chave se houver.
+class PhoneRailKeys {
+  const PhoneRailKeys({
+    this.play,
+    this.listen,
+    this.restart,
+    this.measure,
+    this.tempo,
+    this.hand,
+    this.options,
+  });
+
+  final GlobalKey? play;
+  final GlobalKey? listen;
+  final GlobalKey? restart;
+  final GlobalKey? measure;
+  final GlobalKey? tempo;
+  final GlobalKey? hand;
+  final GlobalKey? options;
+}
+
 class PhoneRail extends StatelessWidget {
   const PhoneRail({
     super.key,
+    this.tourKeys,
     required this.playing,
     required this.onPlayPause,
     required this.measure,
@@ -39,6 +62,9 @@ class PhoneRail extends StatelessWidget {
     this.stageHand,
     this.onStageTap,
   });
+
+  /// Para o tutorial apontar os botões; `null` fora dele.
+  final PhoneRailKeys? tourKeys;
 
   final bool playing;
 
@@ -92,6 +118,7 @@ class PhoneRail extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           IconButton.filled(
+            key: tourKeys?.play,
             tooltip: playTooltip ?? (playing ? 'Pausar' : 'Tocar'),
             onPressed: onPlayPause,
             style: IconButton.styleFrom(
@@ -106,6 +133,7 @@ class PhoneRail extends StatelessWidget {
           ),
           if (onListen != null)
             IconButton(
+              key: tourKeys?.listen,
               tooltip: listening ? 'Parar de ouvir' : 'Ouvir o trecho',
               onPressed: onListen,
               iconSize: 22,
@@ -114,6 +142,7 @@ class PhoneRail extends StatelessWidget {
               icon: Icon(listening ? Icons.stop : Icons.hearing),
             ),
           IconButton(
+            key: tourKeys?.restart,
             tooltip: 'Reiniciar',
             onPressed: onRestart,
             iconSize: 24,
@@ -122,6 +151,7 @@ class PhoneRail extends StatelessWidget {
             icon: const Icon(Icons.skip_previous),
           ),
           _RailButton(
+            key: tourKeys?.measure,
             top: measure == null ? '—' : '$measure',
             bottom: totalMeasures == null ? 'compasso' : 'de $totalMeasures',
             tooltip: 'Ir para compasso',
@@ -130,12 +160,14 @@ class PhoneRail extends StatelessWidget {
           if (stageTempo case final tempo?) ...[
             if (stageHand case final hand?)
               _RailButton(
+                key: tourKeys?.hand,
                 top: hand,
                 bottom: 'mão da etapa',
                 tooltip: 'Mão da etapa — ver etapas',
                 onTap: onStageTap,
               ),
             _RailButton(
+              key: tourKeys?.tempo,
               top: tempo,
               bottom: stageTempoCaption,
               tooltip: 'Andamento da etapa — ver etapas',
@@ -143,12 +175,14 @@ class PhoneRail extends StatelessWidget {
             ),
           ] else ...[
             _RailButton(
+              key: tourKeys?.tempo,
               top: '$tempoPercent%',
               bottom: 'andamento',
               tooltip: 'Andamento',
               onTap: onOptions,
             ),
             _RailButton(
+              key: tourKeys?.hand,
               top: handLabel,
               bottom: 'mão',
               tooltip: 'Mão',
@@ -156,6 +190,7 @@ class PhoneRail extends StatelessWidget {
             ),
           ],
           IconButton(
+            key: tourKeys?.options,
             tooltip: 'Mais opções',
             onPressed: onOptions,
             iconSize: 22,
@@ -170,6 +205,7 @@ class PhoneRail extends StatelessWidget {
 
 class _RailButton extends StatelessWidget {
   const _RailButton({
+    super.key,
     required this.top,
     required this.bottom,
     required this.tooltip,
@@ -236,6 +272,7 @@ class PhoneTitleBar extends StatelessWidget {
     required this.onBack,
     this.center,
     this.trailing = const [],
+    this.backKey,
   });
 
   /// Número do hinário; `null` sem hino aberto.
@@ -247,6 +284,9 @@ class PhoneTitleBar extends StatelessWidget {
   /// bloco dividem o espaço e cortam com reticências, nada estoura.
   final Widget? center;
   final List<Widget> trailing;
+
+  /// Para o tutorial apontar o botão de voltar; `null` fora dele.
+  final GlobalKey? backKey;
 
   @override
   Widget build(BuildContext context) {
@@ -260,6 +300,7 @@ class PhoneTitleBar extends StatelessWidget {
       child: Row(
         children: [
           IconButton(
+            key: backKey,
             tooltip: 'Voltar à biblioteca',
             onPressed: onBack,
             iconSize: 22,

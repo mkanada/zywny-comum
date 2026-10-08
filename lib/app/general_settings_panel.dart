@@ -8,6 +8,7 @@ import 'package:score_bridge/score_bridge.dart' show kDefaultBarColor;
 
 import 'package:zywny_audio/soundfont_store.dart';
 
+import '../about/about_screen.dart';
 import '../course/course_installer.dart';
 import '../course/course_store.dart';
 
@@ -89,6 +90,7 @@ class GeneralSettingsPanel extends StatelessWidget {
     this.live,
     this.libraries,
     this.courses,
+    this.onTutorial,
   });
 
   final AppSettings settings;
@@ -107,6 +109,10 @@ class GeneralSettingsPanel extends StatelessWidget {
 
   /// A seção Cursos (I04) — junto da de bibliotecas, pelo mesmo motivo.
   final Widget? courses;
+
+  /// "Rever o tutorial": quem abriu o painel sabe fechá-lo e mostrar o
+  /// passeio da tela dele. `null` esconde o item (sem tutorial nesta tela).
+  final VoidCallback? onTutorial;
 
   @override
   Widget build(BuildContext context) {
@@ -430,6 +436,27 @@ class GeneralSettingsPanel extends StatelessWidget {
         formatValue: (v) => v <= 0 ? 'desligado' : '${v.toStringAsFixed(1)}×',
         onChanged: (v) => settings.haloWidth = v,
       ),
+      const _Header('Ajuda'),
+      if (onTutorial != null)
+        ListTile(
+          dense: true,
+          leading: const Icon(Icons.tour_outlined, size: 20),
+          title: const Text('Rever o tutorial'),
+          subtitle: const Text('o passeio pelos botões e telas'),
+          trailing: const _RowAction('Rever'),
+          onTap: onTutorial,
+        ),
+      ListTile(
+        dense: true,
+        leading: const Icon(Icons.info_outline, size: 20),
+        title: const Text('Sobre o Zywny'),
+        subtitle: const Text('a origem do nome e o que o app quer ser'),
+        onTap: () => unawaited(
+          Navigator.of(
+            context,
+          ).push(MaterialPageRoute<void>(builder: (_) => const AboutScreen())),
+        ),
+      ),
       const SizedBox(height: 12),
     ];
   }
@@ -488,6 +515,7 @@ class GeneralSettingsScreen extends StatefulWidget {
     this.pickLibraryFile = pickLibraryBytes,
     this.courseStore,
     this.onOpenDraft,
+    this.onTutorial,
   });
 
   final AppSettings settings;
@@ -505,6 +533,10 @@ class GeneralSettingsScreen extends StatefulWidget {
   /// I12: abrir a pasta como rascunho (a `LibraryScreen` dona do rascunho
   /// entrega o abrir dela); `null` esconde o item.
   final VoidCallback? onOpenDraft;
+
+  /// "Rever o tutorial": a `LibraryScreen` fecha esta tela e mostra o passeio
+  /// da biblioteca; `null` esconde o item.
+  final VoidCallback? onTutorial;
 
   @override
   State<GeneralSettingsScreen> createState() => _GeneralSettingsScreenState();
@@ -581,6 +613,7 @@ class _GeneralSettingsScreenState extends State<GeneralSettingsScreen> {
                 onChooseSoundFont: () => unawaited(_choose()),
                 onResetSoundFont: () => unawaited(_reset()),
                 onClose: () => Navigator.of(context).pop(),
+                onTutorial: widget.onTutorial,
                 libraries: widget.libraryStore == null
                     ? null
                     : LibrariesSection(

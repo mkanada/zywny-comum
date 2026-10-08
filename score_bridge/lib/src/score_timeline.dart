@@ -31,9 +31,20 @@
 // `B` a página de `M'`, com `D = min(teto, duração de M / 4)`:
 //
 //   * `M.start → M.start + D`   entrada: `0 → xInício(M)`
-//   * `→ M'.start`              estacionada em `xInício(M)`
-//   * `M'.start → + D`          conclusão: `xInício(M) → fim`
+//   * `→ C`                     estacionada em `xInício(M)`
+//   * `C → C + D`               conclusão: `xInício(M) → fim`
 //   * antes/depois              repouso
+//
+// `C` é o início da conclusão e **não** espera `M'` (era `C = M'.start`, e a
+// página nova aparecia tarde demais, já na hora de tocar). Vale para a página
+// com vários compassos; a de um compasso só tem regra própria (abaixo). Sejam `L` o
+// instante da **última nota ou pausa** de `M` e `out*` a fração da saída em
+// que o 1º compasso de `B` já está inteiro à vista (a borda passou do fim
+// dele e da largura da haste) e nítido (`kRevealBlurClearAt`):
+// `C = L − out*·D` — a página nova está pronta quando a última nota/pausa de
+// `M` começa. `C` nunca antecede o fim da entrada (`M.start + D`): em
+// compasso curto ou de uma nota só, a conclusão começa assim que a haste
+// chega e a página pronta pode chegar depois de `L`.
 //
 // `SweepCurtain.targetPageIndex = B` sempre que `B ≠ A` — inclusive quando
 // `B` não é `A + 1` (salto para trás ou para a frente). Sem salto, `B` já é
@@ -44,11 +55,15 @@
 // `.targetSequence`): a página revelada por um salto pode ser uma
 // alternativa.
 //
-// Página de **um** compasso com várias notas: a haste acompanha as notas —
-// entra assim que a página aparece, fica logo antes da nota atual e, ao
-// destacar a nota k, começa a saltar para a k+1 em `min(D, tempo até ela)`
-// (nunca chega atrasada). Com **uma** nota só a conclusão começa 0,5 s depois
-// do destaque dela.
+// Página de **um** compasso (várias notas ou uma só): a haste acompanha as
+// notas, mas [kSingleMeasureBarLag] (3) notas **atrás** da pendente, a que
+// ainda vai tocar — nunca mais perto que isso das notas por tocar. Entra
+// assim que a página aparece, fica no começo do compasso enquanto a
+// pendente é uma das 3 primeiras e, ao destacar a nota k, começa a saltar
+// para o ponto da k+1 (a nota k−2) em `min(D, tempo até ela)` (nunca chega
+// atrasada). Por isso, aqui a conclusão **não** antecipa `L` (a regra acima
+// varreria notas por tocar): ela começa na última nota — ou, se a página
+// aparece depois disso, assim que a haste termina de entrar.
 //
 // ROTA DE EXIBIÇÃO (fase P, P04a; regra de P00 "Player (Dart)"). Cada
 // ocorrência de compasso tem uma `view` (`PageRef`): a página normal
@@ -78,7 +93,8 @@ library;
 import 'dart:math' as math;
 
 import 'model.dart';
-import 'score_view.dart' show SweepCurtain, revealBlurAt, sweepEndX;
+import 'score_view.dart'
+    show SweepCurtain, kRevealBlurClearAt, revealBlurAt, sweepEndX;
 
 /// Uma ocorrência de compasso na ordem de execução (E02b): um compasso
 /// repetido aparece uma vez por passagem.
@@ -139,6 +155,10 @@ class MeasureInfo {
   String toString() => 'MeasureInfo($id pass$pass p$page $startMs-$endMs)';
 }
 
+/// Nas páginas de um compasso só, a haste anda esta quantidade de notas
+/// (instantes de ataque do compasso) atrás da nota pendente.
+const kSingleMeasureBarLag = 3;
+
 /// Uma nota (ou acorde) do compasso: o instante e o x da borda esquerda da
 /// mais à esquerda, em unidades de viewBox.
 class _Onset {
@@ -166,7 +186,13 @@ class _Measure {
   final List<_Onset> onsets = [];
   double startMs = 0;
   double endMs = 0;
+
+  /// Instante da última nota ou pausa do compasso (`startMs` se não houver).
+  double lastMs = 0;
   double left = 0;
+
+  /// Borda direita do compasso, em unidades de viewBox da página dele.
+  double right = 0;
 
   double get durationMs => endMs - startMs;
 }
@@ -259,14 +285,17 @@ class ScoreTimeline {
               sequence: prev.view.sequence,
             )
           : _resolveJump(prev.view, measureId);
-      cur = _Measure(
-        measureId,
-        _pageOfMeasure[measureId]!,
-        pass,
-        timemapId,
-        view,
-        isJump,
-      )..startMs = ms;
+      cur =
+          _Measure(
+              measureId,
+              _pageOfMeasure[measureId]!,
+              pass,
+              timemapId,
+              view,
+              isJump,
+            )
+            ..startMs = ms
+            ..lastMs = ms;
       _measures.add(cur!);
       curKey = '$measureId\u0000$pass';
     }
@@ -298,6 +327,9 @@ class ScoreTimeline {
       if (m == null) {
         continue; // nada tocado ainda, ou id sem correspondente na cena.
       }
+      if (e.on.isNotEmpty || e.restsOn.isNotEmpty) {
+        m.lastMs = e.tstamp;
+      }
       final geometry = document.geometryOf(m.view.sequence);
       final lefts = <_Measure, double>{};
       for (final id in e.on) {
@@ -322,8 +354,9 @@ class ScoreTimeline {
       m.endMs = i + 1 < _measures.length
           ? _measures[i + 1].startMs
           : durationMs;
-      m.left =
-          document.geometryOf(m.view.sequence).elementOf(m.id)?.bbox.left ?? 0;
+      final bbox = document.geometryOf(m.view.sequence).elementOf(m.id)?.bbox;
+      m.left = bbox?.left ?? 0;
+      m.right = bbox?.right ?? 0;
       if (m.onsets.isEmpty) {
         m.onsets.add(_Onset(m.startMs, m.left));
       }
@@ -527,6 +560,80 @@ class ScoreTimeline {
   double _dOf(_Measure m, double maxSweepMs) =>
       math.min(maxSweepMs, m.durationMs / 4);
 
+  /// Os tempos da haste que fecha a execução da ocorrência [run] (a rota de
+  /// exibição já mudou na seguinte), ou `null` se não há o que revelar: é a
+  /// última, ou a seguinte mostra a mesma `view` (salto na mesma página —
+  /// fora de escopo de E03a/E03b, aviso visual é do host).
+  ///
+  /// [d] é o `D` da regra; [end] o fim da haste; [appear] quando a haste da
+  /// página começa a entrar (o início do compasso, ou, numa página de um
+  /// compasso só, quando acaba a conclusão da virada anterior); [conc] o `C`
+  /// da regra do cabeçalho — a conclusão vai de [conc] a `conc + d`.
+  ({double d, double end, double appear, double conc})? _sweepOf(
+    int r,
+    double maxMs,
+    double barWidth,
+  ) {
+    if (r + 1 >= _runs.length) {
+      return null;
+    }
+    final run = _runs[r];
+    final next = _runs[r + 1];
+    if (next.view == run.view) {
+      return null;
+    }
+    final m = _measures[run.last];
+    final end = sweepEndX(document.pageAt(run.view), barWidth);
+    final d = _dOf(m, maxMs);
+    // Até onde a borda tem de ir para a página nova estar inteira à vista:
+    // passar do fim do 1º compasso dela e da haste, que o cobre.
+    final revealX = _measures[next.first].right + barWidth;
+    if (run.last > run.first) {
+      final conc = _concStartOf(m, m.left, end, revealX, d, m.startMs + d);
+      return (d: d, end: end, appear: m.startMs, conc: conc);
+    }
+    // Quando a página aparece: 0 na primeira; senão, quando termina a
+    // conclusão da virada anterior.
+    var appear = 0.0;
+    if (r > 0) {
+      appear = m.startMs;
+      if (_runs[r - 1].view != run.view) {
+        appear += _dOf(_measures[_runs[r - 1].last], maxMs);
+      }
+    }
+    // Na última nota (as pausas não contam: não há o que varrer nelas) —
+    // não antes, para a haste não varrer notas por tocar — e nunca antes de
+    // a haste ter terminado de entrar (se a página aparece depois da hora, a
+    // haste não pode surgir já no meio da conclusão).
+    final conc = math.min(math.max(appear + d, m.onsets.last.ms), m.endMs);
+    return (d: d, end: end, appear: appear, conc: conc);
+  }
+
+  /// A `view` à mostra em [ms] quando não há haste: a do compasso corrente
+  /// ([restViewAt]) — menos no fim do último compasso de uma página, depois
+  /// de a conclusão da haste acabar (que é antes do compasso acabar, ver a
+  /// regra no cabeçalho): aí a página nova já está à mostra.
+  ///
+  /// [maxSweep] e [barWidth] são os de [curtainAt].
+  PageRef shownViewAt(
+    double ms, {
+    required Duration maxSweep,
+    required double barWidth,
+  }) {
+    if (_measures.isEmpty) {
+      return const PageRef(0);
+    }
+    final index = measureIndexAt(ms);
+    final r = _runs.indexWhere((run) => index <= run.last);
+    if (index == _runs[r].last) {
+      final sweep = _sweepOf(r, maxSweep.inMicroseconds / 1000.0, barWidth);
+      if (sweep != null && ms >= sweep.conc + sweep.d) {
+        return _runs[r + 1].view;
+      }
+    }
+    return _measures[index].view;
+  }
+
   /// A haste em [ms], ou `null` (repouso). Função pura da posição.
   ///
   /// [maxSweep] é o teto de cada movimento (`ScoreView.maxSweepDuration`) e
@@ -535,33 +642,19 @@ class ScoreTimeline {
     double ms, {
     required Duration maxSweep,
     required double barWidth,
-    Duration singleNoteDelay = const Duration(milliseconds: 500),
   }) {
     final maxMs = maxSweep.inMicroseconds / 1000.0;
     for (var r = 0; r + 1 < _runs.length; r++) {
+      final sweep = _sweepOf(r, maxMs, barWidth);
+      if (sweep == null) {
+        continue;
+      }
       final run = _runs[r];
       final next = _runs[r + 1];
-      if (next.view == run.view) {
-        continue; // salto na mesma view: nada para revelar (fora de
-        // escopo de E03a/E03b — aviso visual é do host)
-      }
       final m = _measures[run.last];
-      final page = document.pageAt(run.view);
-      final end = sweepEndX(page, barWidth);
-      final d = _dOf(m, maxMs);
-      final count = run.last - run.first + 1;
-      final edge = count > 1
-          ? _multiMeasureEdge(ms, m, d, end)
-          : _singleMeasureEdge(
-              ms,
-              run,
-              r > 0 ? _runs[r - 1] : null,
-              m,
-              d,
-              end,
-              maxMs,
-              singleNoteDelay.inMicroseconds / 1000.0,
-            );
+      final edge = run.last > run.first
+          ? _multiMeasureEdge(ms, m, sweep)
+          : _singleMeasureEdge(ms, m, sweep);
       if (edge != null) {
         return SweepCurtain(
           pageIndex: run.view.index,
@@ -608,71 +701,74 @@ class ScoreTimeline {
     );
   }
 
+  /// Quando começa a conclusão da haste de [m] (ver a regra no cabeçalho):
+  /// a página nova — cujo 1º compasso só está inteiro à vista com a borda em
+  /// [revealX] — tem de estar pronta na última nota ou pausa de [m]. A haste
+  /// sai de [from] até [end] em [d]; [earliest] é o fim da entrada.
+  double _concStartOf(
+    _Measure m,
+    double from,
+    double end,
+    double revealX,
+    double d,
+    double earliest,
+  ) {
+    final shown = end > from ? (revealX - from) / (end - from) : 0.0;
+    final out = math.max(kRevealBlurClearAt, shown.clamp(0.0, 1.0));
+    return math.max(earliest, m.lastMs - out * d);
+  }
+
   /// Borda da haste e desfoque da página revelada ([SweepCurtain.blur]):
   /// inteiro na entrada e na espera, caindo a zero no começo da saída
   /// ([revealBlurAt]).
   ({double x, double blur})? _multiMeasureEdge(
     double ms,
     _Measure m,
-    double d,
-    double end,
+    ({double d, double end, double appear, double conc}) sweep,
   ) {
     final s = m.startMs;
-    final e = m.endMs;
-    if (ms < s || ms >= e + d) {
+    final d = sweep.d;
+    if (ms < s || ms >= sweep.conc + d) {
       return null;
     }
     if (ms < s + d) {
       return (x: m.left * ((ms - s) / d), blur: 1);
     }
-    if (ms < e) {
+    if (ms < sweep.conc) {
       return (x: m.left, blur: 1);
     }
-    final out = (ms - e) / d;
-    return (x: m.left + (end - m.left) * out, blur: revealBlurAt(out));
+    final out = (ms - sweep.conc) / d;
+    return (x: m.left + (sweep.end - m.left) * out, blur: revealBlurAt(out));
   }
 
   ({double x, double blur})? _singleMeasureEdge(
     double ms,
-    _Run run,
-    _Run? prev,
     _Measure m,
-    double d,
-    double end,
-    double maxMs,
-    double delayMs,
+    ({double d, double end, double appear, double conc}) sweep,
   ) {
     final onsets = m.onsets;
-    final first = _measures[run.first];
-    // Quando a página aparece: 0 na primeira; senão, quando termina a
-    // conclusão da virada anterior.
-    var appear = 0.0;
-    if (prev != null) {
-      appear = first.startMs;
-      if (prev.view != run.view) {
-        appear += _dOf(_measures[prev.last], maxMs);
-      }
-    }
-    final single = onsets.length == 1;
-    // Uma nota só: a conclusão começa `delayMs` após o destaque — mas não
-    // antes de a haste ter terminado de entrar (se a página aparece depois
-    // disso, a haste não pode surgir já no meio da conclusão).
-    final concStart = single
-        ? math.min(math.max(onsets.first.ms + delayMs, appear + d), m.endMs)
-        : m.endMs;
+    final d = sweep.d;
+    final appear = sweep.appear;
+    final concStart = sweep.conc;
     if (ms < appear || ms >= concStart + d) {
       return null;
     }
+    // Onde a haste fica com a nota `j` pendente: [kSingleMeasureBarLag] notas
+    // antes dela, ou no começo do compasso se não há tantas.
+    double anchor(int j) => j < kSingleMeasureBarLag
+        ? m.left
+        : math.max(m.left, onsets[j - kSingleMeasureBarLag].x);
     // Posição-alvo antes da entrada e do fecho.
-    var pos = onsets.first.x;
+    var pos = anchor(0);
     for (var k = 1; k < onsets.length; k++) {
       final from = onsets[k - 1];
       final to = onsets[k];
       final dur = math.min(d, to.ms - from.ms);
       if (ms >= from.ms + dur) {
-        pos = to.x;
+        pos = anchor(k);
       } else if (ms >= from.ms) {
-        pos = from.x + (to.x - from.x) * (dur == 0 ? 1 : (ms - from.ms) / dur);
+        final x0 = anchor(k - 1);
+        pos = x0 + (anchor(k) - x0) * (dur == 0 ? 1 : (ms - from.ms) / dur);
         break;
       } else {
         break;
@@ -680,7 +776,7 @@ class ScoreTimeline {
     }
     if (ms >= concStart) {
       final out = (ms - concStart) / d;
-      return (x: pos + (end - pos) * out, blur: revealBlurAt(out));
+      return (x: pos + (sweep.end - pos) * out, blur: revealBlurAt(out));
     }
     if (ms < appear + d) {
       return (x: pos * ((ms - appear) / d), blur: 1);

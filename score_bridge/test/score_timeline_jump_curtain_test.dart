@@ -4,6 +4,8 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:score_bridge/score_bridge.dart';
 
+import 'support/sweep_rule.dart';
+
 const _maxSweep = Duration(seconds: 1);
 const _bar = 50.0;
 
@@ -61,19 +63,51 @@ void main() {
         expect(entering.targetPageIndex, 0);
         expect(entering.targetSequence, 6);
         expect(entering.edgeX, closeTo(x / 2, 1e-6));
+        // A conclusão começa antes do fim de M (ver a regra no cabeçalho de
+        // score_timeline.dart): a página de destino tem de estar pronta na
+        // última nota ou pausa dele.
+        final nextRight = mapleLeafRag
+            .geometryOf(6)
+            .elementOf(next.id)!
+            .bbox
+            .right;
+        final l = lastEventMs(mapleLeafRag, m);
+        final c = concStart(
+          m: m,
+          d: d,
+          lastMs: l,
+          fromX: x,
+          endX: endX,
+          revealX: nextRight + _bar,
+        );
+        expect(c, lessThan(next.startMs));
         // Estacionada em x.
-        final parked = at((m.startMs + d + next.startMs) / 2)!;
+        final parked = at((m.startMs + d + c) / 2)!;
         expect(parked.edgeX, closeTo(x, 1e-6));
         expect(parked.targetPageIndex, 0);
         expect(parked.targetSequence, 6);
         // Conclusão: x -> fim.
-        final concluding = at(next.startMs + d / 2)!;
+        final concluding = at(c + d / 2)!;
         expect(concluding.edgeX, closeTo(x + (endX - x) / 2, 1e-6));
-        // Repouso na alternativa, depois da conclusão; a página normal
-        // (D-ALT-INDICE) continua sendo a 1.
-        expect(at(next.startMs + d), isNull);
+        // Na última nota ou pausa a página de destino já está nítida.
+        if (c > m.startMs + d) {
+          expect(at(l)!.blur, closeTo(0, 1e-9));
+          expect(at(l)!.edgeX, greaterThanOrEqualTo(nextRight + _bar - 1e-6));
+        }
+        // Repouso na alternativa, depois da conclusão — ainda dentro de M;
+        // a página normal (D-ALT-INDICE) continua sendo a 1.
+        expect(at(c + d), isNull);
         expect(tl.restPageAt(next.startMs + d), 1);
-        expect(tl.restViewAt(next.startMs + d), const PageRef(0, sequence: 6));
+        const alternativa = PageRef(0, sequence: 6);
+        expect(tl.restViewAt(next.startMs + d), alternativa);
+        expect(
+          tl.shownViewAt(c + d, maxSweep: _maxSweep, barWidth: _bar),
+          alternativa,
+        );
+        expect(
+          tl.shownViewAt(c + d - 1, maxSweep: _maxSweep, barWidth: _bar),
+          m.view,
+        );
       },
     );
   });

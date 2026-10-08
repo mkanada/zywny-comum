@@ -18,10 +18,13 @@ class FakeMeasure {
 }
 
 /// `pages[p]` = compassos da página `p`. `timemap` = (tstamp, ids on, ids off).
+/// `rests` = (tstamp, ids de pausas que começam): entram na entrada do
+/// `timemap` desse instante, ou numa entrada só de pausas.
 VsbDocument fakeDocument(
   List<List<FakeMeasure>> pages,
-  List<(double, List<String>, List<String>)> timemap,
-) {
+  List<(double, List<String>, List<String>)> timemap, {
+  List<(double, List<String>)> rests = const [],
+}) {
   ScenePage page(int index, List<FakeMeasure> measures) {
     final elements = <IndexEntry>[];
     final byId = <String, SceneNode>{};
@@ -108,9 +111,21 @@ VsbDocument fakeDocument(
           tstamp: t,
           on: on,
           off: off,
-          restsOn: const [],
+          restsOn: [
+            for (final (rt, ids) in rests)
+              if (rt == t) ...ids,
+          ],
           restsOff: const [],
         ),
+      for (final (rt, ids) in rests)
+        if (!timemap.any((e) => e.$1 == rt))
+          TimemapEntry(
+            tstamp: rt,
+            on: const [],
+            off: const [],
+            restsOn: ids,
+            restsOff: const [],
+          ),
     ],
   );
 }

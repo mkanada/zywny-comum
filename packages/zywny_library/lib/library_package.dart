@@ -201,7 +201,7 @@ class LibraryManifest {
 /// Um `.zywny` aberto: manifesto, índice e as partituras ainda compactadas.
 /// Só lê bytes — nada de disco, preferências ou widgets.
 class LibraryPackage {
-  LibraryPackage._(this.manifest, this.pieces, this._scores);
+  LibraryPackage._(this.manifest, this.pieces, this._scores, this._simplified);
 
   /// Valida o pacote inteiro; qualquer problema vira uma
   /// [LibraryFormatException] e nada é devolvido pela metade.
@@ -235,6 +235,7 @@ class LibraryPackage {
 
     final pieces = <Piece>[];
     final scores = <String, ArchiveFile>{};
+    final simplified = <String, ArchiveFile>{};
     final seenNumbers = <int>{};
     for (var i = 0; i < indexJson.length; i++) {
       final entry = indexJson[i];
@@ -259,6 +260,16 @@ class LibraryPackage {
         );
       }
       scores[id] = file;
+      if (entry['s'] == true) {
+        final simple = files['partituras/$id.simples.musicxml.gz'];
+        if (simple == null) {
+          throw LibraryFormatException(
+            'A música "$id" tem versão simplificada no índice, mas não tem '
+            'partitura em "partituras/$id.simples.musicxml.gz".',
+          );
+        }
+        simplified[id] = simple;
+      }
 
       Object? n;
       if (manifest.numbered) {
@@ -285,7 +296,12 @@ class LibraryPackage {
       // biblioteca sem número usa a posição no índice como número provisório.
       pieces.add(Piece.fromJson({...entry, 'n': n ?? i + 1}));
     }
-    return LibraryPackage._(manifest, List.unmodifiable(pieces), scores);
+    return LibraryPackage._(
+      manifest,
+      List.unmodifiable(pieces),
+      scores,
+      simplified,
+    );
   }
 
   static Object? _json(
@@ -309,16 +325,23 @@ class LibraryPackage {
   final LibraryManifest manifest;
   final List<Piece> pieces;
   final Map<String, ArchiveFile> _scores;
+  final Map<String, ArchiveFile> _simplified;
 
-  /// Descompacta a partitura de [id] e devolve o `.musicxml`. O `gzip` é do
-  /// `archive` (o de `dart:io` não existe na Web).
-  Future<Uint8List> loadScore(String id) async {
+  /// Descompacta a partitura de [id] e devolve o `.musicxml`. Com
+  /// [simplified], a versão simplificada (só para as músicas com
+  /// `Piece.hasSimplified`). O `gzip` é do `archive` (o de `dart:io` não
+  /// existe na Web).
+  Future<Uint8List> loadScore(String id, {bool simplified = false}) async {
     final file = _scores[id];
     if (file == null) {
       throw ArgumentError.value(id, 'id', 'não existe nesta biblioteca');
     }
+    final chosen = simplified ? _simplified[id] : file;
+    if (chosen == null) {
+      throw ArgumentError.value(id, 'id', 'não tem versão simplificada');
+    }
     return Uint8List.fromList(
-      GZipDecoder().decodeBytes(file.content as List<int>),
+      GZipDecoder().decodeBytes(chosen.content as List<int>),
     );
   }
 }

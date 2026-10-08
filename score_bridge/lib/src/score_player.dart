@@ -46,12 +46,14 @@
 // voltar a `null`.
 //
 // PÁGINAS ALTERNATIVAS (P04b): a página de repouso e a de trás da haste vêm
-// de `ScoreTimeline.restViewAt`/`curtainAt` (a rota de P00/P04a) — em
+// de `ScoreTimeline.shownViewAt`/`curtainAt` (a rota de P00/P04a) — em
 // execução, a vista pode mostrar uma alternativa num salto de repetição.
 // `currentPage`/`goToPage` (do host, parado) continuam só na numeração
 // normal (D-ALT-INDICE); é `displayedPage` que muda. `continuousScroll` não
 // participa da rota: sempre a faixa de páginas normais, por `scrollToId`.
 library;
+
+import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/scheduler.dart';
@@ -182,7 +184,6 @@ class ScorePlayer {
     this.barWidth,
     this.scrollAlignment = 0.3,
     this.scrollDuration = const Duration(milliseconds: 300),
-    this.singleNoteDelay = const Duration(milliseconds: 500),
     this.onEntry,
     bool mergeTies = false,
     // Repassado a `ScoreTimeline` (P04a): `false` desliga a rota de páginas
@@ -228,9 +229,6 @@ class ScorePlayer {
   /// Onde, na viewport, o compasso corrente fica no modo contínuo.
   final double scrollAlignment;
   final Duration scrollDuration;
-
-  /// Atraso da conclusão da virada na página de uma nota só (0,5 s).
-  final Duration singleNoteDelay;
 
   /// Chamado para cada entrada do timemap aplicada, na ordem (uma por
   /// instante do timemap; não é chamado no `seek`).
@@ -517,6 +515,13 @@ class ScorePlayer {
 
   int _lastScrolledMeasure = -1;
 
+  /// A página à mostra na posição, sem haste (ver `shownViewAt`).
+  PageRef get _shownView => timeline.shownViewAt(
+    _positionMs,
+    maxSweep: _maxSweepDuration,
+    barWidth: _barWidthValue,
+  );
+
   /// A virada adiantada em vigor (ver VIRADA NO MODO ESPERA no cabeçalho):
   /// `null` quando vale a haste de `curtainAt`.
   _AheadTurn? _ahead;
@@ -543,7 +548,7 @@ class ScorePlayer {
     if (target == null) {
       return _ahead = null;
     }
-    final front = natural?.page ?? timeline.restViewAt(_positionMs);
+    final front = natural?.page ?? _shownView;
     var ahead = _ahead;
     if (ahead != null &&
         (front == ahead.to || timeline.restViewAt(target) == front)) {
@@ -560,6 +565,7 @@ class ScorePlayer {
       from: turn.from,
       to: turn.to,
       x0: natural?.edgeX ?? 0,
+      blur0: natural?.blur ?? 1,
       sweepMs: turn.sweepMs,
       // Num seek não há o que animar: a página da nota pendente já entra.
       progress: seeking ? 1 : 0,
@@ -595,7 +601,6 @@ class ScorePlayer {
       _positionMs,
       maxSweep: _maxSweepDuration,
       barWidth: _barWidthValue,
-      singleNoteDelay: singleNoteDelay,
     );
     final ahead = _resolveAhead(natural, seeking: seeking);
     final SweepCurtain? c;
@@ -609,7 +614,9 @@ class ScorePlayer {
         pageIndex: ahead.from.index,
         sequence: ahead.from.sequence,
         edgeX: ahead.x0 + (end - ahead.x0) * ahead.progress,
-        blur: revealBlurAt(ahead.progress),
+        // Nunca mais desfocada do que a haste natural já a deixou: com a
+        // virada adiantada, a página nova pode já estar nítida.
+        blur: math.min(ahead.blur0, revealBlurAt(ahead.progress)),
         targetPageIndex: ahead.to.index,
         targetSequence: ahead.to.sequence,
       );
@@ -618,7 +625,7 @@ class ScorePlayer {
       _curtain.value = c;
     }
     if (c == null && attached) {
-      final ref = ahead?.to ?? timeline.restViewAt(_positionMs);
+      final ref = ahead?.to ?? _shownView;
       if (v.displayedPage != ref) {
         v.showPage(ref);
       }
@@ -637,12 +644,14 @@ class ScorePlayer {
 
 /// Virada concluída em tempo de parede no modo espera
 /// ([ScorePlayer.waitTarget]): de [from] para [to], com a haste saindo de
-/// [x0] (viewBox de [from]) em [sweepMs]; [progress] vai de 0 a 1.
+/// [x0] (viewBox de [from]) em [sweepMs]; [progress] vai de 0 a 1. [blur0] é
+/// o desfoque da página nova quando a virada adiantada começou.
 class _AheadTurn {
   _AheadTurn({
     required this.from,
     required this.to,
     required this.x0,
+    required this.blur0,
     required this.sweepMs,
     required this.progress,
   });
@@ -650,6 +659,7 @@ class _AheadTurn {
   final PageRef from;
   final PageRef to;
   final double x0;
+  final double blur0;
   final double sweepMs;
   double progress;
 }

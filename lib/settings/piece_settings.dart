@@ -177,6 +177,25 @@ class PieceSettingsStore {
     }
   }
 
+  /// Se a música abre na versão simplificada (a última escolha da pessoa).
+  Future<bool> loadSimplified(String libraryId, String pieceId) async {
+    try {
+      return await _prefs.getBool(pieceVersionKeyFor(libraryId, pieceId)) ??
+          false;
+    } on Object {
+      return false;
+    }
+  }
+
+  Future<void> saveSimplified(
+    String libraryId,
+    String pieceId,
+    bool simplified,
+  ) {
+    final key = pieceVersionKeyFor(libraryId, pieceId);
+    return simplified ? _prefs.setBool(key, true) : _prefs.remove(key);
+  }
+
   Future<void> save(String libraryId, String pieceId, PieceSettings settings) {
     final key = pieceSettingsKeyFor(libraryId, pieceId);
     return settings.isDefault

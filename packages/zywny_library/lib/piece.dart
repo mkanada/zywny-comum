@@ -18,8 +18,8 @@ class Piece {
     required this.composer,
     this.lyricist,
     this.originalTitle,
-    this.level,
-    this.difficulty,
+    this.hasSimplified = false,
+    this.simplified = false,
     this.fifths,
     required this.titleKey,
     required this.composerKey,
@@ -40,8 +40,7 @@ class Piece {
     composer: json['c'] as String,
     lyricist: json['l'] as String?,
     originalTitle: json['o'] as String?,
-    level: json['nv'] as int?,
-    difficulty: (json['d'] as num?)?.toDouble(),
+    hasSimplified: json['s'] == true,
     fifths: json['a'] as int?,
     titleKey: json['k'] as String,
     composerKey: json['ck'] as String,
@@ -66,11 +65,34 @@ class Piece {
   /// Título original — nos clássicos, o número de catálogo ("Op. 100 nº 2").
   final String? originalTitle;
 
-  /// Nível de dificuldade, de 1 (mais fácil) a 5, e a nota contínua de onde
-  /// ele sai (`_dificuldade.csv` do Hymn_Grabber) — a nota é a chave de
-  /// ordem, o nível é o que se mostra. `null` numa música não classificada.
-  final int? level;
-  final double? difficulty;
+  /// Tem versão simplificada (melodia, baixo e quinta), na mesma música: é a
+  /// mesma partitura por outro caminho, não outro item da biblioteca. O
+  /// `loadScore` pega a versão com `simplified: true`.
+  final bool hasSimplified;
+
+  /// Esta é a versão simplificada aberta de uma música (ver [asSimplified]).
+  final bool simplified;
+
+  /// O id da música sem a marca da versão simplificada.
+  String get baseId => simplified ? id.substring(0, id.length - 2) : id;
+
+  /// A mesma música vista na versão simplificada: id próprio (`001.s`), para
+  /// que progresso, trilha e ajustes dela fiquem separados dos da completa.
+  /// Quem carrega a partitura continua usando a música de origem.
+  Piece asSimplified() => Piece(
+    libraryId: libraryId,
+    id: '$id.s',
+    number: number,
+    title: title,
+    composer: composer,
+    lyricist: lyricist,
+    originalTitle: originalTitle,
+    simplified: true,
+    fifths: fifths,
+    titleKey: titleKey,
+    composerKey: composerKey,
+    searchKey: searchKey,
+  );
 
   /// Armadura do início: sustenidos (positivo) ou bemóis (negativo);
   /// `null` num índice antigo, sem o campo.
@@ -97,7 +119,7 @@ class PieceCatalog {
     this.libraryName = 'Hinário',
     this.term = LibraryTerm.hymn,
     this.numbered = true,
-    Future<Uint8List> Function(Piece piece)? scoreLoader,
+    Future<Uint8List> Function(Piece piece, {bool simplified})? scoreLoader,
     // ignore: prefer_initializing_formals
   }) : _scoreLoader = scoreLoader;
 
@@ -119,7 +141,8 @@ class PieceCatalog {
       libraryName: m.name,
       term: m.term,
       numbered: m.numbered,
-      scoreLoader: (piece) => package.loadScore(piece.id),
+      scoreLoader: (piece, {bool simplified = false}) =>
+          package.loadScore(piece.id, simplified: simplified),
     );
   }
 
@@ -132,19 +155,19 @@ class PieceCatalog {
   /// Como o manifesto manda chamar cada música, e se elas são numeradas.
   final LibraryTerm term;
   final bool numbered;
-  final Future<Uint8List> Function(Piece piece)? _scoreLoader;
+  final Future<Uint8List> Function(Piece piece, {bool simplified})? _scoreLoader;
 
   bool get hasLibrary => libraryId != null;
 
   /// Descompacta a música e devolve o `.musicxml` em memória: a renderização
   /// (`ScoreRenderer`) recebe bytes, porque na Web não há disco — o lado
   /// nativo é que grava o arquivo temporário que o Verovio exige.
-  Future<Uint8List> loadScore(Piece piece) {
+  Future<Uint8List> loadScore(Piece piece, {bool simplified = false}) {
     final load = _scoreLoader;
     if (load == null) {
       throw StateError('catálogo sem biblioteca: não há partitura a abrir');
     }
-    return load(piece);
+    return load(piece, simplified: simplified);
   }
 }
 

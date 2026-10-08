@@ -8,6 +8,11 @@ String progressKeyFor(String libraryId) => 'lib_progress_$libraryId';
 String pieceSettingsKeyFor(String libraryId, String pieceId) =>
     'piece_settings_${libraryId}_$pieceId';
 
+/// A versão (completa ou simplificada) em que a música abre, lembrada por
+/// música.
+String pieceVersionKeyFor(String libraryId, String pieceId) =>
+    'piece_version_${libraryId}_$pieceId';
+
 String trailKeyFor(String libraryId, String progressId) =>
     'trail_${libraryId}_$progressId';
 

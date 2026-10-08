@@ -2,26 +2,20 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../ui/brand.dart';
+
 /// Splash "C — Varsóvia, 1816" do artefato "Zywny — Ícone e Splash": vinho,
 /// o Z itálico do ícone, o lema e a homenagem a Wojciech Żywny. O artefato
 /// desenha em retrato; como o app roda em paisagem no celular, aqui o Z fica
-/// ao lado do texto quando a tela é mais larga que alta.
-const kSplashWine = Color(0xFF5A1E2B);
-const kSplashCream = Color(0xFFF4EEE1);
-const kSplashGold = Color(0xFFC8A45A);
-const _kSplashSoft = Color(0xFFE6DFD0);
-const _kSplashCredit = Color(0xFFD9D2C3);
-
-const _serif = 'Cormorant Garamond';
-const _sans = 'Instrument Sans';
-
+/// ao lado do texto quando a tela é mais larga que alta. As cores e os tipos
+/// são os da marca (`ui/brand.dart`).
 class SplashScreen extends StatelessWidget {
   const SplashScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
     return ColoredBox(
-      color: kSplashWine,
+      color: kBrandWine,
       child: SafeArea(
         child: LayoutBuilder(
           builder: (context, box) {
@@ -42,7 +36,7 @@ class SplashScreen extends StatelessWidget {
                           ? Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                const _MonogramZ(size: 170),
+                                const MonogramZ(size: 170),
                                 const SizedBox(width: 44),
                                 Flexible(child: _Words(landscape: true)),
                               ],
@@ -50,7 +44,7 @@ class SplashScreen extends StatelessWidget {
                           : Column(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                const _MonogramZ(size: 200),
+                                const MonogramZ(size: 200),
                                 const SizedBox(height: 20),
                                 _Words(landscape: false),
                               ],
@@ -75,31 +69,11 @@ class _Label extends StatelessWidget {
   Widget build(BuildContext context) => const Text(
     'VARSÓVIA · 1816',
     style: TextStyle(
-      fontFamily: _sans,
+      fontFamily: kBrandSans,
       fontWeight: FontWeight.w500,
       fontSize: 13,
       letterSpacing: 4,
-      color: kSplashGold,
-      decoration: TextDecoration.none,
-    ),
-  );
-}
-
-class _MonogramZ extends StatelessWidget {
-  const _MonogramZ({required this.size});
-
-  final double size;
-
-  @override
-  Widget build(BuildContext context) => Text(
-    'Z',
-    style: TextStyle(
-      fontFamily: _serif,
-      fontStyle: FontStyle.italic,
-      fontWeight: FontWeight.w600,
-      fontSize: size,
-      height: 0.8,
-      color: kSplashCream,
+      color: kBrandGold,
       decoration: TextDecoration.none,
     ),
   );
@@ -123,12 +97,12 @@ class _Words extends StatelessWidget {
         const Text(
           'Zywny',
           style: TextStyle(
-            fontFamily: _serif,
+            fontFamily: kBrandSerif,
             fontWeight: FontWeight.w600,
             fontSize: 52,
             letterSpacing: 1,
             height: 1,
-            color: kSplashCream,
+            color: kBrandCream,
             decoration: TextDecoration.none,
           ),
         ),
@@ -137,7 +111,7 @@ class _Words extends StatelessWidget {
           width: 48,
           height: 3,
           decoration: BoxDecoration(
-            color: kSplashGold,
+            color: kBrandGold,
             borderRadius: BorderRadius.circular(2),
           ),
         ),
@@ -146,12 +120,12 @@ class _Words extends StatelessWidget {
           'Todo grande pianista começou na primeira tecla.',
           textAlign: textAlign,
           style: const TextStyle(
-            fontFamily: _serif,
+            fontFamily: kBrandSerif,
             fontStyle: FontStyle.italic,
             fontWeight: FontWeight.w500,
             fontSize: 21,
             height: 1.35,
-            color: _kSplashSoft,
+            color: kBrandSoft,
             decoration: TextDecoration.none,
           ),
         ),
@@ -168,11 +142,11 @@ class _Credit extends StatelessWidget {
     'Inspirado em Wojciech Żywny, o primeiro professor de Chopin',
     textAlign: TextAlign.center,
     style: TextStyle(
-      fontFamily: _sans,
+      fontFamily: kBrandSans,
       fontWeight: FontWeight.w500,
       fontSize: 13,
       height: 1.5,
-      color: _kSplashCredit,
+      color: kBrandMuted,
       decoration: TextDecoration.none,
     ),
   );

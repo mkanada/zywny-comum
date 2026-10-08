@@ -8,6 +8,8 @@ import 'package:zywny_library/library_envelope.dart';
 import 'package:zywny_library/library_package.dart';
 
 const _xml = '<score-partwise version="4.0"><part-list/></score-partwise>';
+const _xmlSimples =
+    '<score-partwise version="4.0"><part-list>simples</part-list></score-partwise>';
 
 Map<String, dynamic> _manifest([Map<String, dynamic> over = const {}]) => {
   'formato': 1,
@@ -39,6 +41,7 @@ Uint8List _zip({
   Object? manifest = const {},
   Object? index = const [],
   List<String>? scores,
+  List<String> simples = const [],
   bool store = false,
 }) {
   final archive = Archive();
@@ -65,6 +68,12 @@ Uint8List _zip({
   final ids = scores ?? ['001', '002'];
   for (final id in ids) {
     add('partituras/$id.musicxml.gz', GZipEncoder().encode(utf8.encode(_xml)));
+  }
+  for (final id in simples) {
+    add(
+      'partituras/$id.simples.musicxml.gz',
+      GZipEncoder().encode(utf8.encode(_xmlSimples)),
+    );
   }
   return Uint8List.fromList(ZipEncoder().encode(archive));
 }
@@ -131,20 +140,56 @@ void main() {
       final pkg = LibraryPackage.parse(
         _zip(
           index: [
-            _entry(
-              '001',
-              n: 1,
-              over: {'l': 'Letrista', 'nv': 3, 'd': 41.5, 'a': -2},
-            ),
+            _entry('001', n: 1, over: {'l': 'Letrista', 'a': -2}),
           ],
           scores: ['001'],
         ),
       );
       final p = pkg.pieces.single;
       expect(p.lyricist, 'Letrista');
-      expect(p.level, 3);
-      expect(p.difficulty, 41.5);
       expect(p.fifths, -2);
+      expect(p.hasSimplified, isFalse);
+    });
+
+    test('versão simplificada: mesma música, outra partitura', () async {
+      final pkg = LibraryPackage.parse(
+        _zip(
+          index: [
+            _entry('001', n: 1, over: {'s': true}),
+            _entry('002', n: 2),
+          ],
+          scores: ['001', '002'],
+          simples: ['001'],
+        ),
+      );
+      expect(pkg.pieces.map((p) => p.id), ['001', '002']);
+      expect(pkg.pieces.first.hasSimplified, isTrue);
+      expect(pkg.pieces.last.hasSimplified, isFalse);
+      expect(utf8.decode(await pkg.loadScore('001')), _xml);
+      expect(
+        utf8.decode(await pkg.loadScore('001', simplified: true)),
+        _xmlSimples,
+      );
+    });
+
+    test('índice marca "s" sem o arquivo simplificado: pacote recusado', () {
+      _expectError(
+        _zip(
+          index: [
+            _entry('001', n: 1, over: {'s': true}),
+          ],
+          scores: ['001'],
+        ),
+        contains('versão simplificada'),
+      );
+    });
+
+    test('sem versão simplificada, loadScore(simplified) falha', () {
+      final pkg = LibraryPackage.parse(_zip());
+      expect(
+        () => pkg.loadScore('001', simplified: true),
+        throwsArgumentError,
+      );
     });
 
     test('loadScore de id desconhecido falha', () {

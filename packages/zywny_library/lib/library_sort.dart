@@ -5,26 +5,21 @@ import 'piece_progress.dart';
 
 /// Ordenações da biblioteca — as do artboard `CelularBiblioteca.dc.html`
 /// (recentes, pontuação, nome) mais o número do hinário, que é como um hino é
-/// procurado, a dificuldade (do mais fácil ao mais difícil), para escolher o
-/// que estudar, e os acidentes da armadura (de nenhum a muitos). O
+/// procurado e os acidentes da armadura (de nenhum a muitos). Não há mais
+/// ordenação por dificuldade: a biblioteca não classifica as músicas. O
 /// compositor saiu da lista e da ordenação a pedido de quem testa.
-enum SortKey { number, title, difficulty, accidentals, recent, score }
+enum SortKey { number, title, accidentals, recent, score }
 
-/// Direção em que cada chave começa: número, nome, acidentes e dificuldade
-/// (do mais fácil) crescentes; recentes e pontuação do maior (mais recente /
-/// melhor nota) para o menor.
+/// Direção em que cada chave começa: número, nome e acidentes crescentes;
+/// recentes e pontuação do maior (mais recente / melhor nota) para o menor.
 bool defaultAscendingFor(SortKey key) => switch (key) {
-  SortKey.number ||
-  SortKey.title ||
-  SortKey.accidentals ||
-  SortKey.difficulty => true,
+  SortKey.number || SortKey.title || SortKey.accidentals => true,
   SortKey.recent || SortKey.score => false,
 };
 
 String labelFor(SortKey key) => switch (key) {
   SortKey.number => 'Número',
   SortKey.title => 'Nome',
-  SortKey.difficulty => 'Dificuldade',
   SortKey.recent => 'Recentes',
   SortKey.score => 'Pontuação',
   SortKey.accidentals => 'Acidentes',
@@ -99,11 +94,6 @@ List<Piece> sortedPieces(
         _compareNullLast(a.accidentals, b.accidentals, sort.ascending) != 0
             ? _compareNullLast(a.accidentals, b.accidentals, sort.ascending)
             : _compareNullLast(b.fifths, a.fifths, true),
-      SortKey.difficulty => _compareNullLast(
-        a.difficulty,
-        b.difficulty,
-        sort.ascending,
-      ),
       SortKey.recent => _compareNullLast(
         of(a)?.lastOpened,
         of(b)?.lastOpened,

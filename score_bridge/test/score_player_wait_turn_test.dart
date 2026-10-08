@@ -29,6 +29,30 @@ VsbDocument twoPages() => fakeDocument(
   ],
 );
 
+/// Como [twoPages], mas o último compasso da página 0 tem uma nota tardia
+/// (7500): a conclusão da haste, que acaba de ficar pronta na última nota,
+/// ainda corre quando a página seguinte começa (8000).
+VsbDocument lateNotePages() => fakeDocument(
+  [
+    [
+      FakeMeasure('m1', 100, [FakeNote('a1', 120)]),
+      FakeMeasure('m2', 500, [FakeNote('a2', 520), FakeNote('a3', 700)]),
+    ],
+    [
+      FakeMeasure('m3', 100, [FakeNote('b1', 120)]),
+      FakeMeasure('m4', 500, [FakeNote('b2', 520)]),
+    ],
+  ],
+  [
+    (0, ['a1'], []),
+    (4000, ['a2'], ['a1']),
+    (7500, ['a3'], ['a2']),
+    (8000, ['b1'], ['a3']),
+    (12000, ['b2'], ['b1']),
+    (16000, [], ['b2']),
+  ],
+);
+
 void main() {
   setUpAll(TestWidgetsFlutterBinding.ensureInitialized);
 
@@ -83,9 +107,62 @@ void main() {
       }
     }
 
+    testPlayer('haste pronta antes do fim do compasso: a página nova já está '
+        'à mostra, e o relógio parado na 1ª nota dela nada deixa estacionado', (
+      tester,
+      cleanup,
+    ) async {
+      // m2 (4000..8000) tem uma nota só: a conclusão vai de 5000 a 6000.
+      final h = await parked(tester, cleanup, twoPages());
+      final turn = firstTurn(h.player);
+      h.clock.positionMs = 6500;
+      h.player.seek(const Duration(milliseconds: 6500));
+      await tester.pump();
+      expect(h.player.curtain.value, isNull);
+      expect(h.vc.currentPage, turn.next.page, reason: 'ainda em m2');
+
+      h.clock.positionMs = turn.next.startMs.toDouble();
+      h.player.seek(Duration(milliseconds: turn.next.startMs));
+      h.player.play();
+      await pumpFor(tester, const Duration(seconds: 2));
+      expect(h.player.curtain.value, isNull);
+      expect(h.vc.currentPage, turn.next.page);
+
+      // Antes da conclusão, a página antiga.
+      h.clock.positionMs = 4500;
+      h.player.seek(const Duration(milliseconds: 4500));
+      await tester.pump();
+      expect(h.vc.currentPage, 0);
+    });
+
+    testPlayer('virada adiantada não desfoca de novo uma página já nítida', (
+      tester,
+      cleanup,
+    ) async {
+      final h = await parked(tester, cleanup, lateNotePages());
+      final turn = firstTurn(h.player);
+      // 7700 está a 575 ms do começo da conclusão (7125): sem desfoque.
+      h.clock.positionMs = 7700;
+      h.player.seek(const Duration(milliseconds: 7700));
+      h.player.play();
+      await tester.pump(const Duration(milliseconds: 16));
+      final before = h.player.curtain.value!;
+      expect(before.blur, closeTo(0, 1e-9));
+
+      h.player.waitTarget = turn.next.startMs.toDouble();
+      for (var i = 0; i < 10; i++) {
+        await tester.pump(const Duration(milliseconds: 16));
+        final c = h.player.curtain.value;
+        if (c != null) {
+          expect(c.blur, closeTo(0, 1e-9), reason: 'quadro $i');
+          expect(c.edgeX, greaterThanOrEqualTo(before.edgeX));
+        }
+      }
+    });
+
     testPlayer('sem waitTarget, relógio parado na 1ª nota da página seguinte: '
         'a haste fica estacionada (o defeito)', (tester, cleanup) async {
-      final h = await parked(tester, cleanup, twoPages());
+      final h = await parked(tester, cleanup, lateNotePages());
       final turn = firstTurn(h.player);
       h.clock.positionMs = turn.next.startMs.toDouble();
       h.player.seek(Duration(milliseconds: turn.next.startMs));
@@ -100,7 +177,7 @@ void main() {
       tester,
       cleanup,
     ) async {
-      final h = await parked(tester, cleanup, twoPages());
+      final h = await parked(tester, cleanup, lateNotePages());
       final turn = firstTurn(h.player);
       final at = (turn.last.startMs + turn.last.endMs) / 2;
       h.clock.positionMs = at;
@@ -137,7 +214,7 @@ void main() {
       tester,
       cleanup,
     ) async {
-      final h = await parked(tester, cleanup, twoPages());
+      final h = await parked(tester, cleanup, lateNotePages());
       final turn = firstTurn(h.player);
       final at = (turn.last.startMs + turn.last.endMs) / 2;
       h.clock.positionMs = at;
@@ -161,7 +238,7 @@ void main() {
       tester,
       cleanup,
     ) async {
-      final h = await parked(tester, cleanup, twoPages());
+      final h = await parked(tester, cleanup, lateNotePages());
       final turn = firstTurn(h.player);
       h.player.waitTarget = turn.next.startMs.toDouble();
       h.clock.positionMs = turn.next.startMs.toDouble();
