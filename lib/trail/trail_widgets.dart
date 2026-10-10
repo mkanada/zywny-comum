@@ -50,79 +50,6 @@ class TrailStageOfStrip {
   final String label;
 }
 
-/// Faixa fina da trilha ("Trecho 2/6 · Notas juntas", começar/parar).
-class TrailStrip extends StatelessWidget {
-  const TrailStrip({
-    super.key,
-    required this.text,
-    required this.stateText,
-    required this.running,
-    required this.onStart,
-    required this.onStop,
-    this.onTap,
-  });
-
-  final String text;
-  final String stateText;
-  final bool running;
-  final VoidCallback onStart;
-  final VoidCallback onStop;
-  final VoidCallback? onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      height: kTrailStripHeight,
-      padding: const EdgeInsets.only(left: 4, right: 12),
-      decoration: const BoxDecoration(
-        color: kPanelSideBg,
-        border: Border(bottom: BorderSide(color: kBorderPanel)),
-      ),
-      child: Row(
-        children: [
-          IconButton(
-            tooltip: running ? 'Parar etapa' : 'Começar etapa',
-            onPressed: running ? onStop : onStart,
-            iconSize: 20,
-            visualDensity: VisualDensity.compact,
-            color: kAccentDark,
-            icon: Icon(running ? Icons.stop : Icons.play_arrow),
-          ),
-          Expanded(
-            child: GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTap: onTap,
-              child: Text.rich(
-                TextSpan(
-                  children: [
-                    TextSpan(
-                      text: text,
-                      style: const TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    if (stateText.isNotEmpty)
-                      TextSpan(
-                        text: ' · $stateText',
-                        style: const TextStyle(
-                          fontSize: 12,
-                          color: kInkCaption,
-                        ),
-                      ),
-                  ],
-                ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 /// A informação da trilha na barra do título do celular (U01): etapa, estado
 /// e um "▾" que avisa que toca para abrir a gaveta. Sem [onTap] (trilha
 /// indisponível) é só texto. Não ocupa área da partitura.
@@ -175,9 +102,6 @@ class TrailTitleChip extends StatelessWidget {
     );
   }
 }
-
-/// Altura fixa da faixa (não muda a caixa da partitura).
-const double kTrailStripHeight = 34;
 
 /// O que o resumo devolve: o botão que o aluno tocou. [review] fica na
 /// etapa e abre a revisão das notas erradas na partitura.

@@ -402,11 +402,47 @@ Map<String, Object> layoutOptionsToSend(Map<String, Object> values) {
 /// painel de layout continua livre para mudar.
 const double kPhoneUnit = 12;
 
+/// `unit` de partida num tablet (Android/iOS de tela grande) de densidade
+/// [kTabletUnitPixelRatio]: a tela é maior e mais perto que a do celular, e
+/// o [kPhoneUnit] deixava pouca música em cada página. 7 foi o que ficou bom
+/// num Galaxy Tab S10 (10/10/2026). Noutra densidade, ver [tabletUnit].
+const double kTabletUnit = 7;
+
+/// A densidade para a qual vale o [kTabletUnit] (a de um Galaxy Tab S10).
+const double kTabletUnitPixelRatio = 2;
+
+/// `unit` de partida num tablet de densidade [pixelRatio]: a página é
+/// gravada em pixels do aparelho, então o [kTabletUnit] acompanha a
+/// densidade para a notação ter o mesmo tamanho na tela — dentro da faixa
+/// do controle "Tamanho da notação" (4,5 a [kPhoneUnit]).
+double tabletUnit(double pixelRatio) =>
+    (kTabletUnit / kTabletUnitPixelRatio * pixelRatio)
+        .clamp(kAppDefaults['unit']! as double, kPhoneUnit)
+        .toDouble();
+
+/// `unit` fora do celular. A página é gravada em pixels do aparelho, então
+/// [base] — pensado para uma tela de densidade 1 — encolheria à metade numa
+/// tela de densidade 2 (tablet, notebook retina): o `unit` acompanha a
+/// densidade ([pixelRatio]) para a notação ter o mesmo tamanho na tela, sem
+/// passar do [kPhoneUnit].
+double screenUnit(double base, double pixelRatio) =>
+    (base * pixelRatio).clamp(base, kPhoneUnit).toDouble();
+
 /// Verovio's defaults with [kAppDefaults] applied — and, with [phone],
-/// [kPhoneUnit] as the notation size.
-Map<String, Object> initialLayoutValues({bool phone = false}) => {
+/// [kPhoneUnit] as the notation size; com [tablet], o do tablet na
+/// densidade da tela ([tabletUnit]); no desktop, o `unit` do app na
+/// densidade da tela ([screenUnit]).
+Map<String, Object> initialLayoutValues({
+  bool phone = false,
+  bool tablet = false,
+  double pixelRatio = 1,
+}) => {
   for (final group in kLayoutGroups)
     for (final option in group.options) option.key: option.defaultValue,
   ...kAppDefaults,
-  if (phone) 'unit': kPhoneUnit,
+  'unit': phone
+      ? kPhoneUnit
+      : tablet
+      ? tabletUnit(pixelRatio)
+      : screenUnit(kAppDefaults['unit']! as double, pixelRatio),
 };

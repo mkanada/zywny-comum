@@ -36,45 +36,6 @@ void main() {
     });
   });
 
-  group('TrailStrip', () {
-    testWidgets('mostra texto e estado, começar/parar chamam de volta', (
-      tester,
-    ) async {
-      var starts = 0;
-      var stops = 0;
-      await tester.pumpWidget(
-        _app(
-          TrailStrip(
-            text: 'Trecho 2/6 · Notas juntas',
-            stateText: '92%',
-            running: false,
-            onStart: () => starts++,
-            onStop: () => stops++,
-          ),
-        ),
-      );
-      expect(find.textContaining('Trecho 2/6'), findsOneWidget);
-      expect(find.textContaining('92%'), findsOneWidget);
-      expect(tester.getSize(find.byType(TrailStrip)).height, 34);
-      await tester.tap(find.byTooltip('Começar etapa'));
-      expect(starts, 1);
-
-      await tester.pumpWidget(
-        _app(
-          TrailStrip(
-            text: 'Trecho 2/6 · Notas juntas',
-            stateText: '',
-            running: true,
-            onStart: () => starts++,
-            onStop: () => stops++,
-          ),
-        ),
-      );
-      await tester.tap(find.byTooltip('Parar etapa'));
-      expect(stops, 1);
-    });
-  });
-
   group('TrailTitleChip na barra do título', () {
     for (final size in const [Size(844, 390), Size(640, 360)]) {
       testWidgets(

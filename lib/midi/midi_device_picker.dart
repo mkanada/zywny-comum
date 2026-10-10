@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_midi_command/flutter_midi_command.dart';
 
+import '../ui/device_kind.dart';
 import '../ui/theme.dart';
 
 import 'package:zywny_midi/midi_device_manager.dart';
@@ -92,8 +93,8 @@ class MidiStatusPill extends StatelessWidget {
 /// A orientação de quem ainda não tem teclado ligado. Só o Android avisa do
 /// Bluetooth: é onde "ainda não funciona" é verdade hoje (M01: o plugin BLE
 /// está pendente).
-String midiHelpText({required bool android}) =>
-    'Ligue o teclado ao celular com um cabo USB (pode ser preciso um '
+String midiHelpText({required bool android, String device = 'celular'}) =>
+    'Ligue o teclado ao $device com um cabo USB (pode ser preciso um '
     'adaptador). Ele conecta sozinho.'
     '${android ? '\nTeclados por Bluetooth ainda não funcionam.' : ''}';
 
@@ -206,6 +207,7 @@ Future<void> showMidiDevicePicker(
                                 android:
                                     defaultTargetPlatform ==
                                     TargetPlatform.android,
+                                device: deviceNoun(context),
                               ),
                         ),
                         if (unavailableText == null ||

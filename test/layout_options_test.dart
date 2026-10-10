@@ -38,6 +38,32 @@ Iterable<LayoutOption> get _allOptions =>
     kLayoutGroups.expand((g) => g.options);
 
 void main() {
+  group('unit na densidade da tela', () {
+    test('fora do celular acompanha a densidade, até o do celular', () {
+      expect(initialLayoutValues()['unit'], 4.5);
+      expect(initialLayoutValues(pixelRatio: 2)['unit'], 9);
+      expect(initialLayoutValues(pixelRatio: 4)['unit'], kPhoneUnit);
+      // Nunca menor que o do desktop, mesmo numa densidade abaixo de 1.
+      expect(initialLayoutValues(pixelRatio: 0.75)['unit'], 4.5);
+    });
+
+    test('no tablet, o 7 do Galaxy Tab S10 na densidade dele (2)', () {
+      expect(initialLayoutValues(tablet: true, pixelRatio: 2)['unit'], 7);
+      expect(initialLayoutValues(tablet: true, pixelRatio: 3)['unit'], 10.5);
+      // Dentro da faixa do "Tamanho da notação".
+      expect(initialLayoutValues(tablet: true, pixelRatio: 4)['unit'], 12);
+      expect(initialLayoutValues(tablet: true, pixelRatio: 1)['unit'], 4.5);
+    });
+
+    test('no celular continua o kPhoneUnit, qualquer que seja a tela', () {
+      expect(initialLayoutValues(phone: true)['unit'], kPhoneUnit);
+      expect(
+        initialLayoutValues(phone: true, pixelRatio: 3.5)['unit'],
+        kPhoneUnit,
+      );
+    });
+  });
+
   group('layoutOptionsToSend', () {
     test('o estado inicial só desvia do Verovio no rodapé e no unit', () {
       expect(layoutOptionsToSend(initialLayoutValues()), {

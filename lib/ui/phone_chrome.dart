@@ -14,10 +14,6 @@ import 'widgets.dart';
 /// Largura da barra lateral (`width:84px` nos artboards).
 const double kPhoneRailWidth = 84;
 
-/// Abaixo desta largura (px lógicos) `lib/main.dart` usa o layout de celular;
-/// a partir daqui, o banco de testes largo de sempre (desktop).
-const double kPhoneLayoutMaxWidth = 1000;
-
 /// As chaves que o tutorial (`lib/tutorial/`) usa para apontar os botões da
 /// barra lateral. Nulas fora dele: cada botão só leva a sua chave se houver.
 class PhoneRailKeys {
@@ -256,6 +252,11 @@ class _RailButton extends StatelessWidget {
 /// Altura da faixa de título do celular ([PhoneTitleBar]).
 const double kPhoneTitleBarHeight = 40;
 
+/// Abaixo desta largura de tela a barra do título encolhe o que pode (o
+/// aviso do teclado vira ícone): um celular em pé. Deitado, o menor celular
+/// tem 640.
+const double kPhoneTitleBarCompactWidth = 600;
+
 /// Faixa do topo da partitura no celular: voltar, o número e o título do
 /// hino e, à direita, o que estiver em [trailing] (os selos do treino).
 ///
@@ -378,12 +379,30 @@ class PhoneSoundButton extends StatelessWidget {
 /// Aviso da trilha sem teclado conectado (U03): toque abre a lista de
 /// dispositivos.
 class PhoneKeyboardNotice extends StatelessWidget {
-  const PhoneKeyboardNotice({super.key, required this.onTap});
+  const PhoneKeyboardNotice({
+    super.key,
+    required this.onTap,
+    this.compact = false,
+  });
 
   final VoidCallback onTap;
 
+  /// Só o ícone (com a frase na dica): numa barra estreita, como a de um
+  /// celular em pé, a frase não cabe ao lado do título.
+  final bool compact;
+
   @override
   Widget build(BuildContext context) {
+    if (compact) {
+      return IconButton(
+        tooltip: 'Conecte o teclado para praticar',
+        onPressed: onTap,
+        iconSize: 18,
+        visualDensity: VisualDensity.compact,
+        color: kInkCaption,
+        icon: const Icon(Icons.piano_off),
+      );
+    }
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: onTap,

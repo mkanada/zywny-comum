@@ -25,6 +25,7 @@ import 'package:zywny_library/library_installer.dart';
 import 'package:zywny_library/library_store.dart';
 import 'package:zywny_library/library_term_scope.dart';
 
+import '../ui/device_kind.dart';
 import '../ui/theme.dart';
 import '../settings/app_settings.dart';
 import '../settings/color_picker.dart';
@@ -195,13 +196,13 @@ class GeneralSettingsPanel extends StatelessWidget {
         padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
         child: SegmentedButton<SoundOutput>(
           showSelectedIcon: false,
-          segments: const [
+          segments: [
             ButtonSegment(
               value: SoundOutput.appSynth,
-              icon: Icon(Icons.graphic_eq, size: 18),
-              label: Text('Celular'),
+              icon: const Icon(Icons.graphic_eq, size: 18),
+              label: Text(_capitalized(deviceNoun(context))),
             ),
-            ButtonSegment(
+            const ButtonSegment(
               value: SoundOutput.midiKeyboard,
               icon: Icon(Icons.piano, size: 18),
               label: Text('Teclado'),
@@ -252,7 +253,7 @@ class GeneralSettingsPanel extends StatelessWidget {
       if (live != null) ...[
         SwitchListTile(
           dense: true,
-          title: const Text('Ouvir o que eu toco pelo celular'),
+          title: Text('Ouvir o que eu toco pelo ${deviceNoun(context)}'),
           subtitle: const Text('para teclado sem som próprio'),
           value: live.monitorOn,
           onChanged: busy ? null : live.onMonitorChanged,
@@ -752,3 +753,6 @@ class _SliderRow extends StatelessWidget {
     );
   }
 }
+
+String _capitalized(String text) =>
+    text.isEmpty ? text : text[0].toUpperCase() + text.substring(1);
