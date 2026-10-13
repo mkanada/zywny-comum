@@ -336,6 +336,24 @@ class ScorePlayer {
     _ticker?.stop();
   }
 
+  /// Cancela a virada em curso (a haste, ou a virada adiantada do modo
+  /// espera) e mostra a página da posição. Quem encerra a rodada chama, para
+  /// a haste não ficar presa: parada no meio, ela ficava na tela e a página
+  /// não saía dali nem com `goToPage`.
+  void cancelTurn() {
+    if (_disposed) {
+      return;
+    }
+    _ahead = null;
+    if (_curtain.value != null) {
+      _curtain.value = null;
+    }
+    final v = view;
+    if (v != null && v.isAttached && v.mode != ScorePageMode.continuousScroll) {
+      v.showPage(_shownView);
+    }
+  }
+
   void _onTick(Duration elapsed) {
     final delta = elapsed - _lastElapsed;
     _lastElapsed = elapsed;
