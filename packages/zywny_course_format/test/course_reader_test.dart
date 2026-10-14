@@ -454,6 +454,26 @@ change: accidental
       expect(_messages(result).single, contains('do `11a` em diante'));
     });
 
+    test('listen-score: note lê a resposta (E10)', () async {
+      final result = await _read('''
+```zywny-exercise
+id: l10-onde-mudou
+type: listen-score
+title: Onde mudou, nas duas mãos
+step: 5d
+answer: note
+count: 5
+pass: {accuracy: 80}
+```
+''');
+      expect(_messages(result), isEmpty);
+      final spec =
+          result.course!.lessons.single.exercises.single as ListenScoreSpec;
+      expect(spec.answer, ScoreAnswer.note);
+      expect(spec.change, ScoreChange.pitch);
+      expect(spec.count, 5);
+    });
+
     test('listen-score: dictation lê a resposta', () async {
       final result = await _read('''
 ```zywny-exercise
