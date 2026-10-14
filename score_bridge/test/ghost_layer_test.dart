@@ -81,6 +81,27 @@ void main() {
         );
       }
     });
+
+    test('antes do tempo, com a altura da própria coluna: fica à esquerda dela', () {
+      const semitones = {'c': 0, 'd': 2, 'e': 4, 'f': 5, 'g': 7, 'a': 9, 'b': 11};
+      final note = doc.pitchPos!.events[chord.first]!;
+      final key = (note.octave! + 1) * 12 + semitones[note.pname]! + note.alter!;
+      final c = GhostController()..attachDocument(doc);
+      addTearDown(c.dispose);
+      c.press(key, targetIds: chord);
+      final onTime = c.visible.single.ghost;
+      c.clear();
+      c.press(key, targetIds: chord, side: -1);
+      final before = c.visible.single.ghost;
+      c.clear();
+      c.press(key, targetIds: chord, side: 1);
+      final after = c.visible.single.ghost;
+      // Em cima da coluna, a fantasma já desvia uma cabeça para a direita (a
+      // nota esperada tem a mesma altura): a coluna fica uma cabeça antes.
+      final column = onTime.head.x - onTime.headWidth;
+      expect(before.head.x + before.headWidth, lessThanOrEqualTo(column));
+      expect(after.head.x, greaterThanOrEqualTo(column + onTime.headWidth));
+    });
   });
 
   group('revisão', () {

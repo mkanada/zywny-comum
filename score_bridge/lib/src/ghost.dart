@@ -10,6 +10,12 @@ const List<int> _semitones = [0, 2, 4, 5, 7, 9, 11];
 const String _letters = 'cdefgab';
 const int _maxLedgers = 4;
 
+/// Quanto a fantasma de uma nota fora do tempo sai da coluna, em larguras
+/// de cabeça de nota (de centro a centro), para a esquerda (antes do tempo)
+/// ou para a direita (depois). No máximo meia cabeça: ela fica colada na
+/// nota esperada, só escorregada para o lado.
+const double kGhostSideOffsetHeads = 0.5;
+
 /// Folga entre acidente e cabeça, em `unit` (medida em G04d; §10 passo 8).
 const double _accidentalGapPerUnit = 0.5;
 
@@ -111,40 +117,6 @@ class GhostNote {
     required this.ledgers,
     required this.octaveMarker,
   });
-
-  /// A mesma fantasma deslocada [dx] (unidades de conteúdo da página) na
-  /// horizontal — para a nota tocada antes (`dx < 0`) ou depois (`dx > 0`) do
-  /// tempo, ao lado da coluna do evento esperado em vez de em cima dela.
-  GhostNote shifted(double dx) {
-    if (dx == 0) return this;
-    GhostGlyph move(GhostGlyph g) =>
-        GhostGlyph(glyphId: g.glyphId, x: g.x + dx, y: g.y, sx: g.sx, sy: g.sy);
-    return GhostNote(
-      key: key,
-      page: page,
-      staffId: staffId,
-      loc: loc,
-      locRaw: locRaw,
-      octaveShift: octaveShift,
-      pname: pname,
-      octave: octave,
-      alter: alter,
-      targetId: targetId,
-      head: move(head),
-      headWidth: headWidth,
-      accidental: accidental == null ? null : move(accidental!),
-      ledgers: [
-        for (final l in ledgers)
-          GhostLedger(
-            y: l.y,
-            x1: l.x1 + dx,
-            x2: l.x2 + dx,
-            thickness: l.thickness,
-          ),
-      ],
-      octaveMarker: octaveMarker == null ? null : move(octaveMarker!),
-    );
-  }
 }
 
 class _Located {
@@ -273,6 +245,10 @@ extension VsbGhostNotes on VsbDocument {
   /// [sceneIdOf]. Passe **todas** as notas de um acorde esperado: a colisão
   /// (D-FANT-COLISAO) precisa conhecê-las.
   ///
+  /// [side] (`-1` tocada antes do tempo, `1` depois, `0` em cima da coluna):
+  /// a fantasma sai meia cabeça para aquele lado e, se bater numa nota já
+  /// posta, desvia para o mesmo lado — nunca cai do lado oposto.
+  ///
   /// [page] é onde procurar os nós (padrão: a página normal que contém o
   /// primeiro id esperado). Vazia sem `pitchpos.json`, sem candidato
   /// resolvível ou sem geometria de pauta (`.vsb` anterior à nota fantasma).
@@ -281,6 +257,7 @@ extension VsbGhostNotes on VsbDocument {
   List<GhostNote> ghostsFor({
     required List<String> expectedIds,
     required List<int> wrongKeys,
+    int side = 0,
     PageRef? page,
   }) {
     final pitchPos = this.pitchPos;
@@ -420,6 +397,7 @@ extension VsbGhostNotes on VsbDocument {
       var x = u?.x ?? t.node.bbox?.left ?? 0;
       final headId = '$font:E0A4';
       final width = glyphWidth(headId, sx);
+      x += side * width * kGhostSideOffsetHeads;
       final staffId = t.staff.id;
       if (ev.isNote) {
         final reals = <({int loc, double x, double width})>[
@@ -443,7 +421,8 @@ extension VsbGhostNotes on VsbDocument {
             if ((loc - r.loc).abs() <= 1 &&
                 r.x < x + width &&
                 x < r.x + r.width) {
-              x += width;
+              // Desvia para o lado da fantasma (antes do tempo, à esquerda).
+              x += side < 0 ? -width : width;
               moved = true;
               break;
             }

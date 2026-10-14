@@ -50,12 +50,6 @@ class GhostRequest {
   final int side;
 }
 
-/// Quanto a fantasma de uma nota fora do tempo sai da coluna, em larguras
-/// de cabeça de nota (de centro a centro), para a esquerda (antes do tempo)
-/// ou para a direita (depois). No máximo meia cabeça: ela fica colada na
-/// nota esperada, só escorregada para o lado.
-const double kGhostSideOffsetHeads = 0.5;
-
 class _OwnTickerProvider implements TickerProvider {
   @override
   Ticker createTicker(TickerCallback onTick) =>
@@ -161,10 +155,7 @@ class GhostController extends ChangeNotifier {
     List<String> targetIds,
     int side,
     List<int> keys,
-  ) => [
-    for (final g in doc.ghostsFor(expectedIds: targetIds, wrongKeys: keys))
-      g.shifted(side * g.headWidth * kGhostSideOffsetHeads),
-  ];
+  ) => doc.ghostsFor(expectedIds: targetIds, wrongKeys: keys, side: side);
 
   /// Ids do(s) evento(s) esperado(s) no instante — **todas** as notas do
   /// acorde (ids do timemap servem; `sceneIdOf` resolve `-rend<N>`). Muda
