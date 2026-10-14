@@ -113,10 +113,12 @@ enum ScoreChange implements WireEnum {
   String get wire => name;
 }
 
-/// `listen-score`: como o aluno responde.
+/// `listen-score`: como o aluno responde. `dictation` (E09) dá o ritmo e pede
+/// as notas, tocadas no teclado; não tem diferença a achar.
 enum ScoreAnswer implements WireEnum {
   measure('measure'),
-  sameDifferent('same-different');
+  sameDifferent('same-different'),
+  dictation('dictation');
 
   const ScoreAnswer(this.wire);
 

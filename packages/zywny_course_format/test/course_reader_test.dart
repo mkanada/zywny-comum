@@ -454,6 +454,42 @@ change: accidental
       expect(_messages(result).single, contains('do `11a` em diante'));
     });
 
+    test('listen-score: dictation lê a resposta', () async {
+      final result = await _read('''
+```zywny-exercise
+id: l3-ditado
+type: listen-score
+title: Ditado de ouvido
+step: 1c
+answer: dictation
+count: 2
+pass: {accuracy: 60}
+```
+''');
+      expect(_messages(result), isEmpty);
+      final spec =
+          result.course!.lessons.single.exercises.single as ListenScoreSpec;
+      expect(spec.answer, ScoreAnswer.dictation);
+      expect(spec.count, 2);
+    });
+
+    test('listen-score: change não vale com dictation', () async {
+      final result = await _read('''
+```zywny-exercise
+id: x
+type: listen-score
+title: X
+step: 1c
+answer: dictation
+change: rhythm
+```
+''');
+      expect(
+        _messages(result).single,
+        contains('não vale com `answer: dictation`'),
+      );
+    });
+
     test('listen-interval lê as chaves e põe os padrões', () async {
       final result = await _read('''
 ```zywny-exercise

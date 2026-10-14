@@ -590,6 +590,16 @@ ExerciseSpec? _buildExercise(
         );
         return null;
       }
+      final answer =
+          _enumOf(ScoreAnswer.values, f.get<String>('answer')) ??
+          ScoreAnswer.measure;
+      if (answer == ScoreAnswer.dictation && f.has('change')) {
+        issues.error(
+          f.lineOf('change'),
+          '`change` não vale com `answer: dictation`: a frase soa como está escrita.',
+        );
+        return null;
+      }
       final change =
           _enumOf(ScoreChange.values, f.get<String>('change')) ??
           ScoreChange.pitch;
@@ -607,9 +617,7 @@ ExerciseSpec? _buildExercise(
         line: line,
         step: step,
         change: change,
-        answer:
-            _enumOf(ScoreAnswer.values, f.get<String>('answer')) ??
-            ScoreAnswer.measure,
+        answer: answer,
         count: f.get<int>('count') ?? 5,
         bpm: f.get<int>('bpm'),
       );
