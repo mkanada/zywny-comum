@@ -62,8 +62,9 @@ class KeyboardTransposeBehavior {
 enum SoundOutput { appSynth, midiKeyboard }
 
 /// Configurações **gerais** do app — valem para qualquer hino: som, saída,
-/// metrônomo, cores. (O que é de um hino só — tamanho da notação, layout,
-/// andamento, mão — fica em `PieceSettingsStore`.)
+/// metrônomo, cores, e o layout da partitura (tamanho da notação e as demais
+/// opções do Verovio). O que é de um hino só — andamento, mão, trilha, tom —
+/// fica em `PieceSettingsStore`.
 ///
 /// Cada valor é uma chave própria em [SharedPreferencesAsync], que no
 /// Android/Linux/Windows sobrevive a fechar o app e a instalar uma versão
@@ -100,6 +101,9 @@ class AppSettings extends ChangeNotifier {
   // Fase Q (Q03): "Abrir as músicas já sem acidentes".
   static const _kTransposeByDefault = 'score_transpose_default';
   static const _kKeyboardTranspose = 'midi_keyboard_transpose';
+  // Layout da partitura, para todos os hinos: só o que a pessoa mudou.
+  static const _kScoreLayout = 'score_layout';
+  static const _kScorePageFitsBox = 'score_page_fits_box';
 
   final SharedPreferencesAsync _prefs;
 
@@ -126,6 +130,8 @@ class AppSettings extends ChangeNotifier {
   double _courseTextScale = 1.0;
   bool _transposeByDefault = false;
   Map<String, KeyboardTransposeBehavior> _keyboardTranspose = const {};
+  Map<String, Object?> _scoreLayout = const {};
+  bool _scorePageFitsBox = true;
 
   /// `true` depois do primeiro [load] — antes disso valem os padrões.
   bool get loaded => _loaded;
@@ -364,6 +370,42 @@ class AppSettings extends ChangeNotifier {
     }
   }
 
+  /// As opções do Verovio que a pessoa mudou, para todos os hinos. O que não
+  /// está aqui segue o padrão do aparelho: o tamanho da notação no celular não
+  /// é o do tablet. Os valores vêm como foram gravados: quem os usa passa por
+  /// `layoutOverridesFrom` (lib/render/layout_options.dart), que descarta o
+  /// que não serve mais.
+  Map<String, Object?> get scoreLayout => _scoreLayout;
+
+  void setScoreLayout(Map<String, Object> value) {
+    if (mapEquals(value, _scoreLayout)) return;
+    _scoreLayout = Map.unmodifiable(value);
+    _changed(
+      value.isEmpty
+          ? _prefs.remove(_kScoreLayout)
+          : _prefs.setString(_kScoreLayout, jsonEncode(value)),
+    );
+  }
+
+  /// A página acompanha a área da partitura (padrão) ou usa `pageWidth` e
+  /// `pageHeight`. Vale para todos os hinos.
+  bool get scorePageFitsBox => _scorePageFitsBox;
+  set scorePageFitsBox(bool value) {
+    if (value == _scorePageFitsBox) return;
+    _scorePageFitsBox = value;
+    _changed(_prefs.setBool(_kScorePageFitsBox, value));
+  }
+
+  static Map<String, Object?> _decodeScoreLayout(String? text) {
+    if (text == null) return const {};
+    try {
+      final decoded = jsonDecode(text);
+      return decoded is Map<String, Object?> ? decoded : const {};
+    } on Object {
+      return const {};
+    }
+  }
+
   void _changed(Future<void> write) {
     notifyListeners();
     write.catchError((Object e) {
@@ -414,6 +456,10 @@ class AppSettings extends ChangeNotifier {
     final keyboardTranspose = await read(
       () => _prefs.getString(_kKeyboardTranspose),
     );
+    final scoreLayout = await read(() => _prefs.getString(_kScoreLayout));
+    final scorePageFitsBox = await read(
+      () => _prefs.getBool(_kScorePageFitsBox),
+    );
 
     _output = byName(SoundOutput.values, output) ?? _output;
     _useScoreInstruments = instruments ?? _useScoreInstruments;
@@ -463,6 +509,8 @@ class AppSettings extends ChangeNotifier {
     }
     _transposeByDefault = transposeByDefault ?? _transposeByDefault;
     _keyboardTranspose = _decodeKeyboardTranspose(keyboardTranspose);
+    _scoreLayout = _decodeScoreLayout(scoreLayout);
+    _scorePageFitsBox = scorePageFitsBox ?? _scorePageFitsBox;
     _loaded = true;
     notifyListeners();
   }

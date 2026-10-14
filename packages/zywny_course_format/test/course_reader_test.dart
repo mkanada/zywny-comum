@@ -301,6 +301,245 @@ choices: [C, D]
       expect(_messages(result).single, contains('E, que não tem botão'));
     });
 
+    test('listen-note lê as chaves e põe os padrões', () async {
+      final result = await _read('''
+```zywny-exercise
+id: l1-ouvir-achar
+type: listen-note
+title: Ouça e ache a tecla
+notes: {random: C4-B4, count: 8}
+reference: C4
+input: keyboard
+octave: any
+pass: {accuracy: 60}
+```
+
+```zywny-exercise
+id: b
+type: listen-note
+title: B
+notes: [C4]
+```
+''');
+      expect(_messages(result), isEmpty);
+      final specs = result.course!.lessons.single.exercises.toList();
+      final achar = specs[0] as ListenNoteSpec;
+      expect(achar.type, ExerciseType.listenNote);
+      expect(achar.input, AnswerInput.keyboard);
+      expect(achar.octave, OctaveRule.any);
+      expect(achar.reference.toString(), 'C4');
+      expect(achar.pass.accuracy, 60);
+      final sorteio = achar.notes as RandomNotes;
+      expect((sorteio.range.toString(), sorteio.count), ('C4-B4', 8));
+
+      final padroes = specs[1] as ListenNoteSpec;
+      expect(padroes.input, AnswerInput.keyboard);
+      expect(padroes.octave, OctaveRule.any);
+      expect(padroes.reference, isNull);
+      expect(padroes.key, isNull);
+      expect(padroes.choices, ['C', 'D', 'E', 'F', 'G', 'A', 'B']);
+      expect(padroes.notes, isA<FixedNotes>());
+    });
+
+    test('listen-note: `octave` e `key` não valem com botões', () async {
+      final result = await _read('''
+```zywny-exercise
+id: a
+type: listen-note
+title: A
+notes: {random: C4-E4}
+input: buttons
+octave: exact
+choices: [C, D, E]
+```
+''');
+      expect(
+        _messages(result).single,
+        contains('`octave` só vale com `input: keyboard`'),
+      );
+      expect(result.course, isNull);
+    });
+
+    test('listen-note: `choices` não vale com teclado', () async {
+      final result = await _read('''
+```zywny-exercise
+id: a
+type: listen-note
+title: A
+notes: {random: C4-E4}
+input: keyboard
+choices: [C, D]
+```
+''');
+      expect(
+        _messages(result).single,
+        contains('`choices` só vale com `input: buttons`'),
+      );
+    });
+
+    test('listen-note com botões exige um botão para cada nota', () async {
+      final result = await _read('''
+```zywny-exercise
+id: a
+type: listen-note
+title: A
+notes: {random: C4-E4}
+input: buttons
+choices: [C, D]
+```
+''');
+      expect(_messages(result).single, contains('E, que não tem botão'));
+    });
+
+    test('listen-score lê as chaves e põe os padrões', () async {
+      final result = await _read('''
+```zywny-exercise
+id: l6-onde-mudou-ritmo
+type: listen-score
+title: Onde o ritmo mudou
+step: 4c
+change: rhythm
+answer: measure
+count: 5
+pass: {accuracy: 60}
+```
+
+```zywny-exercise
+id: l2-igual-ou-diferente
+type: listen-score
+title: Igual ou diferente
+step: 1c
+answer: same-different
+pass: {accuracy: 80}
+```
+''');
+      expect(_messages(result), isEmpty);
+      final specs = result.course!.lessons.single.exercises.toList();
+      final ritmo = specs[0] as ListenScoreSpec;
+      expect(ritmo.type, ExerciseType.listenScore);
+      expect(ritmo.step, '4c');
+      expect(ritmo.change, ScoreChange.rhythm);
+      expect(ritmo.answer, ScoreAnswer.measure);
+      expect(ritmo.count, 5);
+      expect(ritmo.bpm, isNull);
+
+      final igual = specs[1] as ListenScoreSpec;
+      expect(igual.change, ScoreChange.pitch);
+      expect(igual.answer, ScoreAnswer.sameDifferent);
+      expect(igual.count, 5);
+    });
+
+    test('listen-score: passo que não existe', () async {
+      final result = await _read('''
+```zywny-exercise
+id: x
+type: listen-score
+title: X
+step: 21a
+```
+''');
+      expect(_messages(result).single, contains('não é um passo'));
+    });
+
+    test('listen-score: accidental pede um passo com armadura', () async {
+      final result = await _read('''
+```zywny-exercise
+id: x
+type: listen-score
+title: X
+step: 4c
+change: accidental
+```
+''');
+      expect(_messages(result).single, contains('do `11a` em diante'));
+    });
+
+    test('listen-interval lê as chaves e põe os padrões', () async {
+      final result = await _read('''
+```zywny-exercise
+id: l8-ouvir-tom
+type: listen-interval
+title: Meio tom ou tom?
+notes: {random: C4-G4, count: 10}
+intervals: [m2, M2]
+pass: {accuracy: 70}
+```
+
+```zywny-exercise
+id: l10-ouvir-juntas
+type: listen-interval
+title: Terça, quinta ou oitava
+notes: {random: C4-C5, count: 10}
+intervals: [M3, P5, P8]
+direction: both
+play: harmonic
+pass: {accuracy: 70, time-limit: 20}
+```
+''');
+      expect(_messages(result), isEmpty);
+      final specs = result.course!.lessons.single.exercises.toList();
+      final tom = specs[0] as ListenIntervalSpec;
+      expect(tom.type, ExerciseType.listenInterval);
+      expect(tom.intervals, [IntervalName.m2, IntervalName.M2]);
+      expect(tom.direction, IntervalDirection.up);
+      expect(tom.play, IntervalPlay.melodic);
+      expect(tom.pass.accuracy, 70);
+
+      final juntas = specs[1] as ListenIntervalSpec;
+      expect(juntas.intervals, [
+        IntervalName.M3,
+        IntervalName.P5,
+        IntervalName.P8,
+      ]);
+      expect(juntas.direction, IntervalDirection.both);
+      expect(juntas.play, IntervalPlay.harmonic);
+      expect(juntas.pass.timeLimit, 20);
+    });
+
+    test('listen-interval: nome de intervalo desconhecido', () async {
+      final result = await _read('''
+```zywny-exercise
+id: a
+type: listen-interval
+title: A
+notes: [C4]
+intervals: [m2, X9]
+```
+''');
+      expect(
+        _messages(result).single,
+        contains('`X9` não é um intervalo; use: m2, M2, m3'),
+      );
+      expect(result.course, isNull);
+    });
+
+    test('listen-interval: intervalo repetido', () async {
+      final result = await _read('''
+```zywny-exercise
+id: a
+type: listen-interval
+title: A
+notes: [C4]
+intervals: [m2, m2]
+```
+''');
+      expect(_messages(result).single, contains('repete'));
+      expect(result.course, isNull);
+    });
+
+    test('listen-interval: pelo menos dois intervalos', () async {
+      final result = await _read('''
+```zywny-exercise
+id: a
+type: listen-interval
+title: A
+notes: [C4]
+intervals: [m2]
+```
+''');
+      expect(_messages(result).single, contains('pelo menos 2 itens'));
+    });
+
     test('avisos não impedem o curso', () async {
       final result = await _read('Um <b>negrito</b>.\n');
       expect(_messages(result), [

@@ -231,6 +231,9 @@ final kPassKeys = <String, PassKey>{
     ExerciseType.nameNote,
     ExerciseType.countBeats,
     ExerciseType.choice,
+    ExerciseType.listenNote,
+    ExerciseType.listenInterval,
+    ExerciseType.listenScore,
   }, note: 'só vale nos exercícios de pergunta'),
 };
 
@@ -309,6 +312,59 @@ final _typeKeys = <ExerciseType, Map<String, KeyDef>>{
     'answer': const KeyDef(ValueType.scalarText, required: true),
     'image': const KeyDef(ValueType.path, extensions: kImageExtensions),
     'abc': _abc,
+  },
+  ExerciseType.listenNote: {
+    'notes': _notes,
+    'reference': const KeyDef(ValueType.note),
+    'input': KeyDef(
+      ValueType.option,
+      values: _wires(AnswerInput.values),
+      fallback: 'keyboard',
+    ),
+    'octave': KeyDef(
+      ValueType.option,
+      values: _wires(OctaveRule.values),
+      fallback: 'any',
+    ),
+    'key': _key,
+    'choices': const KeyDef(
+      ValueType.letterList,
+      minItems: 2,
+      fallback: '[C, D, E, F, G, A, B]',
+    ),
+  },
+  ExerciseType.listenInterval: {
+    'notes': _notes,
+    'intervals': const KeyDef(
+      ValueType.stringList,
+      required: true,
+      minItems: 2,
+    ),
+    'direction': KeyDef(
+      ValueType.option,
+      values: _wires(IntervalDirection.values),
+      fallback: 'up',
+    ),
+    'play': KeyDef(
+      ValueType.option,
+      values: _wires(IntervalPlay.values),
+      fallback: 'melodic',
+    ),
+  },
+  ExerciseType.listenScore: {
+    'step': const KeyDef(ValueType.scalarText, required: true),
+    'change': KeyDef(
+      ValueType.option,
+      values: _wires(ScoreChange.values),
+      fallback: 'pitch',
+    ),
+    'answer': KeyDef(
+      ValueType.option,
+      values: _wires(ScoreAnswer.values),
+      fallback: 'measure',
+    ),
+    'count': const KeyDef(ValueType.integer, min: 1, max: 10, fallback: '5'),
+    'bpm': const KeyDef(ValueType.integer, min: 40, max: 200),
   },
 };
 

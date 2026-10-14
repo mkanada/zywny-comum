@@ -3,8 +3,6 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import '../render/layout_options.dart';
-
 import 'package:zywny_library/library_keys.dart';
 
 import 'package:zywny_music/transposition.dart';
@@ -22,28 +20,17 @@ const double kSpeedMax = 1.5;
 /// transposição —, então quem lê o campo trata este valor antes.
 const String kTransposeNone = 'P1';
 
-/// Configuração **de um hino**: como a partitura dele é gravada (tamanho da
-/// notação e as outras opções de layout) e como ele é estudado (andamento e
-/// mão). Cada hino tem a sua; o que vale para todos está em `AppSettings`.
+/// Configuração **de um hino**: como ele é estudado (andamento, mão, trilha e
+/// tom). Cada hino tem a sua. O que vale para todos fica em `AppSettings`,
+/// inclusive o layout da partitura (`AppSettings.scoreLayout`).
 @immutable
 class PieceSettings {
   const PieceSettings({
-    this.layout = const {},
-    this.pageFitsBox = true,
     this.speed,
     this.hand,
     this.trailMeasures,
     this.transpose,
   });
-
-  /// Só as opções de layout que o usuário tirou do padrão do app (por nome,
-  /// ver `kLayoutGroups`). O resto segue o padrão — inclusive se uma versão
-  /// nova do app mudar esse padrão.
-  final Map<String, Object> layout;
-
-  /// A página acompanha a área da partitura (padrão) ou usa
-  /// `pageWidth`/`pageHeight`.
-  final bool pageFitsBox;
 
   /// `null` = o padrão (100%, ambas as mãos).
   final double? speed;
@@ -59,53 +46,24 @@ class PieceSettings {
   final String? transpose;
 
   bool get isDefault =>
-      layout.isEmpty &&
-      pageFitsBox &&
       speed == null &&
       hand == null &&
       trailMeasures == null &&
       transpose == null;
 
-  /// Todas as opções de layout: [defaults] com o que este hino mudou.
-  Map<String, Object> layoutOver(Map<String, Object> defaults) => {
-    ...defaults,
-    ...layout,
-  };
-
-  /// O que em [values] difere de [defaults] — o que vale a pena guardar.
-  static Map<String, Object> layoutOverrides(
-    Map<String, Object> values,
-    Map<String, Object> defaults,
-  ) => {
-    for (final e in values.entries)
-      if (defaults[e.key] != e.value) e.key: e.value,
-  };
-
   Map<String, Object> toJson() => {
     'v': 1,
-    if (layout.isNotEmpty) 'layout': layout,
-    if (!pageFitsBox) 'fit': false,
     'speed': ?speed,
     'hand': ?hand?.name,
     'trailMeasures': ?trailMeasures,
     'tr': ?transpose,
   };
 
-  /// Lê o que foi guardado, descartando o que não serve mais: opção que o
-  /// app deixou de ter, valor de outro tipo, escolha que saiu da lista. Os
-  /// números são trazidos para a faixa da opção. Assim um JSON gravado por
-  /// outra versão do app nunca chega torto ao Verovio.
+  /// Lê o que foi guardado, descartando o que não serve mais: valor de outro
+  /// tipo, escolha que saiu da lista. Assim um JSON gravado por outra versão
+  /// do app nunca chega torto ao andamento ou à trilha. (Um `layout` gravado
+  /// antes, por hino, é ignorado: agora ele é de todos, `AppSettings`.)
   factory PieceSettings.fromJson(Map<String, dynamic> json) {
-    final layout = <String, Object>{};
-    final stored = json['layout'];
-    if (stored is Map) {
-      for (final group in kLayoutGroups) {
-        for (final option in group.options) {
-          final value = _coerce(option, stored[option.key]);
-          if (value != null) layout[option.key] = value;
-        }
-      }
-    }
     final speed = json['speed'];
     Hand? hand;
     for (final h in Hand.values) {
@@ -114,8 +72,6 @@ class PieceSettings {
     final trailMeasures = json['trailMeasures'];
     final transpose = json['tr'];
     return PieceSettings(
-      layout: layout,
-      pageFitsBox: json['fit'] != false,
       speed: speed is num ? speed.toDouble().clamp(kSpeedMin, kSpeedMax) : null,
       hand: hand,
       trailMeasures: trailMeasures is num
@@ -132,26 +88,6 @@ class PieceSettings {
   static String? _coerceTranspose(String text) {
     if (text == kTransposeNone) return kTransposeNone;
     return Transposition.parse(text)?.interval;
-  }
-
-  static Object? _coerce(LayoutOption option, Object? value) {
-    switch (option.kind) {
-      case LayoutOptionKind.integer:
-        return value is num
-            ? value.round().clamp(option.min.toInt(), option.max.toInt())
-            : null;
-      case LayoutOptionKind.decimal:
-        return value is num
-            ? value.toDouble().clamp(
-                option.min.toDouble(),
-                option.max.toDouble(),
-              )
-            : null;
-      case LayoutOptionKind.toggle:
-        return value is bool ? value : null;
-      case LayoutOptionKind.choice:
-        return value is String && option.choices.contains(value) ? value : null;
-    }
   }
 }
 

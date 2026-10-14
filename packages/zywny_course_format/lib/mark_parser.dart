@@ -498,8 +498,126 @@ ExerciseSpec? _buildExercise(
         image: f.get<String>('image'),
         abc: f.get<String>('abc'),
       );
+    case ExerciseType.listenNote:
+      final input =
+          _enumOf(AnswerInput.values, f.get<String>('input')) ??
+          AnswerInput.keyboard;
+      final buttons = input == AnswerInput.buttons;
+      var ok = true;
+      for (final k in buttons ? ['octave', 'key'] : ['choices']) {
+        if (f.has(k)) {
+          issues.error(
+            f.lineOf(k),
+            '`$k` só vale com `input: ${buttons ? 'keyboard' : 'buttons'}`.',
+          );
+          ok = false;
+        }
+      }
+      if (!ok) return null;
+      final choices =
+          f.get<List<Object>>('choices')?.cast<String>() ??
+          const ['C', 'D', 'E', 'F', 'G', 'A', 'B'];
+      final notes = buttons
+          ? _notes(
+              f,
+              issues,
+              defaultCount: 10,
+              naturalsOnly: true,
+              letters: choices,
+            )
+          : _notes(f, issues, defaultCount: 10);
+      if (notes == null) return null;
+      return ListenNoteSpec(
+        id: id,
+        title: title,
+        pass: _pass(pass),
+        line: line,
+        notes: notes,
+        reference: f.get<Pitch>('reference'),
+        input: input,
+        octave:
+            _enumOf(OctaveRule.values, f.get<String>('octave')) ??
+            OctaveRule.any,
+        choices: choices,
+        key: f.get<String>('key'),
+      );
+    case ExerciseType.listenInterval:
+      final notes = _notes(f, issues, defaultCount: 10);
+      if (notes == null) return null;
+      final intervals = <IntervalName>[];
+      for (final text in f.get<List<Object>>('intervals')!.cast<String>()) {
+        final interval = IntervalName.values
+            .where((i) => i.wire == text)
+            .firstOrNull;
+        if (interval == null) {
+          issues.error(
+            f.lineOf('intervals'),
+            '`$text` não é um intervalo; use: '
+            '${IntervalName.values.map((i) => i.wire).join(', ')}.',
+          );
+          return null;
+        }
+        if (intervals.contains(interval)) {
+          issues.error(
+            f.lineOf('intervals'),
+            '`intervals` repete um intervalo.',
+          );
+          return null;
+        }
+        intervals.add(interval);
+      }
+      return ListenIntervalSpec(
+        id: id,
+        title: title,
+        pass: _pass(pass),
+        line: line,
+        notes: notes,
+        intervals: intervals,
+        direction:
+            _enumOf(IntervalDirection.values, f.get<String>('direction')) ??
+            IntervalDirection.up,
+        play:
+            _enumOf(IntervalPlay.values, f.get<String>('play')) ??
+            IntervalPlay.melodic,
+      );
+    case ExerciseType.listenScore:
+      final step = f.get<String>('step')!;
+      final match = _stepPattern.firstMatch(step);
+      if (match == null) {
+        issues.error(
+          f.lineOf('step'),
+          '`$step` não é um passo do treino de leitura: use de `1a` a `20d`.',
+        );
+        return null;
+      }
+      final change =
+          _enumOf(ScoreChange.values, f.get<String>('change')) ??
+          ScoreChange.pitch;
+      if (change == ScoreChange.accidental && int.parse(match.group(1)!) < 11) {
+        issues.error(
+          f.lineOf('change'),
+          '`change: accidental` pede um passo com armadura, do `11a` em diante.',
+        );
+        return null;
+      }
+      return ListenScoreSpec(
+        id: id,
+        title: title,
+        pass: _pass(pass),
+        line: line,
+        step: step,
+        change: change,
+        answer:
+            _enumOf(ScoreAnswer.values, f.get<String>('answer')) ??
+            ScoreAnswer.measure,
+        count: f.get<int>('count') ?? 5,
+        bpm: f.get<int>('bpm'),
+      );
   }
 }
+
+/// Um passo do treino de leitura, `1a` a `20d`: o nível e o subnível.
+final _stepPattern = RegExp(r'^([1-9]|1[0-9]|20)([a-d])$');
 
 RhythmSpec? _rhythm(
   Fields f,

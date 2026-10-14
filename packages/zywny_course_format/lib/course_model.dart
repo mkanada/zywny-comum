@@ -43,6 +43,87 @@ enum OctaveRule implements WireEnum {
   String get wire => name;
 }
 
+/// `listen-note`: como o aluno responde.
+enum AnswerInput implements WireEnum {
+  keyboard,
+  buttons;
+
+  @override
+  String get wire => name;
+}
+
+/// `listen-interval`: os intervalos que o aluno pode ouvir. [semitones] é a
+/// distância; o nome não pode ser `Interval` (colide com o do Flutter).
+enum IntervalName implements WireEnum {
+  m2('m2', 1),
+  // ignore: constant_identifier_names
+  M2('M2', 2),
+  m3('m3', 3),
+  // ignore: constant_identifier_names
+  M3('M3', 4),
+  // ignore: constant_identifier_names
+  P4('P4', 5),
+  // ignore: constant_identifier_names
+  TT('TT', 6),
+  // ignore: constant_identifier_names
+  P5('P5', 7),
+  m6('m6', 8),
+  // ignore: constant_identifier_names
+  M6('M6', 9),
+  m7('m7', 10),
+  // ignore: constant_identifier_names
+  M7('M7', 11),
+  // ignore: constant_identifier_names
+  P8('P8', 12);
+
+  const IntervalName(this.wire, this.semitones);
+
+  @override
+  final String wire;
+  final int semitones;
+}
+
+/// `listen-interval`: a segunda nota fica acima, abaixo ou para os dois lados
+/// (sorteado).
+enum IntervalDirection implements WireEnum {
+  up,
+  down,
+  both;
+
+  @override
+  String get wire => name;
+}
+
+/// `listen-interval`: uma depois da outra (melódico) ou juntas (harmônico).
+enum IntervalPlay implements WireEnum {
+  melodic,
+  harmonic;
+
+  @override
+  String get wire => name;
+}
+
+/// `listen-score`: o que muda entre o escrito e o que soa.
+enum ScoreChange implements WireEnum {
+  pitch,
+  rhythm,
+  accidental;
+
+  @override
+  String get wire => name;
+}
+
+/// `listen-score`: como o aluno responde.
+enum ScoreAnswer implements WireEnum {
+  measure('measure'),
+  sameDifferent('same-different');
+
+  const ScoreAnswer(this.wire);
+
+  @override
+  final String wire;
+}
+
 enum HandChoice implements WireEnum {
   right,
   left,
@@ -89,7 +170,10 @@ enum ExerciseType implements WireEnum {
   rhythm('rhythm'),
   countBeats('count-beats'),
   playScore('play-score'),
-  choice('choice');
+  choice('choice'),
+  listenNote('listen-note'),
+  listenInterval('listen-interval'),
+  listenScore('listen-score');
 
   const ExerciseType(this.wire);
 
@@ -474,4 +558,100 @@ class ChoiceSpec extends ExerciseSpec {
   final int answer;
   final String? image;
   final String? abc;
+}
+
+class ListenNoteSpec extends ExerciseSpec {
+  const ListenNoteSpec({
+    required super.id,
+    required super.title,
+    required super.pass,
+    required super.line,
+    required this.notes,
+    required this.input,
+    required this.octave,
+    required this.choices,
+    this.reference,
+    this.key,
+  });
+
+  @override
+  ExerciseType get type => ExerciseType.listenNote;
+
+  final NotesSpec notes;
+
+  /// Nota tocada antes de cada pergunta (`null` = sem referência).
+  final Pitch? reference;
+
+  final AnswerInput input;
+
+  /// Só vale com [AnswerInput.keyboard].
+  final OctaveRule octave;
+
+  /// Letras dos botões (`C`…`B`); só vale com [AnswerInput.buttons].
+  final List<String> choices;
+
+  /// Tom do sorteio; só vale com [AnswerInput.keyboard].
+  final String? key;
+}
+
+/// `listen-interval`: toca dois sons (melódico ou harmônico) e o aluno escolhe
+/// o nome do intervalo num botão.
+class ListenIntervalSpec extends ExerciseSpec {
+  const ListenIntervalSpec({
+    required super.id,
+    required super.title,
+    required super.pass,
+    required super.line,
+    required this.notes,
+    required this.intervals,
+    required this.direction,
+    required this.play,
+  });
+
+  @override
+  ExerciseType get type => ExerciseType.listenInterval;
+
+  /// Notas de partida: a primeira de cada par.
+  final NotesSpec notes;
+
+  /// Os botões, na ordem do arquivo.
+  final List<IntervalName> intervals;
+
+  final IntervalDirection direction;
+
+  final IntervalPlay play;
+}
+
+/// `listen-score`: mostra uma partitura gerada por um passo do treino de
+/// leitura, toca uma versão com uma diferença e o aluno diz onde. O pacote
+/// não conhece os passos: [step] é só o nome (`1a` a `20d`), e quem confere
+/// e monta a partitura é o app.
+class ListenScoreSpec extends ExerciseSpec {
+  const ListenScoreSpec({
+    required super.id,
+    required super.title,
+    required super.pass,
+    required super.line,
+    required this.step,
+    required this.change,
+    required this.answer,
+    required this.count,
+    required this.bpm,
+  });
+
+  @override
+  ExerciseType get type => ExerciseType.listenScore;
+
+  /// O nome do passo do treino de leitura, como `4c`.
+  final String step;
+
+  final ScoreChange change;
+
+  final ScoreAnswer answer;
+
+  /// Quantas perguntas (partituras novas) a rodada tem.
+  final int count;
+
+  /// Andamento da frase; `null` usa o do passo.
+  final int? bpm;
 }

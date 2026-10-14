@@ -4,10 +4,11 @@ import '../render/layout_options.dart';
 
 import 'package:zywny_library/library_term_scope.dart';
 
-/// Floating panel with what belongs to **one piece**: the Verovio options of
-/// [kLayoutGroups] (notation size first) and the on-screen zoom. Each piece
-/// keeps its own values (`PieceSettingsStore`); what holds for every piece —
-/// sound, MIDI, colors — lives in `GeneralSettingsPanel`.
+/// Floating panel with the score layout: the Verovio options of
+/// [kLayoutGroups] (notation size first) and the on-screen zoom. The layout is
+/// the same for every piece (`AppSettings.scoreLayout`); what is only one
+/// piece's — speed, hand, trail — stays in the piece's drawer, and sound,
+/// MIDI, colors live in `GeneralSettingsPanel`.
 ///
 /// It only edits [values]; `lib/main.dart` owns them and does the render.
 /// Sliders report every step through [onChanged] and ask for the render once,
@@ -27,11 +28,7 @@ class LayoutPanel extends StatelessWidget {
     required this.onCopy,
     required this.onClose,
     this.zoomSection,
-    this.subtitle,
   });
-
-  /// Which piece these options belong to ("12 · Vinde, Povo do Senhor").
-  final String? subtitle;
 
   final Map<String, Object> values;
 
@@ -78,13 +75,10 @@ class LayoutPanel extends StatelessWidget {
                         'Ajustes da partitura',
                         style: theme.textTheme.titleSmall,
                       ),
-                      if (subtitle case final subtitle?)
-                        Text(
-                          subtitle,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: theme.textTheme.bodySmall,
-                        ),
+                      Text(
+                        'valem para ${term.todos} ${term.os} ${term.plural}',
+                        style: theme.textTheme.bodySmall,
+                      ),
                     ],
                   ),
                 ),
@@ -94,8 +88,7 @@ class LayoutPanel extends StatelessWidget {
                   icon: const Icon(Icons.copy_all, size: 20),
                 ),
                 IconButton(
-                  tooltip:
-                      'Restaurar o layout padrão ${term.neste} ${term.singular}',
+                  tooltip: 'Restaurar o layout padrão',
                   onPressed: onReset,
                   icon: const Icon(Icons.restart_alt, size: 20),
                 ),

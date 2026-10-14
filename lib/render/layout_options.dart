@@ -397,6 +397,39 @@ Map<String, Object> layoutOptionsToSend(Map<String, Object> values) {
   return out;
 }
 
+/// Lê as opções que a pessoa mudou (`AppSettings.scoreLayout`), descartando o
+/// que não serve mais: opção que o app deixou de ter, valor de outro tipo,
+/// escolha que saiu da lista. Os números são trazidos para a faixa da opção,
+/// então um valor gravado por outra versão do app nunca chega torto ao Verovio.
+Map<String, Object> layoutOverridesFrom(Object? stored) {
+  final out = <String, Object>{};
+  if (stored is! Map) return out;
+  for (final group in kLayoutGroups) {
+    for (final option in group.options) {
+      final value = _coerceLayoutValue(option, stored[option.key]);
+      if (value != null) out[option.key] = value;
+    }
+  }
+  return out;
+}
+
+Object? _coerceLayoutValue(LayoutOption option, Object? value) {
+  switch (option.kind) {
+    case LayoutOptionKind.integer:
+      return value is num
+          ? value.round().clamp(option.min.toInt(), option.max.toInt())
+          : null;
+    case LayoutOptionKind.decimal:
+      return value is num
+          ? value.toDouble().clamp(option.min.toDouble(), option.max.toDouble())
+          : null;
+    case LayoutOptionKind.toggle:
+      return value is bool ? value : null;
+    case LayoutOptionKind.choice:
+      return value is String && option.choices.contains(value) ? value : null;
+  }
+}
+
 /// `unit` que o app usa por padrão no celular (Android/iOS): a tela é
 /// pequena e a partitura é lida de longe, então a notação começa grande. O
 /// painel de layout continua livre para mudar.

@@ -120,6 +120,39 @@ void main() {
       ? null
       : 'artefatos ausentes: ${missing.join(', ')}';
 
+  group('layoutOverridesFrom (o que a pessoa mudou, guardado)', () {
+    test('lê as opções conhecidas, na faixa e no tipo delas', () {
+      expect(
+        layoutOverridesFrom({
+          'unit': 400, // fora da faixa: vai para o máximo
+          'spacingStaff': 12, // inteiro: fica
+          'breaks': 'line',
+          'justifyVertically': true,
+        }),
+        {
+          'unit': 12.0,
+          'spacingStaff': 12,
+          'breaks': 'line',
+          'justifyVertically': true,
+        },
+      );
+    });
+
+    test('descarta o que não serve: tipo errado, escolha inválida, opção '
+        'desconhecida', () {
+      expect(
+        layoutOverridesFrom({
+          'spacingStaff': 'doze',
+          'breaks': 'opcao-removida',
+          'opcaoQueSaiuDoApp': 1,
+        }),
+        isEmpty,
+      );
+      expect(layoutOverridesFrom(null), isEmpty);
+      expect(layoutOverridesFrom('unit'), isEmpty);
+    });
+  });
+
   test('a tabela confere com getAvailableOptions() do Verovio', () {
     final toolkit = VerovioToolkit.withResourcePath(
       Directory(kVerovioDataPath).absolute.path,
