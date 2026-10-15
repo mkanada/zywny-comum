@@ -208,6 +208,10 @@ class PracticeController {
   StreamSubscription<NoteVerdict>? _verdictSub;
   Timer? _tickTimer;
 
+  /// Pausa da rodada (ver [pause]): o agendador parado e as teclas ignoradas.
+  bool _paused = false;
+  bool get paused => _paused;
+
   final ValueNotifier<Set<int>> _wrongPitches = ValueNotifier(const {});
   final ValueNotifier<int> _correctCount = ValueNotifier(0);
   final ValueNotifier<int> _wrongCount = ValueNotifier(0);
@@ -463,6 +467,22 @@ class PracticeController {
     return null;
   }
 
+  /// Para na posição atual, sem encerrar a sessão: o agendador silencia e a
+  /// avaliação não anda, e as teclas tocadas até [resume] não contam.
+  void pause() {
+    if (_paused) return;
+    _paused = true;
+    scheduler.pause();
+  }
+
+  /// Retoma da posição em que [pause] parou.
+  void resume() {
+    if (!_paused) return;
+    _paused = false;
+    if (_rangeDone) return;
+    scheduler.play(scheduler.positionMs);
+  }
+
   /// Solta o freio/filtro e para o agendador — volta ao comportamento
   /// normal de playback.
   void stop() {
@@ -488,6 +508,8 @@ class PracticeController {
   }
 
   void _onNote(PlayedNote note) {
+    // Pausada: a tecla não conta, nem como erro nem como acerto.
+    if (_paused) return;
     // Uma conversão só, no topo: daqui para baixo tudo é altura escrita.
     final pitch = writtenFromReceived(note.pitch);
     final wait = _wait;

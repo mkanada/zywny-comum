@@ -192,6 +192,70 @@ void main() {
       practice.stop();
     });
 
+    test('tempo real: pausar para o agendador e ignora as teclas; retomar '
+        'segue da mesma posição', () async {
+      final track = _loadTrack('erik-satie.vsb');
+      final doc = _loadDoc('erik-satie.vsb');
+      final timeline = ScoreTimeline(doc);
+      final engine = FakeSoundEngine();
+      final scheduler = ScoreAudioScheduler(
+        engine: engine,
+        track: track,
+        autoTick: false,
+      );
+      final scoreController = ScoreController(document: doc);
+      addTearDown(scoreController.dispose);
+      addTearDown(scoreController.clearAll);
+      final midi = FakeMidiInput();
+      addTearDown(midi.dispose);
+      final practice = PracticeController(
+        midiInput: midi,
+        track: track,
+        scheduler: scheduler,
+        controller: scoreController,
+        hand: Hand.direita,
+        mode: PracticeMode.realtime,
+        measureIndexAt: timeline.measureIndexAt,
+      );
+      addTearDown(practice.dispose);
+
+      final mine = track.events
+          .where(
+            (e) => Hand.direita.studentStaves.contains(e.staff) && !e.ornament,
+          )
+          .toList();
+      practice.start();
+      _advanceUntil(engine, scheduler, mine[0].onMs);
+      midi.press(mine[0].pitch, atSeconds: engine.now);
+      await pumpEventQueue();
+      final correct = practice.report.correct;
+      expect(correct, 1);
+
+      practice.pause();
+      final pausedAt = scheduler.positionMs;
+      expect(practice.paused, isTrue);
+      expect(scheduler.isRunning, isFalse);
+      // Tempo passa com a rodada parada: a posição não anda.
+      engine.now += 2;
+      scheduler.pump();
+      expect(scheduler.positionMs, pausedAt);
+      // A tecla tocada na pausa não conta, nem como erro.
+      midi.press(mine[1].pitch, atSeconds: engine.now);
+      await pumpEventQueue();
+      expect(practice.report.correct, correct);
+      expect(practice.report.wrong, 0);
+
+      practice.resume();
+      expect(practice.paused, isFalse);
+      expect(scheduler.isRunning, isTrue);
+      // Retoma de onde parou: a próxima nota, tocada no tempo, conta.
+      _advanceUntil(engine, scheduler, mine[1].onMs);
+      midi.press(mine[1].pitch, atSeconds: engine.now);
+      await pumpEventQueue();
+      expect(practice.report.correct, correct + 1);
+      practice.stop();
+    });
+
     test('tempo real: a nota errada vira marca à esquerda se foi tocada antes '
         'do tempo e à direita se depois', () async {
       final track = _loadTrack('satie-fantasma.vsb');
