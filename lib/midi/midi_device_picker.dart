@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_midi_command/flutter_midi_command.dart';
 
@@ -90,13 +89,12 @@ class MidiStatusPill extends StatelessWidget {
   }
 }
 
-/// A orientação de quem ainda não tem teclado ligado. Só o Android avisa do
-/// Bluetooth: é onde "ainda não funciona" é verdade hoje (M01: o plugin BLE
-/// está pendente).
+/// A orientação de quem ainda não tem teclado ligado. Só o Android fala do
+/// Bluetooth (MIDI por BLE, M01): é onde [MidiDeviceManager.bluetooth] liga.
 String midiHelpText({required bool android, String device = 'celular'}) =>
     'Ligue o teclado ao $device com um cabo USB (pode ser preciso um '
     'adaptador). Ele conecta sozinho.'
-    '${android ? '\nTeclados por Bluetooth ainda não funcionam.' : ''}';
+    '${android ? '\nTeclado Bluetooth: toque em Procurar e ligue-o no modo de pareamento.' : ''}';
 
 /// O que dizer quando o navegador não deixa listar teclados (Web, W03):
 /// título, explicação e se vale oferecer o botão de pedir a permissão.
@@ -137,12 +135,20 @@ Future<void> showMidiDevicePicker(
   VoidCallback? onCalibrate,
 }) {
   final searching = ValueNotifier<bool>(false);
+  // Fechado o diálogo, a busca que ainda termina não mexe mais no aviso.
+  var open = true;
   Future<void> search() async {
     searching.value = true;
     try {
-      await deviceManager.refresh();
+      // No Android, procurar é ligar o Bluetooth e escanear por um tempo; no
+      // resto, só relê a lista.
+      if (deviceManager.bluetooth) {
+        await deviceManager.searchBluetooth();
+      } else {
+        await deviceManager.refresh();
+      }
     } finally {
-      searching.value = false;
+      if (open) searching.value = false;
     }
   }
 
@@ -158,12 +164,14 @@ Future<void> showMidiDevicePicker(
             deviceManager.connected,
             deviceManager.lastError,
             deviceManager.unavailable,
+            deviceManager.bluetoothNote,
             searching,
           ]),
           builder: (context, _) {
             final devices = deviceManager.devices.value;
             final connected = deviceManager.connected.value;
             final error = deviceManager.lastError.value;
+            final bluetoothNote = deviceManager.bluetoothNote.value;
             final unavailable = deviceManager.unavailable.value;
             final unavailableText = unavailable == null
                 ? null
@@ -204,12 +212,19 @@ Future<void> showMidiDevicePicker(
                         Text(
                           unavailableText?.body ??
                               midiHelpText(
-                                android:
-                                    defaultTargetPlatform ==
-                                    TargetPlatform.android,
+                                android: deviceManager.bluetooth,
                                 device: deviceNoun(context),
                               ),
                         ),
+                        if (bluetoothNote != null) ...[
+                          const SizedBox(height: 8),
+                          Text(
+                            bluetoothNote,
+                            style: TextStyle(
+                              color: Theme.of(context).colorScheme.error,
+                            ),
+                          ),
+                        ],
                         if (unavailableText == null ||
                             unavailableText.action != null) ...[
                           const SizedBox(height: 12),
@@ -262,7 +277,11 @@ Future<void> showMidiDevicePicker(
         ),
       ],
     ),
-  ).whenComplete(searching.dispose);
+  ).whenComplete(() {
+    open = false;
+    deviceManager.stopBluetoothSearch();
+    searching.dispose();
+  });
 }
 
 Widget _deviceTile(

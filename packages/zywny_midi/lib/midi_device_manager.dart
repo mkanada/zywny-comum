@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_midi_command/flutter_midi_command.dart';
+import 'package:flutter_midi_command_ble/flutter_midi_command_ble.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:zywny_diag/diag_log.dart';
@@ -28,15 +29,24 @@ enum MidiUnavailable {
 class MidiDeviceManager {
   /// [isWeb], [webSupported] e [webGranted] existem para testar o caminho da
   /// Web fora do navegador; o padrão é o ambiente de verdade.
+  ///
+  /// [bluetooth] deixa procurar teclados Bluetooth LE (M01): quem chama liga
+  /// só no Android. O transporte BLE só nasce na primeira busca, então
+  /// nada de Bluetooth (nem permissão) é tocado antes de o usuário pedir.
+  /// [newBleTransport] existe para testar; o padrão é o transporte de verdade.
   MidiDeviceManager({
     MidiCommand? midi,
     SharedPreferencesAsync? prefs,
     bool isWeb = kIsWeb,
     bool Function()? webSupported,
     Future<bool> Function()? webGranted,
+    bool bluetooth = false,
+    MidiBleTransport Function()? newBleTransport,
   }) : _midi = midi ?? MidiCommand(),
        _prefs = prefs ?? SharedPreferencesAsync(),
-       _isWeb = isWeb {
+       _isWeb = isWeb,
+       _bluetooth = bluetooth, // ignore: prefer_initializing_formals
+       _newBleTransport = newBleTransport ?? _defaultBleTransport {
     if (!isWeb) {
       _listenSetup();
       unawaited(refresh());
@@ -49,6 +59,23 @@ class MidiDeviceManager {
   }
 
   final bool _isWeb;
+
+  final bool _bluetooth;
+
+  /// Se a busca pelo Bluetooth existe nesta plataforma ([searchBluetooth]).
+  bool get bluetooth => _bluetooth;
+
+  /// Por que a busca pelo Bluetooth não pôde começar (desligado, sem
+  /// permissão...); `null` quando está tudo certo.
+  final ValueNotifier<String?> bluetoothNote = ValueNotifier(null);
+
+  /// Fim da janela de [searchBluetooth]; `null` quando não está procurando.
+  Completer<void>? _searchStop;
+
+  /// Se o transporte BLE já foi instalado no [MidiCommand] (ver [_startBle]).
+  bool _bleReady = false;
+
+  final MidiBleTransport Function() _newBleTransport;
 
   /// `null` com o MIDI acessível; senão o motivo (Web, W03).
   final ValueNotifier<MidiUnavailable?> unavailable = ValueNotifier(null);
@@ -205,6 +232,60 @@ class MidiDeviceManager {
     connected.value = null;
   }
 
+  /// Procura teclados Bluetooth por [window] (só com [bluetooth] ligado): liga
+  /// o Bluetooth — o Android pede a permissão aqui, num toque do usuário —,
+  /// escaneia e relista. Um teclado que aparece e é o último escolhido conecta
+  /// sozinho, como o USB. [stopBluetoothSearch] encerra antes do tempo.
+  Future<void> searchBluetooth({
+    Duration window = const Duration(seconds: 20),
+  }) async {
+    if (!_bluetooth || _disposed || _searchStop != null) return;
+    final stop = _searchStop = Completer<void>();
+    bluetoothNote.value = null;
+    try {
+      _startBle();
+      await _midi.startBluetooth();
+      await _midi.waitUntilBluetoothIsInitialized().timeout(
+        const Duration(seconds: 5),
+        onTimeout: () {},
+      );
+      final state = _midi.bluetoothState;
+      if (_disposed) return;
+      bluetoothNote.value = _bluetoothNote(state);
+      if (state == BluetoothState.poweredOn) {
+        await _midi.startScanningForBluetoothDevices();
+        await stop.future.timeout(window, onTimeout: () {});
+      }
+    } on Object catch (e) {
+      DiagLog.log('midi-dev', 'busca pelo Bluetooth falhou: $e');
+      if (!_disposed) {
+        bluetoothNote.value = 'Não deu para procurar pelo Bluetooth. $e';
+      }
+    } finally {
+      _searchStop = null;
+      _midi.stopScanningForBluetoothDevices();
+    }
+    await refresh();
+  }
+
+  /// Encerra a busca de [searchBluetooth] agora (ao fechar o seletor).
+  void stopBluetoothSearch() {
+    final stop = _searchStop;
+    if (stop != null && !stop.isCompleted) stop.complete();
+  }
+
+  /// Instala o transporte BLE, uma vez. O plugin mescla os canais de eventos
+  /// só no momento em que a assinatura é feita, então ela é refeita aqui para
+  /// ouvir os teclados Bluetooth também.
+  void _startBle() {
+    if (_bleReady) return;
+    _bleReady = true;
+    _midi.configureBleTransport(_newBleTransport());
+    unawaited(_setupSub?.cancel());
+    _setupSub = null;
+    _listenSetup();
+  }
+
   /// Chave das preferências por dispositivo: o **nome**, porque o id não
   /// sobrevive a um replugue no Android (ver [_autoConnectCandidate]). Sem
   /// o dispositivo na lista, o próprio id.
@@ -242,10 +323,25 @@ class MidiDeviceManager {
 
   void dispose() {
     _disposed = true;
+    stopBluetoothSearch();
     unawaited(_setupSub?.cancel());
     devices.dispose();
     connected.dispose();
     lastError.dispose();
     unavailable.dispose();
+    bluetoothNote.dispose();
   }
 }
+
+MidiBleTransport _defaultBleTransport() => UniversalBleMidiTransport();
+
+/// O que dizer quando a busca pelo Bluetooth não pode começar; `null` se pode.
+String? _bluetoothNote(BluetoothState state) => switch (state) {
+  BluetoothState.poweredOn => null,
+  BluetoothState.poweredOff => 'O Bluetooth do celular está desligado. Ligue-o e toque em Procurar de novo.',
+  BluetoothState.unauthorized =>
+    'O celular não deixou o zywny usar o Bluetooth. Libere a permissão nas '
+        'configurações do app e tente de novo.',
+  BluetoothState.unsupported => 'Este celular não tem Bluetooth de baixa energia (BLE), que o MIDI sem fio usa.',
+  _ => 'O Bluetooth ainda está iniciando. Toque em Procurar de novo.',
+};

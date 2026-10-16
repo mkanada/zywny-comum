@@ -14,6 +14,30 @@ class FakeMidiCommand implements MidiCommand {
   final List<String> connects = [];
   final StreamController<MidiSetupChange> setup = StreamController.broadcast();
 
+  /// O Bluetooth: o que a busca mandou fazer, na ordem, e o estado do rádio.
+  final List<String> bluetoothCalls = [];
+  BluetoothState radio = BluetoothState.poweredOn;
+
+  @override
+  void configureBleTransport(MidiBleTransport? transport) =>
+      bluetoothCalls.add('configurar');
+
+  @override
+  Future<void> startBluetooth() async => bluetoothCalls.add('ligar');
+
+  @override
+  Future<void> waitUntilBluetoothIsInitialized() async {}
+
+  @override
+  BluetoothState get bluetoothState => radio;
+
+  @override
+  Future<void> startScanningForBluetoothDevices() async =>
+      bluetoothCalls.add('escanear');
+
+  @override
+  void stopScanningForBluetoothDevices() => bluetoothCalls.add('parar');
+
   @override
   Future<List<MidiDevice>?> get devices async => list;
 
@@ -32,6 +56,12 @@ class FakeMidiCommand implements MidiCommand {
   @override
   void disconnectDevice(MidiDevice device) => device.connected = false;
 
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+/// O transporte BLE de mentira: o [FakeMidiCommand] só o recebe, não o usa.
+class FakeBleTransport implements MidiBleTransport {
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
@@ -108,4 +138,65 @@ void main() {
       expect(await manager.monitorEnabled('7'), isTrue);
     },
   );
+
+  group('procurar pelo Bluetooth (BLE, Android)', () {
+    late MidiDeviceManager ble;
+
+    setUp(() {
+      ble = MidiDeviceManager(
+        midi: midi,
+        prefs: SharedPreferencesAsync(),
+        bluetooth: true,
+        newBleTransport: () => FakeBleTransport(),
+      );
+    });
+
+    tearDown(() => ble.dispose());
+
+    test('nada de Bluetooth antes da primeira busca', () async {
+      expect(ble.bluetooth, isTrue);
+      await pumpEventQueue();
+      expect(midi.bluetoothCalls, isEmpty);
+    });
+
+    test('instala o BLE, liga, escaneia pela janela e para', () async {
+      await ble.searchBluetooth(window: const Duration(milliseconds: 10));
+      expect(midi.bluetoothCalls, ['configurar', 'ligar', 'escanear', 'parar']);
+      expect(ble.bluetoothNote.value, isNull);
+    });
+
+    test('a segunda busca não instala o BLE de novo', () async {
+      await ble.searchBluetooth(window: const Duration(milliseconds: 10));
+      await ble.searchBluetooth(window: const Duration(milliseconds: 10));
+      expect(midi.bluetoothCalls.where((c) => c == 'configurar'), hasLength(1));
+    });
+
+    test('Bluetooth desligado: avisa e nem escaneia', () async {
+      midi.radio = BluetoothState.poweredOff;
+      await ble.searchBluetooth(window: const Duration(milliseconds: 10));
+      expect(midi.bluetoothCalls, isNot(contains('escanear')));
+      expect(ble.bluetoothNote.value, contains('desligado'));
+    });
+
+    test('sem permissão: o aviso pede para liberar no app', () async {
+      midi.radio = BluetoothState.unauthorized;
+      await ble.searchBluetooth(window: const Duration(milliseconds: 10));
+      expect(midi.bluetoothCalls, isNot(contains('escanear')));
+      expect(ble.bluetoothNote.value, contains('permissão'));
+    });
+
+    test('stopBluetoothSearch encerra a janela antes do tempo', () async {
+      final search = ble.searchBluetooth(window: const Duration(minutes: 1));
+      await pumpEventQueue();
+      ble.stopBluetoothSearch();
+      await search;
+      expect(midi.bluetoothCalls, ['configurar', 'ligar', 'escanear', 'parar']);
+    });
+
+    test('sem Bluetooth ligado na configuração, não procura', () async {
+      await manager.searchBluetooth(window: const Duration(milliseconds: 10));
+      expect(manager.bluetooth, isFalse);
+      expect(midi.bluetoothCalls, isEmpty);
+    });
+  });
 }
