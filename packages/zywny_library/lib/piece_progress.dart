@@ -142,10 +142,10 @@ class PieceProgressStore extends ChangeNotifier {
     final best = current?.bestScore;
     if (best != null && best >= score) return Future.value();
     _byId[id] = PieceProgress(
-      // Só a música tem "última abertura"; a entrada de um tom guarda a nota.
-      lastOpened:
-          current?.lastOpened ??
-          (pieceIdOfProgressId(id) == id ? _now() : null),
+      // Pontuar não é abrir: só [markOpened] marca a música como aberta. Se
+      // a nota marcasse, a versão simplificada (`<id>.s`), que não está no
+      // catálogo, viraria a "última aberta" e o "Continuar" sumiria.
+      lastOpened: current?.lastOpened,
       bestScore: score,
       transpose: current?.transpose,
     );
