@@ -9,8 +9,11 @@
 set -euo pipefail
 
 proj_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# A saída vai para o app que chama (ZYWNY_APP; padrão: a pasta atual), não para
+# este repositório: ver o justfile do app (`just native`).
+app_dir="${ZYWNY_APP:-$PWD}"
 crate_dir="$proj_dir/native/zywny_audio"
-jni_dir="$proj_dir/android/app/src/main/jniLibs"
+jni_dir="$app_dir/android/app/src/main/jniLibs"
 
 if [[ -z "${ANDROID_NDK_HOME:-}" ]]; then
     ANDROID_NDK_HOME="$HOME/Android/Sdk/ndk/$(ls "$HOME/Android/Sdk/ndk" | sort -V | tail -n 1)"

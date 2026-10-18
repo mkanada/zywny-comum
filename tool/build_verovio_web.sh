@@ -10,6 +10,9 @@
 set -euo pipefail
 
 proj_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# A saída vai para o app que chama (ZYWNY_APP; padrão: a pasta atual), não para
+# este repositório: ver o justfile do app (`just native`).
+app_dir="${ZYWNY_APP:-$PWD}"
 source "$(dirname "${BASH_SOURCE[0]}")/verovio_bridge.sh"
 bridge="$verovio_bridge"
 built="$bridge/verovio/emscripten/build/verovio-toolkit-hum.js"
@@ -20,6 +23,6 @@ if [[ "${1:-}" != "--no-build" ]]; then
 fi
 
 [[ -f "$built" ]] || { echo "ERROR: $built missing — run without --no-build" >&2; exit 1; }
-mkdir -p "$proj_dir/web/verovio"
-cp "$built" "$proj_dir/web/verovio/verovio-toolkit-hum.js"
-ls -lh "$proj_dir/web/verovio/verovio-toolkit-hum.js"
+mkdir -p "$app_dir/web/verovio"
+cp "$built" "$app_dir/web/verovio/verovio-toolkit-hum.js"
+ls -lh "$app_dir/web/verovio/verovio-toolkit-hum.js"

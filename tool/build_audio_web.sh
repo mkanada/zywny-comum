@@ -8,8 +8,11 @@
 set -euo pipefail
 
 proj_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# A saída vai para o app que chama (ZYWNY_APP; padrão: a pasta atual), não para
+# este repositório: ver o justfile do app (`just native`).
+app_dir="${ZYWNY_APP:-$PWD}"
 src="$proj_dir/web_src"
-out="$proj_dir/web/audio"
+out="$app_dir/web/audio"
 
 cd "$src"
 npm install --no-audit --no-fund

@@ -11,6 +11,9 @@
 set -euo pipefail
 
 proj_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# A saída vai para o app que chama (ZYWNY_APP; padrão: a pasta atual), não para
+# este repositório: ver o justfile do app (`just native`).
+app_dir="${ZYWNY_APP:-$PWD}"
 source "$(dirname "${BASH_SOURCE[0]}")/verovio_bridge.sh"
 dart_pkg="$verovio_bridge/verovio/bindings/dart"
 abis=(arm64-v8a x86_64)
@@ -21,7 +24,7 @@ abis=(arm64-v8a x86_64)
 
 for abi in "${abis[@]}"; do
     src="$dart_pkg/android-libs/$abi/libverovio.so"
-    dest_dir="$proj_dir/android/app/src/main/jniLibs/$abi"
+    dest_dir="$app_dir/android/app/src/main/jniLibs/$abi"
     mkdir -p "$dest_dir"
     cp "$src" "$dest_dir/libverovio.so"
     ls -lh "$dest_dir/libverovio.so"

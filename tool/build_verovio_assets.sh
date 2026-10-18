@@ -15,9 +15,12 @@
 set -euo pipefail
 
 proj_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# A saída vai para o app que chama (ZYWNY_APP; padrão: a pasta atual), não para
+# este repositório: ver o justfile do app (`just native`).
+app_dir="${ZYWNY_APP:-$PWD}"
 source "$(dirname "${BASH_SOURCE[0]}")/verovio_bridge.sh"
 src="$verovio_bridge/verovio/data"
-dst="$proj_dir/assets/verovio_data.zip"
+dst="$app_dir/assets/verovio_data.zip"
 
 [[ -d "$src" ]] || { echo "ERROR: directory not found: $src" >&2; exit 1; }
 command -v zip >/dev/null || { echo "ERROR: 'zip' not installed" >&2; exit 1; }
