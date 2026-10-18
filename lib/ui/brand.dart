@@ -11,6 +11,10 @@ const kBrandGold = Color(0xFFC8A45A);
 const kBrandSoft = Color(0xFFE6DFD0);
 const kBrandMuted = Color(0xFFD9D2C3);
 
+/// As fontes são deste pacote (declaradas no pubspec do zywny_comum). Sem
+/// `package:` no TextStyle, o Flutter procura a família sem o prefixo
+/// `packages/zywny_comum/` e cai na fonte padrão, em silêncio.
+const kBrandPackage = 'zywny_comum';
 const kBrandSerif = 'Cormorant Garamond';
 const kBrandSans = 'Instrument Sans';
 
@@ -25,6 +29,7 @@ class MonogramZ extends StatelessWidget {
     'Z',
     style: TextStyle(
       fontFamily: kBrandSerif,
+      package: kBrandPackage,
       fontStyle: FontStyle.italic,
       fontWeight: FontWeight.w600,
       fontSize: size,

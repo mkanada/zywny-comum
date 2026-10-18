@@ -204,6 +204,7 @@ class _Header extends StatelessWidget {
             'Zywny',
             style: TextStyle(
               fontFamily: kBrandSerif,
+              package: kBrandPackage,
               fontWeight: FontWeight.w600,
               fontSize: 38,
               color: kBrandCream,
@@ -215,6 +216,7 @@ class _Header extends StatelessWidget {
             textAlign: TextAlign.center,
             style: TextStyle(
               fontFamily: kBrandSerif,
+              package: kBrandPackage,
               fontStyle: FontStyle.italic,
               fontWeight: FontWeight.w500,
               fontSize: 20,
@@ -228,6 +230,7 @@ class _Header extends StatelessWidget {
               version,
               style: const TextStyle(
                 fontFamily: kBrandSans,
+                package: kBrandPackage,
                 fontWeight: FontWeight.w500,
                 fontSize: 13,
                 color: kBrandMuted,

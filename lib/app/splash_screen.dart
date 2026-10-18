@@ -70,6 +70,7 @@ class _Label extends StatelessWidget {
     'VARSÓVIA · 1816',
     style: TextStyle(
       fontFamily: kBrandSans,
+      package: kBrandPackage,
       fontWeight: FontWeight.w500,
       fontSize: 13,
       letterSpacing: 4,
@@ -98,6 +99,7 @@ class _Words extends StatelessWidget {
           'Zywny',
           style: TextStyle(
             fontFamily: kBrandSerif,
+            package: kBrandPackage,
             fontWeight: FontWeight.w600,
             fontSize: 52,
             letterSpacing: 1,
@@ -121,6 +123,7 @@ class _Words extends StatelessWidget {
           textAlign: textAlign,
           style: const TextStyle(
             fontFamily: kBrandSerif,
+            package: kBrandPackage,
             fontStyle: FontStyle.italic,
             fontWeight: FontWeight.w500,
             fontSize: 21,
@@ -143,6 +146,7 @@ class _Credit extends StatelessWidget {
     textAlign: TextAlign.center,
     style: TextStyle(
       fontFamily: kBrandSans,
+      package: kBrandPackage,
       fontWeight: FontWeight.w500,
       fontSize: 13,
       height: 1.5,
