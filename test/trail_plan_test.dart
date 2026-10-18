@@ -4,13 +4,13 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:shared_preferences_platform_interface/in_memory_shared_preferences_async.dart';
 import 'package:shared_preferences_platform_interface/shared_preferences_async_platform_interface.dart';
 import 'package:zywny_audio/performance_track.dart';
-import 'package:zywny/settings/app_settings.dart';
-import 'package:zywny/settings/piece_settings.dart';
-import 'package:zywny/trail/stage_result.dart';
-import 'package:zywny/trail/trail_path.dart';
-import 'package:zywny/trail/trail_plan.dart';
-import 'package:zywny/trail/trail_progress.dart';
-import 'package:zywny/trail/trail_stage.dart';
+import 'package:zywny_comum/settings/app_settings.dart';
+import 'package:zywny_comum/settings/piece_settings.dart';
+import 'package:zywny_comum/trail/stage_result.dart';
+import 'package:zywny_comum/trail/trail_path.dart';
+import 'package:zywny_comum/trail/trail_plan.dart';
+import 'package:zywny_comum/trail/trail_progress.dart';
+import 'package:zywny_comum/trail/trail_stage.dart';
 
 TrailPath _path(int measures) => TrailPath(
   logical: [

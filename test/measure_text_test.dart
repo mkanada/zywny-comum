@@ -1,12 +1,12 @@
 // U12 — frases dos resumos.
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:zywny/practice/measure_text.dart';
-import 'package:zywny/practice/practice_report.dart';
-import 'package:zywny/practice/practice_session.dart';
-import 'package:zywny/practice/practice_tools.dart';
-import 'package:zywny/trail/stage_result.dart';
-import 'package:zywny/trail/trail_widgets.dart';
+import 'package:zywny_comum/practice/measure_text.dart';
+import 'package:zywny_comum/practice/practice_report.dart';
+import 'package:zywny_comum/practice/practice_session.dart';
+import 'package:zywny_comum/practice/practice_tools.dart';
+import 'package:zywny_comum/trail/stage_result.dart';
+import 'package:zywny_comum/trail/trail_widgets.dart';
 
 /// Um relatório com [n] notas `correct` e `late`/`early` de [deltaMs] cada,
 /// em ms de parede (andamento 1).

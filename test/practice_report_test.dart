@@ -1,7 +1,7 @@
 // T03: `PracticeReport` com vereditos sintéticos.
 import 'package:flutter_test/flutter_test.dart';
-import 'package:zywny/practice/practice_report.dart';
-import 'package:zywny/practice/practice_session.dart';
+import 'package:zywny_comum/practice/practice_report.dart';
+import 'package:zywny_comum/practice/practice_session.dart';
 
 ReportEntry _e(
   PracticeVerdictKind k,

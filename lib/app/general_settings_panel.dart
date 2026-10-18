@@ -9,8 +9,6 @@ import 'package:score_bridge/score_bridge.dart' show kDefaultBarColor;
 import 'package:zywny_audio/soundfont_store.dart';
 
 import '../about/about_screen.dart';
-import '../course/course_installer.dart';
-import '../course/course_store.dart';
 
 import 'package:zywny_music/note_names.dart' show NoteNaming;
 
@@ -29,7 +27,6 @@ import '../ui/device_kind.dart';
 import '../ui/theme.dart';
 import '../settings/app_settings.dart';
 import '../settings/color_picker.dart';
-import 'courses_section.dart';
 import 'libraries_section.dart';
 
 /// Abre o seletor de arquivos para um `.sf2` e devolve os bytes; `null` se
@@ -514,8 +511,8 @@ class GeneralSettingsScreen extends StatefulWidget {
     this.soundFonts = const SoundFontStore(),
     this.libraryStore,
     this.pickLibraryFile = pickLibraryBytes,
-    this.courseStore,
-    this.onOpenDraft,
+    this.installLibrary,
+    this.coursesSection,
     this.onTutorial,
   });
 
@@ -528,12 +525,13 @@ class GeneralSettingsScreen extends StatefulWidget {
   final LibraryStore? libraryStore;
   final Future<Uint8List?> Function() pickLibraryFile;
 
-  /// Os cursos instalados (a seção Cursos, I04); `null` não mostra a seção.
-  final CourseStore? courseStore;
+  /// Como o app instala uma biblioteca pela seção Bibliotecas; `null` usa o
+  /// instalador padrão (`installLibraryFromFile`).
+  final Future<void> Function(BuildContext context)? installLibrary;
 
-  /// I12: abrir a pasta como rascunho (a `LibraryScreen` dona do rascunho
-  /// entrega o abrir dela); `null` esconde o item.
-  final VoidCallback? onOpenDraft;
+  /// A seção Cursos (I04): o app a monta com o próprio instalador de cursos;
+  /// `null` não mostra a seção. Só o aprendizado tem cursos.
+  final Widget Function(BuildContext context)? coursesSection;
 
   /// "Rever o tutorial": a `LibraryScreen` fecha esta tela e mostra o passeio
   /// da biblioteca; `null` esconde o item.
@@ -576,26 +574,16 @@ class _GeneralSettingsScreenState extends State<GeneralSettingsScreen> {
     await _refresh();
   }
 
-  /// Instala um `.zywny` (biblioteca ou curso, I04) e avisa; a lista da
-  /// seção acompanha sozinha (os stores avisam quem escuta).
-  Future<void> _installPackage() async {
-    final courses = widget.courseStore;
-    final libraries = widget.libraryStore;
-    if (courses == null) return;
-    if (libraries == null) {
-      await installCourseFromFile(
-        context,
-        courses,
-        pick: widget.pickLibraryFile,
-      );
-    } else {
-      await installPackageFromFile(
-        context,
-        libraries,
-        courses,
-        pick: widget.pickLibraryFile,
-      );
-    }
+  /// Instala uma biblioteca pela seção Bibliotecas; a lista acompanha sozinha
+  /// (o store avisa quem escuta).
+  Future<void> _installLibrary() async {
+    final install = widget.installLibrary;
+    if (install != null) return install(context);
+    await installLibraryFromFile(
+      context,
+      widget.libraryStore!,
+      pick: widget.pickLibraryFile,
+    );
   }
 
   @override
@@ -619,21 +607,9 @@ class _GeneralSettingsScreenState extends State<GeneralSettingsScreen> {
                     ? null
                     : LibrariesSection(
                         store: widget.libraryStore!,
-                        onInstall: () => unawaited(
-                          installLibraryFromFile(
-                            context,
-                            widget.libraryStore!,
-                            pick: widget.pickLibraryFile,
-                          ),
-                        ),
+                        onInstall: () => unawaited(_installLibrary()),
                       ),
-                courses: widget.courseStore == null
-                    ? null
-                    : CoursesSection(
-                        store: widget.courseStore!,
-                        onInstall: () => unawaited(_installPackage()),
-                        onOpenDraft: widget.onOpenDraft,
-                      ),
+                courses: widget.coursesSection?.call(context),
               ),
             ),
           ),

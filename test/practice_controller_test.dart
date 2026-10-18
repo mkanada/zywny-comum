@@ -25,9 +25,9 @@ import 'package:zywny_audio/score_audio_scheduler.dart';
 import 'package:zywny_audio/sound_engine.dart';
 import 'package:zywny_midi/midi_input_service.dart';
 import 'package:zywny_audio/performance_track.dart';
-import 'package:zywny/practice/hand.dart';
-import 'package:zywny/practice/practice_colors.dart';
-import 'package:zywny/practice/practice_controller.dart';
+import 'package:zywny_comum/practice/hand.dart';
+import 'package:zywny_comum/practice/practice_colors.dart';
+import 'package:zywny_comum/practice/practice_controller.dart';
 
 class FakeSoundEngine implements SoundEngine {
   double now = 0;

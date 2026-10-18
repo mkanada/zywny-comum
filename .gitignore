@@ -1,0 +1,81 @@
+# Miscellaneous
+*.class
+*.log
+*.pyc
+*.swp
+.DS_Store
+.atom/
+.build/
+.buildlog/
+.history
+.svn/
+.swiftpm/
+migrate_working_dir/
+
+# IntelliJ related
+*.iml
+*.ipr
+*.iws
+.idea/
+
+# The .vscode folder contains launch configuration and tasks you configure in
+# VS Code which you may wish to be included in version control, so this line
+# is commented out by default.
+#.vscode/
+
+# Flutter/Dart/Pub related
+**/doc/api/
+**/ios/Flutter/.last_build_id
+.dart_tool/
+.flutter-plugins-dependencies
+.pub-cache/
+.pub/
+/build/
+# O `flutter test` dos pacotes do workspace (R13–R17) também gera build/.
+/packages/*/build/
+/coverage/
+
+# Symbolication related
+app.*.symbols
+
+# Obfuscation related
+app.*.map.json
+
+# Android Studio will place build artifacts here
+/android/app/debug
+/android/app/profile
+/android/app/release
+
+# Widget Preview related
+.widget_preview/
+
+# Verovio engraving resources — generated from verovio_flutter_bridge, regenerable
+# (run tool/build_verovio_assets.sh).
+/assets/verovio_data.zip
+
+# The app no longer embeds hymns (phase B: installable libraries). Kept out of
+# the repository in case old copies are still on disk — third-party scores.
+/assets/hinos/
+
+# libverovio.so for Android (X01) — generated from verovio_flutter_bridge,
+# regenerable (run tool/build_verovio_android.sh / `just native-android`).
+/android/app/src/main/jniLibs/
+
+# graft's local graph cache — regenerable, not committed (run `graft build`).
+/graft/
+
+# Verovio wasm toolkit for the Web (W02) — generated from verovio_flutter_bridge,
+# regenerable (run tool/build_verovio_web.sh).
+/web/verovio/
+
+# Web sound engine (W04): esbuild output and npm deps, regenerable
+# (run tool/build_audio_web.sh).
+/web/audio/
+/web_src/node_modules/
+/dist/
+
+# Chaves das bibliotecas (D-BIB-CIFRA): nunca vao para o remoto.
+/keys/
+
+# Exportações do corpus do Verovio: locais, não versionadas (ver README).
+/test/fixtures/*.vsb

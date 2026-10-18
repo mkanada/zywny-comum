@@ -12,12 +12,12 @@ import 'package:zywny_audio/score_audio_scheduler.dart';
 import 'package:zywny_audio/sound_engine.dart';
 import 'package:zywny_midi/midi_input_service.dart';
 import 'package:zywny_audio/performance_track.dart';
-import 'package:zywny/practice/hand.dart';
-import 'package:zywny/practice/practice_controller.dart';
-import 'package:zywny/trail/trail_path.dart';
-import 'package:zywny/trail/trail_plan.dart';
-import 'package:zywny/trail/trail_segments.dart';
-import 'package:zywny/trail/trail_stage.dart';
+import 'package:zywny_comum/practice/hand.dart';
+import 'package:zywny_comum/practice/practice_controller.dart';
+import 'package:zywny_comum/trail/trail_path.dart';
+import 'package:zywny_comum/trail/trail_plan.dart';
+import 'package:zywny_comum/trail/trail_segments.dart';
+import 'package:zywny_comum/trail/trail_stage.dart';
 
 class _Occ {
   const _Occ(this.id, this.pass, this.t, this.q);

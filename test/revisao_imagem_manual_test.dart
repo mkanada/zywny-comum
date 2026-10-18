@@ -17,8 +17,8 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:score_bridge/score_bridge.dart';
-import 'package:zywny/practice/hand.dart';
-import 'package:zywny/practice/practice_controller.dart';
+import 'package:zywny_comum/practice/hand.dart';
+import 'package:zywny_comum/practice/practice_controller.dart';
 import 'package:zywny_audio/performance_track.dart';
 import 'package:zywny_audio/score_audio_scheduler.dart';
 

@@ -6,8 +6,8 @@ import 'package:zywny_library/library_keys.dart';
 import 'package:zywny_library/library_sort.dart';
 import 'package:zywny_library/piece.dart';
 import 'package:zywny_library/piece_progress.dart';
-import 'package:zywny/settings/piece_settings.dart';
-import 'package:zywny/trail/trail_progress.dart';
+import 'package:zywny_comum/settings/piece_settings.dart';
+import 'package:zywny_comum/trail/trail_progress.dart';
 
 Piece _piece(String lib, String id, String title, {int? number}) => Piece(
   libraryId: lib,

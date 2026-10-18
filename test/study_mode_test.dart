@@ -1,10 +1,10 @@
 // U11 — seletor único de modos e a gaveta de opções.
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:zywny/practice/hand.dart';
-import 'package:zywny/practice/practice_controller.dart' show PracticeMode;
-import 'package:zywny/practice/study_mode.dart';
-import 'package:zywny/ui/phone_chrome.dart';
+import 'package:zywny_comum/practice/hand.dart';
+import 'package:zywny_comum/practice/practice_controller.dart' show PracticeMode;
+import 'package:zywny_comum/practice/study_mode.dart';
+import 'package:zywny_comum/ui/phone_chrome.dart';
 
 Widget _drawer({
   StudyMode mode = StudyMode.wait,

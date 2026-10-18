@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:zywny_audio/metronome.dart';
-import 'package:zywny/practice/count_in_overlay.dart';
+import 'package:zywny_comum/practice/count_in_overlay.dart';
 
 void main() {
   Widget host({required bool active, required CountInTick? Function() read}) =>

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:zywny/settings/color_picker.dart';
+import 'package:zywny_comum/settings/color_picker.dart';
 
 void main() {
   Future<void> open(

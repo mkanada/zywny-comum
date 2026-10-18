@@ -7,8 +7,8 @@ import 'package:shared_preferences_platform_interface/shared_preferences_async_p
 import 'package:zywny_library/legacy_migration.dart';
 import 'package:zywny_library/library_keys.dart';
 import 'package:zywny_library/piece_progress.dart';
-import 'package:zywny/settings/piece_settings.dart';
-import 'package:zywny/trail/trail_progress.dart';
+import 'package:zywny_comum/settings/piece_settings.dart';
+import 'package:zywny_comum/trail/trail_progress.dart';
 
 void main() {
   late SharedPreferencesAsync prefs;

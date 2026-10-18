@@ -21,9 +21,9 @@ import 'package:zywny_midi/midi_input_service.dart';
 import 'package:zywny_midi/midi_monitor.dart';
 import 'package:zywny_audio/performance_track.dart';
 import 'package:zywny_music/pitch_frame.dart';
-import 'package:zywny/practice/hand.dart';
-import 'package:zywny/practice/practice_controller.dart';
-import 'package:zywny/settings/app_settings.dart';
+import 'package:zywny_comum/practice/hand.dart';
+import 'package:zywny_comum/practice/practice_controller.dart';
+import 'package:zywny_comum/settings/app_settings.dart';
 
 class _Engine implements SoundEngine {
   double now = 0;

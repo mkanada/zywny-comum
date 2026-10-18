@@ -5,7 +5,7 @@ import 'dart:io';
 
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:zywny/incoming/incoming_packages.dart';
+import 'package:zywny_comum/incoming/incoming_packages.dart';
 
 IncomingPackage _package(String name) =>
     IncomingPackage(name: name, read: () async => Uint8List(0));

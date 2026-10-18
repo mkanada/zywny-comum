@@ -1,9 +1,9 @@
 // U18 — painel lateral da partitura no celular.
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:zywny/trail/stage_result.dart';
-import 'package:zywny/trail/trail_widgets.dart';
-import 'package:zywny/ui/side_panel.dart';
+import 'package:zywny_comum/trail/stage_result.dart';
+import 'package:zywny_comum/trail/trail_widgets.dart';
+import 'package:zywny_comum/ui/side_panel.dart';
 
 void main() {
   void landscape(WidgetTester tester) {

@@ -1,7 +1,7 @@
 // Os botões de página da partitura parada.
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:zywny/ui/page_pager.dart';
+import 'package:zywny_comum/ui/page_pager.dart';
 
 Widget _host(Widget child) => MaterialApp(
   home: Scaffold(body: Center(child: child)),

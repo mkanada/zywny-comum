@@ -4,8 +4,8 @@ import 'dart:ui';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:score_bridge/score_bridge.dart';
-import 'package:zywny/trail/trail_path.dart';
-import 'package:zywny/trail/trail_segments.dart';
+import 'package:zywny_comum/trail/trail_path.dart';
+import 'package:zywny_comum/trail/trail_segments.dart';
 
 /// Uma ocorrência na ordem de execução para o documento sintético.
 class _Occ {

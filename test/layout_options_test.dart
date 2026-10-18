@@ -12,8 +12,8 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:verovio/verovio.dart';
-import 'package:zywny/render/layout_options.dart';
-import 'package:zywny/render/verovio_render.dart';
+import 'package:zywny_comum/render/layout_options.dart';
+import 'package:zywny_comum/render/verovio_render.dart';
 
 import 'support/render_helper.dart';
 

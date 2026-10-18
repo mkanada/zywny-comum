@@ -12,7 +12,7 @@ import 'package:zywny_audio/metronome.dart';
 import 'package:zywny_audio/score_audio_scheduler.dart';
 import 'package:zywny_audio/sound_engine.dart';
 import 'package:zywny_audio/performance_track.dart';
-import 'package:zywny/practice/latency_calibration.dart';
+import 'package:zywny_comum/practice/latency_calibration.dart';
 
 class FakeSoundEngine implements SoundEngine {
   FakeSoundEngine({this.latency = 0.02});

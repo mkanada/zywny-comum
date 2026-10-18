@@ -17,10 +17,10 @@ import 'package:zywny_audio/sound_engine.dart';
 import 'package:zywny_midi/midi_input_service.dart';
 import 'package:zywny_audio/performance_track.dart';
 import 'package:zywny_music/pitch_frame.dart';
-import 'package:zywny/practice/hand.dart';
-import 'package:zywny/practice/practice_controller.dart';
-import 'package:zywny/practice/shift_banner.dart';
-import 'package:zywny/practice/shift_detector.dart';
+import 'package:zywny_comum/practice/hand.dart';
+import 'package:zywny_comum/practice/practice_controller.dart';
+import 'package:zywny_comum/practice/shift_banner.dart';
+import 'package:zywny_comum/practice/shift_detector.dart';
 
 class _Engine implements SoundEngine {
   double now = 0;

@@ -1,9 +1,9 @@
 // J02 — Avaliação da etapa e blocos de reforço.
 import 'package:flutter_test/flutter_test.dart';
-import 'package:zywny/practice/practice_report.dart';
-import 'package:zywny/practice/practice_session.dart';
-import 'package:zywny/trail/reinforcement.dart';
-import 'package:zywny/trail/stage_result.dart';
+import 'package:zywny_comum/practice/practice_report.dart';
+import 'package:zywny_comum/practice/practice_session.dart';
+import 'package:zywny_comum/trail/reinforcement.dart';
+import 'package:zywny_comum/trail/stage_result.dart';
 
 ReportEntry _e(PracticeVerdictKind k, int measure) => ReportEntry(
   NoteVerdict(pitch: 60, kind: k, deltaMs: 0, eventId: 'x'),

@@ -3,10 +3,10 @@ import 'dart:async';
 // J05 — Faixa da trilha e resumo da etapa (widgets com controlador falso).
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:zywny/trail/stage_result.dart';
-import 'package:zywny/trail/trail_progress.dart';
-import 'package:zywny/trail/trail_widgets.dart';
-import 'package:zywny/ui/phone_chrome.dart';
+import 'package:zywny_comum/trail/stage_result.dart';
+import 'package:zywny_comum/trail/trail_progress.dart';
+import 'package:zywny_comum/trail/trail_widgets.dart';
+import 'package:zywny_comum/ui/phone_chrome.dart';
 
 Widget _app(Widget child) => MaterialApp(home: Scaffold(body: child));
 

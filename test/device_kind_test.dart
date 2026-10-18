@@ -3,7 +3,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:zywny/ui/device_kind.dart';
+import 'package:zywny_comum/ui/device_kind.dart';
 
 Future<(DeviceKind, String)> _at(WidgetTester tester, Size size) async {
   tester.view.physicalSize = size;

@@ -9,7 +9,7 @@ import 'dart:typed_data';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:score_bridge/score_bridge.dart';
 import 'package:zywny_audio/performance_track.dart';
-import 'package:zywny/practice/practice_session.dart';
+import 'package:zywny_comum/practice/practice_session.dart';
 
 PerformanceTrack _loadTrack(String fixture) {
   final bytes = File('test/fixtures/$fixture').readAsBytesSync();

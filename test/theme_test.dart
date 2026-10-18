@@ -1,7 +1,7 @@
 // U18 — o tema é o do app, não o que o Material deriva da semente.
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:zywny/ui/theme.dart';
+import 'package:zywny_comum/ui/theme.dart';
 
 void main() {
   test('o primário é o azul do app e as superfícies são as do app', () {
