@@ -32,6 +32,9 @@ String findAudioLibrary() {
     // O mesmo, visto de packages/zywny_audio (onde os testes deste pacote
     // rodam — R15).
     '../../native/zywny_audio/target/release/libzywny_audio.so',
+    // Os apps (zywny-musicas, zywny-aprendizado) ficam ao lado deste
+    // repositório: a biblioteca é desta pasta, não do app.
+    '../zywny-comum/native/zywny_audio/target/release/libzywny_audio.so',
   ];
   for (final c in candidates) {
     if (File(c).existsSync()) return c;
