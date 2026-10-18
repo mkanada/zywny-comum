@@ -37,9 +37,9 @@ do app que os chamou.
   compartilhada (`test/`).
 - Dentro de `packages/*` e `score_bridge/`: `flutter test` ou `dart test`,
   conforme o pacote.
-- `test/fixtures/*.vsb` são exportações do corpus do Verovio e não são
-  versionadas. Sem elas, os testes do `score_bridge` e os de render falham.
-  Copie-as de um checkout local onde elas existam.
+- `test/fixtures/*.vsb` e `score_bridge/test/fixtures/` são exportações do
+  corpus do Verovio. Ficam versionadas (como no zywny original): um clone
+  limpo roda os testes de render e de `score_bridge` sem copiar nada.
 
 ## Fontes
 

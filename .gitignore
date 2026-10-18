@@ -77,5 +77,3 @@ app.*.map.json
 # Chaves das bibliotecas (D-BIB-CIFRA): nunca vao para o remoto.
 /keys/
 
-# Exportações do corpus do Verovio: locais, não versionadas (ver README).
-/test/fixtures/*.vsb
