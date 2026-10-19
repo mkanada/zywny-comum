@@ -7,8 +7,10 @@ import 'package:flutter/material.dart';
 import 'package:score_bridge/score_bridge.dart' show kDefaultBarColor;
 
 import 'package:zywny_audio/soundfont_store.dart';
+import 'package:zywny_auth/zywny_auth.dart';
 
 import '../about/about_screen.dart';
+import '../auth/account_settings_section.dart';
 
 import 'package:zywny_music/note_names.dart' show NoteNaming;
 
@@ -89,6 +91,7 @@ class GeneralSettingsPanel extends StatelessWidget {
     this.libraries,
     this.courses,
     this.onTutorial,
+    this.authStore,
   });
 
   final AppSettings settings;
@@ -111,6 +114,11 @@ class GeneralSettingsPanel extends StatelessWidget {
   /// "Rever o tutorial": quem abriu o painel sabe fechá-lo e mostrar o
   /// passeio da tela dele. `null` esconde o item (sem tutorial nesta tela).
   final VoidCallback? onTutorial;
+
+  /// A sessão conectada (D02): com ela, o painel mostra a seção "Conta"
+  /// (apelido, e-mail, código do aluno, sair e apagar a conta). `null`
+  /// (os testes) esconde a seção.
+  final AuthStore? authStore;
 
   @override
   Widget build(BuildContext context) {
@@ -172,6 +180,7 @@ class GeneralSettingsPanel extends StatelessWidget {
     final device = midiDeviceManager.connected.value;
     final toMidi = settings.output == SoundOutput.midiKeyboard;
     return [
+      if (authStore != null) AccountSettingsSection(store: authStore!),
       ?libraries,
       ?courses,
       const _Header('Som'),
@@ -514,6 +523,7 @@ class GeneralSettingsScreen extends StatefulWidget {
     this.installLibrary,
     this.coursesSection,
     this.onTutorial,
+    this.authStore,
   });
 
   final AppSettings settings;
@@ -536,6 +546,9 @@ class GeneralSettingsScreen extends StatefulWidget {
   /// "Rever o tutorial": a `LibraryScreen` fecha esta tela e mostra o passeio
   /// da biblioteca; `null` esconde o item.
   final VoidCallback? onTutorial;
+
+  /// A sessão conectada (D02): com ela, a tela mostra a seção "Conta".
+  final AuthStore? authStore;
 
   @override
   State<GeneralSettingsScreen> createState() => _GeneralSettingsScreenState();
@@ -603,6 +616,7 @@ class _GeneralSettingsScreenState extends State<GeneralSettingsScreen> {
                 onResetSoundFont: () => unawaited(_reset()),
                 onClose: () => Navigator.of(context).pop(),
                 onTutorial: widget.onTutorial,
+                authStore: widget.authStore,
                 libraries: widget.libraryStore == null
                     ? null
                     : LibrariesSection(

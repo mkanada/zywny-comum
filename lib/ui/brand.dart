@@ -18,6 +18,27 @@ const kBrandPackage = 'zywny_comum';
 const kBrandSerif = 'Cormorant Garamond';
 const kBrandSans = 'Instrument Sans';
 
+/// O monograma do Zywny: o Z itálico no quadrado vinho do ícone. As telas
+/// de entrada (D02) o mostram no alto do cartão.
+class BrandMonogram extends StatelessWidget {
+  const BrandMonogram({super.key, this.size = 72});
+
+  /// A largura do quadrado (a altura é a mesma).
+  final double size;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    width: size,
+    height: size,
+    alignment: Alignment.center,
+    decoration: BoxDecoration(
+      color: kBrandWine,
+      borderRadius: BorderRadius.circular(size * 0.24),
+    ),
+    child: MonogramZ(size: size * 0.6),
+  );
+}
+
 /// O Z itálico do ícone, em creme.
 class MonogramZ extends StatelessWidget {
   const MonogramZ({super.key, required this.size});

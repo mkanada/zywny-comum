@@ -11,7 +11,7 @@ os pacotes que ele usa:
 | Pasta | O que é |
 |---|---|
 | `lib/` | partitura (`render/`), prática e MIDI (`practice/`, `midi/`), som (`audio/`), configurações (`settings/`), interface (`ui/`), trilha (`trail/`), sobre (`about/`), pacotes recebidos do sistema (`incoming/`) e três telas comuns em `app/` |
-| `packages/` | `zywny_music`, `zywny_course_format`, `zywny_audio`, `zywny_midi`, `zywny_library`, `zywny_diag` (workspace Dart) |
+| `packages/` | `zywny_music`, `zywny_course_format`, `zywny_audio`, `zywny_midi`, `zywny_library`, `zywny_auth`, `zywny_diag` (workspace Dart) |
 | `score_bridge/` | parser do `.vsb` e `ScenePainter` |
 | `native/zywny_audio/` | motor de áudio em Rust (`libzywny_audio`) |
 | `web_src/` | motor de áudio para a Web (JavaScript) |

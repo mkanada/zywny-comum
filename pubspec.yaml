@@ -15,6 +15,7 @@ workspace:
   - packages/zywny_audio
   - packages/zywny_midi
   - packages/zywny_library
+  - packages/zywny_auth
 
 dependencies:
   flutter:
@@ -31,6 +32,8 @@ dependencies:
     path: packages/zywny_midi
   zywny_library:
     path: packages/zywny_library
+  zywny_auth:
+    path: packages/zywny_auth
 
   cupertino_icons: ^1.0.8
   file_selector: ^1.0.3

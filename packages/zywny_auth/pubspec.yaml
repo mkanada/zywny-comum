@@ -1,0 +1,34 @@
+name: zywny_auth
+description: "A autenticação do zywny (fase D, D01): o contrato (AuthStore), o Firebase (SDK no Android/Web, REST e loopback no desktop) e a regra dos 7 dias sem rede (D-NEG-OFFLINE)."
+publish_to: 'none'
+version: 1.0.0
+
+environment:
+  sdk: ^3.13.3
+
+# Membro do workspace da raiz (D01).
+resolution: workspace
+
+dependencies:
+  flutter:
+    sdk: flutter
+  # Android e Web: o SDK oficial do Firebase (D01, D-NEG-AUTH). O Linux e o
+  # Windows não têm plugin nativo: lá o login é pelo navegador do sistema
+  # (loopback) e pela API REST, sem depender destes pacotes.
+  firebase_auth: ^7.0.0
+  firebase_core: ^5.0.0
+  google_sign_in: ^7.2.0
+  # A API REST do Firebase Identity Toolkit, no desktop (D01).
+  http: ^1.6.0
+  # O SHA-256 do desafio do PKCE, no login pelo navegador (D01).
+  crypto: ^3.0.6
+  shared_preferences: ^2.5.5
+  url_launcher: ^6.3.3
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+  # Fakes de plataforma dos testes (a sessão é guardada em
+  # `shared_preferences`).
+  shared_preferences_platform_interface: ^2.4.2
