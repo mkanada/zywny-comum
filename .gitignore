@@ -77,3 +77,7 @@ app.*.map.json
 # Chaves das bibliotecas (D-BIB-CIFRA): nunca vao para o remoto.
 /keys/
 
+# Imagens geradas pelos testes manuais (a revisão do treino) — regeneráveis
+# (rodar test/revisao_imagem_manual_test.dart), não versionadas.
+/revisao*.png
+
