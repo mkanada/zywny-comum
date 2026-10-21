@@ -245,10 +245,8 @@ pub unsafe extern "C" fn zy_stat(engine: *const ZyEngine, which: i32) -> u64 {
 /// `zy_engine_new`. Tabela JNI usada à mão (NewGlobalRef = 21, GetJavaVM =
 /// 219) para não puxar o crate `jni` como dependência direta.
 #[cfg(target_os = "android")]
-#[no_mangle]
-pub unsafe extern "system" fn Java_com_example_zywny_MainActivity_nativeInit(
+unsafe fn android_native_init(
     env: *mut *const *const std::ffi::c_void,
-    _this: *mut std::ffi::c_void,
     context: *mut std::ffi::c_void,
 ) {
     use std::ffi::c_void;
@@ -267,4 +265,24 @@ pub unsafe extern "system" fn Java_com_example_zywny_MainActivity_nativeInit(
         let global = new_global_ref(env, context);
         ndk_context::initialize_android_context(vm, global);
     });
+}
+
+#[cfg(target_os = "android")]
+#[no_mangle]
+pub unsafe extern "system" fn Java_br_com_kanada_zywny_musicas_MainActivity_nativeInit(
+    env: *mut *const *const std::ffi::c_void,
+    _this: *mut std::ffi::c_void,
+    context: *mut std::ffi::c_void,
+) {
+    android_native_init(env, context);
+}
+
+#[cfg(target_os = "android")]
+#[no_mangle]
+pub unsafe extern "system" fn Java_br_com_kanada_zywny_aprendizado_MainActivity_nativeInit(
+    env: *mut *const *const std::ffi::c_void,
+    _this: *mut std::ffi::c_void,
+    context: *mut std::ffi::c_void,
+) {
+    android_native_init(env, context);
 }
