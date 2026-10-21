@@ -1,0 +1,19 @@
+{
+  "_comentario": [
+    "A configuração do projeto no Firebase (D03). Copie para keys/firebase.json",
+    "(fora do git) e troque os valores pelos do console do Firebase:",
+    "Project settings > Your apps > SDK setup and configuration.",
+    "O OAuth Client ID do 'Desktop' e o server_client_id do Android saem do",
+    "Google Cloud Console > APIs & Services > Credentials."
+  ],
+  "apiKey": "AIza... (a chave da Web do projeto)",
+  "projectId": "zywny-prod",
+  "messagingSenderId": "123456789",
+  "appIdAndroid": "1:123456789:android:aaaa",
+  "appIdWeb": "1:123456789:web:bbbb",
+  "authDomain": "zywny-prod.firebaseapp.com",
+  "storageBucket": "zywny-prod.appspot.com",
+  "measurementId": "G-XXXXXXX",
+  "googleClientId": "xxx.apps.googleusercontent.com (OAuth do tipo Desktop)",
+  "googleServerClientId": "yyy.apps.googleusercontent.com (OAuth do tipo Web do app Android)"
+}
