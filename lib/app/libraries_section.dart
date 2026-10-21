@@ -7,9 +7,10 @@ import 'package:zywny_library/library_store.dart';
 import '../ui/theme.dart';
 
 /// A seção **Bibliotecas** das configurações gerais (B06): as instaladas, a
-/// em uso marcada, trocar de uma para outra, instalar outra, remover e ver os
-/// créditos. Fala com o [LibraryStore]; quem instala é [onInstall] (o fluxo
-/// do B05, que precisa de uma tela por baixo para os diálogos).
+/// em uso marcada, trocar de uma para outra, remover e ver os créditos. Fala
+/// com o [LibraryStore]; [onInstall] é o instalador, quando a tela oferece um
+/// botão para isso (o zywny-musicas não oferece: o `.zywny` chega pelo
+/// "Abrir com…" do sistema).
 ///
 /// A seleção (trocar a em uso) só aparece com mais de uma instalada: com uma
 /// só, a linha é só informativa (versão, créditos, remover).
@@ -17,11 +18,13 @@ class LibrariesSection extends StatelessWidget {
   const LibrariesSection({
     super.key,
     required this.store,
-    required this.onInstall,
+    this.onInstall,
   });
 
   final LibraryStore store;
-  final VoidCallback onInstall;
+
+  /// `null` não mostra "Instalar outra…" (a instalação vem de fora do app).
+  final VoidCallback? onInstall;
 
   @override
   Widget build(BuildContext context) {
@@ -54,13 +57,14 @@ class LibrariesSection extends StatelessWidget {
               onAbout: () => _about(context, library),
               onRemove: () => unawaited(_remove(context, library)),
             ),
-          ListTile(
-            dense: true,
-            leading: const Icon(Icons.add, size: 20),
-            title: const Text('Instalar outra…'),
-            subtitle: const Text('abre um arquivo .zywny'),
-            onTap: onInstall,
-          ),
+          if (onInstall case final install?)
+            ListTile(
+              dense: true,
+              leading: const Icon(Icons.add, size: 20),
+              title: const Text('Instalar outra…'),
+              subtitle: const Text('abre um arquivo .zywny'),
+              onTap: install,
+            ),
         ],
       ),
     );
