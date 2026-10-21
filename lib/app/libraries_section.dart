@@ -10,6 +10,9 @@ import '../ui/theme.dart';
 /// em uso marcada, trocar de uma para outra, instalar outra, remover e ver os
 /// créditos. Fala com o [LibraryStore]; quem instala é [onInstall] (o fluxo
 /// do B05, que precisa de uma tela por baixo para os diálogos).
+///
+/// A seleção (trocar a em uso) só aparece com mais de uma instalada: com uma
+/// só, a linha é só informativa (versão, créditos, remover).
 class LibrariesSection extends StatelessWidget {
   const LibrariesSection({
     super.key,
@@ -46,6 +49,7 @@ class LibrariesSection extends StatelessWidget {
             _LibraryRow(
               library: library,
               active: library.id == store.activeId,
+              selectable: store.installed.length > 1,
               onUse: () => unawaited(store.setActive(library.id)),
               onAbout: () => _about(context, library),
               onRemove: () => unawaited(_remove(context, library)),
@@ -127,6 +131,7 @@ class _LibraryRow extends StatelessWidget {
   const _LibraryRow({
     required this.library,
     required this.active,
+    required this.selectable,
     required this.onUse,
     required this.onAbout,
     required this.onRemove,
@@ -134,6 +139,10 @@ class _LibraryRow extends StatelessWidget {
 
   final InstalledLibrary library;
   final bool active;
+
+  /// Com uma só instalada não há o que trocar: a linha informa (e o menu
+  /// mantém "Sobre" e "Remover"), sem o rádio de seleção.
+  final bool selectable;
   final VoidCallback onUse;
   final VoidCallback onAbout;
   final VoidCallback onRemove;
@@ -144,17 +153,23 @@ class _LibraryRow extends StatelessWidget {
       dense: true,
       selected: active,
       selectedColor: kAccent,
-      leading: Icon(
-        active ? Icons.radio_button_checked : Icons.radio_button_unchecked,
-        size: 20,
-        semanticLabel: active ? 'em uso' : null,
-      ),
+      leading: selectable
+          ? Icon(
+              active ? Icons.radio_button_checked : Icons.radio_button_unchecked,
+              size: 20,
+              semanticLabel: active ? 'em uso' : null,
+            )
+          : const Icon(
+              Icons.library_music_outlined,
+              size: 20,
+              semanticLabel: 'em uso',
+            ),
       title: Text(library.name),
       subtitle: Text(
         '${active ? 'em uso · ' : ''}versão ${library.version} · '
         '${library.pieceCount} ${library.term.plural}',
       ),
-      onTap: active ? null : onUse,
+      onTap: active || !selectable ? null : onUse,
       trailing: PopupMenuButton<_Action>(
         tooltip: 'Mais sobre ${library.name}',
         onSelected: (a) => switch (a) {

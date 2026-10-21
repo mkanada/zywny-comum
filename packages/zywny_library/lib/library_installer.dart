@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:io' show Platform;
 
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/foundation.dart';
@@ -11,11 +10,12 @@ import 'library_store.dart';
 /// Abre o seletor de arquivos para um `.zywny` e devolve os bytes; `null` se
 /// o usuário cancelou. No Android o filtro por extensão vira filtro por MIME,
 /// e `.zywny` não tem MIME conhecido (o arquivo nem apareceria): lá não se
-/// filtra e a validação do pacote é quem recusa o que não serve.
+/// filtra e a validação do pacote é quem recusa o que não serve. Sem
+/// `dart:io` de propósito: este arquivo também compila para a Web.
 Future<Uint8List?> pickLibraryBytes() async {
   final file = await openFile(
     acceptedTypeGroups: [
-      !kIsWeb && Platform.isAndroid
+      !kIsWeb && defaultTargetPlatform == TargetPlatform.android
           ? const XTypeGroup(label: 'biblioteca')
           : const XTypeGroup(label: 'biblioteca', extensions: ['zywny']),
     ],
