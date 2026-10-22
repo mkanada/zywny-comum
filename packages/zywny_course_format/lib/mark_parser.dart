@@ -586,7 +586,7 @@ ExerciseSpec? _buildExercise(
       if (match == null) {
         issues.error(
           f.lineOf('step'),
-          '`$step` não é um passo do treino de leitura: use de `1a` a `20d`.',
+          '`$step` não é um passo do treino de leitura: use de `1a` a `100d`.',
         );
         return null;
       }
@@ -624,8 +624,8 @@ ExerciseSpec? _buildExercise(
   }
 }
 
-/// Um passo do treino de leitura, `1a` a `20d`: o nível e o subnível.
-final _stepPattern = RegExp(r'^([1-9]|1[0-9]|20)([a-d])$');
+/// Um passo do treino de leitura, `1a` a `100d`: o nível e o subnível.
+final _stepPattern = RegExp(r'^(100|[1-9][0-9]?)([a-d])$');
 
 RhythmSpec? _rhythm(
   Fields f,

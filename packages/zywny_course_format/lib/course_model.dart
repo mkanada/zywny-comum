@@ -628,7 +628,7 @@ class ListenIntervalSpec extends ExerciseSpec {
 
 /// `listen-score`: mostra uma partitura gerada por um passo do treino de
 /// leitura, toca uma versão com uma diferença e o aluno diz onde. O pacote
-/// não conhece os passos: [step] é só o nome (`1a` a `20d`), e quem confere
+/// não conhece os passos: [step] é só o nome (`1a` a `100d`), e quem confere
 /// e monta a partitura é o app.
 class ListenScoreSpec extends ExerciseSpec {
   const ListenScoreSpec({

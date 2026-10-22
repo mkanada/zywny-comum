@@ -435,10 +435,35 @@ pass: {accuracy: 80}
 id: x
 type: listen-score
 title: X
-step: 21a
+step: 101a
 ```
 ''');
       expect(_messages(result).single, contains('não é um passo'));
+    });
+
+    test('listen-score: o nome vai de 1a a 100d', () async {
+      for (final (step, ok) in [
+        ('1a', true),
+        ('57c', true),
+        ('100d', true),
+        ('101a', false),
+        ('0a', false),
+        ('21e', false),
+      ]) {
+        final result = await _read('''
+```zywny-exercise
+id: x
+type: listen-score
+title: X
+step: $step
+```
+''');
+        expect(
+          _messages(result).where((m) => m.contains('não é um passo')),
+          ok ? isEmpty : hasLength(1),
+          reason: step,
+        );
+      }
     });
 
     test('listen-score: accidental pede um passo com armadura', () async {
