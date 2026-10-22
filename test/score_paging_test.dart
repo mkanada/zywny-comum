@@ -29,7 +29,8 @@ void main() {
     }
   });
 
-  testWidgets('ScorePager: sem vista ligada, botões desabilitados', (t) async {
+  testWidgets('ScorePager: antes de a vista ligar, "próxima" já vale', (t) async {
+    // A vista liga ao controller depois do primeiro build, sem avisar.
     await t.pumpWidget(
       MaterialApp(
         home: Scaffold(
@@ -40,6 +41,7 @@ void main() {
     final next = t.widget<IconButton>(
       find.widgetWithIcon(IconButton, Icons.chevron_right),
     );
-    expect(next.onPressed, isNull);
+    expect(next.onPressed, isNotNull);
+    await t.tap(find.byTooltip('Próxima página')); // sem vista: não lança
   });
 }

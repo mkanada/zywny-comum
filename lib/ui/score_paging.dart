@@ -64,14 +64,24 @@ class ScorePager extends StatelessWidget {
     return ListenableBuilder(
       listenable: controller,
       builder: (context, _) {
-        final ok = enabled && controller.isAttached;
-        final page = ok ? controller.currentPage : 0;
+        // A vista se liga ao controller depois do primeiro build do pager e
+        // não avisa: o estado dos botões não pode depender de `isAttached`
+        // (ficariam desabilitados para sempre); o toque confere.
+        final page = controller.isAttached ? controller.currentPage : 0;
         return PagePager(
-          onPrevious: ok && page > 0
-              ? () => controller.previousPage(animate: false)
+          onPrevious: enabled && page > 0
+              ? () {
+                  if (controller.isAttached) {
+                    controller.previousPage(animate: false);
+                  }
+                }
               : null,
-          onNext: ok && page < pageCount - 1
-              ? () => controller.nextPage(animate: false)
+          onNext: enabled && page < pageCount - 1
+              ? () {
+                  if (controller.isAttached) {
+                    controller.nextPage(animate: false);
+                  }
+                }
               : null,
         );
       },
