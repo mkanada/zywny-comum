@@ -72,6 +72,14 @@ class MidiDeviceManager {
   /// Fim da janela de [searchBluetooth]; `null` quando não está procurando.
   Completer<void>? _searchStop;
 
+  final StreamController<void> _transportInstalled =
+      StreamController<void>.broadcast();
+
+  /// Dispara quando o transporte BLE entra no [MidiCommand]. Quem já assinou
+  /// `onMidiDataReceived` antes disso não recebe nada do Bluetooth e precisa
+  /// assinar de novo (`FlutterMidiInputService.resubscribeOn`).
+  Stream<void> get transportInstalled => _transportInstalled.stream;
+
   /// Se o transporte BLE já foi instalado no [MidiCommand] (ver [_startBle]).
   bool _bleReady = false;
 
@@ -284,6 +292,7 @@ class MidiDeviceManager {
     unawaited(_setupSub?.cancel());
     _setupSub = null;
     _listenSetup();
+    _transportInstalled.add(null);
   }
 
   /// Chave das preferências por dispositivo: o **nome**, porque o id não
@@ -325,6 +334,7 @@ class MidiDeviceManager {
     _disposed = true;
     stopBluetoothSearch();
     unawaited(_setupSub?.cancel());
+    unawaited(_transportInstalled.close());
     devices.dispose();
     connected.dispose();
     lastError.dispose();

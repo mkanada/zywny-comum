@@ -55,12 +55,34 @@ abstract class MidiInputService {
 /// [events] é injetável para teste — sem ele, escuta
 /// `MidiCommand().onMidiDataReceived`, que abre um canal de plataforma
 /// (inexistente em `flutter test`).
+///
+/// [resubscribeOn] refaz a assinatura a cada evento do stream. O plugin monta
+/// `onMidiDataReceived` na hora em que o getter é lido, com os transportes
+/// que existem então: um serviço criado antes de o transporte Bluetooth ser
+/// instalado nunca ouviria um teclado BLE (o USB, sim). Quem tem um
+/// `MidiDeviceManager` passa `manager.transportInstalled`.
 class FlutterMidiInputService implements MidiInputService {
   FlutterMidiInputService({
     required double Function() nowSeconds,
     Stream<MidiDataReceivedEvent>? events,
-  }) : _nowSeconds = nowSeconds {
-    _sub = (events ?? MidiCommand().onMidiDataReceived)?.listen(_onEvent);
+    @visibleForTesting Stream<MidiDataReceivedEvent>? Function()? eventsSource,
+    Stream<void>? resubscribeOn,
+  }) : _nowSeconds = nowSeconds,
+       _eventsSource =
+           eventsSource ??
+           (events != null
+               ? () => events
+               : () => MidiCommand().onMidiDataReceived) {
+    _subscribe();
+    _resubscribeSub = resubscribeOn?.listen((_) => _subscribe());
+  }
+
+  final Stream<MidiDataReceivedEvent>? Function() _eventsSource;
+  StreamSubscription<void>? _resubscribeSub;
+
+  void _subscribe() {
+    unawaited(_sub?.cancel());
+    _sub = _eventsSource()?.listen(_onEvent);
   }
 
   final double Function() _nowSeconds;
@@ -149,6 +171,7 @@ class FlutterMidiInputService implements MidiInputService {
 
   @override
   void dispose() {
+    unawaited(_resubscribeSub?.cancel());
     unawaited(_sub?.cancel());
     unawaited(_notes.close());
     unawaited(_sustain.close());

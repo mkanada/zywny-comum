@@ -3,6 +3,7 @@
 // `FlutterMidiInputService` aceita o stream de eventos por injeção
 // exatamente para isto.
 
+import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:flutter_midi_command/flutter_midi_command.dart';
@@ -17,6 +18,7 @@ FlutterMidiInputService _service({double Function()? nowSeconds}) =>
     );
 
 void main() {
+  _resubscribeTests();
   group(
     'MidiMessage.parse (flutter_midi_command) — o que o serviço recebe',
     () {
@@ -134,6 +136,36 @@ void main() {
       );
       expect(service.held.value, {64});
       service.dispose();
+    });
+  });
+}
+
+// O plugin monta o stream de entrada com os transportes de quando o getter é
+// lido; o Bluetooth só entra depois, e o serviço precisa assinar de novo.
+void _resubscribeTests() {
+  group('FlutterMidiInputService.resubscribeOn', () {
+    test('refaz a assinatura e passa a ouvir só o stream novo', () async {
+      var reads = 0;
+      final controllers = <StreamController<MidiDataReceivedEvent>>[];
+      final rebind = StreamController<void>.broadcast();
+      final service = FlutterMidiInputService(
+        nowSeconds: () => 0,
+        eventsSource: () {
+          reads++;
+          final c = StreamController<MidiDataReceivedEvent>();
+          controllers.add(c);
+          return c.stream;
+        },
+        resubscribeOn: rebind.stream,
+      );
+      expect(reads, 1);
+      rebind.add(null);
+      await Future<void>.delayed(Duration.zero);
+      expect(reads, 2);
+      expect(controllers.first.hasListener, isFalse);
+      expect(controllers.last.hasListener, isTrue);
+      service.dispose();
+      await rebind.close();
     });
   });
 }

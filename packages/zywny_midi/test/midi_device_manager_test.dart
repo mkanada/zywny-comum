@@ -165,6 +165,15 @@ void main() {
       expect(ble.bluetoothNote.value, isNull);
     });
 
+    test('avisa quem já assinou a entrada, só na instalação', () async {
+      var installs = 0;
+      final sub = ble.transportInstalled.listen((_) => installs++);
+      await ble.searchBluetooth(window: const Duration(milliseconds: 10));
+      await ble.searchBluetooth(window: const Duration(milliseconds: 10));
+      expect(installs, 1);
+      await sub.cancel();
+    });
+
     test('a segunda busca não instala o BLE de novo', () async {
       await ble.searchBluetooth(window: const Duration(milliseconds: 10));
       await ble.searchBluetooth(window: const Duration(milliseconds: 10));
