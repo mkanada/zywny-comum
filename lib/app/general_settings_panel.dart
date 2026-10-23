@@ -92,6 +92,9 @@ class GeneralSettingsPanel extends StatelessWidget {
     this.courses,
     this.onTutorial,
     this.authStore,
+    this.showTrail = true,
+    this.showTranspose = true,
+    this.showPageBar = true,
   });
 
   final AppSettings settings;
@@ -119,6 +122,19 @@ class GeneralSettingsPanel extends StatelessWidget {
   /// (apelido, e-mail, código do aluno, sair e apagar a conta). `null`
   /// (os testes) esconde a seção.
   final AuthStore? authStore;
+
+  /// A seção Trilha de estudo (o N dos trechos, as etapas por mão e os
+  /// andamentos), que é dos hinos. O aprendizado a desliga: lá a mão, o
+  /// tamanho e o andamento são do próprio exercício.
+  final bool showTrail;
+
+  /// A opção "Abrir as músicas já sem acidentes", que é das músicas (o
+  /// transpor). Sem ela, a tela não mostra a seção Transpor.
+  final bool showTranspose;
+
+  /// A barra que varre a página na virada (cor). Só a virada paginada a usa;
+  /// onde a partitura rola, a cor não aparece e a linha sai.
+  final bool showPageBar;
 
   @override
   Widget build(BuildContext context) {
@@ -307,63 +323,17 @@ class GeneralSettingsPanel extends StatelessWidget {
           ],
         ),
       ),
-      const _Header('Transpor'),
-      SwitchListTile(
-        dense: true,
-        title: const Text('Abrir as músicas já sem acidentes'),
-        subtitle: const Text('Cada música pode voltar ao original na gaveta'),
-        value: settings.transposeByDefault,
-        onChanged: (v) => settings.transposeByDefault = v,
-      ),
-      const _Header('Trilha de estudo'),
-      Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        child: TrailNSelector(
-          value: settings.trailMeasures,
-          max: 20,
-          onChanged: (v) => unawaited(_changeTrailN(context, settings, v)),
+      if (showTranspose) ...[
+        const _Header('Transpor'),
+        SwitchListTile(
+          dense: true,
+          title: const Text('Abrir as músicas já sem acidentes'),
+          subtitle: const Text('Cada música pode voltar ao original na gaveta'),
+          value: settings.transposeByDefault,
+          onChanged: (v) => settings.transposeByDefault = v,
         ),
-      ),
-      const Padding(
-        padding: EdgeInsets.fromLTRB(16, 8, 16, 0),
-        child: Text(
-          'Etapas de cada trecho (arraste para mudar a ordem)',
-          style: TextStyle(fontSize: 13, color: kInkCaption),
-        ),
-      ),
-      // Arrastar pela alça muda a ordem; a caixa liga e desliga a etapa.
-      ReorderableListView(
-        shrinkWrap: true,
-        physics: const NeverScrollableScrollPhysics(),
-        buildDefaultDragHandles: false,
-        onReorderItem: (from, to) {
-          final order = [...settings.trailPhaseOrder];
-          order.insert(to, order.removeAt(from));
-          settings.trailPhaseOrder = order;
-        },
-        children: [
-          for (final (i, phase) in settings.trailPhaseOrder.indexed)
-            CheckboxListTile(
-              key: ValueKey(phase),
-              dense: true,
-              controlAffinity: ListTileControlAffinity.leading,
-              title: Text(phase.label),
-              value: settings.trailPhases.contains(phase),
-              // A última marcada não sai: a trilha precisa de alguma etapa.
-              onChanged:
-                  settings.trailPhases.length == 1 &&
-                      settings.trailPhases.contains(phase)
-                  ? null
-                  : (on) => settings.trailPhases = on == true
-                        ? {...settings.trailPhases, phase}
-                        : ({...settings.trailPhases}..remove(phase)),
-              secondary: ReorderableDragStartListener(
-                index: i,
-                child: const Icon(Icons.drag_handle, color: kInkCaption),
-              ),
-            ),
-        ],
-      ),
+      ],
+      const _Header('Ritmo'),
       _SliderRow(
         label: 'Margem do tempo (no andamento original)',
         value: settings.rhythmToleranceMs,
@@ -381,31 +351,82 @@ class GeneralSettingsPanel extends StatelessWidget {
           style: TextStyle(fontSize: 12, color: kInkCaption),
         ),
       ),
-      Padding(
-        padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-        child: Wrap(
-          spacing: 8,
-          crossAxisAlignment: WrapCrossAlignment.center,
+      if (showTrail) ...[
+        const _Header('Trilha de estudo'),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: TrailNSelector(
+            value: settings.trailMeasures,
+            max: 20,
+            onChanged: (v) => unawaited(_changeTrailN(context, settings, v)),
+          ),
+        ),
+        const Padding(
+          padding: EdgeInsets.fromLTRB(16, 8, 16, 0),
+          child: Text(
+            'Etapas de cada trecho (arraste para mudar a ordem)',
+            style: TextStyle(fontSize: 13, color: kInkCaption),
+          ),
+        ),
+        // Arrastar pela alça muda a ordem; a caixa liga e desliga a etapa.
+        ReorderableListView(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          buildDefaultDragHandles: false,
+          onReorderItem: (from, to) {
+            final order = [...settings.trailPhaseOrder];
+            order.insert(to, order.removeAt(from));
+            settings.trailPhaseOrder = order;
+          },
           children: [
-            const Text(
-              'Andamentos no ritmo',
-              style: TextStyle(fontSize: 13, color: kInkCaption),
-            ),
-            for (final speed in kTrailSpeeds)
-              FilterChip(
-                label: Text('${(speed * 100).round()}%'),
-                selected: settings.trailSpeeds.contains(speed),
-                onSelected:
-                    settings.trailSpeeds.length == 1 &&
-                        settings.trailSpeeds.contains(speed)
+            for (final (i, phase) in settings.trailPhaseOrder.indexed)
+              CheckboxListTile(
+                key: ValueKey(phase),
+                dense: true,
+                controlAffinity: ListTileControlAffinity.leading,
+                title: Text(phase.label),
+                value: settings.trailPhases.contains(phase),
+                // A última marcada não sai: a trilha precisa de alguma etapa.
+                onChanged:
+                    settings.trailPhases.length == 1 &&
+                        settings.trailPhases.contains(phase)
                     ? null
-                    : (on) => settings.trailSpeeds = on
-                          ? {...settings.trailSpeeds, speed}
-                          : ({...settings.trailSpeeds}..remove(speed)),
+                    : (on) => settings.trailPhases = on == true
+                          ? {...settings.trailPhases, phase}
+                          : ({...settings.trailPhases}..remove(phase)),
+                secondary: ReorderableDragStartListener(
+                  index: i,
+                  child: const Icon(Icons.drag_handle, color: kInkCaption),
+                ),
               ),
           ],
         ),
-      ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+          child: Wrap(
+            spacing: 8,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              const Text(
+                'Andamentos no ritmo',
+                style: TextStyle(fontSize: 13, color: kInkCaption),
+              ),
+              for (final speed in kTrailSpeeds)
+                FilterChip(
+                  label: Text('${(speed * 100).round()}%'),
+                  selected: settings.trailSpeeds.contains(speed),
+                  onSelected:
+                      settings.trailSpeeds.length == 1 &&
+                          settings.trailSpeeds.contains(speed)
+                      ? null
+                      : (on) => settings.trailSpeeds = on
+                            ? {...settings.trailSpeeds, speed}
+                            : ({...settings.trailSpeeds}..remove(speed)),
+                ),
+            ],
+          ),
+        ),
+      ],
       const _Header('Cores'),
       _ColorRow(
         label: 'Nota certa',
@@ -428,13 +449,14 @@ class GeneralSettingsPanel extends StatelessWidget {
         defaultValue: kPracticeWrongColor,
         onChanged: (c) => settings.practiceWrongColor = c,
       ),
-      _ColorRow(
-        label: 'Barra de virada de página',
-        hint: 'a barra que varre a página',
-        value: settings.barColor,
-        defaultValue: kDefaultBarColor,
-        onChanged: (c) => settings.barColor = c,
-      ),
+      if (showPageBar)
+        _ColorRow(
+          label: 'Barra de virada de página',
+          hint: 'a barra que varre a página',
+          value: settings.barColor,
+          defaultValue: kDefaultBarColor,
+          onChanged: (c) => settings.barColor = c,
+        ),
       _SliderRow(
         label: 'Brilho em volta da nota',
         value: settings.haloWidth,
@@ -524,6 +546,9 @@ class GeneralSettingsScreen extends StatefulWidget {
     this.coursesSection,
     this.onTutorial,
     this.authStore,
+    this.showTrail = true,
+    this.showTranspose = true,
+    this.showPageBar = true,
   });
 
   final AppSettings settings;
@@ -549,6 +574,13 @@ class GeneralSettingsScreen extends StatefulWidget {
 
   /// A sessão conectada (D02): com ela, a tela mostra a seção "Conta".
   final AuthStore? authStore;
+
+  /// Mostra a Trilha de estudo (ver [GeneralSettingsPanel.showTrail]).
+  final bool showTrail;
+
+  /// Mostra o Transpor e a barra de virada (ver [GeneralSettingsPanel]).
+  final bool showTranspose;
+  final bool showPageBar;
 
   @override
   State<GeneralSettingsScreen> createState() => _GeneralSettingsScreenState();
@@ -617,6 +649,9 @@ class _GeneralSettingsScreenState extends State<GeneralSettingsScreen> {
                 onClose: () => Navigator.of(context).pop(),
                 onTutorial: widget.onTutorial,
                 authStore: widget.authStore,
+                showTrail: widget.showTrail,
+                showTranspose: widget.showTranspose,
+                showPageBar: widget.showPageBar,
                 libraries: widget.libraryStore == null
                     ? null
                     : LibrariesSection(
