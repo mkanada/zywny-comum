@@ -58,6 +58,8 @@ class PracticeController {
     this.wrongColor = kPracticeWrongColor,
     this._pendingColor = kPracticePendingColor,
     this.rhythmToleranceMs = kDefaultRhythmToleranceMs,
+    this.adaptiveWindow = false,
+    this.forgiveSounding = false,
   }) : _midiInput = midiInput, // ignore: prefer_initializing_formals
        _track = track {
     if (range != null) {
@@ -92,6 +94,8 @@ class PracticeController {
         speed: scheduler.speed,
         windowOkMs: rhythmToleranceMs,
         windowMaxMs: rhythmToleranceMs * 2,
+        adaptiveWindow: adaptiveWindow,
+        forgiveSounding: forgiveSounding,
       );
       _rt = rt;
       _verdictSub = rt.verdicts.listen(_onVerdict);
@@ -146,6 +150,12 @@ class PracticeController {
   /// como certa; até o dobro dela é "fora do tempo", além disso, perdida.
   /// Em ms musicais, então afrouxa junto com o andamento.
   final double rhythmToleranceMs;
+
+  /// Tempo real: as opções do T10 para passagens rápidas e longas
+  /// ([RealtimeSession.adaptiveWindow], [RealtimeSession.forgiveSounding]).
+  /// Desligadas, a avaliação é a de sempre.
+  final bool adaptiveWindow;
+  final bool forgiveSounding;
 
   final MidiInputService _midiInput;
   final ScoreAudioScheduler scheduler;

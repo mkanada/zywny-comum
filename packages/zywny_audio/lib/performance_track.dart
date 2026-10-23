@@ -62,6 +62,20 @@ class PedalEvent {
   });
 }
 
+/// Uma nota de um ornamento escrito por extenso (T10): a altura e o trecho
+/// da nota principal em que ela soa, em frações da duração dela (0 é o
+/// começo, 1 o fim). O exportador MIDI do Verovio só expande o trêmolo; o
+/// trilo, o mordente e o grupeto saem como a nota escrita, e quem sabe o que
+/// eles tocam (o host) passa a expansão a [PerformanceTrack.withOrnaments].
+@immutable
+class OrnamentNote {
+  const OrnamentNote(this.pitch, this.start, this.end);
+
+  final int pitch;
+  final double start;
+  final double end;
+}
+
 /// Notas da mesma pauta com `onMs` a até [PerformanceTrack.chordToleranceMs]
 /// uma da outra (arpejos escritos não entram aqui — já vêm como onsets
 /// escalonados do Verovio).
@@ -177,6 +191,88 @@ class PerformanceTrack {
       staves: sorted.map((e) => e.staff).toSet(),
     );
   }
+
+  /// O que não se cobra, marcado como ornamento (T10), e o ornamento escrito
+  /// que soa por extenso:
+  ///
+  /// - [expand]: id da nota → as notas do ornamento ([OrnamentNote]). O
+  ///   evento vira as notas, todas com o id dele; a primeira com a altura
+  ///   escrita é a principal e é cobrada (fica com a ligadura), as outras são
+  ///   ornamento. Sem nenhuma na altura escrita, a primeira é a cobrada.
+  /// - [free]: ids que não se cobram (a apojatura breve): viram ornamento.
+  /// - [tremoloHeads]: no ornamento que o Verovio expandiu (o trêmolo, várias
+  ///   entradas do mesmo id com `ornament`), a primeira nota de cada altura é
+  ///   cobrada; as outras continuam ornamento.
+  ///
+  /// Sem nada disso, devolve a própria track.
+  PerformanceTrack withOrnaments({
+    Map<String, List<OrnamentNote>> expand = const {},
+    Set<String> free = const {},
+    bool tremoloHeads = false,
+  }) {
+    if (expand.isEmpty && free.isEmpty && !tremoloHeads) return this;
+    final heads = <String, Set<int>>{};
+    final out = <SoundEvent>[];
+    for (final e in events) {
+      final notes = expand[e.id];
+      if (notes != null && notes.isNotEmpty && !e.ornament) {
+        final length = e.offMs - e.onMs;
+        var principal = notes.indexWhere((n) => n.pitch == e.pitch);
+        if (principal < 0) principal = 0;
+        for (var i = 0; i < notes.length; i++) {
+          final n = notes[i];
+          out.add(
+            _copy(
+              e,
+              pitch: n.pitch,
+              onMs: e.onMs + n.start * length,
+              offMs: e.onMs + n.end * length,
+              ornament: i != principal,
+              tied: i == principal ? e.tied : const [],
+            ),
+          );
+        }
+      } else if (free.contains(e.id)) {
+        out.add(_copy(e, ornament: true));
+      } else if (tremoloHeads &&
+          e.ornament &&
+          (heads[e.id] ??= {}).add(e.pitch)) {
+        out.add(_copy(e, ornament: false));
+      } else {
+        out.add(e);
+      }
+    }
+    out.sort((a, b) {
+      final byOnMs = a.onMs.compareTo(b.onMs);
+      return byOnMs != 0 ? byOnMs : a.pitch.compareTo(b.pitch);
+    });
+    return PerformanceTrack._(
+      events: out,
+      pedal: pedal,
+      durationMs: durationMs,
+      staves: staves,
+    );
+  }
+
+  static SoundEvent _copy(
+    SoundEvent e, {
+    int? pitch,
+    double? onMs,
+    double? offMs,
+    bool? ornament,
+    List<String>? tied,
+  }) => SoundEvent(
+    id: e.id,
+    pitch: pitch ?? e.pitch,
+    onMs: onMs ?? e.onMs,
+    offMs: offMs ?? e.offMs,
+    staff: e.staff,
+    channel: e.channel,
+    program: e.program,
+    velocity: e.velocity,
+    ornament: ornament ?? e.ornament,
+    tied: tied ?? e.tied,
+  );
 
   /// Recorte para as sessões de um intervalo com saltos (J08): só eventos
   /// com `onMs` em `[startMs, endMs)` fora dos vãos. Sem pedal (as sessões

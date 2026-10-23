@@ -324,9 +324,12 @@ class RealtimeSession {
     required this.speed,
     this.windowOkMs = 75,
     this.windowMaxMs = 150,
+    this.adaptiveWindow = false,
+    this.forgiveSounding = false,
   }) : _all = List<SoundEvent>.of(events)
          ..sort((a, b) => a.onMs.compareTo(b.onMs)) {
     _pending = List<SoundEvent>.of(_all);
+    if (adaptiveWindow) _computeWindows();
   }
 
   /// Só os eventos das pautas do aluno entram na avaliação — o resto é
@@ -337,6 +340,8 @@ class RealtimeSession {
     required double speed,
     double windowOkMs = 75,
     double windowMaxMs = 150,
+    bool adaptiveWindow = false,
+    bool forgiveSounding = false,
   }) {
     final events = track.events.where((e) => staves.contains(e.staff));
     return RealtimeSession(
@@ -344,14 +349,75 @@ class RealtimeSession {
       speed: speed,
       windowOkMs: windowOkMs,
       windowMaxMs: windowMaxMs,
+      adaptiveWindow: adaptiveWindow,
+      forgiveSounding: forgiveSounding,
     );
   }
 
   final double speed;
   final double windowOkMs;
   final double windowMaxMs;
+
+  /// T10, para passagens rápidas (desligada: as janelas são as fixas). A
+  /// janela de cada evento encolhe com o vizinho de mesmo pitch na mesma
+  /// pauta: antes da nota, vai até `min(windowMaxMs, metade do intervalo
+  /// até o anterior)`; depois, até `min(windowMaxMs, 3/4 do intervalo até o
+  /// seguinte)` — quem lê se atrasa mais do que se adianta. A de certo é
+  /// `min(windowOkMs, metade do menor intervalo)`. A nota tocada casa com o
+  /// pendente **mais antigo** de mesmo pitch cuja janela a contém (nunca
+  /// pula um pendente para casar com o seguinte), e o evento cuja janela já
+  /// fechou antes dela vira `missed` na hora (não espera o [tick]).
+  final bool adaptiveWindow;
+
+  /// T10: a nota a mais (sem evento para casar) da altura de uma nota que
+  /// soa naquele instante não vira `wrong` — é o dedo que roçou uma nota do
+  /// acorde, a nota repetida do trilo, ou a tocada tarde demais, que já
+  /// contou como `missed`. "Soa" vale do começo da nota (menos a janela de
+  /// certo) ao fim dela, e no ornamento, do começo ao fim do ornamento todo.
+  final bool forgiveSounding;
+
   final List<SoundEvent> _all;
   late List<SoundEvent> _pending;
+
+  /// Com [adaptiveWindow], as janelas de cada evento (por identidade: as
+  /// notas de um ornamento repetem o id): antes, depois e a de certo.
+  final Map<SoundEvent, ({double early, double late, double ok})> _windowOf =
+      Map.identity();
+
+  /// Com [forgiveSounding], o trecho de cada ornamento (id → começo e fim
+  /// das notas dele).
+  Map<String, ({double onMs, double offMs})>? _ornamentSpans;
+
+  void _computeWindows() {
+    final groups = <(int, int), List<SoundEvent>>{};
+    for (final e in _all) {
+      groups.putIfAbsent((e.staff, e.pitch), () => []).add(e);
+    }
+    for (final group in groups.values) {
+      for (var i = 0; i < group.length; i++) {
+        final e = group[i];
+        // Vizinhos no mesmo instante (a mesma tecla em duas vozes) não
+        // encolhem a janela: o mais antigo casa primeiro.
+        double? before, after;
+        for (var j = i - 1; j >= 0 && before == null; j--) {
+          final gap = e.onMs - group[j].onMs;
+          if (gap > 0) before = gap;
+        }
+        for (var j = i + 1; j < group.length && after == null; j++) {
+          final gap = group[j].onMs - e.onMs;
+          if (gap > 0) after = gap;
+        }
+        double cap(double? gap, double share, double limit) =>
+            gap == null || gap * share >= limit ? limit : gap * share;
+        final ok = cap(before, 0.5, cap(after, 0.5, windowOkMs));
+        _windowOf[e] = (
+          early: cap(before, 0.5, windowMaxMs),
+          late: cap(after, 0.75, windowMaxMs),
+          ok: ok,
+        );
+      }
+    }
+  }
 
   final StreamController<NoteVerdict> _verdicts =
       StreamController<NoteVerdict>.broadcast(sync: true);
@@ -363,27 +429,47 @@ class RealtimeSession {
   double get _okMs => windowOkMs;
   double get _maxMs => windowMaxMs;
 
+  /// [delta] (tocada − esperada) cabe na janela de [e]: a fixa, ou a de
+  /// [adaptiveWindow].
+  bool _inWindow(SoundEvent e, double delta) {
+    final w = _windowOf[e];
+    if (w == null) return delta.abs() <= _maxMs;
+    return delta < 0 ? -delta <= w.early : delta <= w.late;
+  }
+
+  /// O fim da janela de [e], em ms musicais.
+  double _windowEnd(SoundEvent e) => e.onMs + (_windowOf[e]?.late ?? _maxMs);
+
+  /// A janela de certo de [e].
+  double _okFor(SoundEvent e) => _windowOf[e]?.ok ?? _okMs;
+
   /// Nota tocada, já em ms musicais. Casa com o evento pendente de mesmo
-  /// pitch mais próximo dentro de [_maxMs]. Ornamentos entram como
-  /// candidatos só para a nota tocada não virar `wrong`: se casarem, são
-  /// consumidos sem veredito (D-TREINO: não cobrados na 1.0).
+  /// pitch mais próximo dentro de [_maxMs] (com [adaptiveWindow], o mais
+  /// antigo cuja janela contém a nota). Ornamentos entram como candidatos
+  /// só para a nota tocada não virar `wrong`: se casarem, são consumidos sem
+  /// veredito (D-TREINO: não cobrados na 1.0).
   void noteOn(int pitch, double musicalMs, {int velocity = 0}) {
+    if (adaptiveWindow) _expire(musicalMs, pitch: pitch);
     SoundEvent? best;
     double? bestDelta;
     SoundEvent? bestOrnament;
     double? bestOrnamentDelta;
 
+    // Com a janela adaptativa, o primeiro que serve (os pendentes estão em
+    // ordem de `onMs`): o mais antigo.
+    bool better(double delta, double? current) =>
+        current == null || (!adaptiveWindow && delta.abs() < current.abs());
+
     for (final e in _pending) {
       if (e.pitch != pitch) continue;
       final delta = musicalMs - e.onMs;
-      if (delta.abs() > _maxMs) continue;
+      if (!_inWindow(e, delta)) continue;
       if (e.ornament) {
-        if (bestOrnamentDelta == null ||
-            delta.abs() < bestOrnamentDelta.abs()) {
+        if (better(delta, bestOrnamentDelta)) {
           bestOrnament = e;
           bestOrnamentDelta = delta;
         }
-      } else if (bestDelta == null || delta.abs() < bestDelta.abs()) {
+      } else if (better(delta, bestDelta)) {
         best = e;
         bestDelta = delta;
       }
@@ -391,7 +477,7 @@ class RealtimeSession {
 
     if (best != null) {
       _pending.remove(best);
-      final kind = bestDelta!.abs() <= _okMs
+      final kind = bestDelta!.abs() <= _okFor(best)
           ? PracticeVerdictKind.correct
           : (bestDelta < 0
                 ? PracticeVerdictKind.early
@@ -413,6 +499,8 @@ class RealtimeSession {
       return;
     }
 
+    if (forgiveSounding && _sounding(pitch, musicalMs)) return;
+
     _verdicts.add(
       NoteVerdict(
         pitch: pitch,
@@ -423,12 +511,49 @@ class RealtimeSession {
     );
   }
 
+  /// Uma nota de altura [pitch] soa em [ms] (ver [forgiveSounding]).
+  bool _sounding(int pitch, double ms) {
+    final spans = _ornamentSpans ??= _buildOrnamentSpans();
+    for (final e in _all) {
+      if (e.onMs - _okMs > ms) break;
+      if (e.pitch != pitch) continue;
+      var offMs = e.offMs;
+      final span = spans[e.id];
+      if (span != null && span.offMs > offMs) offMs = span.offMs;
+      if (ms <= offMs) return true;
+    }
+    return false;
+  }
+
+  Map<String, ({double onMs, double offMs})> _buildOrnamentSpans() {
+    final ids = {
+      for (final e in _all)
+        if (e.ornament) e.id,
+    };
+    final spans = <String, ({double onMs, double offMs})>{};
+    for (final e in _all) {
+      if (!ids.contains(e.id)) continue;
+      final span = spans[e.id];
+      spans[e.id] = span == null
+          ? (onMs: e.onMs, offMs: e.offMs)
+          : (
+              onMs: e.onMs < span.onMs ? e.onMs : span.onMs,
+              offMs: e.offMs > span.offMs ? e.offMs : span.offMs,
+            );
+    }
+    return spans;
+  }
+
   /// Avança o relógio musical: eventos cuja janela (`onMs + janelaMax`) já
   /// passou sem casar viram `missed` — exceto ornamentos, que somem em
   /// silêncio (não cobrados na 1.0).
-  void tick(double musicalNowMs) {
+  void tick(double musicalNowMs) => _expire(musicalNowMs);
+
+  /// O [tick], só para [pitch] quando dado.
+  void _expire(double musicalNowMs, {int? pitch}) {
     _pending.removeWhere((e) {
-      if (musicalNowMs <= e.onMs + _maxMs) return false;
+      if (pitch != null && e.pitch != pitch) return false;
+      if (musicalNowMs <= _windowEnd(e)) return false;
       if (!e.ornament) {
         _verdicts.add(
           NoteVerdict(
