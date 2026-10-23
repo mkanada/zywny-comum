@@ -638,10 +638,18 @@ class ScoreTimeline {
   ///
   /// [maxSweep] é o teto de cada movimento (`ScoreView.maxSweepDuration`) e
   /// [barWidth] a largura da haste em unidades de viewBox (para o "fim").
+  ///
+  /// [leadMeasures] adianta a entrada da haste: com 1, ela já entra no
+  /// penúltimo compasso da página (até [leadMeasures] compassos antes do
+  /// último, e só dos que seguem o último no mesmo sistema), parando no
+  /// começo dele, e então anda para o começo do último — a página nova
+  /// aparece um compasso antes, para quem lê à primeira vista. 0 é a regra do
+  /// cabeçalho.
   SweepCurtain? curtainAt(
     double ms, {
     required Duration maxSweep,
     required double barWidth,
+    int leadMeasures = 0,
   }) {
     final maxMs = maxSweep.inMicroseconds / 1000.0;
     for (var r = 0; r + 1 < _runs.length; r++) {
@@ -652,7 +660,10 @@ class ScoreTimeline {
       final run = _runs[r];
       final next = _runs[r + 1];
       final m = _measures[run.last];
-      final edge = run.last > run.first
+      final lead = _leadOf(run, leadMeasures);
+      final edge = lead > 0
+          ? _leadEdge(ms, run, lead, sweep, maxMs)
+          : run.last > run.first
           ? _multiMeasureEdge(ms, m, sweep)
           : _singleMeasureEdge(ms, m, sweep);
       if (edge != null) {
@@ -721,6 +732,51 @@ class ScoreTimeline {
   /// Borda da haste e desfoque da página revelada ([SweepCurtain.blur]):
   /// inteiro na entrada e na espera, caindo a zero no começo da saída
   /// ([revealBlurAt]).
+  /// Quantos dos [want] compassos de adiantamento valem em [run]: os que
+  /// existem na ocorrência e vêm da esquerda para a direita até o último (o
+  /// último compasso que abre um sistema novo não adianta nada).
+  int _leadOf(_Run run, int want) {
+    var lead = 0;
+    while (lead < want &&
+        run.last - lead - 1 >= run.first &&
+        _measures[run.last - lead - 1].left < _measures[run.last - lead].left) {
+      lead++;
+    }
+    return lead;
+  }
+
+  /// A borda com a entrada adiantada: no compasso `k` de `last - lead` a
+  /// `last`, ela anda do começo do anterior (0 no primeiro) ao começo de `k`
+  /// no primeiro `D` dele e fica; no último, segue a conclusão de sempre.
+  ({double x, double blur})? _leadEdge(
+    double ms,
+    _Run run,
+    int lead,
+    ({double d, double end, double appear, double conc}) sweep,
+    double maxMs,
+  ) {
+    final first = run.last - lead;
+    final from = _measures[first].startMs;
+    if (ms < from || ms >= sweep.conc + sweep.d) {
+      return null;
+    }
+    var k = first;
+    while (k < run.last && ms >= _measures[k + 1].startMs) {
+      k++;
+    }
+    if (k == run.last && ms >= sweep.conc) {
+      return _multiMeasureEdge(ms, _measures[k], sweep);
+    }
+    final m = _measures[k];
+    final d = k == run.last ? sweep.d : _dOf(m, maxMs);
+    final prevX = k == first ? 0.0 : _measures[k - 1].left;
+    final into = ms - m.startMs;
+    if (into >= d) {
+      return (x: m.left, blur: 1);
+    }
+    return (x: prevX + (m.left - prevX) * (into / d), blur: 1);
+  }
+
   ({double x, double blur})? _multiMeasureEdge(
     double ms,
     _Measure m,

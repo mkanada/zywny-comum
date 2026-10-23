@@ -182,6 +182,7 @@ class ScorePlayer {
     this.highlightColor = kDefaultHighlightColor,
     this.maxSweepDuration,
     this.barWidth,
+    this.revealLeadMeasures = 0,
     this.scrollAlignment = 0.3,
     this.scrollDuration = const Duration(milliseconds: 300),
     this.onEntry,
@@ -245,6 +246,11 @@ class ScorePlayer {
   /// `ScoreView`.
   final Duration? maxSweepDuration;
   final double? barWidth;
+
+  /// Quantos compassos antes do último da página a haste começa a revelar a
+  /// seguinte (`ScoreTimeline.curtainAt`, `leadMeasures`). 0 é a regra de
+  /// sempre; quem lê à primeira vista (o treino de leitura) usa 1.
+  final int revealLeadMeasures;
 
   late final ValueNotifier<int> _measureIndex;
   late final ValueNotifier<double?> _tempo;
@@ -619,6 +625,7 @@ class ScorePlayer {
       _positionMs,
       maxSweep: _maxSweepDuration,
       barWidth: _barWidthValue,
+      leadMeasures: revealLeadMeasures,
     );
     final ahead = _resolveAhead(natural, seeking: seeking);
     final SweepCurtain? c;
