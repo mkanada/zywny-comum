@@ -139,6 +139,9 @@ class NativeSoundEngine implements SoundEngine {
 
   @override
   Future<void> start() async {
+    // Já aberto (com o soundfont carregado): uma segunda chamada trocaria o
+    // motor por um mudo.
+    if (_engine != nullptr) return;
     final engine = _bindings.engineNew(preferredBufferFrames);
     if (engine == nullptr) {
       throw StateError('zy_engine_new falhou: ${_lastError()}');
