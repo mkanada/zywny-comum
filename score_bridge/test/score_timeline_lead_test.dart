@@ -80,4 +80,56 @@ void main() {
     expect(_at(tl, 4250, 1), isNull);
     expect(_at(tl, 6100, 1), isNotNull);
   });
+
+  // Relatório de bug 55d: uma página de um compasso seguida de uma de dois. O
+  // primeiro compasso da de dois começa à esquerda do 0 do viewBox (a clave e a
+  // armadura vêm antes dele), e a entrada adiantada ia até lá: uma haste de
+  // borda negativa, que a vista não aceita — e como o player só leva a vista à
+  // página nova quando não há haste, a página velha ficava na tela um compasso
+  // inteiro enquanto a nova já tocava.
+  group('página de dois compassos depois de uma de um', () {
+    ScoreTimeline timeline() {
+      final doc = fakeDocument(
+        [
+          [
+            FakeMeasure('ma', 100, [FakeNote('na', 120)]),
+          ],
+          [
+            FakeMeasure('mb', -95, [FakeNote('nb', -70)]),
+            FakeMeasure('mc', 400, [FakeNote('nc', 420)]),
+          ],
+          [
+            FakeMeasure('md', 100, [FakeNote('nd', 120)]),
+          ],
+        ],
+        [
+          (0.0, ['na'], <String>[]),
+          (2000.0, ['nb'], ['na']),
+          (4000.0, ['nc'], ['nb']),
+          (6000.0, ['nd'], ['nc']),
+          (8000.0, <String>[], ['nd']),
+        ],
+      );
+      return ScoreTimeline(doc);
+    }
+
+    test(
+      'a haste nunca tem borda negativa: sem haste, vale a página de repouso',
+      () {
+        final tl = timeline();
+        for (var ms = 0.0; ms < 8000; ms += 25) {
+          final c = _at(tl, ms, 1);
+          if (c == null) continue;
+          expect(c.edgeX, greaterThanOrEqualTo(0), reason: '$ms ms');
+        }
+        // No 1º compasso da página 1 (2000 a 4000 ms), quando a haste da
+        // página 0 já acabou, a página 1 é a que aparece.
+        expect(_at(tl, 3500, 1), isNull);
+        expect(
+          tl.shownViewAt(3500, maxSweep: _maxSweep, barWidth: _bar),
+          const PageRef(1),
+        );
+      },
+    );
+  });
 }

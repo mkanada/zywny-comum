@@ -13,6 +13,7 @@ import 'package:score_bridge/score_bridge.dart';
 import 'package:zywny_audio/score_audio_scheduler.dart';
 
 import 'package:zywny_midi/midi_input_service.dart';
+import 'package:zywny_diag/diag_log.dart';
 
 import 'package:zywny_audio/performance_track.dart';
 
@@ -100,6 +101,33 @@ class PracticeController {
       _rt = rt;
       _verdictSub = rt.verdicts.listen(_onVerdict);
     }
+    _diagOffState = DiagLog.setState('pratica', _diagSnapshot);
+    DiagLog.log(
+      'pratica',
+      'início modo=${mode.name} mão=${hand.name} '
+          'intervalo=${range == null ? '-' : '${range!.startMs}..${range!.endMs}'}',
+    );
+  }
+
+  late final VoidCallback _diagOffState;
+
+  /// O que a prática sabe agora, para o relatório de bug: as notas que
+  /// soam na posição atual, as que esperam o aluno e os placares.
+  Map<String, Object?> _diagSnapshot() {
+    final pos = scheduler.positionMs;
+    return {
+      'modo': mode.name,
+      'pausada': _paused,
+      'posicaoMs': double.parse(pos.toStringAsFixed(1)),
+      'notasTocando': [
+        for (final e in _track.events)
+          if (e.onMs <= pos && pos < e.offMs) e.id,
+      ],
+      'notasEmEspera': _expectedIds,
+      'acertos': _correctCount.value,
+      'erros': _wrongCount.value,
+      'teclasErradasApertadas': _wrongPitches.value.toList(),
+    };
   }
 
   final PracticeMode mode;
@@ -518,6 +546,13 @@ class PracticeController {
   }
 
   void _onNote(PlayedNote note) {
+    DiagLog.log(
+      'nota',
+      '${note.on ? 'on ' : 'off'} tocada=${note.pitch} vel=${note.velocity} '
+          'canal=${note.channel} t=${note.atSeconds.toStringAsFixed(4)}s '
+          'pos=${scheduler.positionMs.toStringAsFixed(1)}ms'
+          '${_paused ? ' (pausada, ignorada)' : ''}',
+    );
     // Pausada: a tecla não conta, nem como erro nem como acerto.
     if (_paused) return;
     // Uma conversão só, no topo: daqui para baixo tudo é altura escrita.
@@ -596,6 +631,11 @@ class PracticeController {
   }
 
   void _onVerdict(NoteVerdict verdict) {
+    DiagLog.log(
+      'veredito',
+      '${verdict.kind.name} nota=${verdict.pitch} '
+          'id=${verdict.eventId ?? '-'} delta=${verdict.deltaMs.toStringAsFixed(1)}ms',
+    );
     _record(verdict);
     if (verdict.kind == PracticeVerdictKind.wrong) _tally?.wrong();
     switch (verdict.kind) {
@@ -807,6 +847,14 @@ class PracticeController {
   void _onStepChanged() {
     final wait = _wait;
     if (wait == null) return;
+    final shown = wait.current.value;
+    DiagLog.log(
+      'passo',
+      shown == null
+          ? 'fim dos passos'
+          : 'passo ${shown.index} em ${shown.onMs.toStringAsFixed(1)}ms '
+                'esperando ${[for (final n in shown.notes) n.id]}',
+    );
     final range = this.range;
     if (range != null) {
       // Passagem única: o passo anterior concluiu quando o índice troca (a
@@ -964,6 +1012,8 @@ class PracticeController {
   }
 
   void dispose() {
+    DiagLog.log('pratica', 'fim');
+    _diagOffState();
     _tickTimer?.cancel();
     unawaited(_noteSub.cancel());
     unawaited(_verdictSub?.cancel());

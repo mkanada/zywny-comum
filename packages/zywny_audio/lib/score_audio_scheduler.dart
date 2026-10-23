@@ -1,3 +1,4 @@
+// ignore_for_file: prefer_initializing_formals
 // K04: converte a posição musical (ms, o relógio de [PerformanceTrack]) em
 // eventos MIDI agendados no relógio do dispositivo (`SoundEngine.nowSeconds`)
 // — ver docs/plano/K04-agendador-e-play-com-som.md.
@@ -29,6 +30,9 @@
 // enquanto os cliques soam.
 import 'dart:async';
 
+import 'package:flutter/foundation.dart' show VoidCallback;
+import 'package:zywny_diag/diag_log.dart';
+
 import 'performance_track.dart';
 import 'metronome.dart';
 import 'sound_engine.dart';
@@ -52,7 +56,35 @@ class ScoreAudioScheduler {
     // Não dá para virar `this._autoTick`: o parâmetro é público, o campo é
     // privado.
     bool autoTick = true,
-  }) : _autoTick = autoTick; // ignore: prefer_initializing_formals
+  }) : _autoTick = autoTick {
+    // O relatório de bug para o som (e o metrônomo, que sai daqui) e guarda
+    // onde a música estava.
+    _diagOffFreeze = DiagLog.addFreezeHook(() {
+      if (!_running) return;
+      DiagLog.log(
+        'audio',
+        'pausado pelo relatório de bug em ${positionMs.toStringAsFixed(1)}ms',
+      );
+      pause();
+    });
+    _diagOffState = DiagLog.setState('audio', _diagSnapshot);
+  }
+
+  late final VoidCallback _diagOffFreeze;
+  late final VoidCallback _diagOffState;
+
+  Map<String, Object?> _diagSnapshot() => {
+    'tocando': _running,
+    'posicaoMs': double.parse(positionMs.toStringAsFixed(1)),
+    'velocidade': _speed,
+    'metronomo': metronomeOn,
+    'contagem': isCountingIn,
+    'freioMs': _brakeMs,
+    'loop': loop == null ? null : [loop!.startMs, loop!.endMs],
+    'eventos': track.events.length,
+    'relogioMotor': double.parse(engine.nowSeconds.toStringAsFixed(3)),
+    'latenciaSaida': engine.outputLatencySeconds,
+  };
 
   final SoundEngine engine;
   final PerformanceTrack track;
@@ -313,6 +345,11 @@ class ScoreAudioScheduler {
   /// [countIn]: antes de [fromMs], os cliques de `countInBeats` (a contagem inicial,
   /// T04) — a posição fica parada em [fromMs] enquanto eles soam.
   void play(double fromMs, {double? speed, bool countIn = false}) {
+    DiagLog.log(
+      'audio',
+      'play de ${fromMs.toStringAsFixed(1)}ms speed=${speed ?? _speed} '
+          'contagem=$countIn metronomo=$metronomeOn',
+    );
     engine.allNotesOff();
     _reanchor(fromMs, speed: speed);
     _anchorAtEarliest(fromMs);
@@ -335,6 +372,7 @@ class ScoreAudioScheduler {
   void pause() {
     if (!_running) return;
     final ms = positionMs;
+    DiagLog.log('audio', 'pause em ${ms.toStringAsFixed(1)}ms');
     _timer?.cancel();
     _timer = null;
     engine.allNotesOff();
@@ -346,6 +384,7 @@ class ScoreAudioScheduler {
   /// (comportamento comum de sequenciador). Silencia o que estava soando;
   /// se estava tocando, a agenda recomeça da nova posição.
   void seek(double toMs) {
+    DiagLog.log('audio', 'seek para ${toMs.toStringAsFixed(1)}ms');
     engine.allNotesOff();
     final wasRunning = _running;
     _reanchor(toMs);
@@ -359,6 +398,7 @@ class ScoreAudioScheduler {
   /// Troca a velocidade sem perder a posição corrente nem prender notas.
   void setSpeed(double newSpeed) {
     if (newSpeed == _speed) return;
+    DiagLog.log('audio', 'velocidade $_speed -> $newSpeed');
     final ms = positionMs;
     final wasRunning = _running;
     if (wasRunning) engine.allNotesOff();
@@ -371,6 +411,7 @@ class ScoreAudioScheduler {
 
   /// Para e volta ao início.
   void stop() {
+    DiagLog.log('audio', 'stop');
     _timer?.cancel();
     _timer = null;
     engine.allNotesOff();
@@ -379,6 +420,9 @@ class ScoreAudioScheduler {
   }
 
   void dispose() {
+    DiagLog.log('audio', 'agendador descartado');
+    _diagOffFreeze();
+    _diagOffState();
     _timer?.cancel();
     _timer = null;
     engine.allNotesOff();
@@ -542,6 +586,11 @@ class ScoreAudioScheduler {
   void _click(List<ScheduledMidi> midi, Beat b, double earliest) {
     final at = _clamp(_deviceAt(b.ms), earliest);
     final note = b.accent ? kMetronomeAccentNote : kMetronomeNote;
+    DiagLog.log(
+      'metronomo',
+      'clique compasso=${b.measure} ms=${b.ms.toStringAsFixed(1)} '
+          '${b.accent ? 'forte' : 'fraco'}',
+    );
     midi.add(ScheduledMidi(at, 0x90 | kMetronomeChannel, note, 100));
     midi.add(ScheduledMidi(at + 0.05, 0x80 | kMetronomeChannel, note, 0));
   }

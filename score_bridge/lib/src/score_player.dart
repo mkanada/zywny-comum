@@ -62,6 +62,7 @@ import 'package:flutter/painting.dart' show Color;
 import 'model.dart';
 import 'score_controller.dart';
 import 'score_timeline.dart';
+import 'score_trace.dart';
 import 'score_view.dart';
 
 export 'score_timeline.dart' show MeasureInfo, ScoreTimeline;
@@ -198,6 +199,15 @@ class ScorePlayer {
     _measureIndex = ValueNotifier<int>(0);
     _tempo = ValueNotifier<double?>(null);
     _publish(force: true);
+    ScoreTrace.log(
+      'player',
+      () =>
+          'criado: ${timeline.measureCount} compassos, '
+          '${document.pages.length} páginas, '
+          'duração ${traceMs(timeline.durationMs)}ms, '
+          'antecipa $revealLeadMeasures compasso(s), '
+          'vista=${view == null ? 'nenhuma' : _traceView()}',
+    );
   }
 
   final VsbDocument document;
@@ -331,6 +341,15 @@ class ScorePlayer {
     }
     _playing = true;
     _lastElapsed = Duration.zero;
+    _traceBeat = Duration.zero;
+    _traceFrames = 0;
+    ScoreTrace.log(
+      'player',
+      () =>
+          'play em ${traceMs(_positionMs)}ms, relógio='
+          '${clock == null ? 'próprio (x$speed)' : 'do áudio'}, '
+          '${_traceView()}',
+    );
     (_ticker ??= Ticker(_onTick, debugLabel: 'ScorePlayer')).start();
   }
 
@@ -340,6 +359,10 @@ class ScorePlayer {
     }
     _playing = false;
     _ticker?.stop();
+    ScoreTrace.log(
+      'player',
+      () => 'pause em ${traceMs(_positionMs)}ms, ${_traceView()}',
+    );
   }
 
   /// Cancela a virada em curso (a haste, ou a virada adiantada do modo
@@ -365,6 +388,22 @@ class ScorePlayer {
     _lastElapsed = elapsed;
     final sweeping = _stepAhead(delta);
     final c = clock;
+    _traceFrames++;
+    if (ScoreTrace.enabled &&
+        elapsed - _traceBeat >= const Duration(seconds: 1)) {
+      _traceBeat = elapsed;
+      final frames = _traceFrames;
+      _traceFrames = 0;
+      ScoreTrace.log(
+        'player',
+        () =>
+            'andamento: pos=${traceMs(_positionMs)}ms '
+            'relógio=${c == null ? '-' : traceMs(c.positionMs)}ms '
+            '$frames quadros/s, próxima entrada $_next/${_entries.length}, '
+            'compasso ${_measureIndex.value + 1}, '
+            'haste=${_traceCurtain(_curtain.value)}, ${_traceView()}',
+      );
+    }
     if (c != null) {
       final ms = c.positionMs;
       if (ms > _positionMs) {
@@ -474,6 +513,7 @@ class ScorePlayer {
     );
     _positionMs = ms;
     _ahead = null;
+    ScoreTrace.log('player', () => 'seek para ${traceMs(ms)}ms');
     controller.clearHighlights();
     final entries = _entries;
     final active = <String>{};
@@ -603,9 +643,24 @@ class ScorePlayer {
     final index = timeline.measureIndexAt(_positionMs);
     if (_measureIndex.value != index) {
       _measureIndex.value = index;
+      ScoreTrace.log(
+        'player',
+        () =>
+            'compasso ${index + 1}/${timeline.measureCount} '
+            'em ${traceMs(_positionMs)}ms: '
+            'repouso=${_tracePage(timeline.restViewAt(_positionMs))}, '
+            '${_traceView()}',
+      );
     }
     final v = view;
     final attached = v != null && v.isAttached;
+    if (attached != _traceAttached) {
+      _traceAttached = attached;
+      ScoreTrace.log(
+        'player',
+        () => attached ? 'vista ligada' : 'vista NÃO está ligada',
+      );
+    }
     final continuous = attached && v.mode == ScorePageMode.continuousScroll;
     if (continuous) {
       if (_curtain.value != null) {
@@ -647,17 +702,106 @@ class ScorePlayer {
       );
     }
     if (_curtain.value != c) {
+      _traceCurtainChange(_curtain.value, c);
       _curtain.value = c;
     }
     if (c == null && attached) {
       final ref = ahead?.to ?? _shownView;
       if (v.displayedPage != ref) {
+        final before = v.displayedPage;
         v.showPage(ref);
+        ScoreTrace.log(
+          'player',
+          () =>
+              'showPage(${_tracePage(ref)}) em ${traceMs(_positionMs)}ms: '
+              'a vista mostrava ${_tracePage(before)} e agora mostra '
+              '${_tracePage(v.displayedPage)}'
+              '${v.displayedPage == ref ? '' : ' — NÃO obedeceu'}',
+        );
       }
+    }
+    if (c != null && attached && _traceStuckSince(index)) {
+      ScoreTrace.log(
+        'player',
+        () =>
+            'haste sem terminar no compasso ${index + 1} '
+            '(${traceMs(_positionMs)}ms): ${_traceCurtain(c)}, '
+            '${_traceView()}',
+      );
     }
   }
 
+  // -------------------------------------------------------------------------
+  // Rastro (ver `ScoreTrace`)
+  // -------------------------------------------------------------------------
+
+  Duration _traceBeat = Duration.zero;
+  int _traceFrames = 0;
+  bool? _traceAttached;
+  int _traceStuckMeasure = -1;
+  double _traceStuckMs = 0;
+
+  /// `true` (no máximo a cada 2 s) se a haste continua no ar no mesmo
+  /// compasso: sinal de virada que não termina.
+  bool _traceStuckSince(int measure) {
+    if (!ScoreTrace.enabled) return false;
+    if (measure != _traceStuckMeasure) {
+      _traceStuckMeasure = measure;
+      _traceStuckMs = _positionMs;
+      return false;
+    }
+    if (_positionMs - _traceStuckMs < 2000) return false;
+    _traceStuckMs = _positionMs;
+    return true;
+  }
+
+  static String _tracePage(PageRef r) => r.sequence == null
+      ? 'p${r.index + 1}'
+      : 'p${r.index + 1}/alt${r.sequence}';
+
+  String _traceCurtain(SweepCurtain? c) => c == null
+      ? 'nenhuma'
+      : '${_tracePage(c.page)}→${_tracePage(c.target)} '
+            'borda=${c.edgeX.toStringAsFixed(1)} '
+            'desfoque=${c.blur.toStringAsFixed(2)}';
+
+  /// O que a vista diz de si: página corrente, a exibida, se vira.
+  String _traceView() {
+    final v = view;
+    if (v == null) return 'sem vista';
+    if (!v.isAttached) return 'vista desligada';
+    return 'vista: corrente=p${v.currentPage + 1} '
+        'exibida=${_tracePage(v.displayedPage)} '
+        'virando=${v.isTurning} '
+        'modo=${v.mode.name}';
+  }
+
+  void _traceCurtainChange(SweepCurtain? from, SweepCurtain? to) {
+    if (!ScoreTrace.enabled) return;
+    // Só o começo, o fim e a troca de página: nunca por quadro.
+    final started = from == null && to != null;
+    final ended = from != null && to == null;
+    final moved = from != null && to != null && from.page != to.page;
+    if (!started && !ended && !moved) return;
+    ScoreTrace.log(
+      'haste',
+      () =>
+          '${started
+              ? 'começa'
+              : ended
+              ? 'termina'
+              : 'muda de página'} em ${traceMs(_positionMs)}ms '
+          '(compasso ${_measureIndex.value + 1}): '
+          '${ended ? _traceCurtain(from) : _traceCurtain(to)}, '
+          '${_traceView()}',
+    );
+  }
+
   void dispose() {
+    ScoreTrace.log(
+      'player',
+      () => 'descartado em ${traceMs(_positionMs)}ms, ${_traceView()}',
+    );
     _disposed = true;
     _ticker?.dispose();
     _ticker = null;

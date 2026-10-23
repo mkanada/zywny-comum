@@ -11,6 +11,7 @@ import 'package:zywny_auth/zywny_auth.dart';
 
 import '../about/about_screen.dart';
 import '../auth/account_settings_section.dart';
+import '../diag/bug_report_scope.dart';
 
 import 'package:zywny_music/note_names.dart' show NoteNaming;
 
@@ -474,6 +475,28 @@ class GeneralSettingsPanel extends StatelessWidget {
           subtitle: const Text('o passeio pelos botões e telas'),
           trailing: const _RowAction('Rever'),
           onTap: onTutorial,
+        ),
+      if (BugReportScope.current != null)
+        ListTile(
+          dense: true,
+          leading: const Icon(Icons.bug_report_outlined, size: 20),
+          title: const Text('Reportar um bug'),
+          subtitle: const Text(
+            'para tudo, guarda a tela e o registro e gera o arquivo para '
+            'enviar (ou segure três dedos na tela)',
+          ),
+          trailing: const _RowAction('Reportar'),
+          onTap: () {
+            // Fecha as configurações primeiro: a captura é da tela onde o
+            // erro aconteceu, não da lista de opções.
+            onClose();
+            unawaited(
+              Future<void>.delayed(
+                const Duration(milliseconds: 450),
+                BugReportScope.start,
+              ),
+            );
+          },
         ),
       ListTile(
         dense: true,
