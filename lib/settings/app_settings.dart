@@ -5,6 +5,7 @@ import 'package:flutter/painting.dart';
 import 'package:score_bridge/score_bridge.dart' show kDefaultBarColor;
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:zywny_diag/diag_log.dart';
 import 'package:zywny_music/note_names.dart' show NoteNaming;
 
 import '../practice/practice_colors.dart'
@@ -406,8 +407,61 @@ class AppSettings extends ChangeNotifier {
     }
   }
 
+  /// As configurações que mexem no que o aluno vê e ouve, para o relatório
+  /// de bug e o log (cores em hexadecimal).
+  Map<String, Object?> diagSnapshot() {
+    String hex(Color c) => '#${c.toARGB32().toRadixString(16).padLeft(8, '0')}';
+    return {
+      'saida': _output.name,
+      'somLigado': _soundOn,
+      'instrumentosDaPartitura': _useScoreInstruments,
+      'metronomo': _metronomeOn,
+      'modoDeTreino': _practiceMode.name,
+      'corDestaque': hex(_highlightColor),
+      'corPendente': hex(_practicePendingColor),
+      'corErro': hex(_practiceWrongColor),
+      'brilho': _haloWidth,
+      'corDaHaste': hex(_barColor),
+      'margemDoRitmoMs': _rhythmToleranceMs,
+      'nomeDasNotas': _noteNaming.name,
+      'escalaDoTexto': _courseTextScale,
+      'transporPorPadrao': _transposeByDefault,
+      'layoutDaPartitura': _scoreLayout,
+      'paginaCabeNaCaixa': _scorePageFitsBox,
+    };
+  }
+
+  String? _diagLast;
+
+  /// Grava no log o que mudou nas configurações desde a última vez.
+  void _diagLogChange(String why) {
+    try {
+      final now = jsonEncode(diagSnapshot());
+      if (now == _diagLast) return;
+      final before = _diagLast == null
+          ? const <String, Object?>{}
+          : (jsonDecode(_diagLast!) as Map<String, Object?>);
+      _diagLast = now;
+      final after = jsonDecode(now) as Map<String, Object?>;
+      final diff = {
+        for (final e in after.entries)
+          if (jsonEncode(before[e.key]) != jsonEncode(e.value))
+            e.key: before.containsKey(e.key)
+                ? '${jsonEncode(before[e.key])} → ${jsonEncode(e.value)}'
+                : jsonEncode(e.value),
+      };
+      DiagLog.log(
+        'config',
+        before.isEmpty ? '$why: $now' : '$why: ${jsonEncode(diff)}',
+      );
+    } on Object {
+      // O log nunca derruba as configurações.
+    }
+  }
+
   void _changed(Future<void> write) {
     notifyListeners();
+    _diagLogChange('mudou');
     write.catchError((Object e) {
       debugPrint('configurações: não deu para gravar ($e)');
     });
@@ -512,6 +566,8 @@ class AppSettings extends ChangeNotifier {
     _scoreLayout = _decodeScoreLayout(scoreLayout);
     _scorePageFitsBox = scorePageFitsBox ?? _scorePageFitsBox;
     _loaded = true;
+    DiagLog.setState('configuracoes', diagSnapshot);
+    _diagLogChange('carregadas');
     notifyListeners();
   }
 }

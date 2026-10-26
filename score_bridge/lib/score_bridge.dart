@@ -19,6 +19,7 @@ export 'src/score_controller.dart';
 export 'src/score_cursor.dart';
 export 'src/score_page_view.dart';
 export 'src/score_player.dart';
+export 'src/score_trace.dart';
 export 'src/score_view.dart';
 export 'src/segmentation.dart';
 export 'src/text_font.dart';

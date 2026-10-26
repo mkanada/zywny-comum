@@ -666,7 +666,11 @@ class ScoreTimeline {
           : run.last > run.first
           ? _multiMeasureEdge(ms, m, sweep)
           : _singleMeasureEdge(ms, m, sweep);
-      if (edge != null) {
+      // Borda negativa é a haste fora da página (o 1º compasso de uma página
+      // de dois começa à esquerda do 0 do viewBox, com a clave antes dele): a
+      // vista não a aceita, e o player só leva a vista à página nova quando não
+      // há haste. Sem haste, vale a página de repouso.
+      if (edge != null && edge.x >= 0) {
         return SweepCurtain(
           pageIndex: run.view.index,
           edgeX: edge.x,

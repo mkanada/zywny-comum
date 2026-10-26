@@ -52,6 +52,7 @@ import 'model.dart';
 import 'page_layers.dart';
 import 'score_controller.dart';
 import 'score_page_view.dart';
+import 'score_trace.dart';
 import 'scene_walk.dart';
 
 enum ScorePageMode { pagedSweep, pagedSlide, continuousScroll }
@@ -514,7 +515,14 @@ class ScoreViewState extends State<ScoreView> with TickerProviderStateMixin {
     if (page == _current) {
       return;
     }
+    final from = _current;
     _current = page;
+    ScoreTrace.log(
+      'vista',
+      () =>
+          'página corrente p${from + 1} → p${page + 1} '
+          '(de $_pageCount), $_traceOrigin',
+    );
     widget.onPageChanged?.call(page);
     widget.viewController?._notifyPage();
   }
@@ -535,6 +543,7 @@ class ScoreViewState extends State<ScoreView> with TickerProviderStateMixin {
 
   int goToPage(int index) {
     final target = index.clamp(0, _pageCount - 1);
+    _traceOrigin = 'goToPage($index)';
     _shown = null;
     _cancelTurn();
     if (widget.mode == ScorePageMode.continuousScroll) {
@@ -544,6 +553,7 @@ class ScoreViewState extends State<ScoreView> with TickerProviderStateMixin {
       _setCurrent(target);
       setState(() {});
     }
+    _traceOrigin = 'sem origem';
     return target;
   }
 
@@ -647,10 +657,31 @@ class ScoreViewState extends State<ScoreView> with TickerProviderStateMixin {
       );
       return;
     }
+    _traceOrigin = 'showPage pedido pelo player';
     _cancelTurn();
     _applyDisplayed(ref);
     setState(() {});
+    _traceOrigin = 'sem origem';
   }
+
+  /// Quem está mudando a página, para o rastro de [_setCurrent].
+  String _traceOrigin = 'sem origem';
+
+  /// Por que a haste [c] não vale (ou `null` se vale), para o rastro.
+  String? _whyInvalid(SweepCurtain c) {
+    if (widget.mode != ScorePageMode.pagedSweep) {
+      return 'modo ${widget.mode.name}, não é pagedSweep';
+    }
+    if (!_refInRange(c.page)) return 'página ${c.page} fora do documento';
+    if (!_refInRange(c.target)) return 'destino ${c.target} fora do documento';
+    if (c.target == c.page) return 'destino igual à página';
+    final end = _endX(c.page);
+    if (c.edgeX <= 0) return 'borda ${c.edgeX} no começo (<= 0)';
+    if (c.edgeX >= end) return 'borda ${c.edgeX} no fim ($end)';
+    return null;
+  }
+
+  String? _traceLastCurtainNote;
 
   // -------------------------------------------------------------------------
   // Haste
@@ -688,6 +719,13 @@ class ScoreViewState extends State<ScoreView> with TickerProviderStateMixin {
 
   void _onCurtainChanged() {
     if (widget.mode != ScorePageMode.pagedSweep || !mounted || _inUpdate) {
+      ScoreTrace.log(
+        'haste',
+        () =>
+            'mudança de haste IGNORADA: modo=${widget.mode.name} '
+            'montada=$mounted atualizando=$_inUpdate '
+            'haste=${widget.curtain?.value}',
+      );
       return;
     }
     final c = widget.curtain?.value ?? _manual.value;
@@ -696,17 +734,45 @@ class ScoreViewState extends State<ScoreView> with TickerProviderStateMixin {
         c.page == displayedPage &&
         c.edgeX >= _endX(c.page)) {
       // Conclusão: o destino vira a página exibida e a haste some.
+      ScoreTrace.log(
+        'haste',
+        () =>
+            'conclusão: ${c.page} → ${c.target} '
+            '(borda ${c.edgeX.toStringAsFixed(1)} >= ${_endX(c.page).toStringAsFixed(1)})',
+      );
+      _traceOrigin = 'conclusão da haste';
       _cancelSweepAnim();
       if (_manual.value != null) {
         _manual.value = null;
       }
       _applyDisplayed(c.target);
       setState(() {});
+      _traceOrigin = 'sem origem';
       return;
     }
     final active = _activeCurtain;
+    if (c != null && ScoreTrace.enabled) {
+      // Uma nota só por motivo novo (nunca por quadro).
+      final note = active != null
+          ? 'vale; exibida=$displayedPage, haste na página ${c.page}'
+          : 'NÃO vale: ${_whyInvalid(c)}';
+      final key = '$note|${c.page}';
+      if (key != _traceLastCurtainNote) {
+        _traceLastCurtainNote = key;
+        ScoreTrace.log(
+          'haste',
+          () =>
+              'vista recebeu haste ${c.page}→${c.target} '
+              'borda=${c.edgeX.toStringAsFixed(1)}: $note',
+        );
+      }
+    } else if (c == null) {
+      _traceLastCurtainNote = null;
+    }
     if (active != null) {
+      _traceOrigin = 'haste em curso (página ${active.page})';
       _applyDisplayed(active.page);
+      _traceOrigin = 'sem origem';
     }
     setState(() {});
   }

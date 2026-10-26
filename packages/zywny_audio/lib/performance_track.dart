@@ -27,6 +27,12 @@ class SoundEvent {
   final int velocity;
   final bool ornament;
 
+  /// O grupo irregular de que a nota faz parte (T11, a *fioritura*), ou
+  /// `null`. As notas de um mesmo grupo têm o mesmo número; a sessão em tempo
+  /// real cobra as de dentro na ordem, sem a janela de cada uma (ver
+  /// [PerformanceTrack.withOrnaments], `groups`).
+  final int? groupId;
+
   /// Ids das notas de continuação da ligadura (`MidiNote.tied`): não soam
   /// de novo, mas acendem junto com esta — é uma tecla só.
   final List<String> tied;
@@ -42,6 +48,7 @@ class SoundEvent {
     required this.velocity,
     required this.ornament,
     this.tied = const [],
+    this.groupId,
   });
 }
 
@@ -203,14 +210,19 @@ class PerformanceTrack {
   /// - [tremoloHeads]: no ornamento que o Verovio expandiu (o trêmolo, várias
   ///   entradas do mesmo id com `ornament`), a primeira nota de cada altura é
   ///   cobrada; as outras continuam ornamento.
+  /// - [groups]: id da nota → o grupo irregular dela (T11, a *fioritura* de 9
+  ///   notas ou mais): o evento ganha [SoundEvent.groupId].
   ///
   /// Sem nada disso, devolve a própria track.
   PerformanceTrack withOrnaments({
     Map<String, List<OrnamentNote>> expand = const {},
     Set<String> free = const {},
     bool tremoloHeads = false,
+    Map<String, int> groups = const {},
   }) {
-    if (expand.isEmpty && free.isEmpty && !tremoloHeads) return this;
+    if (expand.isEmpty && free.isEmpty && !tremoloHeads && groups.isEmpty) {
+      return this;
+    }
     final heads = <String, Set<int>>{};
     final out = <SoundEvent>[];
     for (final e in events) {
@@ -242,6 +254,12 @@ class PerformanceTrack {
         out.add(e);
       }
     }
+    if (groups.isNotEmpty) {
+      for (var i = 0; i < out.length; i++) {
+        final group = groups[out[i].id];
+        if (group != null) out[i] = _copy(out[i], groupId: group);
+      }
+    }
     out.sort((a, b) {
       final byOnMs = a.onMs.compareTo(b.onMs);
       return byOnMs != 0 ? byOnMs : a.pitch.compareTo(b.pitch);
@@ -261,6 +279,7 @@ class PerformanceTrack {
     double? offMs,
     bool? ornament,
     List<String>? tied,
+    int? groupId,
   }) => SoundEvent(
     id: e.id,
     pitch: pitch ?? e.pitch,
@@ -272,6 +291,7 @@ class PerformanceTrack {
     velocity: e.velocity,
     ornament: ornament ?? e.ornament,
     tied: tied ?? e.tied,
+    groupId: groupId ?? e.groupId,
   );
 
   /// Recorte para as sessões de um intervalo com saltos (J08): só eventos

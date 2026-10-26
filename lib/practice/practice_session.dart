@@ -330,6 +330,7 @@ class RealtimeSession {
          ..sort((a, b) => a.onMs.compareTo(b.onMs)) {
     _pending = List<SoundEvent>.of(_all);
     if (adaptiveWindow) _computeWindows();
+    _computeGroups();
   }
 
   /// Só os eventos das pautas do aluno entram na avaliação — o resto é
@@ -378,6 +379,35 @@ class RealtimeSession {
 
   final List<SoundEvent> _all;
   late List<SoundEvent> _pending;
+
+  /// T11, a *fioritura*: um grupo irregular longo ([SoundEvent.groupId], 3
+  /// eventos ou mais) tem a primeira e a última notas com a janela normal; as
+  /// de dentro valem **na ordem**, com a janela do começo ao fim do grupo (a
+  /// de [windowMaxMs] antes da primeira até [windowMaxMs] depois da última),
+  /// porque o ritmo do grupo é livre: o que importa é ler as notas certas na
+  /// ordem e chegar na seguinte. Uma nota que casa com uma de dentro adiante de
+  /// outra ainda pendente deixa a(s) de trás `missed`; a de trás, tocada depois,
+  /// já não tem para onde ir e vira `wrong`.
+  final Map<SoundEvent, _Fioritura> _inner = Map.identity();
+
+  void _computeGroups() {
+    final groups = <int, List<SoundEvent>>{};
+    for (final e in _all) {
+      final id = e.groupId;
+      if (id != null && !e.ornament) groups.putIfAbsent(id, () => []).add(e);
+    }
+    for (final group in groups.values) {
+      if (group.length < 3) continue;
+      final fioritura = _Fioritura(
+        startMs: group.first.onMs - windowMaxMs,
+        endMs: group.last.onMs + windowMaxMs,
+      );
+      for (var i = 1; i < group.length - 1; i++) {
+        fioritura.order.add(group[i]);
+        _inner[group[i]] = fioritura;
+      }
+    }
+  }
 
   /// Com [adaptiveWindow], as janelas de cada evento (por identidade: as
   /// notas de um ornamento repetem o id): antes, depois e a de certo.
@@ -438,7 +468,8 @@ class RealtimeSession {
   }
 
   /// O fim da janela de [e], em ms musicais.
-  double _windowEnd(SoundEvent e) => e.onMs + (_windowOf[e]?.late ?? _maxMs);
+  double _windowEnd(SoundEvent e) =>
+      _inner[e]?.endMs ?? e.onMs + (_windowOf[e]?.late ?? _maxMs);
 
   /// A janela de certo de [e].
   double _okFor(SoundEvent e) => _windowOf[e]?.ok ?? _okMs;
@@ -463,6 +494,17 @@ class RealtimeSession {
     for (final e in _pending) {
       if (e.pitch != pitch) continue;
       final delta = musicalMs - e.onMs;
+      final inner = _inner[e];
+      if (inner != null) {
+        // A nota de dentro de um grupo: a janela é a do grupo todo, e vale a
+        // mais antiga ainda pendente dessa altura.
+        if (musicalMs < inner.startMs || musicalMs > inner.endMs) continue;
+        if (best == null) {
+          best = e;
+          bestDelta = delta;
+        }
+        continue;
+      }
       if (!_inWindow(e, delta)) continue;
       if (e.ornament) {
         if (better(delta, bestOrnamentDelta)) {
@@ -476,18 +518,19 @@ class RealtimeSession {
     }
 
     if (best != null) {
+      final inner = _inner[best];
+      if (inner != null) _skipBefore(best, inner);
       _pending.remove(best);
-      final kind = bestDelta!.abs() <= _okFor(best)
+      final delta = bestDelta!;
+      final kind = inner != null || delta.abs() <= _okFor(best)
           ? PracticeVerdictKind.correct
-          : (bestDelta < 0
-                ? PracticeVerdictKind.early
-                : PracticeVerdictKind.late);
+          : (delta < 0 ? PracticeVerdictKind.early : PracticeVerdictKind.late);
       _verdicts.add(
         NoteVerdict(
           eventId: best.id,
           pitch: pitch,
           kind: kind,
-          deltaMs: bestDelta,
+          deltaMs: delta,
           velocity: velocity,
         ),
       );
@@ -509,6 +552,24 @@ class RealtimeSession {
         velocity: velocity,
       ),
     );
+  }
+
+  /// [hit] foi a nota de dentro do grupo [group] que a tecla casou: as de dentro
+  /// que vinham antes dela e ainda estão pendentes ficam para trás (`missed`).
+  void _skipBefore(SoundEvent hit, _Fioritura group) {
+    final at = group.order.indexOf(hit);
+    for (var i = 0; i < at; i++) {
+      final skipped = group.order[i];
+      if (!_pending.remove(skipped)) continue;
+      _verdicts.add(
+        NoteVerdict(
+          eventId: skipped.id,
+          pitch: skipped.pitch,
+          kind: PracticeVerdictKind.missed,
+          deltaMs: 0,
+        ),
+      );
+    }
   }
 
   /// Uma nota de altura [pitch] soa em [ms] (ver [forgiveSounding]).
@@ -582,4 +643,14 @@ class RealtimeSession {
   }
 
   void dispose() => unawaited(_verdicts.close());
+}
+
+/// Um grupo irregular longo da [RealtimeSession]: as notas de dentro, na
+/// ordem, e a janela do grupo todo.
+class _Fioritura {
+  _Fioritura({required this.startMs, required this.endMs});
+
+  final double startMs;
+  final double endMs;
+  final List<SoundEvent> order = [];
 }
