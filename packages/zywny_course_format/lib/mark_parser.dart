@@ -6,10 +6,12 @@ import 'field_reader.dart';
 import 'figure_rules.dart';
 import 'lesson_scanner.dart';
 
+import 'package:zywny_music/backing_styles.dart';
 import 'package:zywny_music/chord.dart';
 import 'package:zywny_music/chord_chart.dart';
 import 'package:zywny_music/chord_degree.dart';
 import 'package:zywny_music/chord_voicing.dart';
+import 'package:zywny_music/comping_patterns.dart';
 import 'package:zywny_music/fingering.dart';
 import 'package:zywny_music/note_name.dart';
 import 'package:zywny_music/progressions.dart';
@@ -243,26 +245,45 @@ ChartMark? _chart(Fields f, MarkSegment mark, FileIssues issues) {
 
 /// Confere a grade da marca: o nome da progressão, ou o texto lido pelo leitor
 /// do EX09 (cada erro sai com a coluna). Falso se há erro.
-bool _gradeReads(Fields f, FileIssues issues) {
-  final progression = f.get<String>('progression');
+bool _gradeReads(Fields f, FileIssues issues) => _gradeOf(
+  text: f.get<String>('chart'),
+  progression: f.get<String>('progression'),
+  key: f.get<String>('key') ?? 'C',
+  time: f.get<String>('time') ?? '4/4',
+  textLine: f.lineOf('chart'),
+  progressionLine: f.lineOf('progression'),
+  issues: issues,
+);
+
+/// A grade de uma marca ou de um exercício: o nome da progressão da biblioteca,
+/// ou o texto lido pelo leitor do EX09 (cada erro sai com a coluna).
+bool _gradeOf({
+  required String? text,
+  required String? progression,
+  required String key,
+  required String time,
+  required int textLine,
+  required int progressionLine,
+  required FileIssues issues,
+}) {
   if (progression != null) {
     if (progressionNamed(progression) != null) return true;
     final hint = suggestFor(progression, [
       for (final p in kProgressions) p.name,
     ]);
     issues.error(
-      f.lineOf('progression'),
+      progressionLine,
       'não há a progressão `$progression` na biblioteca'
       '${hint != null ? ' — você quis dizer `$hint`?' : ''}.',
     );
     return false;
   }
   final grade = ChordChart.parse(
-    f.get<String>('chart')!,
-    key: KeySpec.parse(f.get<String>('key') ?? 'C')!,
-    time: f.get<String>('time') ?? '4/4',
+    text!,
+    key: KeySpec.parse(key)!,
+    time: time,
     error: (message, col) =>
-        issues.error(f.lineOf('chart'), 'na grade (coluna $col): $message'),
+        issues.error(textLine, 'na grade (coluna $col): $message'),
   );
   return grade != null;
 }
@@ -319,6 +340,7 @@ ExerciseSpec? _parseExercise(
     issues,
     realtime:
         type == ExerciseType.rhythm ||
+        type == ExerciseType.playChart ||
         ((type == ExerciseType.playScore || type == ExerciseType.playPattern) &&
             f.get<String>('mode') == 'realtime'),
   );
@@ -768,6 +790,8 @@ ExerciseSpec? _buildExercise(
       return _playChord(f, id, title, line, pass, issues);
     case ExerciseType.playPattern:
       return _playPattern(f, id, title, line, pass, issues);
+    case ExerciseType.playChart:
+      return _playChart(f, id, title, line, pass, issues);
     case ExerciseType.listenChord:
       return _listenChord(f, id, title, line, pass, issues);
   }
@@ -1090,6 +1114,229 @@ PlayChordSpec? _playChord(
         _enumOf(ChordPrompt.values, f.get<String>('show')) ??
         ChordPrompt.symbol,
     voiceLeading: f.get<int>('voice-leading'),
+  );
+}
+
+/// `play-chart` (EX11): a grade (texto, ou a progressão da biblioteca com
+/// `chart: {progression, key, bars}`), o molde (um nome da biblioteca, ou o
+/// mapa `pattern: {grid, left, right}`), o andamento e o juiz. Um molde de
+/// outro compasso que a grade é erro; `swing` pede colcheias no molde.
+PlayChartSpec? _playChart(
+  Fields f,
+  String id,
+  String title,
+  int line,
+  Fields? pass,
+  FileIssues issues,
+) {
+  var ok = _keyRules(f, issues);
+  final time = f.get<String>('time') ?? '4/4';
+  final chart = f.values['chart'];
+  final map = chart is Fields ? chart : null;
+  // Com a progressão, o tom vai dentro do `chart`; em texto, é o `key:`.
+  if (map != null && f.has('key')) {
+    issues.error(
+      f.lineOf('key'),
+      '`key` fica dentro de `chart` quando a grade vem da biblioteca: '
+      '`chart: {progression: …, key: …}`.',
+    );
+    ok = false;
+  }
+  final key = map != null
+      ? map.get<String>('key') ?? 'C'
+      : f.get<String>('key') ?? 'C';
+  if (chart == null) return null;
+  final text = map == null ? chart as String : null;
+  final progression = map?.get<String>('progression');
+  if (!_gradeOf(
+    text: text,
+    progression: progression,
+    key: key,
+    time: time,
+    textLine: f.lineOf('chart'),
+    progressionLine: map?.lineOf('progression') ?? f.lineOf('chart'),
+    issues: issues,
+  )) {
+    ok = false;
+  }
+  final pattern = _patternOf(f, issues);
+  if (pattern == null) ok = false;
+  if (pattern?.time != null && pattern!.time != time) {
+    issues.error(
+      f.lineOf('pattern'),
+      'o molde `${pattern.name}` é de ${pattern.time}, e a grade é de $time.',
+    );
+    ok = false;
+  }
+  final swing = f.get<int>('swing');
+  if (pattern != null &&
+      swing != null &&
+      swing != 50 &&
+      !const {6, 8, 16}.contains(pattern.grid)) {
+    issues.error(
+      f.lineOf('swing'),
+      '`swing` pede colcheias no molde, e o `grid` ${pattern.grid} não tem '
+      '(use grid 6, 8 ou 16, ou tire `swing`).',
+    );
+    ok = false;
+  }
+  final bpm = f.get<int>('bpm');
+  if (bpm == null && f.has('beats')) {
+    issues.error(f.lineOf('beats'), '`beats` não vale no `play-chart`.');
+    ok = false;
+  }
+  final backing = pattern == null ? null : _backingOf(f, pattern, time, issues);
+  if (f.has('backing') && backing == null) ok = false;
+  if (!ok || pattern == null) return null;
+  return PlayChartSpec(
+    id: id,
+    title: title,
+    pass: _pass(pass),
+    line: line,
+    chartText: text,
+    progression: progression,
+    progressionBars: map?.get<int>('bars'),
+    key: key,
+    time: time,
+    pattern: pattern,
+    bpm: bpm ?? 80,
+    swing: swing,
+    choruses: f.get<int>('choruses') ?? 1,
+    voicing: f.get<String>('voicing'),
+    split: f.get<Pitch>('split') ?? Pitch.parse('C4'),
+    strict: f.get<bool>('strict') ?? true,
+    omit5: f.get<bool>('omit5') ?? true,
+    strictRhythm: f.get<bool>('strict-rhythm') ?? false,
+    // Com a base, o metrônomo começa desligado (EX12).
+    metronome: f.get<bool>('metronome') ?? backing == null,
+    show: _enumOf(ChartShow.values, f.get<String>('show')) ?? ChartShow.chords,
+    keys: _keyChoice(f),
+    cycle: _enumOf(KeyCycle.values, f.get<String>('cycle')),
+    keyStart:
+        _enumOf(KeyStart.values, f.get<String>('key-start')) ??
+        KeyStart.written,
+    backing: backing,
+  );
+}
+
+/// `backing:` do `play-chart` (EX12): `drums` (só a bateria, sem baixo) ou o
+/// mapa `{style, drums, bass, volume, intro}`. Sem `style:`, é o estilo que
+/// combina com o molde. `null` sem `backing:` ou com erro (o erro já saiu).
+BackingSpec? _backingOf(
+  Fields f,
+  CompingPattern pattern,
+  String time,
+  FileIssues issues,
+) {
+  final raw = f.values['backing'];
+  if (raw == null) return null;
+  final map = raw is Fields ? raw : null;
+  final name = map?.get<String>('style');
+  final BackingStyle style;
+  if (name == null) {
+    style = backingStyleFor(pattern);
+  } else {
+    final named = backingStyleNamed(name);
+    if (named == null) {
+      final hint = suggestFor(name, backingStyleNames);
+      issues.error(
+        map!.lineOf('style'),
+        'não há o estilo `$name` na tabela de estilos'
+        '${hint != null ? ' — você quis dizer `$hint`?' : ''}.',
+      );
+      return null;
+    }
+    style = named;
+  }
+  if (style.time != time) {
+    issues.error(
+      f.lineOf('backing'),
+      'o estilo `${style.name}` é de ${style.time}, e a grade é de $time.',
+    );
+    return null;
+  }
+  // Só com o texto `drums` o baixo é desligado; com o mapa, é a 5ª.
+  final bass = BackingBass.values.firstWhere(
+    (b) => b.wire == (map?.get<String>('bass') ?? (map == null ? 'none' : 'root-fifth')),
+  );
+  if (bass == BackingBass.walking && time == '3/4') {
+    issues.warning(
+      map?.lineOf('bass') ?? f.lineOf('backing'),
+      'walking em 3/4 soa estranho; use `root`.',
+    );
+  }
+  return BackingSpec(
+    style: style,
+    drums: map?.get<bool>('drums') ?? true,
+    bass: bass,
+    volume: map?.get<int>('volume') ?? 70,
+    intro: map?.get<int>('intro') ?? 1,
+  );
+}
+
+/// O `pattern:` do `play-chart`: o nome de um padrão da biblioteca, ou o molde
+/// escrito. `null` se algo está errado (o erro já saiu).
+CompingPattern? _patternOf(Fields f, FileIssues issues) {
+  final raw = f.values['pattern'];
+  if (raw == 'any') return kAnyCompingPattern;
+  if (raw is String) {
+    final pattern = compingPatternNamed(raw);
+    if (pattern != null) return pattern;
+    final hint = suggestFor(raw, compingPatternNames);
+    issues.error(
+      f.lineOf('pattern'),
+      'não há o padrão `$raw` na biblioteca'
+      '${hint != null ? ' — você quis dizer `$hint`?' : ''}.',
+    );
+    return null;
+  }
+  final map = raw as Fields?;
+  if (map == null) return null;
+  final grid = map.get<int>('grid');
+  if (grid == null) return null;
+  if (!const {2, 3, 4, 6, 8, 12, 16}.contains(grid)) {
+    issues.error(
+      map.lineOf('grid'),
+      '`grid` aceita 2, 3, 4, 6, 8, 12 ou 16 partes por compasso (recebi '
+      '$grid).',
+    );
+    return null;
+  }
+  if (!map.has('left') && !map.has('right')) {
+    issues.error(map.blockLine, 'o molde precisa de `left` ou de `right`.');
+    return null;
+  }
+  final rests = List.filled(grid, '.').join(' ');
+  final left = map.get<String>('left') ?? rests;
+  final right = map.get<String>('right') ?? rests;
+  var ok = true;
+  final leftBars = parseCompingLine(
+    left,
+    grid: grid,
+    error: (m) => issues.error(map.lineOf('left'), '`left`: $m.'),
+  );
+  final rightBars = parseCompingLine(
+    right,
+    grid: grid,
+    error: (m) => issues.error(map.lineOf('right'), '`right`: $m.'),
+  );
+  if (leftBars == null || rightBars == null) {
+    ok = false;
+  } else if (leftBars.length != rightBars.length) {
+    issues.error(
+      map.lineOf('right'),
+      '`left` tem ${leftBars.length} compasso(s) e `right` tem '
+      '${rightBars.length}: as duas mãos têm de ter o mesmo.',
+    );
+    ok = false;
+  }
+  if (!ok) return null;
+  return CompingPattern(
+    name: 'molde',
+    grid: grid,
+    left: left,
+    right: right,
+    time: null,
   );
 }
 

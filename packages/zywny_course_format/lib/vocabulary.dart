@@ -65,6 +65,18 @@ enum ValueType {
 
   /// Uma palavra de [KeyDef.values], ou uma lista delas (`inversion:`).
   optionOrList,
+
+  /// `chart:` do `play-chart` (EX11): a grade escrita (texto) ou o mapa
+  /// `{progression, key, bars}`.
+  chartSpec,
+
+  /// `pattern:` do `play-chart` (EX11): um nome da biblioteca (texto) ou o
+  /// mapa `{grid, left, right}`.
+  patternSpec,
+
+  /// `backing:` do `play-chart` (EX12): o texto `drums` ou o mapa
+  /// `{style, drums, bass, volume, intro}`.
+  backingSpec,
 }
 
 @immutable
@@ -308,6 +320,35 @@ const kChordSequences = [
 
 /// Chaves do mapa `chords:` com um sorteio: `qualities` ou `degrees`, mais
 /// as que valem nos dois.
+/// O mapa `chart:` do `play-chart` (EX11), quando a grade vem da biblioteca.
+const kChartMapKeys = <String, KeyDef>{
+  'progression': KeyDef(ValueType.text, required: true),
+  'key': _key,
+  'bars': KeyDef(ValueType.integer, min: 1, max: 40),
+};
+
+/// O mapa `pattern:` do `play-chart` (EX11): o molde escrito no exercício.
+/// `grid` é o número de partes do compasso; `left` e `right` são as linhas.
+const kPatternMapKeys = <String, KeyDef>{
+  'grid': KeyDef(ValueType.integer, required: true, min: 2, max: 16),
+  'left': KeyDef(ValueType.text),
+  'right': KeyDef(ValueType.text),
+};
+
+/// O mapa `backing:` do `play-chart` (EX12). `style` é o nome de um estilo da
+/// tabela (`backing_styles.dart`); sem ele, o do molde de comping.
+const kBackingMapKeys = <String, KeyDef>{
+  'style': KeyDef(ValueType.text),
+  'drums': KeyDef(ValueType.boolean, fallback: 'true'),
+  'bass': KeyDef(
+    ValueType.option,
+    values: ['none', 'root', 'root-fifth', 'walking', 'pattern'],
+    fallback: 'root-fifth',
+  ),
+  'volume': KeyDef(ValueType.integer, min: 0, max: 100, fallback: '70'),
+  'intro': KeyDef(ValueType.integer, min: 0, max: 4, fallback: '1'),
+};
+
 final kChordRandomKeys = <String, KeyDef>{
   'qualities': const KeyDef(ValueType.stringList, minItems: 1),
   'degrees': const KeyDef(ValueType.stringList, minItems: 1),
@@ -348,6 +389,11 @@ const _timedTypes = {
   ExerciseType.playScore,
   ExerciseType.playPattern,
 };
+
+/// A regularidade, o swing e as voltas (EX08) valem também no `play-chart`
+/// (EX11), que é sempre com tempo. O `speed` não: o andamento da grade é o do
+/// autor, e o legato, o pedal e os acentos não têm o que medir numa grade.
+final _meterTypes = {..._timedTypes, ExerciseType.playChart};
 
 const _realtimeNote =
     'só vale com tempo real (`rhythm`, `play-score` e `play-pattern` com '
@@ -410,13 +456,13 @@ final kPassKeys = <String, PassKey>{
   ),
   'steadiness': PassKey(
     const KeyDef(ValueType.integer, min: 10, max: 200),
-    _timedTypes,
+    _meterTypes,
     note: _realtimeNote,
     realtimeOnly: true,
   ),
   'swing': PassKey(
     const KeyDef(ValueType.intRange, min: 1, max: 100),
-    _timedTypes,
+    _meterTypes,
     note: _realtimeNote,
     realtimeOnly: true,
   ),
@@ -426,7 +472,7 @@ final kPassKeys = <String, PassKey>{
   ),
   'choruses': PassKey(
     const KeyDef(ValueType.integer, min: 1, max: 20),
-    _timedTypes,
+    _meterTypes,
     note: _realtimeNote,
     realtimeOnly: true,
   ),
@@ -597,6 +643,38 @@ final _typeKeys = <ExerciseType, Map<String, KeyDef>>{
     // de cada acorde. Com `time-limit`, o validador recusa os dois.
     'bpm': const KeyDef(ValueType.integer, min: 30, max: 200),
     'beats': const KeyDef(ValueType.integer, min: 1, max: 8, fallback: '4'),
+  },
+  // EX11: a grade, o molde e o juiz. O `chart` e o `pattern` são texto ou
+  // mapa (`chartSpec` e `patternSpec`); o resto é como no `play-chord`.
+  ExerciseType.playChart: {
+    'chart': const KeyDef(ValueType.chartSpec, required: true),
+    'key': _key,
+    'time': _time,
+    'pattern': const KeyDef(ValueType.patternSpec, required: true),
+    'bpm': const KeyDef(ValueType.integer, min: 30, max: 240, fallback: '80'),
+    'swing': const KeyDef(ValueType.integer, min: 50, max: 75),
+    'choruses': const KeyDef(ValueType.integer, min: 1, max: 20, fallback: '1'),
+    'keys': const KeyDef(ValueType.keyChoice, minItems: 1),
+    'cycle': KeyDef(ValueType.option, values: _wires(KeyCycle.values)),
+    'key-start': KeyDef(
+      ValueType.option,
+      values: _wires(KeyStart.values),
+      fallback: 'written',
+    ),
+    'split': const KeyDef(ValueType.note, fallback: 'C4'),
+    'voicing': KeyDef(ValueType.option, values: kVoicingShapes.keys.toList()),
+    'strict': const KeyDef(ValueType.boolean, fallback: 'true'),
+    'omit5': const KeyDef(ValueType.boolean, fallback: 'true'),
+    'strict-rhythm': const KeyDef(ValueType.boolean, fallback: 'false'),
+    // Sem `metronome:`, liga-se com o metrônomo, e com a base ele fica
+    // desligado (EX12): o padrão é lido no `mark_parser`, não aqui.
+    'metronome': const KeyDef(ValueType.boolean),
+    'backing': const KeyDef(ValueType.backingSpec),
+    'show': KeyDef(
+      ValueType.option,
+      values: _wires(ChartShow.values),
+      fallback: 'chords',
+    ),
   },
   ExerciseType.playPattern: {
     'pattern': KeyDef(

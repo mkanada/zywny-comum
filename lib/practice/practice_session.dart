@@ -10,8 +10,9 @@ import 'package:flutter/foundation.dart';
 
 import 'package:zywny_audio/performance_track.dart';
 
-/// Como uma nota tocada se compara com o que a partitura esperava.
-enum PracticeVerdictKind { correct, wrong, early, late, missed }
+import 'practice_verdict_kind.dart';
+
+export 'practice_verdict_kind.dart';
 
 /// Resultado de uma nota tocada — ou de um evento não tocado, no caso de
 /// [PracticeVerdictKind.missed], em que não há nota física correspondente.

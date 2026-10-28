@@ -1,6 +1,8 @@
 import 'package:meta/meta.dart';
 
+import 'package:zywny_music/backing_styles.dart';
 import 'package:zywny_music/chord.dart';
+import 'package:zywny_music/comping_patterns.dart';
 import 'package:zywny_music/note_name.dart';
 import 'package:zywny_music/scale.dart';
 
@@ -241,7 +243,8 @@ enum ExerciseType implements WireEnum {
   listenScore('listen-score'),
   playChord('play-chord'),
   listenChord('listen-chord'),
-  playPattern('play-pattern');
+  playPattern('play-pattern'),
+  playChart('play-chart');
 
   const ExerciseType(this.wire);
 
@@ -971,6 +974,140 @@ class PlayChordSpec extends ExerciseSpec {
 
   /// Tempos por acorde, no modo com tempo.
   final int beats;
+}
+
+/// `show:` do `play-chart` (EX11): a grade mostra as cifras ou os graus.
+enum ChartShow implements WireEnum {
+  chords,
+  degrees;
+
+  @override
+  String get wire => name;
+}
+
+/// O baixo da base (EX12): `none`, a fundamental no 1 (`root`), a fundamental
+/// e a 5ª (`root-fifth`), a linha andante (`walking`) ou o baixo do estilo
+/// (`pattern`).
+enum BackingBass implements WireEnum {
+  none,
+  root,
+  rootFifth,
+  walking,
+  pattern;
+
+  @override
+  String get wire => switch (this) {
+    rootFifth => 'root-fifth',
+    _ => name,
+  };
+}
+
+/// A base gerada de um `play-chart` (EX12): o estilo (já resolvido: o do
+/// molde de comping quando o exercício não diz), a bateria, o baixo, o volume
+/// relativo ao piano (0 a 100) e os compassos de base antes da forma.
+class BackingSpec {
+  const BackingSpec({
+    required this.style,
+    required this.drums,
+    required this.bass,
+    required this.volume,
+    required this.intro,
+  });
+
+  final BackingStyle style;
+  final bool drums;
+  final BackingBass bass;
+  final int volume;
+
+  /// Compassos de base antes da forma, no lugar da contagem.
+  final int intro;
+}
+
+/// `play-chart` (EX11): uma grade de acordes tocada no andamento, com um
+/// padrão rítmico aplicado a cada acorde. A grade vem como texto (`chart`) ou
+/// da biblioteca (`progression`); o molde, da biblioteca ou escrito (`pattern`).
+class PlayChartSpec extends ExerciseSpec {
+  const PlayChartSpec({
+    required super.id,
+    required super.title,
+    required super.pass,
+    required super.line,
+    required this.key,
+    required this.time,
+    required this.pattern,
+    required this.bpm,
+    required this.choruses,
+    required this.split,
+    required this.strict,
+    required this.omit5,
+    required this.strictRhythm,
+    required this.metronome,
+    required this.show,
+    required this.keyStart,
+    this.chartText,
+    this.progression,
+    this.progressionBars,
+    this.swing,
+    this.voicing,
+    this.keys,
+    this.cycle,
+    this.backing,
+  }) : assert((chartText == null) != (progression == null));
+
+  @override
+  ExerciseType get type => ExerciseType.playChart;
+
+  /// A grade escrita (o texto do EX09), ou `null` quando vem de [progression].
+  final String? chartText;
+
+  /// O nome da progressão da biblioteca (`I-IV-V-I`), ou `null`.
+  final String? progression;
+
+  /// Quantos compassos a progressão ocupa, ou `null` para o tamanho dela.
+  final int? progressionBars;
+
+  /// O tom e a fórmula da grade. Com `keys` ou `cycle`, é o tom escrito.
+  final String key;
+  final String time;
+
+  /// O molde de comping (EX11): da biblioteca, ou escrito no exercício.
+  final CompingPattern pattern;
+
+  final int bpm;
+
+  /// O swing, de 50 a 75; `null` é o do padrão (67 nos que nascem com swing).
+  final int? swing;
+
+  /// Quantas voltas da forma.
+  final int choruses;
+
+  /// O molde do acorde (`voicing:`, como no `play-chord`), ou `null`.
+  final String? voicing;
+
+  /// A nota que separa as mãos.
+  final Pitch split;
+
+  /// Com `true`, a inversão e o molde pedidos batem exatamente (D-EXE-ACORDE).
+  final bool strict;
+
+  /// A 5ª justa pode faltar nos acordes de sétima ou mais.
+  final bool omit5;
+
+  /// `true`: um ataque fora do padrão reprova (o `strict-rhythm`).
+  final bool strictRhythm;
+
+  /// O clique do metrônomo durante a forma.
+  final bool metronome;
+
+  final ChartShow show;
+
+  /// `keys:` e `cycle:` (EX05): a grade é transposta em cada rodada.
+  final KeyChoice? keys;
+  final KeyCycle? cycle;
+  final KeyStart keyStart;
+
+  /// A base gerada (EX12), ou `null` para só o metrônomo.
+  final BackingSpec? backing;
 }
 
 /// `listen-chord` (EX04): o zywny toca um acorde e o aluno diz a qualidade

@@ -443,6 +443,54 @@ class FieldReader {
           );
           return null;
         }, unique: true);
+      case ValueType.chartSpec:
+        // EX11: a grade escrita (texto) ou o mapa da biblioteca.
+        if (node is YamlMap) {
+          return read(
+            node,
+            kChartMapKeys,
+            firstLine: firstLine,
+            blockLine: line,
+            where: 'em `chart`',
+          );
+        }
+        if (value is String && value.trim().isNotEmpty) return value;
+        return bad(
+          '`chart` precisa ser a grade escrita (texto) ou um mapa como '
+          '`{progression: I-IV-V-I, key: C}`.',
+        );
+      case ValueType.patternSpec:
+        // EX11: o nome de um padrão da biblioteca, ou o molde escrito.
+        if (node is YamlMap) {
+          return read(
+            node,
+            kPatternMapKeys,
+            firstLine: firstLine,
+            blockLine: line,
+            where: 'em `pattern`',
+          );
+        }
+        if (value is String && value.trim().isNotEmpty) return value;
+        return bad(
+          '`pattern` precisa ser o nome de um padrão (como `oom-pah`) ou um '
+          'mapa como `{grid: 8, left: "1 5 6 5 1 5 6 5", right: ". . C . . . C ."}`.',
+        );
+      case ValueType.backingSpec:
+        // EX12: o texto `drums` (só a bateria) ou o mapa da base.
+        if (node is YamlMap) {
+          return read(
+            node,
+            kBackingMapKeys,
+            firstLine: firstLine,
+            blockLine: line,
+            where: 'em `backing`',
+          );
+        }
+        if (value == 'drums') return value;
+        return bad(
+          '`backing` precisa ser `drums` (só a bateria) ou um mapa como '
+          '`{style: shuffle, bass: walking}`.',
+        );
       case ValueType.passMap:
         if (node is! YamlMap) {
           return bad('`pass` precisa ser um mapa, como `{accuracy: 90}`.');
