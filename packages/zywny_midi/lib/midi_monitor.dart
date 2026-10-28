@@ -37,7 +37,7 @@ class MidiMonitor {
   static int _samePitch(int pitch) => pitch;
 
   late final StreamSubscription<PlayedNote> _notesSub;
-  late final StreamSubscription<int> _sustainSub;
+  late final StreamSubscription<SustainChange> _sustainSub;
 
   /// Altura mandada ao motor por nota ligada ainda não desligada: o desligar
   /// usa a mesma, mesmo que a transposição mude no meio da nota.
@@ -58,8 +58,8 @@ class MidiMonitor {
     ]);
   }
 
-  void _onSustain(int value) {
-    _engine.send([0xB0 | kMidiMonitorChannel, 64, value]);
+  void _onSustain(SustainChange change) {
+    _engine.send([0xB0 | kMidiMonitorChannel, 64, change.value]);
   }
 
   /// Note-off para tudo que [MidiInputService.held] ainda lista retido —

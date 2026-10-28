@@ -19,6 +19,7 @@ import 'package:zywny_audio/performance_track.dart';
 
 import 'stage_result.dart';
 import 'hand.dart';
+import 'performance_capture.dart';
 import 'practice_colors.dart';
 import 'practice_mode.dart';
 import 'practice_report.dart';
@@ -67,6 +68,7 @@ class PracticeController {
       assert(range!.startMs < range!.endMs, 'range precisa de startMs < endMs');
     }
     _noteSub = _midiInput.notes.listen(_onNote);
+    _sustainSub = _midiInput.sustain.listen(_onSustain);
     // As sessões avaliam só o que toca: no intervalo, sem os saltos (J08).
     // Sem `range`, é a peça inteira — igual a antes.
     final activeRange = range;
@@ -243,7 +245,40 @@ class PracticeController {
   RealtimeSession? _rt;
 
   late final StreamSubscription<PlayedNote> _noteSub;
+  late final StreamSubscription<SustainChange> _sustainSub;
   StreamSubscription<NoteVerdict>? _verdictSub;
+
+  /// A gravação da execução (EX07): cada tecla e cada movimento do pedal, em
+  /// ms musicais, para os medidores. Não toca a conferência.
+  final PerformanceCapture _capture = PerformanceCapture();
+  PerformanceCapture get capture => _capture;
+
+  /// Índice, na [_capture], da última tecla apertada de cada altura. O
+  /// veredito de uma nota é dessa tecla (no tempo real, na hora; no modo
+  /// espera, quando o acorde fecha, e a última apertada da altura é a que
+  /// fechou).
+  final Map<int, int> _lastPlayedIndex = {};
+
+  /// As notas que a conferência deu como certas ou fora do tempo: a escrita e
+  /// o índice da tocada na [_capture].
+  final List<({SoundEvent written, int index})> _matchedPairs = [];
+
+  Map<(String, int), SoundEvent>? _eventsByIdPitch;
+
+  /// Os pares da conferência, com a nota tocada já com o fim (EX07, item 2).
+  List<MatchedNote> get matches => [
+    for (final pair in _matchedPairs)
+      MatchedNote(written: pair.written, played: _capture.noteAt(pair.index)),
+  ];
+
+  SoundEvent? _eventAt(String id, int pitch) {
+    final map = _eventsByIdPitch ??= {
+      for (final e in _track.events)
+        if (!e.ornament) (e.id, e.pitch): e,
+    };
+    return map[(id, pitch)];
+  }
+
   Timer? _tickTimer;
 
   /// Pausa da rodada (ver [pause]): o agendador parado e as teclas ignoradas.
@@ -557,8 +592,17 @@ class PracticeController {
     if (_paused) return;
     // Uma conversão só, no topo: daqui para baixo tudo é altura escrita.
     final pitch = writtenFromReceived(note.pitch);
+    // A mesma hora musical para a gravação e para o tempo real (EX07).
+    final musicalMs = scheduler.musicalAtDevice(
+      note.atSeconds - inputLatencyMs / 1000,
+    );
     final wait = _wait;
     if (note.on) {
+      _lastPlayedIndex[pitch] = _capture.noteOn(
+        pitch,
+        note.velocity,
+        musicalMs,
+      );
       if (wait != null) {
         wait.noteOn(
           pitch,
@@ -566,13 +610,11 @@ class PracticeController {
           velocity: note.velocity,
         );
       } else {
-        final musicalMs = scheduler.musicalAtDevice(
-          note.atSeconds - inputLatencyMs / 1000,
-        );
         _lastPlayedMusicalMs = musicalMs;
         _rt!.noteOn(pitch, musicalMs, velocity: note.velocity);
       }
     } else {
+      _capture.noteOff(pitch, musicalMs);
       wait?.noteOff(pitch);
       _releaseDone(pitch);
       ghosts?.release(pitch);
@@ -580,6 +622,15 @@ class PracticeController {
         _wrongPitches.value = Set.of(_wrongPitches.value)..remove(pitch);
       }
     }
+  }
+
+  void _onSustain(SustainChange change) {
+    // Pausada, o pedal também não entra na gravação, como as teclas.
+    if (_paused) return;
+    _capture.pedal(
+      change.value,
+      scheduler.musicalAtDevice(change.atSeconds - inputLatencyMs / 1000),
+    );
   }
 
   double _lastPlayedMusicalMs = 0;
@@ -630,6 +681,14 @@ class PracticeController {
     }
   }
 
+  /// Guarda o par da nota certa ou fora do tempo: a escrita e a tocada (EX07).
+  void _pair(NoteVerdict verdict) {
+    final written = _eventAt(verdict.eventId!, verdict.pitch);
+    final index = _lastPlayedIndex[verdict.pitch];
+    if (written == null || index == null) return;
+    _matchedPairs.add((written: written, index: index));
+  }
+
   void _onVerdict(NoteVerdict verdict) {
     DiagLog.log(
       'veredito',
@@ -637,6 +696,12 @@ class PracticeController {
           'id=${verdict.eventId ?? '-'} delta=${verdict.deltaMs.toStringAsFixed(1)}ms',
     );
     _record(verdict);
+    if (verdict.eventId != null &&
+        (verdict.kind == PracticeVerdictKind.correct ||
+            verdict.kind == PracticeVerdictKind.early ||
+            verdict.kind == PracticeVerdictKind.late)) {
+      _pair(verdict);
+    }
     if (verdict.kind == PracticeVerdictKind.wrong) _tally?.wrong();
     switch (verdict.kind) {
       case PracticeVerdictKind.correct:
@@ -1016,6 +1081,7 @@ class PracticeController {
     _diagOffState();
     _tickTimer?.cancel();
     unawaited(_noteSub.cancel());
+    unawaited(_sustainSub.cancel());
     unawaited(_verdictSub?.cancel());
     _wait?.current.removeListener(_onStepChanged);
     _wait?.dispose();

@@ -100,20 +100,21 @@ void main() {
 
     test('CC64 publica em sustain; outros CCs são ignorados', () async {
       final service = _service();
-      final sustainValues = <int>[];
+      final sustainValues = <SustainChange>[];
       final sub = service.sustain.listen(sustainValues.add);
 
       service.handleMessage(
         CCMessage(controller: 64, value: 127),
-        atSeconds: 0,
+        atSeconds: 1.5,
       );
       service.handleMessage(
         CCMessage(controller: 7, value: 90), // volume — fora de escopo
-        atSeconds: 0,
+        atSeconds: 1.6,
       );
       await Future<void>.delayed(Duration.zero);
 
-      expect(sustainValues, [127]);
+      expect(sustainValues.map((c) => c.value), [127]);
+      expect(sustainValues.single.atSeconds, 1.5);
       expect(service.held.value, isEmpty);
       await sub.cancel();
       service.dispose();

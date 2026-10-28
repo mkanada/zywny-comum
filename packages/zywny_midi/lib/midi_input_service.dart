@@ -34,14 +34,29 @@ class PlayedNote {
       '@${atSeconds.toStringAsFixed(3)}s)';
 }
 
+/// Um movimento do pedal de sustain (CC64): o valor cru (0..127) e a hora de
+/// chegada, no mesmo relógio de [PlayedNote.atSeconds] (EX07: a gravação da
+/// execução precisa dela).
+@immutable
+class SustainChange {
+  const SustainChange({required this.value, required this.atSeconds});
+
+  final int value;
+  final double atSeconds;
+
+  @override
+  String toString() =>
+      'SustainChange($value @${atSeconds.toStringAsFixed(3)}s)';
+}
+
 /// Interface única para "quem publica notas tocadas por um teclado MIDI"
 /// (M01) — `lib/main.dart` e o painel de monitor dependem só disto, nunca de
 /// `flutter_midi_command` direto.
 abstract class MidiInputService {
   Stream<PlayedNote> get notes;
 
-  /// CC64 (pedal de sustain), valor cru 0..127.
-  Stream<int> get sustain;
+  /// CC64 (pedal de sustain), com o valor cru 0..127 e a hora.
+  Stream<SustainChange> get sustain;
 
   /// Pitches apertados agora, para o teclado desenhado do monitor.
   ValueListenable<Set<int>> get held;
@@ -89,14 +104,15 @@ class FlutterMidiInputService implements MidiInputService {
   StreamSubscription<MidiDataReceivedEvent>? _sub;
   final StreamController<PlayedNote> _notes =
       StreamController<PlayedNote>.broadcast();
-  final StreamController<int> _sustain = StreamController<int>.broadcast();
+  final StreamController<SustainChange> _sustain =
+      StreamController<SustainChange>.broadcast();
   final ValueNotifier<Set<int>> _held = ValueNotifier(const <int>{});
 
   @override
   Stream<PlayedNote> get notes => _notes.stream;
 
   @override
-  Stream<int> get sustain => _sustain.stream;
+  Stream<SustainChange> get sustain => _sustain.stream;
 
   @override
   ValueListenable<Set<int>> get held => _held;
@@ -138,7 +154,7 @@ class FlutterMidiInputService implements MidiInputService {
           atSeconds: atSeconds,
         );
       case CCMessage(:final controller, :final value) when controller == 64:
-        _sustain.add(value);
+        _sustain.add(SustainChange(value: value, atSeconds: atSeconds));
       default:
         break;
     }

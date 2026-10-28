@@ -168,7 +168,7 @@ class _Midi implements MidiInputService {
   @override
   Stream<PlayedNote> get notes => _notes.stream;
   @override
-  Stream<int> get sustain => const Stream.empty();
+  Stream<SustainChange> get sustain => const Stream.empty();
   @override
   ValueListenable<Set<int>> get held => _held;
 

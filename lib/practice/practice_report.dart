@@ -57,6 +57,18 @@ class MeasureStats {
   );
 }
 
+/// Desvio-padrão da população de [values] (a regularidade do T03 e o medidor
+/// `steadiness`, EX07); 0 sem nenhum valor.
+double stdDevOf(List<double> values) {
+  if (values.isEmpty) return 0;
+  final mean = values.reduce((a, b) => a + b) / values.length;
+  var sq = 0.0;
+  for (final v in values) {
+    sq += (v - mean) * (v - mean);
+  }
+  return math.sqrt(sq / values.length);
+}
+
 class PracticeReport {
   /// [speed]: andamento da sessão — os `deltaMs` do tempo real são musicais,
   /// e o resumo mostra ms de parede (o que o aluno sente).
@@ -95,13 +107,8 @@ class PracticeReport {
     }
     final measures = byMeasure.values.toList()
       ..sort((a, b) => a.index.compareTo(b.index));
-    final mean = deltaCount == 0 ? 0.0 : deltaSum / deltaCount;
-    var sq = 0.0;
-    for (final w in walls) {
-      sq += (w - mean) * (w - mean);
-    }
     return PracticeReport._(
-      stdDevMs: deltaCount == 0 ? 0 : math.sqrt(sq / deltaCount),
+      stdDevMs: stdDevOf(walls),
       correct: correct,
       early: early,
       late: late,
