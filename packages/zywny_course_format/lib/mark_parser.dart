@@ -9,7 +9,9 @@ import 'lesson_scanner.dart';
 import 'package:zywny_music/chord.dart';
 import 'package:zywny_music/chord_degree.dart';
 import 'package:zywny_music/chord_voicing.dart';
+import 'package:zywny_music/fingering.dart';
 import 'package:zywny_music/note_name.dart';
+import 'package:zywny_music/scale.dart';
 
 import 'suggest.dart';
 import 'vocabulary.dart';
@@ -79,6 +81,48 @@ ScoreSource? _scoreSource(Fields f, FileIssues issues, {String? missing}) {
   if (file != null) return FileSource(file);
   issues.error(f.blockLine, missing ?? 'informe `abc` ou `file`.');
   return null;
+}
+
+/// `keys:` do `play-score` (EX05): `all`, `random` ou a lista de tons. Um valor
+/// inválido já deu erro no leitor (e a chave some do `Fields`).
+KeyChoice? _keyChoice(Fields f) {
+  final value = f.get<Object>('keys');
+  if (value is List<Object>) return FixedKeys(value.cast<String>());
+  return switch (value) {
+    'all' => const AllKeys(),
+    'random' => const RandomKeys(),
+    _ => null,
+  };
+}
+
+/// Os tons do `play-score` (EX05) não se misturam: `keys` ou `cycle`, nunca os
+/// dois. O `key-start` pede um dos dois, e com `keys: random` não há começo
+/// para ele.
+bool _keyRules(Fields f, FileIssues issues) {
+  var ok = true;
+  if (f.has('keys') && f.has('cycle')) {
+    issues.error(
+      f.lineOf('cycle'),
+      '`keys` e `cycle` não valem juntos: escolha uma lista de tons ou um ciclo.',
+    );
+    ok = false;
+  }
+  if (f.has('key-start')) {
+    if (!f.has('keys') && !f.has('cycle')) {
+      issues.error(
+        f.lineOf('key-start'),
+        '`key-start` só vale com `keys` ou `cycle`.',
+      );
+      ok = false;
+    } else if (f.get<Object>('keys') == 'random') {
+      issues.error(
+        f.lineOf('key-start'),
+        '`key-start` não vale com `keys: random`: o sorteio não tem começo.',
+      );
+      ok = false;
+    }
+  }
+  return ok;
 }
 
 ScoreMark? _score(Fields f, MarkSegment mark, FileIssues issues) {
@@ -202,7 +246,8 @@ ExerciseSpec? _parseExercise(
     issues,
     realtime:
         type == ExerciseType.rhythm ||
-        (type == ExerciseType.playScore && f.get<String>('mode') == 'realtime'),
+        ((type == ExerciseType.playScore || type == ExerciseType.playPattern) &&
+            f.get<String>('mode') == 'realtime'),
   );
   if (f.failed) return null;
   final spec = _buildExercise(type, f, mark, issues);
@@ -457,6 +502,9 @@ ExerciseSpec? _buildExercise(
           _enumOf(PlayMode.values, f.get<String>('mode')) ?? PlayMode.wait;
       final source = _scoreSource(f, issues);
       if (source == null) return null;
+      final keys = _keyChoice(f);
+      final cycle = _enumOf(KeyCycle.values, f.get<String>('cycle'));
+      if (!_keyRules(f, issues)) return null;
       return PlayScoreSpec(
         id: id,
         title: title,
@@ -469,6 +517,11 @@ ExerciseSpec? _buildExercise(
         mode: mode,
         bpm: f.get<int>('bpm'),
         measures: f.get<MeasureRange>('measures'),
+        keys: keys,
+        cycle: cycle,
+        keyStart:
+            _enumOf(KeyStart.values, f.get<String>('key-start')) ??
+            KeyStart.written,
       );
     case ExerciseType.choice:
       final options = f.get<List<Object>>('options')!.cast<String>();
@@ -628,6 +681,8 @@ ExerciseSpec? _buildExercise(
       );
     case ExerciseType.playChord:
       return _playChord(f, id, title, line, pass, issues);
+    case ExerciseType.playPattern:
+      return _playPattern(f, id, title, line, pass, issues);
     case ExerciseType.listenChord:
       return _listenChord(f, id, title, line, pass, issues);
   }
@@ -636,6 +691,204 @@ ExerciseSpec? _buildExercise(
 /// `play-chord` (EX02): as cifras, a inversão, o molde, a mão e a faixa. Os
 /// erros de cifra, de grau, de inversão e de molde saem já na leitura, com a
 /// linha da chave ou do item.
+/// `play-pattern` (EX06): o padrão, o tom (`key:`, ou `keys:` e `cycle:` como
+/// no `play-score`), a mão e as variações. Chave que só vale com outro padrão é
+/// erro; `fingering: true` num padrão sem dedilhado só avisa.
+PlayPatternSpec? _playPattern(
+  Fields f,
+  String id,
+  String title,
+  int line,
+  Fields? pass,
+  FileIssues issues,
+) {
+  final pattern = _enumOf(PatternKind.values, f.get<String>('pattern'))!;
+  var ok = _keyRules(f, issues);
+  // `key:` é o tom de um padrão só, e o ponto de partida do `cycle:` (EX05);
+  // com `keys:`, a lista já traz os tons.
+  if (f.has('key') && f.has('keys')) {
+    issues.error(
+      f.lineOf('key'),
+      '`key` não vale com `keys`: a lista já traz os tons.',
+    );
+    ok = false;
+  }
+  for (final MapEntry(key: key, value: kinds) in _onlyWithPattern.entries) {
+    if (f.has(key) && !kinds.contains(pattern)) {
+      issues.error(
+        f.lineOf(key),
+        '`$key` só vale com `pattern: ${kinds.map((k) => k.wire).join(' ou ')}`.',
+      );
+      ok = false;
+    }
+  }
+  if (pattern == PatternKind.sequence && !f.has('motif')) {
+    issues.error(
+      f.blockLine,
+      '`pattern: sequence` pede `motif`, com os graus do motivo (como [1, 2, 3, 1]).',
+    );
+    ok = false;
+  }
+  final motif = <int>[];
+  final wires =
+      f.get<List<Object>>('motif')?.cast<String>() ?? const <String>[];
+  for (final wire in wires) {
+    final degree = int.tryParse(wire);
+    if (degree == null || degree < 1 || degree > 7) {
+      issues.error(
+        f.lineOf('motif'),
+        '`motif` tem graus de 1 a 7; recebi `$wire`.',
+      );
+      ok = false;
+    } else {
+      motif.add(degree);
+    }
+  }
+  // O arpejo de 3-5-7-9 (o jazz) é de uma oitava só: a descida é 7 5 3 1.
+  if (f.get<String>('chord') == '3-5-7-9' && (f.get<int>('octaves') ?? 1) > 1) {
+    issues.error(
+      f.lineOf('octaves'),
+      '`chord: 3-5-7-9` vai só até uma oitava (a descida é 7 5 3 1).',
+    );
+    ok = false;
+  }
+  if (!ok) return null;
+
+  final scale = _scaleOf(f.get<String>('scale'));
+  final keys = _keyChoice(f);
+  final cycle = _enumOf(KeyCycle.values, f.get<String>('cycle'));
+  final key = f.get<String>('key') ?? 'C';
+  final octaves = f.get<int>('octaves') ?? 1;
+  if (f.has('fingering') && (f.get<bool>('fingering') ?? true)) {
+    final gap = f.get<String>('hand') == 'contrary'
+        ? 'sem dedilhado na mão contrária: o livro não traz. '
+              'Use `fingering: false` para calar o aviso.'
+        : _fingeringGap(
+            pattern,
+            scale,
+            f.get<String>('chord') ?? 'M',
+            key,
+            keys,
+            cycle,
+            octaves,
+          );
+    if (gap != null) issues.warning(f.lineOf('fingering'), gap);
+  }
+  return PlayPatternSpec(
+    id: id,
+    title: title,
+    pass: _pass(pass),
+    line: line,
+    pattern: pattern,
+    scale: scale,
+    chord: f.get<String>('chord') ?? 'M',
+    chords:
+        _enumOf(PatternChords.values, f.get<String>('chords')) ??
+        PatternChords.triads,
+    style:
+        _enumOf(PatternStyle.values, f.get<String>('style')) ??
+        PatternStyle.block,
+    figure:
+        _enumOf(PatternFigure.values, f.get<String>('figure')) ??
+        PatternFigure.figure1353,
+    order:
+        _enumOf(PatternOrder.values, f.get<String>('order')) ??
+        PatternOrder.order123,
+    source:
+        _enumOf(PatternSource.values, f.get<String>('source')) ??
+        PatternSource.scale,
+    motif: motif,
+    key: key,
+    keys: keys,
+    cycle: cycle,
+    keyStart:
+        _enumOf(KeyStart.values, f.get<String>('key-start')) ??
+        KeyStart.written,
+    octaves: octaves,
+    direction:
+        _enumOf(PatternDirection.values, f.get<String>('direction')) ??
+        PatternDirection.upDown,
+    hand:
+        _enumOf(PatternHand.values, f.get<String>('hand')) ?? PatternHand.right,
+    fingering: f.get<bool>('fingering') ?? true,
+    articulation:
+        _enumOf(PatternArticulation.values, f.get<String>('articulation')) ??
+        PatternArticulation.legato,
+    grouping:
+        _enumOf(PatternGrouping.values, f.get<String>('grouping')) ??
+        PatternGrouping.two,
+    mode: _enumOf(PlayMode.values, f.get<String>('mode')) ?? PlayMode.wait,
+    bpm: f.get<int>('bpm'),
+  );
+}
+
+/// As chaves de `play-pattern` que só valem com alguns padrões (o erro diz
+/// quais).
+const _onlyWithPattern = <String, Set<PatternKind>>{
+  'figure': {PatternKind.brokenChord},
+  'chord': {PatternKind.arpeggio, PatternKind.brokenChord},
+  'chords': {PatternKind.diatonicChords},
+  'style': {PatternKind.diatonicChords},
+  'order': {PatternKind.threeNote},
+  'source': {PatternKind.threeNote},
+  'motif': {PatternKind.sequence},
+};
+
+/// A escala de `scale:` (o padrão é a maior).
+ScaleKind _scaleOf(String? wire) => ScaleKind.values.firstWhere(
+  (scale) => scale.wire == wire,
+  orElse: () => ScaleKind.major,
+);
+
+/// O aviso de `fingering: true` num padrão sem dedilhado, ou `null` quando o
+/// livro traz. Com vários tons (`keys:`, `cycle:`), basta um tom fora da tabela
+/// para avisar.
+String? _fingeringGap(
+  PatternKind pattern,
+  ScaleKind scale,
+  String chord,
+  String key,
+  KeyChoice? keys,
+  KeyCycle? cycle,
+  int octaves,
+) {
+  const none =
+      'sem dedilhado para este padrão: o livro não traz. '
+      'Use `fingering: false` para calar o aviso.';
+  switch (pattern) {
+    case PatternKind.fiveFinger:
+      return null;
+    case PatternKind.arpeggio when chord != 'M' && chord != 'm':
+      // Só a tríade maior e a menor têm dedilhado (Pike, arpejos de duas oitavas).
+      return none;
+    case PatternKind.scale || PatternKind.arpeggio:
+      if (cycle != null || keys != null) {
+        final names = switch (keys) {
+          FixedKeys(keys: final list) => list,
+          _ => const <String>[],
+        };
+        final covered =
+            names.isNotEmpty &&
+            names.every((name) => _hasTable(pattern, scale, name, octaves));
+        return covered ? null : none;
+      }
+      return _hasTable(pattern, scale, key, octaves) ? null : none;
+    default:
+      return none;
+  }
+}
+
+/// Se a tônica [name] (`C`, `Bb`, `Am`) tem dedilhado para o padrão, na mão
+/// direita.
+bool _hasTable(PatternKind pattern, ScaleKind scale, String name, int octaves) {
+  final key = KeySpec.parse(name);
+  if (key == null) return false;
+  if (pattern == PatternKind.arpeggio) {
+    return arpeggioFingering(key, right: true, octaves: octaves) != null;
+  }
+  return scaleFingering(scale, key, right: true, octaves: octaves) != null;
+}
+
 PlayChordSpec? _playChord(
   Fields f,
   String id,

@@ -1,5 +1,6 @@
 import 'package:meta/meta.dart';
 import 'package:zywny_music/chord_voicing.dart';
+import 'package:zywny_music/scale.dart';
 
 import 'course_model.dart';
 
@@ -42,6 +43,9 @@ enum ValueType {
   /// `https://…`
   link,
   keyName,
+
+  /// `keys:` do `play-score` (EX05): `all`, `random` ou uma lista de tons.
+  keyChoice,
   timeSignature,
 
   /// `5-12` ou `5`.
@@ -265,6 +269,19 @@ const kVoicingShapes = <String, VoicingShape>{
   'split-ext': VoicingShape.splitExt,
 };
 
+/// As qualidades de `chord:` do `play-pattern` (EX06): as do `play-chord` mais
+/// o `3-5-7-9` (o arpejo de jazz, Pike 26 e 27; Rawlins 8).
+const kPatternChordQualities = [
+  'M',
+  'm',
+  '7',
+  'maj7',
+  'm7',
+  'm7b5',
+  'dim7',
+  '3-5-7-9',
+];
+
 /// As sequências de `sequence:` (EX00, "Ciclos e sequência de tons").
 const kChordSequences = [
   'random',
@@ -317,9 +334,9 @@ final kPassKeys = <String, PassKey>{
   ),
   'speed': PassKey(
     const KeyDef(ValueType.integer, min: 25, max: 200, fallback: '100'),
-    {ExerciseType.rhythm, ExerciseType.playScore},
+    {ExerciseType.rhythm, ExerciseType.playScore, ExerciseType.playPattern},
     note:
-        'só vale com tempo real (`rhythm` e `play-score` com '
+        'só vale com tempo real (`rhythm`, `play-score` e `play-pattern` com '
         '`mode: realtime`)',
   ),
   'time-limit': PassKey(const KeyDef(ValueType.integer, min: 1, max: 120), {
@@ -403,6 +420,15 @@ final _typeKeys = <ExerciseType, Map<String, KeyDef>>{
     ),
     'bpm': const KeyDef(ValueType.integer, min: 30, max: 240),
     'measures': const KeyDef(ValueType.measureRange),
+    // EX05: transpor por rodada. `keys` e `cycle` não valem juntos (o leitor
+    // confere); `key-start` só com um dos dois.
+    'keys': const KeyDef(ValueType.keyChoice, minItems: 1),
+    'cycle': KeyDef(ValueType.option, values: _wires(KeyCycle.values)),
+    'key-start': KeyDef(
+      ValueType.option,
+      values: _wires(KeyStart.values),
+      fallback: 'written',
+    ),
   },
   ExerciseType.choice: {
     'question': const KeyDef(ValueType.text, required: true),
@@ -491,6 +517,87 @@ final _typeKeys = <ExerciseType, Map<String, KeyDef>>{
     // de cada acorde. Com `time-limit`, o validador recusa os dois.
     'bpm': const KeyDef(ValueType.integer, min: 30, max: 200),
     'beats': const KeyDef(ValueType.integer, min: 1, max: 8, fallback: '4'),
+  },
+  ExerciseType.playPattern: {
+    'pattern': KeyDef(
+      ValueType.option,
+      required: true,
+      values: _wires(PatternKind.values),
+    ),
+    'scale': KeyDef(
+      ValueType.option,
+      values: [for (final scale in ScaleKind.values) scale.wire],
+      fallback: 'major',
+    ),
+    'chord': KeyDef(
+      ValueType.option,
+      values: kPatternChordQualities,
+      fallback: 'M',
+    ),
+    'chords': KeyDef(
+      ValueType.option,
+      values: _wires(PatternChords.values),
+      fallback: 'triads',
+    ),
+    'style': KeyDef(
+      ValueType.option,
+      values: _wires(PatternStyle.values),
+      fallback: 'block',
+    ),
+    'figure': KeyDef(
+      ValueType.option,
+      values: _wires(PatternFigure.values),
+      fallback: '1353',
+    ),
+    'order': KeyDef(
+      ValueType.option,
+      values: _wires(PatternOrder.values),
+      fallback: '123',
+    ),
+    'source': KeyDef(
+      ValueType.option,
+      values: _wires(PatternSource.values),
+      fallback: 'scale',
+    ),
+    // Os graus do motivo (1 a 7); a faixa é conferida pelo leitor.
+    'motif': const KeyDef(ValueType.stringList, minItems: 2),
+    // EX05: o tom de um padrão só, ou a lista e o ciclo (não valem juntos).
+    'key': const KeyDef(ValueType.keyName, fallback: 'C'),
+    'keys': const KeyDef(ValueType.keyChoice, minItems: 1),
+    'cycle': KeyDef(ValueType.option, values: _wires(KeyCycle.values)),
+    'key-start': KeyDef(
+      ValueType.option,
+      values: _wires(KeyStart.values),
+      fallback: 'written',
+    ),
+    'octaves': const KeyDef(ValueType.integer, min: 1, max: 4, fallback: '1'),
+    'direction': KeyDef(
+      ValueType.option,
+      values: _wires(PatternDirection.values),
+      fallback: 'up-down',
+    ),
+    'hand': KeyDef(
+      ValueType.option,
+      values: _wires(PatternHand.values),
+      fallback: 'right',
+    ),
+    'fingering': const KeyDef(ValueType.boolean, fallback: 'true'),
+    'articulation': KeyDef(
+      ValueType.option,
+      values: _wires(PatternArticulation.values),
+      fallback: 'legato',
+    ),
+    'grouping': KeyDef(
+      ValueType.option,
+      values: _wires(PatternGrouping.values),
+      fallback: '2',
+    ),
+    'mode': KeyDef(
+      ValueType.option,
+      values: _wires(PlayMode.values),
+      fallback: 'wait',
+    ),
+    'bpm': const KeyDef(ValueType.integer, min: 30, max: 240),
   },
   ExerciseType.listenChord: {
     'answer': KeyDef(

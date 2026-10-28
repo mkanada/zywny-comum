@@ -2,6 +2,7 @@ import 'package:meta/meta.dart';
 
 import 'package:zywny_music/chord.dart';
 import 'package:zywny_music/note_name.dart';
+import 'package:zywny_music/scale.dart';
 
 /// Valor do formato como aparece no arquivo (`type: play-notes`).
 abstract interface class WireEnum {
@@ -239,7 +240,8 @@ enum ExerciseType implements WireEnum {
   listenInterval('listen-interval'),
   listenScore('listen-score'),
   playChord('play-chord'),
-  listenChord('listen-chord');
+  listenChord('listen-chord'),
+  playPattern('play-pattern');
 
   const ExerciseType(this.wire);
 
@@ -583,6 +585,53 @@ class CountBeatsSpec extends ExerciseSpec {
   final int count;
 }
 
+/// `keys:` do `play-score` (EX05): os tons em que a partitura toca, rodada a
+/// rodada. Ausente, a partitura toca no tom escrito.
+sealed class KeyChoice {
+  const KeyChoice();
+}
+
+/// `keys: [C, G, F]`: os tons na ordem escrita; a rodada N usa o N-ésimo.
+class FixedKeys extends KeyChoice {
+  const FixedKeys(this.keys);
+
+  final List<String> keys;
+}
+
+/// `keys: all`: os 12 tons, em ordem sorteada uma vez por sessão.
+class AllKeys extends KeyChoice {
+  const AllKeys();
+}
+
+/// `keys: random`: um tom sorteado a cada rodada.
+class RandomKeys extends KeyChoice {
+  const RandomKeys();
+}
+
+/// `cycle:` do `play-score` (EX05): a rodada N usa o N-ésimo tom do ciclo, a
+/// partir do tom escrito (`5ths` desce em quintas, como o `cycle-5` do EX01).
+enum KeyCycle implements WireEnum {
+  fifths('5ths'),
+  fourths('4ths'),
+  chromatic('chromatic'),
+  wholeTone('whole-tone');
+
+  const KeyCycle(this.wire);
+
+  @override
+  final String wire;
+}
+
+/// `key-start:` (EX05): o ciclo ou a lista começa no tom escrito, ou num tom
+/// diferente a cada dia (`rotate`, Pike 7).
+enum KeyStart implements WireEnum {
+  written,
+  rotate;
+
+  @override
+  String get wire => name;
+}
+
 class PlayScoreSpec extends ExerciseSpec {
   const PlayScoreSpec({
     required super.id,
@@ -594,6 +643,9 @@ class PlayScoreSpec extends ExerciseSpec {
     required this.mode,
     this.bpm,
     this.measures,
+    this.keys,
+    this.cycle,
+    this.keyStart = KeyStart.written,
   });
 
   @override
@@ -604,6 +656,15 @@ class PlayScoreSpec extends ExerciseSpec {
   final PlayMode mode;
   final int? bpm;
   final MeasureRange? measures;
+
+  /// `keys:` (EX05), ou `null` para o tom escrito. Não vale junto com [cycle].
+  final KeyChoice? keys;
+
+  /// `cycle:` (EX05), ou `null`. Não vale junto com [keys].
+  final KeyCycle? cycle;
+
+  /// `key-start:` (EX05): só vale com [keys] ou [cycle].
+  final KeyStart keyStart;
 }
 
 class ChoiceSpec extends ExerciseSpec {
@@ -889,4 +950,207 @@ class ListenChordSpec extends ExerciseSpec {
 
   /// `function`: os graus que podem soar. Vazio no `quality`.
   final List<String> degrees;
+}
+
+/// `pattern:` do `play-pattern` (EX06): o padrão técnico que o app gera.
+enum PatternKind implements WireEnum {
+  fiveFinger('five-finger'),
+  scale('scale'),
+  arpeggio('arpeggio'),
+  brokenChord('broken-chord'),
+  diatonicChords('diatonic-chords'),
+  threeNote('three-note'),
+  sequence('sequence'),
+  chromatic('chromatic');
+
+  const PatternKind(this.wire);
+
+  @override
+  final String wire;
+}
+
+/// `hand:` do `play-pattern`: uma mão, as duas em oitavas paralelas, ou as
+/// duas em movimento contrário.
+enum PatternHand implements WireEnum {
+  right,
+  left,
+  both,
+  contrary;
+
+  @override
+  String get wire => name;
+}
+
+/// `direction:` do `play-pattern`: a escala sobe e desce, só sobe ou só desce.
+enum PatternDirection implements WireEnum {
+  upDown('up-down'),
+  up('up'),
+  down('down');
+
+  const PatternDirection(this.wire);
+
+  @override
+  final String wire;
+}
+
+/// `articulation:` do `play-pattern` (Pearl 7, "articulação variada").
+enum PatternArticulation implements WireEnum {
+  legato('legato'),
+  staccato('staccato'),
+  twoSlurred('two-slurred'),
+  accentFirst('accent-first');
+
+  const PatternArticulation(this.wire);
+
+  @override
+  final String wire;
+}
+
+/// `grouping:` do `play-pattern`: o agrupamento rítmico das notas.
+enum PatternGrouping implements WireEnum {
+  four('4'),
+  three('3'),
+  two('2'),
+  dotted('dotted'),
+  swing('swing');
+
+  const PatternGrouping(this.wire);
+
+  @override
+  final String wire;
+}
+
+/// `chords:` do `diatonic-chords`: as tríades ou as tétrades do campo harmônico.
+enum PatternChords implements WireEnum {
+  triads,
+  sevenths;
+
+  @override
+  String get wire => name;
+}
+
+/// `style:` do `diatonic-chords`: em bloco ou quebrado.
+enum PatternStyle implements WireEnum {
+  block,
+  broken;
+
+  @override
+  String get wire => name;
+}
+
+/// `figure:` do `broken-chord`: a ordem das notas do acorde quebrado.
+enum PatternFigure implements WireEnum {
+  figure1353('1353'),
+  alberti('alberti'),
+  figure15810('15810'),
+  guitar('guitar'),
+  blues('blues');
+
+  const PatternFigure(this.wire);
+
+  @override
+  final String wire;
+}
+
+/// `order:` do `three-note`: a ordem das três notas do padrão (1, 2 e 3 são as
+/// posições).
+enum PatternOrder implements WireEnum {
+  order123('123'),
+  order132('132'),
+  order213('213'),
+  order231('231'),
+  order312('312'),
+  order321('321');
+
+  const PatternOrder(this.wire);
+
+  @override
+  final String wire;
+}
+
+/// `source:` do `three-note`: as três notas são graus consecutivos da escala
+/// (`scale`) ou as notas de cada tríade (`chord`).
+enum PatternSource implements WireEnum {
+  chord,
+  scale;
+
+  @override
+  String get wire => name;
+}
+
+/// `play-pattern` (EX06): o app gera a partitura de um padrão técnico, em
+/// qualquer tom, com o dedilhado e as articulações que o padrão pede.
+class PlayPatternSpec extends ExerciseSpec {
+  const PlayPatternSpec({
+    required super.id,
+    required super.title,
+    required super.pass,
+    required super.line,
+    required this.pattern,
+    required this.scale,
+    required this.chord,
+    required this.chords,
+    required this.style,
+    required this.figure,
+    required this.order,
+    required this.source,
+    required this.octaves,
+    required this.direction,
+    required this.hand,
+    required this.fingering,
+    required this.articulation,
+    required this.grouping,
+    required this.mode,
+    required this.key,
+    this.motif = const [],
+    this.keys,
+    this.cycle,
+    this.keyStart = KeyStart.written,
+    this.bpm,
+  });
+
+  @override
+  ExerciseType get type => ExerciseType.playPattern;
+
+  final PatternKind pattern;
+
+  /// `scale:` (com `scale` e `three-note`): a escala de onde saem as notas.
+  final ScaleKind scale;
+
+  /// `chord:` (com `arpeggio` e `broken-chord`): a qualidade do acorde (`M`,
+  /// `m`, `7`, `maj7`, `m7`, `m7b5`, `dim7`, `3-5-7-9`).
+  final String chord;
+
+  final PatternChords chords;
+  final PatternStyle style;
+  final PatternFigure figure;
+  final PatternOrder order;
+  final PatternSource source;
+
+  /// `motif:` (com `sequence`): os graus do motivo, de 1 a 7, base 1.
+  final List<int> motif;
+
+  /// O tom do padrão (`key:`), quando não há `keys:` nem `cycle:`.
+  final String key;
+
+  /// `keys:` e `cycle:` (EX05), ou `null` para o tom de [key].
+  final KeyChoice? keys;
+  final KeyCycle? cycle;
+  final KeyStart keyStart;
+
+  /// De 1 a 4 oitavas.
+  final int octaves;
+  final PatternDirection direction;
+  final PatternHand hand;
+
+  /// `fingering:`: escreve o dedilhado quando o livro (ou a regra do padrão)
+  /// tem um para o caso.
+  final bool fingering;
+
+  final PatternArticulation articulation;
+  final PatternGrouping grouping;
+
+  /// `mode:` e `bpm:`, como no `play-score`.
+  final PlayMode mode;
+  final int? bpm;
 }

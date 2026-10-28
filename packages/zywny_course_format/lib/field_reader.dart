@@ -346,6 +346,23 @@ class FieldReader {
                     '(`$value`)' : ''}; use ${kKeyNames.take(15).join(', ')} ou '
           'o menor com `m` (Am, Em…).',
         );
+      case ValueType.keyChoice:
+        // EX05: `all` e `random` são palavras; a lista traz tons, com a mesma
+        // validação do `key:`.
+        if (node is! YamlList) {
+          return _option(key, value, const ['all', 'random'], bad);
+        }
+        return _list(key, node, def, fields, firstLine, bad, (item, l) {
+          final v = item.value;
+          if (v is String && kKeyNames.contains(v)) return v;
+          issues.error(
+            l,
+            '`$key` não é um tom que o formato conhece'
+            '${v is String ? ' (`$v`)' : ''}; use ${kKeyNames.take(15).join(', ')} '
+            'ou o menor com `m` (Am, Em…).',
+          );
+          return null;
+        }, unique: true);
       case ValueType.timeSignature:
         if (value is String && kTimeSignatures.contains(value)) return value;
         return bad(
@@ -432,6 +449,8 @@ class FieldReader {
     Object? Function(String) bad,
   ) {
     if (value is String && values.contains(value)) return value;
+    // `grouping: 4` e `order: 132` são números no YAML; a palavra é o texto.
+    if (value is int && values.contains('$value')) return '$value';
     final hint = value is String ? suggestFor(value, values) : null;
     bad(
       '`$key` aceita ${values.join(', ')}'

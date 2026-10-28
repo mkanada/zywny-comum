@@ -855,5 +855,165 @@ roots: {random: C3-G4, count: 4}
       final line = _messages(result).firstWhere((m) => m.contains('zzzzzz'));
       expect(line, contains('chaves aceitas na marca `zywny-audio`'));
     });
+
+    // EX05: o play-score transposto (`keys`, `cycle` e `key-start`).
+    test('play-score lê keys (lista, all, random) e cycle', () async {
+      final result = await _read('''
+```zywny-exercise
+id: n2-cinco-dedos
+type: play-score
+title: Cinco dedos em vários tons
+abc: |
+  X:1
+  L:1/4
+  K:C
+  CDEF|GFED|C4|]
+keys: [C, G, D, F]
+pass: {accuracy: 90, rounds: 4}
+```
+
+```zywny-exercise
+id: n5-lick-ciclo
+type: play-score
+title: O lick pelo ciclo de quintas
+abc: "CDEF|"
+cycle: 5ths
+key-start: rotate
+mode: realtime
+pass: {accuracy: 85, rounds: 10}
+```
+
+```zywny-exercise
+id: n2-todos
+type: play-score
+title: Todos os tons
+abc: "CDEF|"
+keys: all
+pass: {accuracy: 90}
+```
+
+```zywny-exercise
+id: n2-sorteio
+type: play-score
+title: Um sorteado
+abc: "CDEF|"
+keys: random
+pass: {accuracy: 90}
+```
+''');
+      expect(_messages(result), isEmpty);
+      final specs = result.course!.lessons.single.exercises.toList();
+      final fixed = specs[0] as PlayScoreSpec;
+      expect((fixed.keys as FixedKeys).keys, ['C', 'G', 'D', 'F']);
+      expect(fixed.cycle, isNull);
+      expect(fixed.keyStart, KeyStart.written);
+      final cycled = specs[1] as PlayScoreSpec;
+      expect(cycled.keys, isNull);
+      expect(cycled.cycle, KeyCycle.fifths);
+      expect(cycled.keyStart, KeyStart.rotate);
+      expect((specs[2] as PlayScoreSpec).keys, isA<AllKeys>());
+      expect((specs[3] as PlayScoreSpec).keys, isA<RandomKeys>());
+    });
+
+    test('play-score sem keys nem cycle toca no tom escrito', () async {
+      final result = await _read('''
+```zywny-exercise
+id: n1
+type: play-score
+title: Escrita
+abc: "CDEF|"
+```
+''');
+      final spec = result.course!.lessons.single.exercises.single as PlayScoreSpec;
+      expect(spec.keys, isNull);
+      expect(spec.cycle, isNull);
+      expect(spec.keyStart, KeyStart.written);
+    });
+
+    test('play-score: tom que o formato não conhece, keys com cycle, '
+        'key-start sem o que começar e com keys: random', () async {
+      final result = await _read('''
+```zywny-exercise
+id: a
+type: play-score
+title: A
+abc: "CDEF|"
+keys: [C, H]
+```
+
+```zywny-exercise
+id: b
+type: play-score
+title: B
+abc: "CDEF|"
+keys: [C, G]
+cycle: 4ths
+```
+
+```zywny-exercise
+id: c
+type: play-score
+title: C
+abc: "CDEF|"
+key-start: rotate
+```
+
+```zywny-exercise
+id: d
+type: play-score
+title: D
+abc: "CDEF|"
+keys: random
+key-start: rotate
+```
+''');
+      final messages = _messages(result);
+      expect(messages, hasLength(4));
+      expect(messages[0], contains('`keys` não é um tom que o formato conhece'));
+      expect(messages[0], contains('(`H`)'));
+      expect(messages[1], contains('`keys` e `cycle` não valem juntos'));
+      expect(messages[2], contains('`key-start` só vale com `keys` ou `cycle`'));
+      expect(messages[3], contains('`key-start` não vale com `keys: random`'));
+    });
+
+    test('play-score: key-start vale com uma lista de tons', () async {
+      final result = await _read('''
+```zywny-exercise
+id: a
+type: play-score
+title: A
+abc: "CDEF|"
+keys: [C, G, D]
+key-start: rotate
+```
+''');
+      expect(_messages(result), isEmpty);
+      final spec = result.course!.lessons.single.exercises.single as PlayScoreSpec;
+      expect(spec.keyStart, KeyStart.rotate);
+    });
+
+    test('play-score: keys é uma lista de tons, all ou random', () async {
+      final result = await _read('''
+```zywny-exercise
+id: a
+type: play-score
+title: A
+abc: "CDEF|"
+keys: []
+```
+
+```zywny-exercise
+id: b
+type: play-score
+title: B
+abc: "CDEF|"
+keys: sempre
+```
+''');
+      final messages = _messages(result);
+      expect(messages, hasLength(2));
+      expect(messages[0], contains('pelo menos 1 item'));
+      expect(messages[1], contains('aceita all, random'));
+    });
   });
 }
