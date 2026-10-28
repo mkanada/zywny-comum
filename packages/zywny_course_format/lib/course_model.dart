@@ -167,6 +167,43 @@ enum Figure implements WireEnum {
   final bool rest;
 }
 
+/// `play-chord`: a inversão pedida. `any` não confere; `random` sorteia uma
+/// das que a cifra tem, e a pergunta diz qual.
+enum ChordInversionChoice implements WireEnum {
+  any,
+  root,
+  first,
+  second,
+  third,
+  random;
+
+  @override
+  String get wire => name;
+}
+
+/// `play-chord`: a mão do acorde. `left` pede as notas abaixo do `split`;
+/// `right`, as a partir dele.
+enum ChordHand implements WireEnum {
+  left,
+  right,
+  any;
+
+  @override
+  String get wire => name;
+}
+
+/// `play-chord`: o que a pergunta mostra (a cifra, o grau ou o nome).
+enum ChordPrompt implements WireEnum {
+  symbol('symbol'),
+  degree('degree'),
+  chordName('name');
+
+  const ChordPrompt(this.wire);
+
+  @override
+  final String wire;
+}
+
 enum ExerciseType implements WireEnum {
   findKey('find-key'),
   playNotes('play-notes'),
@@ -177,7 +214,8 @@ enum ExerciseType implements WireEnum {
   choice('choice'),
   listenNote('listen-note'),
   listenInterval('listen-interval'),
-  listenScore('listen-score');
+  listenScore('listen-score'),
+  playChord('play-chord');
 
   const ExerciseType(this.wire);
 
@@ -658,4 +696,110 @@ class ListenScoreSpec extends ExerciseSpec {
 
   /// Andamento da frase; `null` usa o do passo.
   final int? bpm;
+}
+
+/// `play-chord`: as cifras da rodada, uma lista fixa ou um sorteio. O pacote
+/// guarda o texto; quem monta o acorde é o app (EX02).
+sealed class ChordsSpec {
+  const ChordsSpec();
+}
+
+/// As cifras que o autor escreveu, na ordem.
+class FixedChords extends ChordsSpec {
+  const FixedChords(this.symbols);
+
+  final List<String> symbols;
+}
+
+/// Um acorde por pergunta, com qualidade e raiz sorteadas. Com [sequence]
+/// diferente de `random`, as raízes seguem a sequência a partir de [key] e
+/// [roots] não vale; sem [roots], qualquer raiz (ou só as brancas com
+/// [whiteOnly]).
+class RandomChords extends ChordsSpec {
+  const RandomChords({
+    required this.qualities,
+    required this.count,
+    required this.sequence,
+    this.roots,
+    this.whiteOnly = false,
+    this.key = 'C',
+  });
+
+  final List<String> qualities;
+  final List<String>? roots;
+  final bool whiteOnly;
+  final int count;
+  final String sequence;
+
+  /// O tom de partida das sequências (e a escala do `diatonic`).
+  final String key;
+}
+
+/// Os graus de [degrees] em cada um dos [count] tons, na ordem de [sequence]
+/// a partir de [key]: um acorde por grau e por tom.
+class DegreeChords extends ChordsSpec {
+  const DegreeChords({
+    required this.degrees,
+    required this.count,
+    required this.sequence,
+    this.key = 'C',
+  });
+
+  final List<String> degrees;
+  final int count;
+  final String sequence;
+  final String key;
+}
+
+/// `play-chord`: o aluno toca o acorde pedido no teclado MIDI, e o app
+/// confere as notas e o que mais o exercício pedir (EX02).
+class PlayChordSpec extends ExerciseSpec {
+  const PlayChordSpec({
+    required super.id,
+    required super.title,
+    required super.pass,
+    required super.line,
+    required this.chords,
+    required this.inversions,
+    required this.hand,
+    required this.split,
+    required this.strict,
+    required this.omit5,
+    required this.prompt,
+    this.voicing,
+    this.range,
+    this.voiceLeading,
+  });
+
+  @override
+  ExerciseType get type => ExerciseType.playChord;
+
+  final ChordsSpec chords;
+
+  /// Uma por acorde, em ciclo; com um item só, vale para todos.
+  final List<ChordInversionChoice> inversions;
+
+  /// O nome do molde (`close`, `7-3`…); `null` não confere o molde.
+  final String? voicing;
+
+  final ChordHand hand;
+
+  /// A nota que separa as mãos (`left` fica abaixo, `right` a partir dela).
+  final Pitch split;
+
+  /// A faixa em que o acorde pode soar; `null` é o teclado todo.
+  final NoteRange? range;
+
+  /// Com `true`, a inversão e o molde pedidos batem exatamente (e o molde não
+  /// aceita nota dobrada).
+  final bool strict;
+
+  /// A 5ª justa pode faltar nos acordes de sétima ou mais.
+  final bool omit5;
+
+  final ChordPrompt prompt;
+
+  /// Movimento máximo, em semitons, de um acorde para o seguinte; acima disso
+  /// o acorde vale, mas conta como erro de primeira.
+  final int? voiceLeading;
 }

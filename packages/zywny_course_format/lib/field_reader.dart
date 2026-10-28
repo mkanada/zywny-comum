@@ -375,6 +375,42 @@ class FieldReader {
           '`$key` precisa ser o texto ABC (use `|` para várias '
           'linhas).',
         );
+      case ValueType.chordsSpec:
+        if (node is YamlMap) {
+          return read(
+            node,
+            kChordRandomKeys,
+            firstLine: firstLine,
+            blockLine: line,
+            where: 'em `chords`',
+          );
+        }
+        if (node is YamlList) {
+          return _list(key, node, def, fields, firstLine, bad, (item, l) {
+            final v = item.value;
+            if (v is String && v.trim().isNotEmpty) return v;
+            if (v is num) return '$v';
+            issues.error(l, 'esperava uma cifra, como `Am7` ou `C/E`.');
+            return null;
+          });
+        }
+        return bad(
+          '`chords` precisa ser uma lista de cifras (`[C, Am7, F/A]`) ou um '
+          'sorteio (`{qualities: [M, m], count: 10}`).',
+        );
+      case ValueType.optionOrList:
+        if (node is! YamlList) return _option(key, value, def.values, bad);
+        return _list(key, node, def, fields, firstLine, bad, (item, l) {
+          final v = item.value;
+          if (v is String && def.values.contains(v)) return v;
+          final hint = v is String ? suggestFor(v, def.values) : null;
+          issues.error(
+            l,
+            '`$key` aceita ${def.values.join(', ')}'
+            '${hint != null ? ' — você quis dizer `$hint`?' : ''}.',
+          );
+          return null;
+        }, unique: true);
       case ValueType.passMap:
         if (node is! YamlMap) {
           return bad('`pass` precisa ser um mapa, como `{accuracy: 90}`.');

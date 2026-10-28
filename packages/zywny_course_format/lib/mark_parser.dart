@@ -6,6 +6,9 @@ import 'field_reader.dart';
 import 'figure_rules.dart';
 import 'lesson_scanner.dart';
 
+import 'package:zywny_music/chord.dart';
+import 'package:zywny_music/chord_degree.dart';
+import 'package:zywny_music/chord_voicing.dart';
 import 'package:zywny_music/note_name.dart';
 
 import 'suggest.dart';
@@ -621,8 +624,226 @@ ExerciseSpec? _buildExercise(
         count: f.get<int>('count') ?? 5,
         bpm: f.get<int>('bpm'),
       );
+    case ExerciseType.playChord:
+      return _playChord(f, id, title, line, pass, issues);
   }
 }
+
+/// `play-chord` (EX02): as cifras, a inversão, o molde, a mão e a faixa. Os
+/// erros de cifra, de grau, de inversão e de molde saem já na leitura, com a
+/// linha da chave ou do item.
+PlayChordSpec? _playChord(
+  Fields f,
+  String id,
+  String title,
+  int line,
+  Fields? pass,
+  FileIssues issues,
+) {
+  final chords = _chords(f, issues);
+  if (chords == null) return null;
+  final samples = chords.samples;
+  final rawInversion = f.values['inversion'];
+  final inversions = rawInversion is List
+      ? [
+          for (final wire in rawInversion.cast<String>())
+            _enumOf(ChordInversionChoice.values, wire)!,
+        ]
+      : [
+          _enumOf(
+            ChordInversionChoice.values,
+            (rawInversion as String?) ?? 'any',
+          )!,
+        ];
+  final voicing = f.get<String>('voicing');
+  final hand =
+      _enumOf(ChordHand.values, f.get<String>('hand')) ?? ChordHand.any;
+  var ok = true;
+  if (inversions.contains(ChordInversionChoice.third) &&
+      samples.any((sample) => sample.seventh == null)) {
+    issues.error(
+      f.lineOf('inversion'),
+      'tríade não tem 3ª inversão: `third` pede uma cifra de sétima.',
+    );
+    ok = false;
+  }
+  if (voicing != null) {
+    final shape = kVoicingShapes[voicing]!;
+    if (inversions.any((i) => i != ChordInversionChoice.any)) {
+      issues.error(
+        f.lineOf('voicing'),
+        'o molde já decide a ordem das notas; tire `inversion`.',
+      );
+      ok = false;
+    }
+    for (final sample in samples) {
+      try {
+        buildVoicing(sample, shape: shape, lowest: 36, highest: 96);
+      } on ArgumentError {
+        issues.error(
+          f.lineOf('voicing'),
+          '`$voicing` não cabe em `${sample.label(ChordNotation.american)}`.',
+        );
+        ok = false;
+        break;
+      }
+    }
+    if (hand == ChordHand.left &&
+        const {'so-what', 'upper-triad', 'block'}.contains(voicing)) {
+      issues.warning(
+        f.lineOf('hand'),
+        '`$voicing` pede as duas mãos; com `hand: left` o acorde inteiro '
+        'fica na esquerda.',
+      );
+    }
+  }
+  final rangeText = f.get<String>('range');
+  NoteRange? range;
+  if (rangeText != null) {
+    range = NoteRange.tryParse(rangeText);
+    if (range == null) {
+      issues.error(
+        f.lineOf('range'),
+        '`$rangeText` não é uma faixa de notas: escreva da mais grave para a '
+        'mais aguda, como C3-C6.',
+      );
+      ok = false;
+    }
+  }
+  if (!ok) return null;
+  return PlayChordSpec(
+    id: id,
+    title: title,
+    pass: _pass(pass),
+    line: line,
+    chords: chords.spec,
+    inversions: inversions,
+    voicing: voicing,
+    hand: hand,
+    split: f.get<Pitch>('split') ?? Pitch.parse('C4'),
+    range: range,
+    strict: f.get<bool>('strict') ?? true,
+    omit5: f.get<bool>('omit5') ?? true,
+    prompt:
+        _enumOf(ChordPrompt.values, f.get<String>('show')) ?? ChordPrompt.symbol,
+    voiceLeading: f.get<int>('voice-leading'),
+  );
+}
+
+/// As cifras de `chords:` já lidas e conferidas, com um [ChordSymbol] de
+/// amostra por cifra (a do sorteio tem a raiz em dó), para as regras de
+/// inversão e de molde.
+typedef _Chords = ({ChordsSpec spec, List<ChordSymbol> samples});
+
+/// `chords:` do `play-chord`: a lista fixa ou o sorteio. `null` se alguma
+/// cifra, qualidade ou grau está errada (o erro já foi dado).
+_Chords? _chords(Fields f, FileIssues issues) {
+  final raw = f.values['chords'];
+  if (raw is List) {
+    final symbols = raw.cast<String>();
+    final samples = <ChordSymbol>[];
+    var ok = true;
+    for (final (i, text) in symbols.indexed) {
+      String? detail;
+      final symbol = ChordSymbol.parse(text, error: (m) => detail = m);
+      if (symbol == null) {
+        issues.error(
+          _itemLine(f, 'chords', i),
+          '`$text` não é uma cifra: ${detail ?? 'não entendi'}.',
+        );
+        ok = false;
+      } else {
+        samples.add(symbol);
+      }
+    }
+    return ok ? (spec: FixedChords(symbols), samples: samples) : null;
+  }
+
+  final map = raw as Fields;
+  final qualities = map.get<List<Object>>('qualities')?.cast<String>();
+  final degrees = map.get<List<Object>>('degrees')?.cast<String>();
+  if ((qualities == null) == (degrees == null)) {
+    issues.error(
+      f.lineOf('chords'),
+      qualities == null
+          ? 'falta `qualities` ou `degrees` em `chords`.'
+          : 'use `qualities` **ou** `degrees`, não os dois.',
+    );
+    return null;
+  }
+  final samples = <ChordSymbol>[];
+  var ok = true;
+  if (qualities != null) {
+    for (final (i, quality) in qualities.indexed) {
+      final suffix = kChordQualities[quality];
+      if (suffix == null) {
+        final hint = suggestFor(quality, kChordQualities.keys);
+        issues.error(
+          _itemLine(map, 'qualities', i),
+          'qualidade `$quality` desconhecida'
+          '${hint != null ? ' — você quis dizer `$hint`?' : ''} '
+          '(use ${kChordQualities.keys.join(', ')}).',
+        );
+        ok = false;
+      } else {
+        samples.add(ChordSymbol.parse('C$suffix')!);
+      }
+    }
+  }
+  if (degrees != null) {
+    const dOfC = KeySpec(tonic: 0, minor: false, spelling: 'C');
+    for (final (i, text) in degrees.indexed) {
+      String? detail;
+      final degree = ChordDegree.parse(text, error: (m) => detail = m);
+      if (degree == null) {
+        issues.error(
+          _itemLine(map, 'degrees', i),
+          '`$text` não é um grau: ${detail ?? 'não entendi'}.',
+        );
+        ok = false;
+      } else {
+        samples.add(degree.inKey(dOfC));
+      }
+    }
+  }
+  if (!ok) return null;
+
+  final count = map.get<int>('count') ?? (qualities != null ? 10 : 1);
+  final sequence = map.get<String>('sequence') ?? 'random';
+  final key = map.get<String>('key') ?? 'C';
+  if (qualities == null) {
+    return (
+      spec: DegreeChords(
+        degrees: degrees!,
+        count: count,
+        sequence: sequence,
+        key: key,
+      ),
+      samples: samples,
+    );
+  }
+  final rawRoots = map.values['roots'];
+  final roots = switch (rawRoots) {
+    List() => rawRoots.cast<String>(),
+    String() when rawRoots != 'random' && rawRoots != 'white' => [rawRoots],
+    _ => null,
+  };
+  return (
+    spec: RandomChords(
+      qualities: qualities,
+      count: count,
+      sequence: sequence,
+      roots: roots,
+      whiteOnly: rawRoots == 'white',
+      key: key,
+    ),
+    samples: samples,
+  );
+}
+
+/// A linha do item [i] da lista [key] de [f], ou a da própria chave.
+int _itemLine(Fields f, String key, int i) =>
+    f.itemLines[key]?[i] ?? f.lineOf(key);
 
 /// Um passo do treino de leitura, `1a` a `100d`: o nível e o subnível.
 final _stepPattern = RegExp(r'^(100|[1-9][0-9]?)([a-d])$');

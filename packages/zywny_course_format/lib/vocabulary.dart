@@ -1,4 +1,5 @@
 import 'package:meta/meta.dart';
+import 'package:zywny_music/chord_voicing.dart';
 
 import 'course_model.dart';
 
@@ -51,6 +52,12 @@ enum ValueType {
 
   /// O mapa `pass:`.
   passMap,
+
+  /// `chords:` do `play-chord`: uma lista de cifras ou o mapa do sorteio.
+  chordsSpec,
+
+  /// Uma palavra de [KeyDef.values], ou uma lista delas (`inversion:`).
+  optionOrList,
 }
 
 @immutable
@@ -198,6 +205,79 @@ const kRandomNotesKeys = <String, KeyDef>{
 
 const _notes = KeyDef(ValueType.notes, required: true);
 
+/// Fundamentais que `roots:` aceita, além de `random` e `white` (EX02).
+const kRootNames = [
+  'C', 'C#', 'Db', 'D', 'Eb', 'E', 'F', 'F#', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B',
+];
+
+/// Qualidades de `qualities:` (EX00, "Cifra"), com o sufixo que o
+/// `ChordSymbol.parse` lê depois da raiz.
+const kChordQualities = <String, String>{
+  'M': '',
+  'm': 'm',
+  'dim': 'dim',
+  'aug': 'aug',
+  '7': '7',
+  'maj7': 'maj7',
+  'm7': 'm7',
+  'm7b5': 'm7b5',
+  'dim7': 'dim7',
+  '6': '6',
+  'm6': 'm6',
+  '9': '9',
+  'sus2': 'sus2',
+  'sus4': 'sus4',
+  '7sus4': '7sus4',
+};
+
+/// Os moldes de `voicing:` (EX00, "Voicing") e o [VoicingShape] de cada um.
+const kVoicingShapes = <String, VoicingShape>{
+  'close': VoicingShape.close,
+  'shell-17': VoicingShape.shell17,
+  'shell-13': VoicingShape.shell13,
+  '7-3': VoicingShape.sevenThree,
+  '7-3-ext': VoicingShape.sevenThreeExt,
+  'rootless-a': VoicingShape.rootlessA,
+  'rootless-b': VoicingShape.rootlessB,
+  'block': VoicingShape.block,
+  'quartal': VoicingShape.quartal,
+  'so-what': VoicingShape.soWhat,
+  'tenth': VoicingShape.tenth,
+  'upper-triad': VoicingShape.upperTriad,
+  'two-hand-5': VoicingShape.twoHand5,
+  'drop-2': VoicingShape.drop2,
+  'split-ext': VoicingShape.splitExt,
+};
+
+/// As sequências de `sequence:` (EX00, "Ciclos e sequência de tons").
+const kChordSequences = [
+  'random',
+  'cycle-5',
+  'cycle-4',
+  'chromatic',
+  'whole-tone',
+  'diatonic',
+];
+
+/// Chaves do mapa `chords:` com um sorteio: `qualities` ou `degrees`, mais
+/// as que valem nos dois.
+final kChordRandomKeys = <String, KeyDef>{
+  'qualities': const KeyDef(ValueType.stringList, minItems: 1),
+  'degrees': const KeyDef(ValueType.stringList, minItems: 1),
+  'roots': KeyDef(
+    ValueType.optionOrList,
+    values: [...kRootNames, 'random', 'white'],
+    fallback: 'random',
+  ),
+  'key': _key,
+  'sequence': KeyDef(
+    ValueType.option,
+    values: kChordSequences,
+    fallback: 'random',
+  ),
+  'count': const KeyDef(ValueType.integer, min: 1, max: 40),
+};
+
 /// Chaves de `pass` e em que tipos cada uma vale (I00, "Critérios de aceite").
 @immutable
 class PassKey {
@@ -234,6 +314,7 @@ final kPassKeys = <String, PassKey>{
     ExerciseType.listenNote,
     ExerciseType.listenInterval,
     ExerciseType.listenScore,
+    ExerciseType.playChord,
   }, note: 'só vale nos exercícios de pergunta'),
 };
 
@@ -365,6 +446,30 @@ final _typeKeys = <ExerciseType, Map<String, KeyDef>>{
     ),
     'count': const KeyDef(ValueType.integer, min: 1, max: 10, fallback: '5'),
     'bpm': const KeyDef(ValueType.integer, min: 40, max: 200),
+  },
+  ExerciseType.playChord: {
+    'chords': const KeyDef(ValueType.chordsSpec, required: true, minItems: 1),
+    'inversion': KeyDef(
+      ValueType.optionOrList,
+      values: _wires(ChordInversionChoice.values),
+      fallback: 'any',
+    ),
+    'voicing': KeyDef(ValueType.option, values: kVoicingShapes.keys.toList()),
+    'hand': KeyDef(
+      ValueType.option,
+      values: _wires(ChordHand.values),
+      fallback: 'any',
+    ),
+    'split': const KeyDef(ValueType.note, fallback: 'C4'),
+    'range': const KeyDef(ValueType.text),
+    'strict': const KeyDef(ValueType.boolean, fallback: 'true'),
+    'omit5': const KeyDef(ValueType.boolean, fallback: 'true'),
+    'show': KeyDef(
+      ValueType.option,
+      values: _wires(ChordPrompt.values),
+      fallback: 'symbol',
+    ),
+    'voice-leading': const KeyDef(ValueType.integer, min: 1, max: 12),
   },
 };
 
