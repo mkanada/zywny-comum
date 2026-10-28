@@ -1152,4 +1152,128 @@ pass: {dynamics: true}
       );
     });
   });
+
+  // EX09: a grade de acordes, `zywny-chart`.
+  group('zywny-chart (EX09)', () {
+    test('a grade em bloco, com seções e caption, vira a marca', () async {
+      final result = await _read('''
+```zywny-chart
+key: F
+time: 4/4
+chart: |
+  A: | F7 | Bb7 | F7 | Cm7 F7 |
+     | Bb7 | Bdim7 | F7 | D7 |
+caption: A progressão de "Blue Moon" (PFA, livro 1)
+```
+''');
+      expect(_messages(result), isEmpty);
+      final mark = result.course!.lessons.single.blocks
+          .whereType<ChartMark>()
+          .single;
+      expect(mark.key, 'F');
+      expect(mark.time, '4/4');
+      expect(mark.progression, isNull);
+      expect(mark.chart, contains('A: | F7'));
+      expect(mark.degrees, isFalse);
+      expect(mark.caption, contains('Blue Moon'));
+    });
+
+    test('progression da biblioteca, com bars e degrees', () async {
+      final result = await _read('''
+```zywny-chart
+key: G
+progression: blues-12
+bars: 24
+degrees: true
+```
+''');
+      expect(_messages(result), isEmpty);
+      final mark = result.course!.lessons.single.blocks
+          .whereType<ChartMark>()
+          .single;
+      expect(mark.progression, 'blues-12');
+      expect(mark.chart, isNull);
+      expect(mark.bars, 24);
+      expect(mark.degrees, isTrue);
+      expect(mark.key, 'G');
+      expect(mark.time, '4/4');
+    });
+
+    test(
+      'a grade numa linha só, com `|:` sem aspas, é YAML inválido',
+      () async {
+        // O `|` do YAML abre um bloco de texto: a grade precisa de aspas ou de
+        // uma linha própria (`chart: |`).
+        final result = await _read('''
+```zywny-chart
+chart: |: C | Am | F G | C :|
+```
+''');
+        expect(_messages(result).single, contains('YAML inválido'));
+      },
+    );
+
+    test('a grade numa linha só, entre aspas, lê igual', () async {
+      final result = await _read('''
+```zywny-chart
+chart: "|: C | Am | F G | C :|"
+```
+''');
+      expect(_messages(result), isEmpty);
+      expect(
+        result.course!.lessons.single.blocks
+            .whereType<ChartMark>()
+            .single
+            .chart,
+        '|: C | Am | F G | C :|',
+      );
+    });
+
+    test('chart e progression juntos são recusados', () async {
+      final result = await _read('''
+```zywny-chart
+chart: "| C |"
+progression: ii-V-I
+```
+''');
+      expect(_messages(result).single, contains('use só um'));
+    });
+
+    test('sem chart nem progression, a marca pede um dos dois', () async {
+      final result = await _read('```zywny-chart\nkey: C\n```\n');
+      expect(_messages(result).single, contains('informe `chart`'));
+    });
+
+    test('bars sem progression é recusado', () async {
+      final result = await _read('''
+```zywny-chart
+chart: "| C |"
+bars: 8
+```
+''');
+      expect(_messages(result).single, contains('`bars` só vale com'));
+    });
+
+    test('progression que não está na biblioteca sugere a parecida', () async {
+      final result = await _read('''
+```zywny-chart
+progression: blues-12x
+```
+''');
+      final message = _messages(result).single;
+      expect(message, contains('não há a progressão `blues-12x`'));
+      expect(message, contains('você quis dizer `blues-12`'));
+    });
+
+    test('um erro na grade dá a coluna dentro da linha', () async {
+      final result = await _read('''
+```zywny-chart
+chart: "| C | Hm |"
+```
+''');
+      final message = _messages(result).single;
+      expect(message, contains('(coluna 7)'));
+      expect(message, contains('`Hm` não é uma cifra'));
+    });
+  });
 }

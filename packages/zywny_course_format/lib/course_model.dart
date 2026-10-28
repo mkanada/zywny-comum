@@ -395,6 +395,37 @@ class VideoMark extends LessonBlock {
   final String? caption;
 }
 
+/// Uma grade de acordes (`zywny-chart`, EX09): o texto da grade ([chart]) ou o
+/// nome de uma progressão da biblioteca ([progression]), no tom [key] e no
+/// compasso [time] (como `C`, `4/4`, `6/8`). O pacote guarda o texto; quem lê
+/// a grade é o app (`ChordChart.parse`).
+class ChartMark extends LessonBlock {
+  const ChartMark({
+    required int line,
+    required this.key,
+    required this.time,
+    this.chart,
+    this.progression,
+    this.bars,
+    this.degrees = false,
+    this.caption,
+  }) : super(line);
+
+  final String key;
+  final String time;
+
+  /// O texto da grade, ou `null` quando a marca usa [progression].
+  final String? chart;
+  final String? progression;
+
+  /// Quantos compassos a [progression] ocupa (ela se repete até completar).
+  final int? bars;
+
+  /// Mostrar os graus (`ii7`, `V7`) em vez das cifras.
+  final bool degrees;
+  final String? caption;
+}
+
 class ExerciseMark extends LessonBlock {
   const ExerciseMark(this.spec, super.line);
 

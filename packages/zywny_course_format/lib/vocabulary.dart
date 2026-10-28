@@ -198,6 +198,17 @@ final kContentMarkKeys = <String, Map<String, KeyDef>>{
     'link': const KeyDef(ValueType.link, required: true),
     'caption': _caption,
   },
+  // EX09: a grade de acordes. Ou `chart` (o texto da grade) ou `progression`
+  // (um nome da biblioteca do EX01), nunca os dois.
+  'chart': {
+    'key': const KeyDef(ValueType.keyName, fallback: 'C'),
+    'time': const KeyDef(ValueType.timeSignature, fallback: '4/4'),
+    'chart': const KeyDef(ValueType.text),
+    'progression': const KeyDef(ValueType.text),
+    'bars': const KeyDef(ValueType.integer, min: 1, max: 400),
+    'degrees': const KeyDef(ValueType.boolean, fallback: 'false'),
+    'caption': _caption,
+  },
 };
 
 /// Nome da marca de exercício (sem o prefixo `zywny-`).

@@ -7,10 +7,12 @@ import 'figure_rules.dart';
 import 'lesson_scanner.dart';
 
 import 'package:zywny_music/chord.dart';
+import 'package:zywny_music/chord_chart.dart';
 import 'package:zywny_music/chord_degree.dart';
 import 'package:zywny_music/chord_voicing.dart';
 import 'package:zywny_music/fingering.dart';
 import 'package:zywny_music/note_name.dart';
+import 'package:zywny_music/progressions.dart';
 import 'package:zywny_music/scale.dart';
 
 import 'suggest.dart';
@@ -55,6 +57,7 @@ LessonBlock? parseMark(
   final block = switch (mark.name) {
     'score' => _score(fields, mark, issues),
     'keyboard' => _keyboard(fields, mark, issues),
+    'chart' => _chart(fields, mark, issues),
     'audio' => AudioMark(
       line: mark.line,
       file: fields.get<String>('file')!,
@@ -192,6 +195,76 @@ KeyboardMark? _keyboard(Fields f, MarkSegment mark, FileIssues issues) {
     names: f.get<bool>('names') ?? false,
     caption: f.get<String>('caption'),
   );
+}
+
+/// `zywny-chart` (EX09): ou o texto da grade (`chart`), ou uma progressão da
+/// biblioteca (`progression`), nunca os dois. O texto passa pelo leitor de
+/// grades aqui, para o erro sair na lição; o erro traz a coluna na linha.
+ChartMark? _chart(Fields f, MarkSegment mark, FileIssues issues) {
+  final text = f.get<String>('chart');
+  final progression = f.get<String>('progression');
+  if (text == null && progression == null) {
+    issues.error(
+      f.blockLine,
+      'informe `chart` (a grade escrita) ou `progression` (um nome da '
+      'biblioteca).',
+    );
+    return null;
+  }
+  if (text != null && progression != null) {
+    issues.error(
+      f.lineOf('progression'),
+      'use só um: `chart` ou `progression`, não os dois.',
+    );
+    return null;
+  }
+  if (progression == null && f.has('bars')) {
+    issues.error(
+      f.lineOf('bars'),
+      '`bars` só vale com `progression`: a grade escrita já tem os seus '
+      'compassos.',
+    );
+    return null;
+  }
+  final key = f.get<String>('key') ?? 'C';
+  final time = f.get<String>('time') ?? '4/4';
+  if (!_gradeReads(f, issues)) return null;
+  return ChartMark(
+    line: mark.line,
+    key: key,
+    time: time,
+    chart: text,
+    progression: progression,
+    bars: f.get<int>('bars'),
+    degrees: f.get<bool>('degrees') ?? false,
+    caption: f.get<String>('caption'),
+  );
+}
+
+/// Confere a grade da marca: o nome da progressão, ou o texto lido pelo leitor
+/// do EX09 (cada erro sai com a coluna). Falso se há erro.
+bool _gradeReads(Fields f, FileIssues issues) {
+  final progression = f.get<String>('progression');
+  if (progression != null) {
+    if (progressionNamed(progression) != null) return true;
+    final hint = suggestFor(progression, [
+      for (final p in kProgressions) p.name,
+    ]);
+    issues.error(
+      f.lineOf('progression'),
+      'não há a progressão `$progression` na biblioteca'
+      '${hint != null ? ' — você quis dizer `$hint`?' : ''}.',
+    );
+    return false;
+  }
+  final grade = ChordChart.parse(
+    f.get<String>('chart')!,
+    key: KeySpec.parse(f.get<String>('key') ?? 'C')!,
+    time: f.get<String>('time') ?? '4/4',
+    error: (message, col) =>
+        issues.error(f.lineOf('chart'), 'na grade (coluna $col): $message'),
+  );
+  return grade != null;
 }
 
 T? _enumOf<T extends WireEnum>(List<T> values, String? wire) =>
