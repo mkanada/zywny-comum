@@ -1,9 +1,10 @@
 // EX07: os nove medidores. Cada um é uma função pura de [MeterInput] (o
 // escrito, a gravação, o casamento e as marcas) que devolve um [MeterResult].
-// Sem dado para medir, o valor é `NaN` e o medidor não reprova. Os limiares
-// são os provisórios da tabela do EX07 (D-EXE-LIMIARES): o EX08 os mede com o
-// teclado do usuário e corrige as constantes daqui. Os ms de parede são os
-// musicais divididos pelo andamento, como no PracticeReport.
+// Sem dado para medir, o valor é `NaN` e o medidor não reprova. Os alvos vêm
+// do `pass` do autor (EX08); só a % da dinâmica é fixa (kDynamicsTarget). Os
+// limiares de legato, staccato e pedal seguem os provisórios do EX07
+// (D-EXE-LIMIARES, ainda aberta: a calibração com o teclado é manual). Os ms
+// de parede são os musicais divididos pelo andamento, como no PracticeReport.
 
 import 'dart:math' as math;
 
@@ -11,8 +12,11 @@ import 'package:flutter/foundation.dart';
 import 'package:zywny_audio/performance_track.dart';
 
 import 'expression_marks.dart';
+import 'meter_result.dart';
 import 'performance_capture.dart';
 import 'practice_report.dart';
+
+export 'meter_result.dart';
 
 /// Limiares provisórios (EX07, tabela).
 const double kLegatoHoleMs = -20;
@@ -23,11 +27,6 @@ const double kDynamicsStepVelocity = 12;
 const double kPedalSmearBeforeMs = 30;
 const double kPedalSmearAfterMs = 250;
 const double kPedalGapAfterMs = 400;
-
-/// Alvos provisórios do `pass` (EX08 os recebe por `targets`).
-const double kBalanceTarget = 10;
-const double kSteadinessTargetMs = 40;
-const double kAccentTarget = 12;
 
 /// Duas notas são "a mesma nota" (um pedal que chega com o acorde, um compasso
 /// que começa) quando os ataques distam menos de isto, em ms musicais.
@@ -95,40 +94,13 @@ class MeterInput {
   final bool roundDone;
 }
 
-/// O resultado de um medidor: o número, a frase para a tela e os compassos
-/// com problema (para o reforço). [passed] é `null` sem alvo ou sem dado.
-@immutable
-class MeterResult {
-  const MeterResult({
-    required this.id,
-    required this.value,
-    this.target,
-    this.passed,
-    required this.sentence,
-    this.measures = const [],
-  });
-
-  final String id;
-
-  /// O número do medidor; `NaN` quando não há o que medir.
-  final double value;
-  final double? target;
-  final bool? passed;
-  final String sentence;
-
-  /// Compassos (ocorrência, 0 em diante) com problema.
-  final List<int> measures;
-
-  @override
-  String toString() =>
-      'MeterResult($id ${value.toStringAsFixed(1)}: $sentence)';
-}
-
 /// Os nove medidores, na ordem da tabela do EX07. [targets] dá o alvo de cada
-/// um pelo id; sem alvo, o medidor mostra o número e não reprova.
+/// um pelo id, e [swing] a faixa da razão; sem alvo, o medidor mostra o número
+/// e não reprova.
 List<MeterResult> allMeters(
   MeterInput input, {
   Map<String, double> targets = const {},
+  (int, int)? swing,
 }) => [
   meterLegato(input, target: targets['legato']),
   meterStaccato(input, target: targets['staccato']),
@@ -136,9 +108,9 @@ List<MeterResult> allMeters(
   meterBalance(input, target: targets['balance']),
   meterPedal(input, target: targets['pedal']),
   meterSteadiness(input, target: targets['steadiness']),
-  meterSwing(input),
+  meterSwing(input, range: swing),
   meterAccents(input, target: targets['accents']),
-  meterChoruses(input),
+  meterChoruses(input, target: targets['choruses']),
 ];
 
 /// Legato: a sobreposição `s = off(a) − on(b)` de cada par de notas seguidas
@@ -405,8 +377,9 @@ MeterResult meterSteadiness(MeterInput input, {double? target}) {
 
 /// Swing: em cada tempo com exatamente duas colcheias escritas, a posição da
 /// segunda (`(on(2ª) − início do tempo) / duração do tempo`, em %). 50 é reto,
-/// 67 é tercina. Passa a mediana; sem alvo.
-MeterResult meterSwing(MeterInput input) {
+/// 67 é tercina. Passa a mediana; com [range] (`swing: 60-70`), a mediana tem
+/// de cair dentro da faixa.
+MeterResult meterSwing(MeterInput input, {(int, int)? range}) {
   const id = 'swing';
   final beats = input.beatsMs;
   final written = _writtenOf(input);
@@ -431,13 +404,16 @@ MeterResult meterSwing(MeterInput input) {
   }
   if (ratios.isEmpty) return _nothing(id);
   final value = _median(ratios);
+  final passed = range == null ? null : value >= range.$1 && value <= range.$2;
   return MeterResult(
     id: id,
     value: value,
+    passed: passed,
     sentence:
         'a segunda colcheia cai em ${value.round()}% do tempo '
         '(50 = reto, 67 = tercina), em ${ratios.length} '
-        '${ratios.length == 1 ? 'tempo' : 'tempos'}.',
+        '${ratios.length == 1 ? 'tempo' : 'tempos'}'
+        '${range == null ? '' : ', e a faixa pedida é ${range.$1}-${range.$2}'}.',
   );
 }
 
@@ -477,8 +453,8 @@ MeterResult meterAccents(MeterInput input, {double? target}) {
 
 /// Voltas: a maior sequência de voltas completas da forma sem nenhuma nota
 /// errada ou perdida. Uma volta é completa quando tem a seguinte, ou quando a
-/// rodada acabou. Sem alvo.
-MeterResult meterChoruses(MeterInput input) {
+/// rodada acabou. Com [target] (`choruses: 2`), passa se chegar a ele.
+MeterResult meterChoruses(MeterInput input, {double? target}) {
   const id = 'choruses';
   final report = input.report;
   final starts = input.chorusStarts;
@@ -503,12 +479,12 @@ MeterResult meterChoruses(MeterInput input) {
     }
   }
   final list = _sorted(measures);
-  return MeterResult(
-    id: id,
-    value: best.toDouble(),
-    sentence:
-        '$best ${best == 1 ? 'volta seguida' : 'voltas seguidas'} sem erro, '
-        'de $complete completas${_atMeasures(list)}.',
+  return _judged(
+    id,
+    best.toDouble(),
+    '$best ${best == 1 ? 'volta seguida' : 'voltas seguidas'} sem erro, '
+    'de $complete completas${_atMeasures(list)}.',
+    target: target,
     measures: list,
   );
 }

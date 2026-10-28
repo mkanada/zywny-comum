@@ -51,6 +51,9 @@ enum ValueType {
   /// `5-12` ou `5`.
   measureRange,
 
+  /// `60-70`: uma faixa crescente de inteiros, entre `min` e `max` (`swing`).
+  intRange,
+
   /// ABC em linha (texto, em geral um bloco `|`).
   abc,
 
@@ -314,14 +317,30 @@ final kChordRandomKeys = <String, KeyDef>{
 /// Chaves de `pass` e em que tipos cada uma vale (I00, "Critérios de aceite").
 @immutable
 class PassKey {
-  const PassKey(this.def, this.types, {this.note});
+  const PassKey(this.def, this.types, {this.note, this.realtimeOnly = false});
 
   final KeyDef def;
   final Set<ExerciseType> types;
 
   /// Explicação extra para a mensagem de "não vale aqui".
   final String? note;
+
+  /// Só vale com tempo real: o andamento (`speed`) e os medidores que leem o
+  /// tempo que o aluno tocou (EX08). No modo espera, o relógio não para no
+  /// freio, então esses tempos não batem com a partitura.
+  final bool realtimeOnly;
 }
+
+/// Os tipos com tempo: a conferência do `pass` sabe o que é tocar no tempo.
+const _timedTypes = {
+  ExerciseType.rhythm,
+  ExerciseType.playScore,
+  ExerciseType.playPattern,
+};
+
+const _realtimeNote =
+    'só vale com tempo real (`rhythm`, `play-score` e `play-pattern` com '
+    '`mode: realtime`)';
 
 final kPassKeys = <String, PassKey>{
   'accuracy': PassKey(
@@ -334,10 +353,9 @@ final kPassKeys = <String, PassKey>{
   ),
   'speed': PassKey(
     const KeyDef(ValueType.integer, min: 25, max: 200, fallback: '100'),
-    {ExerciseType.rhythm, ExerciseType.playScore, ExerciseType.playPattern},
-    note:
-        'só vale com tempo real (`rhythm`, `play-score` e `play-pattern` com '
-        '`mode: realtime`)',
+    _timedTypes,
+    note: _realtimeNote,
+    realtimeOnly: true,
   ),
   'time-limit': PassKey(const KeyDef(ValueType.integer, min: 1, max: 120), {
     ExerciseType.findKey,
@@ -350,6 +368,57 @@ final kPassKeys = <String, PassKey>{
     ExerciseType.playChord,
     ExerciseType.listenChord,
   }, note: 'só vale nos exercícios de pergunta'),
+  // Medidores (EX08, meters.dart): medem a execução que o teclado mandou.
+  // Dinâmica, equilíbrio e acentos leem só a força da tecla, e valem no modo
+  // espera; o resto lê o tempo e fica para o tempo real.
+  'legato': PassKey(
+    const KeyDef(ValueType.integer, min: 1, max: 100),
+    _timedTypes,
+    note: _realtimeNote,
+    realtimeOnly: true,
+  ),
+  'staccato': PassKey(
+    const KeyDef(ValueType.integer, min: 1, max: 100),
+    _timedTypes,
+    note: _realtimeNote,
+    realtimeOnly: true,
+  ),
+  'dynamics': PassKey(
+    const KeyDef(ValueType.boolean, fallback: 'false'),
+    _timedTypes,
+  ),
+  'balance': PassKey(
+    const KeyDef(ValueType.integer, min: 1, max: 60),
+    _timedTypes,
+  ),
+  'pedal': PassKey(
+    const KeyDef(ValueType.integer, min: 1, max: 100),
+    _timedTypes,
+    note: _realtimeNote,
+    realtimeOnly: true,
+  ),
+  'steadiness': PassKey(
+    const KeyDef(ValueType.integer, min: 10, max: 200),
+    _timedTypes,
+    note: _realtimeNote,
+    realtimeOnly: true,
+  ),
+  'swing': PassKey(
+    const KeyDef(ValueType.intRange, min: 1, max: 100),
+    _timedTypes,
+    note: _realtimeNote,
+    realtimeOnly: true,
+  ),
+  'accents': PassKey(
+    const KeyDef(ValueType.integer, min: 1, max: 60),
+    _timedTypes,
+  ),
+  'choruses': PassKey(
+    const KeyDef(ValueType.integer, min: 1, max: 20),
+    _timedTypes,
+    note: _realtimeNote,
+    realtimeOnly: true,
+  ),
 };
 
 final _commonExerciseKeys = <String, KeyDef>{

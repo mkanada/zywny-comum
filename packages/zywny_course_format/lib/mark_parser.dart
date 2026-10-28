@@ -259,6 +259,15 @@ PassCriteria _pass(Fields? pass) => PassCriteria(
   rounds: pass?.get<int>('rounds') ?? 1,
   speed: pass?.get<int>('speed') ?? 100,
   timeLimit: pass?.get<int>('time-limit'),
+  legato: pass?.get<int>('legato'),
+  staccato: pass?.get<int>('staccato'),
+  dynamics: pass?.get<bool>('dynamics') ?? false,
+  balance: pass?.get<int>('balance'),
+  pedal: pass?.get<int>('pedal'),
+  steadiness: pass?.get<int>('steadiness'),
+  swing: pass?.get<(int, int)>('swing'),
+  accents: pass?.get<int>('accents'),
+  choruses: pass?.get<int>('choruses'),
 );
 
 /// `pass` só pode ter as chaves que valem no tipo (e `speed` só com tempo
@@ -278,11 +287,14 @@ void _checkPass(
         '`$key` não vale em `${type.wire}`: ${rule.note ?? 'ver a '
                 'especificação'}.',
       );
-    } else if (key == 'speed' && !realtime) {
+    } else if (rule.realtimeOnly && !realtime) {
       issues.error(
         pass.lineOf(key),
-        'o modo espera não tem andamento: tire `speed` ou use '
-        '`mode: realtime`.',
+        key == 'speed'
+            ? 'o modo espera não tem andamento: tire `speed` ou use '
+                  '`mode: realtime`.'
+            : 'o modo espera não mede o tempo tocado: tire `$key` ou use '
+                  '`mode: realtime`.',
       );
     }
   }

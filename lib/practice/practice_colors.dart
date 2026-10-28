@@ -38,3 +38,7 @@ const kPracticeMissedHold = Duration(milliseconds: 500);
 /// A mão que o app toca no treino de uma mão só (U08): cinza claro, mais
 /// fraco que o de perdida, para a outra pauta não parecer "toque esta".
 const kPracticeAppHandColor = Color(0xFFB8B8BD);
+
+/// Os compassos que reprovaram num medidor (EX08): violeta, longe do vermelho
+/// da nota errada e do âmbar do tempo.
+const kPracticeMeterMarkColor = Color(0xFF7B4FB3);

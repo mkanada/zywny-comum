@@ -474,6 +474,22 @@ void main() {
       expect(r.value.isNaN, isTrue);
       expect(r.passed, isNull);
     });
+
+    test('com a faixa do pass, a mediana tem de cair dentro dela (EX08)', () {
+      final s = _Scene();
+      s.play(s.note('e1', 60, 0, 500));
+      s.play(s.note('e2', 62, 500, 1000), on: 667);
+
+      final dentro = meterSwing(
+        s.input(beats: const [0, 1000]),
+        range: (60, 70),
+      );
+      final fora = meterSwing(s.input(beats: const [0, 1000]), range: (45, 55));
+
+      expect(dentro.passed, isTrue);
+      expect(fora.passed, isFalse);
+      expect(fora.sentence, endsWith('a faixa pedida é 45-55.'));
+    });
   });
 
   group('accents', () {
@@ -572,6 +588,29 @@ void main() {
 
       expect(r.value, 2);
       expect(r.sentence, '2 voltas seguidas sem erro, de 2 completas.');
+    });
+
+    test('com `choruses` do pass, chega ao alvo ou reprova (EX08)', () {
+      final s = _Scene();
+      final dois = meterChoruses(
+        s.input(
+          report: report(),
+          chorusStarts: const [0, 2, 4],
+          roundDone: true,
+        ),
+        target: 2,
+      );
+      final tres = meterChoruses(
+        s.input(
+          report: report(wrongAt: 2),
+          chorusStarts: const [0, 2, 4],
+          roundDone: true,
+        ),
+        target: 2,
+      );
+
+      expect(dois.passed, isTrue);
+      expect(tres.passed, isFalse);
     });
   });
 

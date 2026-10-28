@@ -11,6 +11,7 @@ import 'vocabulary.dart';
 
 final _idPattern = RegExp(kIdPattern);
 final _measurePattern = RegExp(r'^(\d+)(?:-(\d+))?$');
+final _intRangePattern = RegExp(r'^(\d+)-(\d+)$');
 final _schemePattern = RegExp(r'^[A-Za-z][A-Za-z0-9+.-]*:');
 
 /// Os valores já lidos de um bloco YAML (front matter, marca ou sub-mapa),
@@ -382,6 +383,20 @@ class FieldReader {
         return bad(
           '`$key` precisa ser um compasso (`5`) ou uma faixa crescente '
           '(`"5-12"`), contando do 1.',
+        );
+      case ValueType.intRange:
+        final match = value is String
+            ? _intRangePattern.firstMatch(value)
+            : null;
+        if (match != null) {
+          final from = int.parse(match.group(1)!);
+          final to = int.parse(match.group(2)!);
+          final low = def.min ?? from, high = def.max ?? to;
+          if (from >= low && to <= high && to >= from) return (from, to);
+        }
+        return bad(
+          '`$key` precisa ser uma faixa crescente entre ${def.min} e '
+          '${def.max}, como `"60-70"`.',
         );
       case ValueType.abc:
         if (value is String && value.trim().isNotEmpty) {

@@ -409,6 +409,15 @@ class PassCriteria {
     this.rounds = 1,
     this.speed = 100,
     this.timeLimit,
+    this.legato,
+    this.staccato,
+    this.dynamics = false,
+    this.balance,
+    this.pedal,
+    this.steadiness,
+    this.swing,
+    this.accents,
+    this.choruses,
   });
 
   /// Porcentagem mínima numa rodada.
@@ -422,6 +431,36 @@ class PassCriteria {
 
   /// Segundos por pergunta; `null` = sem limite.
   final int? timeLimit;
+
+  // Medidores (EX08). `null` é o que o autor não pediu: o medidor não aparece
+  // no resumo nem reprova a rodada.
+
+  /// % mínima de ligações limpas.
+  final int? legato;
+
+  /// % mínima de staccatos curtos.
+  final int? staccato;
+
+  /// Os trechos de dinâmica precisam estar certos (% mínima fixa em 80).
+  final bool dynamics;
+
+  /// Diferença mínima de força (velocity), melodia sobre acompanhamento.
+  final int? balance;
+
+  /// % mínima de trocas de pedal limpas.
+  final int? pedal;
+
+  /// Desvio-padrão máximo dos ataques, em ms.
+  final int? steadiness;
+
+  /// Faixa da razão da segunda colcheia de cada tempo, em % (`60-70`).
+  final (int, int)? swing;
+
+  /// Diferença mínima de força nos acentos.
+  final int? accents;
+
+  /// Voltas seguidas sem erro.
+  final int? choruses;
 }
 
 /// Quais notas um exercício usa: lista fixa ou sorteio numa faixa.

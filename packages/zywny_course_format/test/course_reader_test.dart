@@ -924,7 +924,8 @@ title: Escrita
 abc: "CDEF|"
 ```
 ''');
-      final spec = result.course!.lessons.single.exercises.single as PlayScoreSpec;
+      final spec =
+          result.course!.lessons.single.exercises.single as PlayScoreSpec;
       expect(spec.keys, isNull);
       expect(spec.cycle, isNull);
       expect(spec.keyStart, KeyStart.written);
@@ -969,10 +970,16 @@ key-start: rotate
 ''');
       final messages = _messages(result);
       expect(messages, hasLength(4));
-      expect(messages[0], contains('`keys` não é um tom que o formato conhece'));
+      expect(
+        messages[0],
+        contains('`keys` não é um tom que o formato conhece'),
+      );
       expect(messages[0], contains('(`H`)'));
       expect(messages[1], contains('`keys` e `cycle` não valem juntos'));
-      expect(messages[2], contains('`key-start` só vale com `keys` ou `cycle`'));
+      expect(
+        messages[2],
+        contains('`key-start` só vale com `keys` ou `cycle`'),
+      );
       expect(messages[3], contains('`key-start` não vale com `keys: random`'));
     });
 
@@ -988,7 +995,8 @@ key-start: rotate
 ```
 ''');
       expect(_messages(result), isEmpty);
-      final spec = result.course!.lessons.single.exercises.single as PlayScoreSpec;
+      final spec =
+          result.course!.lessons.single.exercises.single as PlayScoreSpec;
       expect(spec.keyStart, KeyStart.rotate);
     });
 
@@ -1014,6 +1022,134 @@ keys: sempre
       expect(messages, hasLength(2));
       expect(messages[0], contains('pelo menos 1 item'));
       expect(messages[1], contains('aceita all, random'));
+    });
+
+    test('pass: os medidores (EX08) são lidos com os valores', () async {
+      final result = await _read('''
+```zywny-exercise
+id: a
+type: play-score
+title: A
+abc: "CDEF|"
+mode: realtime
+pass: {legato: 85, staccato: 80, dynamics: true, balance: 10, pedal: 70, steadiness: 40, swing: "60-70", accents: 12, choruses: 2}
+```
+''');
+      expect(_messages(result), isEmpty);
+      final pass =
+          (result.course!.lessons.single.exercises.single as PlayScoreSpec)
+              .pass;
+      expect(pass.legato, 85);
+      expect(pass.staccato, 80);
+      expect(pass.dynamics, isTrue);
+      expect(pass.balance, 10);
+      expect(pass.pedal, 70);
+      expect(pass.steadiness, 40);
+      expect(pass.swing, (60, 70));
+      expect(pass.accents, 12);
+      expect(pass.choruses, 2);
+    });
+
+    test('pass: sem medidores, nada é pedido', () async {
+      final result = await _read('''
+```zywny-exercise
+id: a
+type: play-score
+title: A
+abc: "CDEF|"
+```
+''');
+      final pass =
+          (result.course!.lessons.single.exercises.single as PlayScoreSpec)
+              .pass;
+      expect(pass.legato, isNull);
+      expect(pass.dynamics, isFalse);
+      expect(pass.swing, isNull);
+    });
+
+    test(
+      'pass: os medidores que leem o tempo não valem no modo espera',
+      () async {
+        final result = await _read('''
+```zywny-exercise
+id: a
+type: play-score
+title: A
+abc: "CDEF|"
+mode: wait
+pass: {legato: 85, steadiness: 40, swing: "60-70", choruses: 2}
+```
+''');
+        final messages = _messages(result);
+        expect(messages, hasLength(4));
+        for (final key in ['legato', 'steadiness', 'swing', 'choruses']) {
+          expect(messages, contains(contains('tire `$key`')));
+        }
+      },
+    );
+
+    test('pass: dinâmica, equilíbrio e acentos valem no modo espera', () async {
+      final result = await _read('''
+```zywny-exercise
+id: a
+type: play-score
+title: A
+abc: "CDEF|"
+mode: wait
+pass: {dynamics: true, balance: 10, accents: 12}
+```
+''');
+      expect(_messages(result), isEmpty);
+    });
+
+    test('pass: os medidores têm faixa e tipo', () async {
+      final result = await _read('''
+```zywny-exercise
+id: a
+type: play-score
+title: A
+abc: "CDEF|"
+mode: realtime
+pass: {balance: 70, swing: "70-60", dynamics: yes, choruses: 0}
+```
+
+```zywny-exercise
+id: b
+type: play-score
+title: B
+abc: "CDEF|"
+mode: realtime
+pass: {swing: 65}
+```
+''');
+      final messages = _messages(result);
+      expect(messages, hasLength(5));
+      expect(messages, [
+        contains('`balance` precisa estar entre 1 e 60'),
+        contains('`choruses` precisa estar entre 1 e 20'),
+        contains('`dynamics` precisa ser `true` ou `false`'),
+        contains('`swing` precisa ser uma faixa crescente'),
+        contains('`swing` precisa ser uma faixa crescente'),
+      ]);
+    });
+
+    test('pass: medidor num exercício de pergunta não vale', () async {
+      final result = await _read('''
+```zywny-exercise
+id: a
+type: choice
+title: A
+question: Quanto vale?
+options: [1, 2, 4]
+answer: 2
+abc: "C"
+pass: {dynamics: true}
+```
+''');
+      expect(
+        _messages(result),
+        contains(contains('`dynamics` não vale em `choice`')),
+      );
     });
   });
 }
