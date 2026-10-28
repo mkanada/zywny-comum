@@ -250,16 +250,18 @@ List<Pitch> _pool(NoteRange range, OnlyOn? only) => [
 ];
 
 /// `notes` como [NotesSpec]; confere faixa, `only` e quantidade. [letters]
-/// e [naturalsOnly] valem para o `name-note`.
+/// e [naturalsOnly] valem para o `name-note`. [key] lê outra chave com a
+/// mesma sintaxe (o `roots` do `listen-chord`).
 NotesSpec? _notes(
   Fields f,
   FileIssues issues, {
   required int defaultCount,
   bool naturalsOnly = false,
   List<String>? letters,
+  String key = 'notes',
 }) {
-  final raw = f.values['notes'];
-  final line = f.lineOf('notes');
+  final raw = f.values[key];
+  final line = f.lineOf(key);
   if (raw is List) {
     final notes = raw.cast<Pitch>();
     for (final pitch in notes) {
@@ -626,6 +628,8 @@ ExerciseSpec? _buildExercise(
       );
     case ExerciseType.playChord:
       return _playChord(f, id, title, line, pass, issues);
+    case ExerciseType.listenChord:
+      return _listenChord(f, id, title, line, pass, issues);
   }
 }
 
@@ -748,6 +752,136 @@ PlayChordSpec? _playChord(
         _enumOf(ChordPrompt.values, f.get<String>('show')) ??
         ChordPrompt.symbol,
     voiceLeading: f.get<int>('voice-leading'),
+  );
+}
+
+/// `listen-chord` (EX04): a qualidade (com `qualities`, `roots`, `inversion` e
+/// `play`) ou casa ou tensão (com `answer: function`, `key` e `degrees`). Cada
+/// chave que não vale na forma escolhida é erro, com a linha dela.
+ListenChordSpec? _listenChord(
+  Fields f,
+  String id,
+  String title,
+  int line,
+  Fields? pass,
+  FileIssues issues,
+) {
+  final answer =
+      _enumOf(ChordAnswerKind.values, f.get<String>('answer')) ??
+      ChordAnswerKind.quality;
+  final isFunction = answer == ChordAnswerKind.function;
+  var ok = true;
+  final notHere = isFunction
+      ? const ['qualities', 'roots', 'play', 'inversion']
+      : const ['key', 'degrees'];
+  for (final name in notHere) {
+    if (f.has(name)) {
+      issues.error(
+        f.lineOf(name),
+        '`$name` não vale com `answer: ${answer.wire}`.',
+      );
+      ok = false;
+    }
+  }
+  final count = f.get<int>('count') ?? 10;
+
+  var qualities = <String>[];
+  NotesSpec? roots;
+  if (!isFunction) {
+    if (f.has('qualities')) {
+      qualities = f.get<List<Object>>('qualities')!.cast<String>();
+      for (final (i, quality) in qualities.indexed) {
+        if (!kChordQualities.containsKey(quality)) {
+          final hint = suggestFor(quality, kChordQualities.keys);
+          issues.error(
+            _itemLine(f, 'qualities', i),
+            'qualidade `$quality` desconhecida'
+            '${hint != null ? ' — você quis dizer `$hint`?' : ''} '
+            '(use ${kChordQualities.keys.join(', ')}).',
+          );
+          ok = false;
+        }
+      }
+      if (qualities.toSet().length != qualities.length) {
+        issues.error(
+          f.lineOf('qualities'),
+          '`qualities` repete uma qualidade.',
+        );
+        ok = false;
+      }
+    } else {
+      issues.error(
+        line,
+        '`answer: quality` pede `qualities`: as qualidades que os botões mostram.',
+      );
+      ok = false;
+    }
+    if (f.has('roots')) {
+      final raw = f.values['roots'];
+      if (raw is Fields && raw.has('count')) {
+        issues.error(
+          raw.lineOf('count'),
+          '`count` do sorteio de `roots` não vale: use o `count` da lição.',
+        );
+        ok = false;
+      }
+      if (raw is List && f.has('count')) {
+        issues.error(
+          f.lineOf('count'),
+          '`count` não vale com `roots` em lista: uma pergunta por nota.',
+        );
+        ok = false;
+      }
+      roots = _notes(f, issues, defaultCount: count, key: 'roots');
+      if (roots == null) ok = false;
+    } else {
+      roots = RandomNotes(
+        range: NoteRange(Pitch.parse('C3'), Pitch.parse('G4')),
+        count: count,
+      );
+    }
+  }
+
+  var degrees = <String>[];
+  if (isFunction) {
+    degrees =
+        f.get<List<Object>>('degrees')?.cast<String>() ??
+        const ['I', 'IV', 'V', 'vi'];
+    for (final (i, text) in degrees.indexed) {
+      String? detail;
+      final degree = ChordDegree.parse(text, error: (m) => detail = m);
+      if (degree == null) {
+        issues.error(
+          _itemLine(f, 'degrees', i),
+          '`$text` não é um grau: ${detail ?? 'não entendi'}.',
+        );
+        ok = false;
+      } else if (degree.harmonicFunction == null) {
+        issues.error(
+          _itemLine(f, 'degrees', i),
+          '`$text` não é casa nem tensão: use I, ii, iii, IV ou vi (casa), '
+          'ou V, V7, vii° ou V7/x (tensão).',
+        );
+        ok = false;
+      }
+    }
+  }
+  if (!ok) return null;
+  return ListenChordSpec(
+    id: id,
+    title: title,
+    pass: _pass(pass),
+    line: line,
+    answer: answer,
+    count: count,
+    play: _enumOf(ChordPlay.values, f.get<String>('play')) ?? ChordPlay.block,
+    inversion:
+        _enumOf(ChordInversionChoice.values, f.get<String>('inversion')) ??
+        ChordInversionChoice.root,
+    key: f.get<String>('key') ?? 'C',
+    qualities: qualities,
+    roots: roots,
+    degrees: degrees,
   );
 }
 

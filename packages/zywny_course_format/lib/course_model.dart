@@ -205,6 +205,28 @@ enum ChordPrompt implements WireEnum {
   final String wire;
 }
 
+/// `listen-chord`: o que a pergunta pede: a qualidade do acorde (botões com o
+/// nome) ou se ele é casa ou tensão, depois da cadência de referência
+/// (`function`).
+enum ChordAnswerKind implements WireEnum {
+  quality,
+  function;
+
+  @override
+  String get wire => name;
+}
+
+/// `listen-chord`: como o acorde soa: de uma vez (`block`), de baixo para cima
+/// (`arpeggio`) ou o arpejo e depois o bloco (`both`).
+enum ChordPlay implements WireEnum {
+  block,
+  arpeggio,
+  both;
+
+  @override
+  String get wire => name;
+}
+
 enum ExerciseType implements WireEnum {
   findKey('find-key'),
   playNotes('play-notes'),
@@ -216,7 +238,8 @@ enum ExerciseType implements WireEnum {
   listenNote('listen-note'),
   listenInterval('listen-interval'),
   listenScore('listen-score'),
-  playChord('play-chord');
+  playChord('play-chord'),
+  listenChord('listen-chord');
 
   const ExerciseType(this.wire);
 
@@ -817,4 +840,53 @@ class PlayChordSpec extends ExerciseSpec {
 
   /// Tempos por acorde, no modo com tempo.
   final int beats;
+}
+
+/// `listen-chord` (EX04): o zywny toca um acorde e o aluno diz a qualidade
+/// (botões com o nome) ou, com `answer: function`, se ele é casa ou tensão.
+/// Sem teclado MIDI.
+class ListenChordSpec extends ExerciseSpec {
+  const ListenChordSpec({
+    required super.id,
+    required super.title,
+    required super.pass,
+    required super.line,
+    required this.answer,
+    required this.count,
+    required this.play,
+    required this.inversion,
+    required this.key,
+    this.qualities = const [],
+    this.roots,
+    this.degrees = const [],
+  });
+
+  @override
+  ExerciseType get type => ExerciseType.listenChord;
+
+  final ChordAnswerKind answer;
+
+  /// Quantas perguntas. Com `roots` em lista, uma por nota, e este valor não
+  /// vale (o leitor recusa o `count` junto).
+  final int count;
+
+  /// `quality`: as qualidades, na ordem dos botões. Vazio no `function`.
+  final List<String> qualities;
+
+  /// `quality`: a fundamental de cada pergunta, sorteada ou em lista. `null` no
+  /// `function`.
+  final NotesSpec? roots;
+
+  /// `quality`: como o acorde soa.
+  final ChordPlay play;
+
+  /// `quality`: `root`, ou `random` (sorteada entre as inversões que a
+  /// qualidade tem).
+  final ChordInversionChoice inversion;
+
+  /// `function`: o tom (`C`, `Am`…), ou `random` para sortear um por pergunta.
+  final String key;
+
+  /// `function`: os graus que podem soar. Vazio no `quality`.
+  final List<String> degrees;
 }

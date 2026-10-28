@@ -621,6 +621,209 @@ intervals: [m2]
       expect(_messages(result).single, contains('pelo menos 2 itens'));
     });
 
+    // EX04: o listen-chord, a forma da qualidade e a de casa ou tensão.
+    test('listen-chord lê as duas formas e põe os padrões', () async {
+      final result = await _read('''
+```zywny-exercise
+id: c1-qualidades
+type: listen-chord
+title: Maior ou menor?
+qualities: [M, m]
+roots: {random: C3-G4}
+count: 10
+play: arpeggio
+pass: {accuracy: 80}
+```
+
+```zywny-exercise
+id: c2-lista
+type: listen-chord
+title: Duas fundamentais
+qualities: [M, m, 7]
+roots: [C3, G3]
+play: both
+inversion: random
+```
+
+```zywny-exercise
+id: c3-casa-ou-tensao
+type: listen-chord
+title: Casa ou tensão?
+answer: function
+key: random
+degrees: [I, IV, V7/vi, vi]
+count: 8
+pass: {accuracy: 75, time-limit: 20}
+```
+
+```zywny-exercise
+id: c4-padroes
+type: listen-chord
+title: Só a qualidade
+qualities: [M, m]
+```
+''');
+      expect(_messages(result), isEmpty);
+      final specs = result.course!.lessons.single.exercises.toList();
+
+      final maiorOuMenor = specs[0] as ListenChordSpec;
+      expect(maiorOuMenor.type, ExerciseType.listenChord);
+      expect(maiorOuMenor.answer, ChordAnswerKind.quality);
+      expect(maiorOuMenor.qualities, ['M', 'm']);
+      expect(maiorOuMenor.roots, isA<RandomNotes>());
+      expect((maiorOuMenor.roots! as RandomNotes).count, 10);
+      expect(maiorOuMenor.count, 10);
+      expect(maiorOuMenor.play, ChordPlay.arpeggio);
+      expect(maiorOuMenor.inversion, ChordInversionChoice.root);
+      expect(maiorOuMenor.pass.accuracy, 80);
+
+      final duas = specs[1] as ListenChordSpec;
+      expect(duas.roots, isA<FixedNotes>());
+      expect((duas.roots! as FixedNotes).notes, hasLength(2));
+      expect(duas.play, ChordPlay.both);
+      expect(duas.inversion, ChordInversionChoice.random);
+
+      final funcao = specs[2] as ListenChordSpec;
+      expect(funcao.answer, ChordAnswerKind.function);
+      expect(funcao.key, 'random');
+      expect(funcao.degrees, ['I', 'IV', 'V7/vi', 'vi']);
+      expect(funcao.count, 8);
+      expect(funcao.roots, isNull);
+      expect(funcao.qualities, isEmpty);
+      expect(funcao.pass.timeLimit, 20);
+
+      final padroes = specs[3] as ListenChordSpec;
+      expect(padroes.key, 'C');
+      expect(padroes.degrees, isEmpty);
+      expect(padroes.count, 10);
+      expect(padroes.play, ChordPlay.block);
+    });
+
+    test('listen-chord: a forma quality pede qualities', () async {
+      final result = await _read('''
+```zywny-exercise
+id: c
+type: listen-chord
+title: C
+```
+''');
+      expect(
+        _messages(result).single,
+        contains('`answer: quality` pede `qualities`'),
+      );
+      expect(result.course, isNull);
+    });
+
+    test('listen-chord: qualities com menos de dois itens', () async {
+      final result = await _read('''
+```zywny-exercise
+id: c
+type: listen-chord
+title: C
+qualities: [M]
+```
+''');
+      expect(_messages(result).single, contains('pelo menos 2 itens'));
+    });
+
+    test('listen-chord: qualidade desconhecida, com sugestão', () async {
+      final result = await _read('''
+```zywny-exercise
+id: c
+type: listen-chord
+title: C
+qualities: [M, mm]
+```
+''');
+      expect(_messages(result).single, contains('qualidade `mm` desconhecida'));
+      expect(result.course, isNull);
+    });
+
+    test('listen-chord: qualidade repetida', () async {
+      final result = await _read('''
+```zywny-exercise
+id: c
+type: listen-chord
+title: C
+qualities: [M, M]
+```
+''');
+      expect(_messages(result).single, contains('repete uma qualidade'));
+    });
+
+    test('listen-chord: chaves de uma forma não valem na outra', () async {
+      final result = await _read('''
+```zywny-exercise
+id: c
+type: listen-chord
+title: C
+answer: function
+qualities: [M, m]
+```
+
+```zywny-exercise
+id: d
+type: listen-chord
+title: D
+qualities: [M, m]
+degrees: [I, V]
+```
+''');
+      final messages = _messages(result).join('\n');
+      expect(messages, contains('`qualities` não vale com `answer: function`'));
+      expect(messages, contains('`degrees` não vale com `answer: quality`'));
+      expect(result.course, isNull);
+    });
+
+    test(
+      'listen-chord: grau que não é casa nem tensão, e grau inválido',
+      () async {
+        final result = await _read('''
+```zywny-exercise
+id: c
+type: listen-chord
+title: C
+answer: function
+degrees: [I, I7, hello]
+```
+''');
+        final messages = _messages(result).join('\n');
+        expect(messages, contains('`I7` não é casa nem tensão'));
+        expect(messages, contains('`hello` não é um grau'));
+        expect(result.course, isNull);
+      },
+    );
+
+    test('listen-chord: count não vale com roots em lista', () async {
+      final result = await _read('''
+```zywny-exercise
+id: c
+type: listen-chord
+title: C
+qualities: [M, m]
+roots: [C3, G3]
+count: 5
+```
+''');
+      expect(
+        _messages(result).single,
+        contains('`count` não vale com `roots` em lista'),
+      );
+    });
+
+    test('listen-chord: count dentro do sorteio de roots', () async {
+      final result = await _read('''
+```zywny-exercise
+id: c
+type: listen-chord
+title: C
+qualities: [M, m]
+roots: {random: C3-G4, count: 4}
+```
+''');
+      expect(_messages(result).single, contains('use o `count` da lição'));
+    });
+
     test('avisos não impedem o curso', () async {
       final result = await _read('Um <b>negrito</b>.\n');
       expect(_messages(result), [

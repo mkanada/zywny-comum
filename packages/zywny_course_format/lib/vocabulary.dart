@@ -331,6 +331,7 @@ final kPassKeys = <String, PassKey>{
     ExerciseType.listenInterval,
     ExerciseType.listenScore,
     ExerciseType.playChord,
+    ExerciseType.listenChord,
   }, note: 'só vale nos exercícios de pergunta'),
 };
 
@@ -490,6 +491,42 @@ final _typeKeys = <ExerciseType, Map<String, KeyDef>>{
     // de cada acorde. Com `time-limit`, o validador recusa os dois.
     'bpm': const KeyDef(ValueType.integer, min: 30, max: 200),
     'beats': const KeyDef(ValueType.integer, min: 1, max: 8, fallback: '4'),
+  },
+  ExerciseType.listenChord: {
+    'answer': KeyDef(
+      ValueType.option,
+      values: _wires(ChordAnswerKind.values),
+      fallback: 'quality',
+    ),
+    'count': const KeyDef(ValueType.integer, min: 1, max: 40, fallback: '10'),
+    // `quality`: as qualidades dos botões, a fundamental (sorteio ou lista) e
+    // a inversão e a maneira de tocar.
+    'qualities': const KeyDef(ValueType.stringList, minItems: 2),
+    'roots': const KeyDef(ValueType.notes),
+    'inversion': KeyDef(
+      ValueType.option,
+      values: [
+        ChordInversionChoice.root.wire,
+        ChordInversionChoice.random.wire,
+      ],
+      fallback: 'root',
+    ),
+    'play': KeyDef(
+      ValueType.option,
+      values: _wires(ChordPlay.values),
+      fallback: 'block',
+    ),
+    // `function`: o tom (ou `random`) e os graus que podem soar.
+    'key': KeyDef(
+      ValueType.option,
+      values: [...kKeyNames, 'random'],
+      fallback: 'C',
+    ),
+    'degrees': const KeyDef(
+      ValueType.stringList,
+      minItems: 1,
+      fallback: '[I, IV, V, vi]',
+    ),
   },
 };
 

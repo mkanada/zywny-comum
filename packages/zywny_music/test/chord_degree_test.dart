@@ -73,4 +73,31 @@ void main() {
   test('o texto canônico é o grau lido, sem as pontas', () {
     expect(ChordDegree.parse('  V7/vi ')!.label, 'V7/vi');
   });
+
+  // EX04: a função de casa ou tensão. Só os graus que a pergunta usa têm uma.
+  group('função (casa ou tensão)', () {
+    DegreeFunction? funcaoDe(String texto) =>
+        ChordDegree.parse(texto)!.harmonicFunction;
+
+    test('I, iii e vi repousam; ii e IV afastam-se', () {
+      for (final texto in ['I', 'iii', 'vi', 'Imaj7', 'vi7']) {
+        expect(funcaoDe(texto), DegreeFunction.rest, reason: texto);
+      }
+      for (final texto in ['ii', 'IV', 'ii7', 'IVmaj7']) {
+        expect(funcaoDe(texto), DegreeFunction.away, reason: texto);
+      }
+    });
+
+    test('V, V7, vii° e a dominante secundária pedem resolução', () {
+      for (final texto in ['V', 'V7', 'vii°', 'vii°7', 'V7/vi', 'V/V']) {
+        expect(funcaoDe(texto), DegreeFunction.tension, reason: texto);
+      }
+    });
+
+    test('o que não é casa nem tensão não tem função', () {
+      for (final texto in ['I7', 'v', 'bVII', 'iv7/bIII', 'ii7/V']) {
+        expect(funcaoDe(texto), isNull, reason: texto);
+      }
+    });
+  });
 }

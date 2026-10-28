@@ -127,6 +127,29 @@ class ChordDegree {
   /// Para `V7/vi`: o grau `vi`, cujo tom é o da dominante secundária.
   final ChordDegree? secondary;
 
+  /// A função do grau no ouvido de casa ou tensão (EX04). `null` quando o grau
+  /// não é um dos que essa pergunta usa: só I, iii, vi (casa), ii, IV (afasta-
+  /// se), V, V7, vii° e V7/x (tensão), com o acorde que a função pede.
+  DegreeFunction? get harmonicFunction {
+    final target = secondary;
+    if (target != null) {
+      return shift == 0 && numeral == 5 && _dominants.contains(quality)
+          ? DegreeFunction.tension
+          : null;
+    }
+    if (shift != 0) return null;
+    return switch (numeral) {
+      1 || 3 || 6 when _stable.contains(quality) => DegreeFunction.rest,
+      2 || 4 when _stable.contains(quality) => DegreeFunction.away,
+      5 when _dominants.contains(quality) => DegreeFunction.tension,
+      7
+          when quality == ChordQuality.diminished ||
+              quality == ChordQuality.diminished7 =>
+        DegreeFunction.tension,
+      _ => null,
+    };
+  }
+
   /// O acorde deste grau no tom [key]. Com `/x`, o acorde é calculado no
   /// tom do grau `x` (que é o que o `/` diz).
   ChordSymbol inKey(KeySpec key) {
@@ -175,6 +198,25 @@ const _naturals = {'C': 0, 'D': 2, 'E': 4, 'F': 5, 'G': 7, 'A': 9, 'B': 11};
 /// VII° vêm da harmônica (`ChordDegree._resolve`).
 const _majorSteps = [0, 2, 4, 5, 7, 9, 11];
 const _minorSteps = [0, 2, 3, 5, 7, 8, 10];
+
+/// A função de um grau no ouvido de casa ou tensão (EX04): [rest] repousa em
+/// casa; [away] afasta-se dela sem pedir volta; [tension] pede resolução.
+enum DegreeFunction { rest, away, tension }
+
+/// As qualidades que repousam ou se afastam: tríades e tétrades sem trítono
+/// (a dominante não repousa).
+const _stable = {
+  ChordQuality.major,
+  ChordQuality.minor,
+  ChordQuality.major7,
+  ChordQuality.minorMajor7,
+  ChordQuality.minor7,
+  ChordQuality.major6,
+  ChordQuality.minor6,
+};
+
+/// As dominantes (maior e com sétima), que pedem resolução.
+const _dominants = {ChordQuality.major, ChordQuality.dominant7};
 
 final _keyPattern = RegExp(r'^([A-G])([#b]?)(m|min)?$');
 
