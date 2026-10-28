@@ -13,6 +13,7 @@ import '../about/about_screen.dart';
 import '../auth/account_settings_section.dart';
 import '../diag/bug_report_scope.dart';
 
+import 'package:zywny_music/chord.dart' show ChordNotation;
 import 'package:zywny_music/note_names.dart' show NoteNaming;
 
 import 'package:zywny_midi/midi_device_manager.dart';
@@ -320,6 +321,32 @@ class GeneralSettingsPanel extends StatelessWidget {
               ],
               selected: {settings.noteNaming},
               onSelectionChanged: (s) => settings.noteNaming = s.first,
+            ),
+            const SizedBox(height: 14),
+            const Text(
+              'Cifra',
+              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+            ),
+            const SizedBox(height: 6),
+            SegmentedButton<ChordNotation>(
+              showSelectedIcon: false,
+              segments: const [
+                ButtonSegment(
+                  value: ChordNotation.brazilian,
+                  label: Text('C7M · Cm7(b5)'),
+                ),
+                ButtonSegment(
+                  value: ChordNotation.american,
+                  label: Text('Cmaj7 · Cm7b5'),
+                ),
+              ],
+              selected: {settings.chordNotation},
+              onSelectionChanged: (s) => settings.chordNotation = s.first,
+            ),
+            const SizedBox(height: 6),
+            const Text(
+              'Um curso pode fixar a sua cifra; nele, esta escolha não vale.',
+              style: TextStyle(fontSize: 12, color: kInkCaption),
             ),
           ],
         ),

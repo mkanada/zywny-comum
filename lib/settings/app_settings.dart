@@ -6,6 +6,7 @@ import 'package:score_bridge/score_bridge.dart' show kDefaultBarColor;
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:zywny_diag/diag_log.dart';
+import 'package:zywny_music/chord.dart' show ChordNotation;
 import 'package:zywny_music/note_names.dart' show NoteNaming;
 
 import '../practice/practice_colors.dart'
@@ -98,6 +99,8 @@ class AppSettings extends ChangeNotifier {
   // I05 — nomes das notas na tela (D-LIC-NOMES): Dó–Ré–Mi ou C–D–E.
   // O interruptor nas configurações é do I09; aqui só a chave e o valor.
   static const _kNoteNaming = 'ui_note_naming';
+  // EX03 (D-EXE-CIFRA): a grafia da cifra nas perguntas de acordes.
+  static const _kChordNotation = 'ui_chord_notation';
   static const _kCourseTextScale = 'ui_course_text_scale';
   // Fase Q (Q03): "Abrir as músicas já sem acidentes".
   static const _kTransposeByDefault = 'score_transpose_default';
@@ -128,6 +131,7 @@ class AppSettings extends ChangeNotifier {
   Set<double> _trailSpeeds = {...kTrailSpeeds};
   double _rhythmToleranceMs = kDefaultRhythmToleranceMs;
   NoteNaming _noteNaming = NoteNaming.latin;
+  ChordNotation _chordNotation = ChordNotation.brazilian;
   double _courseTextScale = 1.0;
   bool _transposeByDefault = false;
   Map<String, KeyboardTransposeBehavior> _keyboardTranspose = const {};
@@ -304,6 +308,16 @@ class AppSettings extends ChangeNotifier {
     _changed(_prefs.setString(_kNoteNaming, value.wire));
   }
 
+  /// Como a cifra é escrita nas perguntas de acordes (EX03, D-EXE-CIFRA):
+  /// `brazilian` (`C7M`, `Cm7(b5)`, o padrão) ou `american` (`Cmaj7`,
+  /// `Cm7b5`). Um curso que fixa a sua (`chord-notation:`) não segue isto.
+  ChordNotation get chordNotation => _chordNotation;
+  set chordNotation(ChordNotation value) {
+    if (value == _chordNotation) return;
+    _chordNotation = value;
+    _changed(_prefs.setString(_kChordNotation, value.name));
+  }
+
   /// Multiplicador do texto nas telas dos cursos (lista, curso, lição,
   /// exercício), por cima do tamanho de fonte do sistema; entre
   /// [kMinCourseTextScale] e [kMaxCourseTextScale].
@@ -424,6 +438,7 @@ class AppSettings extends ChangeNotifier {
       'corDaHaste': hex(_barColor),
       'margemDoRitmoMs': _rhythmToleranceMs,
       'nomeDasNotas': _noteNaming.name,
+      'cifra': _chordNotation.name,
       'escalaDoTexto': _courseTextScale,
       'transporPorPadrao': _transposeByDefault,
       'layoutDaPartitura': _scoreLayout,
@@ -503,6 +518,7 @@ class AppSettings extends ChangeNotifier {
     );
     final tolerance = await read(() => _prefs.getDouble(_kRhythmTolerance));
     final noteNaming = await read(() => _prefs.getString(_kNoteNaming));
+    final chordNotation = await read(() => _prefs.getString(_kChordNotation));
     final textScale = await read(() => _prefs.getDouble(_kCourseTextScale));
     final transposeByDefault = await read(
       () => _prefs.getBool(_kTransposeByDefault),
@@ -555,6 +571,8 @@ class AppSettings extends ChangeNotifier {
       );
     }
     _noteNaming = NoteNaming.fromWire(noteNaming);
+    _chordNotation =
+        byName(ChordNotation.values, chordNotation) ?? _chordNotation;
     if (textScale != null) {
       _courseTextScale = textScale.clamp(
         kMinCourseTextScale,

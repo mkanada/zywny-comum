@@ -147,6 +147,9 @@ const kCourseKeys = <String, KeyDef>{
   'author': KeyDef(ValueType.text, required: true),
   'version': KeyDef(ValueType.scalarText, required: true),
   'lessons': KeyDef(ValueType.stringList, required: true, minItems: 1),
+  // EX03 (D-EXE-CIFRA): a grafia da cifra que o curso fixa; sem a chave, vale
+  // a configuração do app.
+  'chord-notation': KeyDef(ValueType.option, values: ['american', 'brazilian']),
 };
 
 /// Chaves do front matter de uma lição.
@@ -207,7 +210,20 @@ const _notes = KeyDef(ValueType.notes, required: true);
 
 /// Fundamentais que `roots:` aceita, além de `random` e `white` (EX02).
 const kRootNames = [
-  'C', 'C#', 'Db', 'D', 'Eb', 'E', 'F', 'F#', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B',
+  'C',
+  'C#',
+  'Db',
+  'D',
+  'Eb',
+  'E',
+  'F',
+  'F#',
+  'Gb',
+  'G',
+  'Ab',
+  'A',
+  'Bb',
+  'B',
 ];
 
 /// Qualidades de `qualities:` (EX00, "Cifra"), com o sufixo que o
@@ -470,6 +486,10 @@ final _typeKeys = <ExerciseType, Map<String, KeyDef>>{
       fallback: 'symbol',
     ),
     'voice-leading': const KeyDef(ValueType.integer, min: 1, max: 12),
+    // EX03: o modo com tempo. `bpm` põe o metrônomo; `beats` são os tempos
+    // de cada acorde. Com `time-limit`, o validador recusa os dois.
+    'bpm': const KeyDef(ValueType.integer, min: 30, max: 200),
+    'beats': const KeyDef(ValueType.integer, min: 1, max: 8, fallback: '4'),
   },
 };
 

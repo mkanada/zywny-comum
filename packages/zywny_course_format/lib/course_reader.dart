@@ -1,5 +1,7 @@
 import 'dart:convert';
 
+import 'package:zywny_music/chord.dart';
+
 import 'course_files.dart';
 import 'course_issue.dart';
 import 'course_model.dart';
@@ -75,6 +77,7 @@ Future<CourseReadResult> readCourse(CourseFiles files) async {
       version: head.version,
       intro: head.intro,
       lessons: ordered,
+      chordNotation: head.chordNotation,
     ),
     issues,
   );
@@ -91,7 +94,11 @@ class _CourseHead {
     required this.lessonIds,
     required this.lessonLines,
     required this.lessonsLine,
+    this.chordNotation,
   });
+
+  /// `chord-notation:` do curso; `null` segue a configuração do app.
+  final ChordNotation? chordNotation;
 
   final int format;
   final String id;
@@ -194,8 +201,14 @@ Future<_CourseHead?> _readCourseHead(
     lessonIds: fields.get<List<Object>>('lessons')!.cast<String>(),
     lessonLines: fields.itemLines['lessons']!,
     lessonsLine: fields.lineOf('lessons'),
+    chordNotation: _notationOf(fields.get<String>('chord-notation')),
   );
 }
+
+/// A grafia de `chord-notation:` (já conferida pelo vocabulário); `null` se o
+/// curso não fixa uma.
+ChordNotation? _notationOf(String? wire) =>
+    wire == null ? null : ChordNotation.values.byName(wire);
 
 Future<_ParsedLesson?> _readLesson(
   CourseFiles files,

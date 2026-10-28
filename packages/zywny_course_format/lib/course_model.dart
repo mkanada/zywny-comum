@@ -1,5 +1,6 @@
 import 'package:meta/meta.dart';
 
+import 'package:zywny_music/chord.dart';
 import 'package:zywny_music/note_name.dart';
 
 /// Valor do formato como aparece no arquivo (`type: play-notes`).
@@ -234,6 +235,7 @@ class Course {
     required this.version,
     required this.intro,
     required this.lessons,
+    this.chordNotation,
   });
 
   final int format;
@@ -247,6 +249,10 @@ class Course {
   /// O markdown da apresentação (o corpo de `course.md`).
   final String intro;
   final List<Lesson> lessons;
+
+  /// A grafia da cifra fixada pelo curso (`chord-notation:`); `null` segue a
+  /// configuração do app (D-EXE-CIFRA).
+  final ChordNotation? chordNotation;
 }
 
 @immutable
@@ -769,6 +775,8 @@ class PlayChordSpec extends ExerciseSpec {
     this.voicing,
     this.range,
     this.voiceLeading,
+    this.bpm,
+    this.beats = 4,
   });
 
   @override
@@ -802,4 +810,11 @@ class PlayChordSpec extends ExerciseSpec {
   /// Movimento máximo, em semitons, de um acorde para o seguinte; acima disso
   /// o acorde vale, mas conta como erro de primeira.
   final int? voiceLeading;
+
+  /// Andamento do modo com tempo (EX03): cada pergunta dura [beats] tempos e
+  /// o metrônomo marca. `null` = sem tempo (a pergunta espera o aluno).
+  final int? bpm;
+
+  /// Tempos por acorde, no modo com tempo.
+  final int beats;
 }

@@ -710,6 +710,24 @@ PlayChordSpec? _playChord(
       ok = false;
     }
   }
+  // EX03: o modo com tempo. O `bpm` marca cada pergunta, então não vale junto
+  // com o `time-limit` (que também marca o fim de cada pergunta).
+  final bpm = f.get<int>('bpm');
+  if (bpm == null && f.has('beats')) {
+    issues.error(
+      f.lineOf('beats'),
+      '`beats` só vale com `bpm`: o tempo de cada acorde vem do andamento.',
+    );
+    ok = false;
+  }
+  if (bpm != null && pass?.get<int>('time-limit') != null) {
+    issues.error(
+      f.lineOf('bpm'),
+      '`bpm` e `time-limit` não valem juntos: o metrônomo já marca o fim de '
+      'cada pergunta.',
+    );
+    ok = false;
+  }
   if (!ok) return null;
   return PlayChordSpec(
     id: id,
@@ -722,10 +740,13 @@ PlayChordSpec? _playChord(
     hand: hand,
     split: f.get<Pitch>('split') ?? Pitch.parse('C4'),
     range: range,
+    bpm: bpm,
+    beats: f.get<int>('beats') ?? 4,
     strict: f.get<bool>('strict') ?? true,
     omit5: f.get<bool>('omit5') ?? true,
     prompt:
-        _enumOf(ChordPrompt.values, f.get<String>('show')) ?? ChordPrompt.symbol,
+        _enumOf(ChordPrompt.values, f.get<String>('show')) ??
+        ChordPrompt.symbol,
     voiceLeading: f.get<int>('voice-leading'),
   );
 }
