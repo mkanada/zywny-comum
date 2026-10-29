@@ -447,7 +447,11 @@ const _timedTypes = {
 /// A regularidade, o swing e as voltas (EX08) valem também no `play-chart`
 /// (EX11), que é sempre com tempo. O `speed` não: o andamento da grade é o do
 /// autor, e o legato, o pedal e os acentos não têm o que medir numa grade.
-final _meterTypes = {..._timedTypes, ExerciseType.playChart};
+final _meterTypes = {
+  ..._timedTypes,
+  ExerciseType.playChart,
+  ExerciseType.playLeadSheet,
+};
 
 const _realtimeNote =
     'só vale com tempo real (`rhythm`, `play-score` e `play-pattern` com '
@@ -932,6 +936,31 @@ final _typeKeys = <ExerciseType, Map<String, KeyDef>>{
     'bpm': const KeyDef(ValueType.integer, min: 30, max: 200, fallback: '70'),
     'split': const KeyDef(ValueType.note, fallback: 'C4'),
     'count': const KeyDef(ValueType.integer, min: 1, max: 10, fallback: '1'),
+  },
+  // EX17: a melodia do autor (`file`, com as cifras) e o molde ou o estilo. O
+  // `abc`, o tom por rodada (`keys`, `cycle`, `key-start`) e a base (`backing`)
+  // estão no formato; o leitor os recusa com "ainda não roda" (ver o EX17).
+  ExerciseType.playLeadSheet: {
+    'file': const KeyDef(ValueType.path, extensions: kScoreExtensions),
+    'abc': _abc,
+    'pattern': const KeyDef(ValueType.text, fallback: 'block'),
+    'style': KeyDef(ValueType.option, values: _wires(LeadStyle.values)),
+    'melody': KeyDef(
+      ValueType.option,
+      values: _wires(LeadMelody.values),
+      fallback: 'check',
+    ),
+    'bpm': const KeyDef(ValueType.integer, min: 30, max: 240, fallback: '80'),
+    'swing': const KeyDef(ValueType.integer, min: 50, max: 75),
+    'split': const KeyDef(ValueType.note, fallback: 'C4'),
+    'keys': const KeyDef(ValueType.keyChoice, minItems: 1),
+    'cycle': KeyDef(ValueType.option, values: _wires(KeyCycle.values)),
+    'key-start': KeyDef(
+      ValueType.option,
+      values: _wires(KeyStart.values),
+      fallback: 'written',
+    ),
+    'backing': const KeyDef(ValueType.backingSpec),
   },
   ExerciseType.listenProgression: {
     'answer': KeyDef(

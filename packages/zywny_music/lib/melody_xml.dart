@@ -45,7 +45,29 @@ class MelodyMeasure {
   final String time;
 }
 
-/// A melodia lida: as notas, os compassos, a armadura e as marcas `chg`.
+/// Uma cifra do arquivo (`<harmony>`, EX17): a hora em semínimas desde o começo
+/// da peça e o nome da cifra na grafia da EX01 (`C7M`, `Dm7(b5)`, `G/B`), ou
+/// `null` quando o tipo de acorde do arquivo não tem nome nessa grafia.
+@immutable
+class MelodyHarmony {
+  const MelodyHarmony({
+    required this.start,
+    required this.symbol,
+    required this.kind,
+  });
+
+  final double start;
+
+  /// A cifra na grafia da EX01, ou `null` (ver [kind]).
+  final String? symbol;
+
+  /// O tipo de acorde como o arquivo o escreveu (`major-seventh`), para a
+  /// mensagem de erro quando [symbol] é `null`.
+  final String kind;
+}
+
+/// A melodia lida: as notas, os compassos, a armadura, as marcas `chg` e as
+/// cifras (`<harmony>`, vazias nos arquivos sem cifra).
 @immutable
 class MelodyScore {
   const MelodyScore({
@@ -54,7 +76,11 @@ class MelodyScore {
     required this.changes,
     required this.fifths,
     required this.minor,
+    this.harmonies = const [],
   });
+
+  /// As cifras da partitura, em ordem de hora (EX17).
+  final List<MelodyHarmony> harmonies;
 
   /// As notas, em ordem de hora.
   final List<MelodyNote> notes;
@@ -76,6 +102,15 @@ class MelodyScore {
 
   /// A fórmula do primeiro compasso (`4/4` se o arquivo não tem `<time>`).
   String get time => measures.isEmpty ? '4/4' : measures.first.time;
+
+  /// O compasso (base 0) que contém a hora [at], em semínimas (EX17).
+  int measureAt(double at) {
+    var found = 0;
+    for (var m = 0; m < measures.length; m++) {
+      if (measures[m].start <= at + 1e-9) found = m;
+    }
+    return found;
+  }
 
   /// A classe de altura da tônica (0 a 11), ou `null` sem armadura.
   int? get tonicPc {
@@ -112,6 +147,7 @@ MelodyScore? readMelodyXml(String xml, {void Function(String message)? error}) {
   var beats = 4;
   var beatType = 4;
   var measureStart = 0.0;
+  final harmonies = <MelodyHarmony>[];
 
   for (final measure in part.childrenNamed('measure')) {
     final nominal = beats * 4 / beatType;
@@ -135,6 +171,15 @@ MelodyScore? readMelodyXml(String xml, {void Function(String message)? error}) {
             fifths = int.tryParse(key.child('fifths')?.text ?? '') ?? fifths;
             minor = key.child('mode')?.text == 'minor';
           }
+        case 'harmony':
+          // A cifra vale do ponto em que está (antes da nota que ela acompanha).
+          harmonies.add(
+            MelodyHarmony(
+              start: measureStart + pos,
+              symbol: _symbolOf(node),
+              kind: node.child('kind')?.text ?? '',
+            ),
+          );
         case 'direction':
           for (final words in node.descendants('words')) {
             if (words.text.toLowerCase() == 'chg') {
@@ -195,7 +240,66 @@ MelodyScore? readMelodyXml(String xml, {void Function(String message)? error}) {
     changes: changes,
     fifths: fifths,
     minor: minor,
+    harmonies: harmonies,
   );
+}
+
+/// O sufixo da cifra de cada tipo de acorde do MusicXML, na grafia da EX01. Os
+/// tipos que não estão aqui não têm nome nessa grafia (a cifra fica `null`).
+const _kindSuffix = {
+  'major': '',
+  'minor': 'm',
+  'augmented': '+',
+  'diminished': 'dim',
+  'dominant': '7',
+  'major-seventh': 'maj7',
+  'minor-seventh': 'm7',
+  'diminished-seventh': 'dim7',
+  'half-diminished': 'm7b5',
+  'major-sixth': '6',
+  'minor-sixth': 'm6',
+  'dominant-ninth': '9',
+  'major-ninth': 'maj9',
+  'minor-ninth': 'm9',
+  'dominant-11th': '11',
+  'dominant-13th': '13',
+  'suspended-second': 'sus2',
+  'suspended-fourth': 'sus4',
+};
+
+/// A cifra de um `<harmony>` na grafia da EX01: a fundamental, o sufixo (o
+/// `text` do `<kind>`, se o arquivo o dá; senão o tipo) e o baixo. `null` sem
+/// fundamental ou com um tipo que não tem nome.
+String? _symbolOf(_Node harmony) {
+  final root = harmony.child('root');
+  final step = root?.child('root-step')?.text;
+  if (step == null || step.isEmpty) return null;
+  final kind = harmony.child('kind');
+  final text = kind?.attrs['text']?.trim() ?? '';
+  final suffix = text.isNotEmpty ? text : _kindSuffix[kind?.text];
+  if (suffix == null) return null;
+  final bass = harmony.child('bass')?.child('bass-step')?.text;
+  final buffer = StringBuffer()
+    ..write(step)
+    ..write(_alterText(root?.child('root-alter')?.text))
+    ..write(suffix);
+  if (bass != null && bass.isNotEmpty) {
+    final bassAlter = harmony.child('bass')?.child('bass-alter')?.text;
+    buffer
+      ..write('/')
+      ..write(bass)
+      ..write(_alterText(bassAlter));
+  }
+  return buffer.toString();
+}
+
+/// O acidente de um `<root-alter>` ou `<bass-alter>` na grafia da cifra (`#`,
+/// `b`), ou vazio.
+String _alterText(String? alter) {
+  final value = double.tryParse(alter?.trim() ?? '') ?? 0;
+  final semitones = value.round();
+  if (semitones == 0) return '';
+  return semitones > 0 ? '#' * semitones : 'b' * -semitones;
 }
 
 /// Acrescenta uma nota, ou a funde com a anterior (ligadura, ou acorde na

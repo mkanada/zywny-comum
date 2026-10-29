@@ -279,7 +279,8 @@ enum ExerciseType implements WireEnum {
   listenGroove('listen-groove'),
   echo('echo'),
   listenProgression('listen-progression'),
-  harmonize('harmonize');
+  harmonize('harmonize'),
+  playLeadSheet('play-lead-sheet');
 
   const ExerciseType(this.wire);
 
@@ -1375,6 +1376,93 @@ class HarmonizeSpec extends ExerciseSpec {
 
   /// Quantas melodias (só com `step`).
   final int count;
+}
+
+/// `style:` do `play-lead-sheet` (EX17): as regras de estilo, no lugar do molde.
+/// Os de [LeadStyle.implemented] rodam; os outros estão no formato, e o leitor
+/// os recusa com "ainda não roda" (como o `reharmonize` do EX16).
+enum LeadStyle implements WireEnum {
+  sevenThreeUnderMelody('7-3-under-melody'),
+  blockUnderMelody('block-under-melody'),
+  offBeatFill('off-beat-fill'),
+  ballad('ballad'),
+  balladRawlins('ballad-rawlins'),
+  budPowell('bud-powell'),
+  latinComping('latin-comping'),
+  lockedHands('locked-hands'),
+  drop2Melody('drop-2-melody'),
+  stride('stride');
+
+  const LeadStyle(this.wire);
+
+  @override
+  final String wire;
+
+  /// Os estilos que o app já confere (EX17). Os outros esperam o passo que os
+  /// traz (ver o `EX17`, "Notas de execução").
+  static const implemented = {
+    LeadStyle.sevenThreeUnderMelody,
+    LeadStyle.blockUnderMelody,
+    LeadStyle.offBeatFill,
+    LeadStyle.ballad,
+    LeadStyle.stride,
+  };
+}
+
+/// `melody:` do `play-lead-sheet` (EX17): `check` confere a melodia nota a nota;
+/// `free` só os acordes contam (a melodia pode ser enfeitada).
+enum LeadMelody implements WireEnum {
+  check('check'),
+  free('free');
+
+  const LeadMelody(this.wire);
+
+  @override
+  final String wire;
+}
+
+/// `play-lead-sheet` (EX17): a melodia escrita, com as cifras em cima. O aluno
+/// toca a melodia na direita e o acorde na esquerda (ou embaixo da melodia, na
+/// direita, nos estilos que pedem). [file] é o `.musicxml` do autor.
+class PlayLeadSheetSpec extends ExerciseSpec {
+  const PlayLeadSheetSpec({
+    required super.id,
+    required super.title,
+    required super.pass,
+    required super.line,
+    required this.file,
+    required this.pattern,
+    required this.melody,
+    required this.bpm,
+    required this.split,
+    this.style,
+    this.swing,
+  });
+
+  @override
+  ExerciseType get type => ExerciseType.playLeadSheet;
+
+  /// O caminho do `.musicxml` na pasta do curso (com as cifras).
+  final String file;
+
+  /// O molde da mão esquerda (EX11), pelo nome: `block` (o padrão), `any` ou um
+  /// da biblioteca. Sem [style].
+  final String pattern;
+
+  /// O estilo, no lugar do molde, ou `null`.
+  final LeadStyle? style;
+
+  final LeadMelody melody;
+
+  /// O andamento, em semínimas por minuto.
+  final int bpm;
+
+  /// O swing de 50 a 75 (só no que o app toca: as cifras da esquerda); `null` é
+  /// o reto (50).
+  final int? swing;
+
+  /// A altura que separa as mãos: abaixo é a esquerda (os acordes).
+  final Pitch split;
 }
 
 /// `source:` do `echo` (EX14): de onde vêm as notas das frases que o app toca.

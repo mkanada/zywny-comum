@@ -342,6 +342,7 @@ ExerciseSpec? _parseExercise(
     realtime:
         type == ExerciseType.rhythm ||
         type == ExerciseType.playChart ||
+        type == ExerciseType.playLeadSheet ||
         ((type == ExerciseType.playScore || type == ExerciseType.playPattern) &&
             f.get<String>('mode') == 'realtime'),
   );
@@ -803,6 +804,8 @@ ExerciseSpec? _buildExercise(
       return _listenProgression(f, id, title, line, pass, issues);
     case ExerciseType.harmonize:
       return _harmonize(f, id, title, line, pass, issues);
+    case ExerciseType.playLeadSheet:
+      return _playLeadSheet(f, id, title, line, pass, issues);
   }
 }
 
@@ -2087,6 +2090,92 @@ HarmonizeSpec? _harmonize(
 /// Os moldes que o `harmonize` aceita: `block` (o dele), `any` e os do EX11.
 bool _harmonizePattern(String name) =>
     name == 'block' || name == 'any' || compingPatternNamed(name) != null;
+
+/// `play-lead-sheet` (EX17): a melodia do `file` (com as cifras), o molde ou o
+/// estilo, o que a melodia confere (`melody`), o andamento e o tom da mão. O que
+/// depende da partitura (se as cifras se leem, se o estilo cabe nos compassos)
+/// é do app. Recusa o que ainda não roda: `abc`, o tom por rodada, a base e os
+/// estilos fora de [LeadStyle.implemented]. `null` com erro (o erro já saiu).
+PlayLeadSheetSpec? _playLeadSheet(
+  Fields f,
+  String id,
+  String title,
+  int line,
+  Fields? pass,
+  FileIssues issues,
+) {
+  var ok = true;
+  if (!f.has('file') && !f.has('abc')) {
+    issues.error(
+      f.lineOf('file'),
+      'o `play-lead-sheet` precisa de `file`: o `.musicxml` com a melodia e as '
+      'cifras (`<harmony>`).',
+    );
+    ok = false;
+  }
+  if (f.has('abc')) {
+    issues.error(
+      f.lineOf('abc'),
+      '`abc` ainda não roda no `play-lead-sheet`: o zywny só lê as cifras de '
+      'um `.musicxml` (use `file`).',
+    );
+    ok = false;
+  }
+  for (final key in ['keys', 'cycle', 'key-start', 'backing']) {
+    if (!f.has(key)) continue;
+    issues.error(
+      f.lineOf(key),
+      '`$key` ainda não roda no `play-lead-sheet` (o tom por rodada e a base '
+      'ficam para depois).',
+    );
+    ok = false;
+  }
+
+  final styleName = f.get<String>('style');
+  final style = _enumOf(LeadStyle.values, styleName);
+  if (style != null && !LeadStyle.implemented.contains(style)) {
+    issues.error(
+      f.lineOf('style'),
+      '`style: $styleName` ainda não roda: o estilo espera o passo que o traz '
+      '(use um molde de `pattern`, ou um dos estilos que rodam: '
+      '${[for (final s in LeadStyle.implemented) s.wire].join(', ')}).',
+    );
+    ok = false;
+  }
+  if (style != null && f.has('pattern')) {
+    issues.error(
+      f.lineOf('pattern'),
+      '`pattern` não vale com `style`: o estilo é o que a mão esquerda faz.',
+    );
+    ok = false;
+  }
+  final name = f.get<String>('pattern') ?? 'block';
+  if (style == null && !_harmonizePattern(name)) {
+    final hint = suggestFor(name, ['block', 'any', ...compingPatternNames]);
+    issues.error(
+      f.lineOf('pattern'),
+      'não há o molde `$name`'
+      '${hint != null ? ' — você quis dizer `$hint`?' : ''}.',
+    );
+    ok = false;
+  }
+
+  if (!ok) return null;
+  return PlayLeadSheetSpec(
+    id: id,
+    title: title,
+    pass: _pass(pass),
+    line: line,
+    file: f.get<String>('file') ?? '',
+    pattern: name,
+    style: style,
+    melody:
+        _enumOf(LeadMelody.values, f.get<String>('melody')) ?? LeadMelody.check,
+    bpm: f.get<int>('bpm') ?? 80,
+    swing: f.get<int>('swing'),
+    split: f.get<Pitch>('split') ?? Pitch.parse('C4'),
+  );
+}
 
 /// `echo` (EX14): a fonte das notas (`source:`, uma das três formas), a faixa, o
 /// tamanho e o andamento das frases, e a conferência (`octave`, `rhythm`, a mão).
