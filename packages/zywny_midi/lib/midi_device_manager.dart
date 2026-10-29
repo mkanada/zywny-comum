@@ -330,6 +330,29 @@ class MidiDeviceManager {
     double value,
   ) => _prefs.setDouble('midi_latency_${_deviceKey(deviceId)}_$output', value);
 
+  /// A última medida do medidor de latência do som (ms), por teclado: o
+  /// tempo entre o app mandar a nota e o som sair. `corrected` diz se o atraso
+  /// do microfone do celular foi descontado.
+  Future<({double ms, bool corrected})?> soundLatency(String deviceId) async {
+    final key = 'midi_sound_latency_${_deviceKey(deviceId)}';
+    final ms = await _prefs.getDouble(key);
+    if (ms == null) return null;
+    return (
+      ms: ms,
+      corrected: await _prefs.getBool('${key}_corrected') ?? false,
+    );
+  }
+
+  Future<void> setSoundLatency(
+    String deviceId,
+    double ms, {
+    required bool corrected,
+  }) async {
+    final key = 'midi_sound_latency_${_deviceKey(deviceId)}';
+    await _prefs.setDouble(key, ms);
+    await _prefs.setBool('${key}_corrected', corrected);
+  }
+
   void dispose() {
     _disposed = true;
     stopBluetoothSearch();

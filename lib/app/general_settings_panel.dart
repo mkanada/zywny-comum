@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_midi_command/flutter_midi_command.dart' show MidiDevice;
 import 'package:score_bridge/score_bridge.dart' show kDefaultBarColor;
 
 import 'package:zywny_audio/soundfont_store.dart';
@@ -19,6 +20,7 @@ import 'package:zywny_music/note_names.dart' show NoteNaming;
 import 'package:zywny_midi/midi_device_manager.dart';
 
 import '../midi/midi_device_picker.dart';
+import '../practice/latency_meter_screen.dart';
 import '../practice/practice_colors.dart';
 import '../trail/trail_stage.dart' show kTrailSpeeds;
 import '../trail/trail_widgets.dart';
@@ -274,6 +276,8 @@ class GeneralSettingsPanel extends StatelessWidget {
         onTap: () =>
             unawaited(showMidiDevicePicker(context, midiDeviceManager)),
       ),
+      if (device != null)
+        _LatencyMeterTile(devices: midiDeviceManager, device: device),
       if (live != null) ...[
         SwitchListTile(
           dense: true,
@@ -544,6 +548,65 @@ class GeneralSettingsPanel extends StatelessWidget {
 /// Ação à direita de uma linha das configurações ("Trocar", "Conectar",
 /// "Ajustar"): inicial maiúscula e cor de destaque, para ler como botão. A
 /// linha inteira continua sendo o alvo do toque.
+/// "Latência do som": abre o medidor e mostra a última medida do teclado.
+class _LatencyMeterTile extends StatefulWidget {
+  const _LatencyMeterTile({required this.devices, required this.device});
+
+  final MidiDeviceManager devices;
+  final MidiDevice device;
+
+  @override
+  State<_LatencyMeterTile> createState() => _LatencyMeterTileState();
+}
+
+class _LatencyMeterTileState extends State<_LatencyMeterTile> {
+  ({double ms, bool corrected})? _last;
+
+  @override
+  void initState() {
+    super.initState();
+    unawaited(_load());
+  }
+
+  @override
+  void didUpdateWidget(_LatencyMeterTile old) {
+    super.didUpdateWidget(old);
+    if (old.device.id != widget.device.id) unawaited(_load());
+  }
+
+  Future<void> _load() async {
+    final last = await widget.devices.soundLatency(widget.device.id);
+    if (mounted) setState(() => _last = last);
+  }
+
+  Future<void> _open() async {
+    await showLatencyMeter(
+      context,
+      devices: widget.devices,
+      device: widget.device,
+    );
+    await _load();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final last = _last;
+    return ListTile(
+      dense: true,
+      leading: const Icon(Icons.mic_none, size: 20),
+      title: const Text('Latência do som'),
+      subtitle: Text(
+        last == null
+            ? 'mede o atraso do som do teclado, pelo microfone'
+            : 'última medida: ${last.ms.round()} ms'
+                  '${last.corrected ? '' : ' (com o microfone)'}',
+      ),
+      trailing: const _RowAction('Medir'),
+      onTap: () => unawaited(_open()),
+    );
+  }
+}
+
 class _RowAction extends StatelessWidget {
   const _RowAction(this.label);
 
