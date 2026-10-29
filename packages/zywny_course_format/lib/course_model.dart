@@ -136,7 +136,11 @@ enum ScoreAnswer implements WireEnum {
 enum HandChoice implements WireEnum {
   right,
   left,
-  both;
+  both,
+
+  /// `hand: sequence` (EX22): esquerda, depois direita, depois juntas a 80% do
+  /// andamento. As duas primeiras só precisam passar em `accuracy`.
+  sequence;
 
   @override
   String get wire => name;
@@ -148,6 +152,42 @@ enum PlayMode implements WireEnum {
 
   @override
   String get wire => name;
+}
+
+/// `practice:` do `play-score` (EX22, Pike 27): a prática acumulativa. Hoje só
+/// `cumulative`: cada compasso sozinho até o tempo forte do seguinte, depois
+/// dois compassos, depois a passagem completa.
+enum PracticeChoice implements WireEnum {
+  cumulative;
+
+  @override
+  String get wire => name;
+}
+
+/// `tempo-ladder:` no `pass` (EX22, Pike 19): o andamento sobe `step` bpm a
+/// cada rodada limpa e desce `back` a cada rodada reprovada, sem passar de
+/// [to] nem descer de [from]. O exercício passa quando uma rodada limpa sai em
+/// [to].
+@immutable
+class TempoLadder {
+  const TempoLadder({
+    required this.from,
+    required this.to,
+    required this.step,
+    required this.back,
+  });
+
+  /// O andamento da primeira rodada, e o piso (bpm).
+  final int from;
+
+  /// A meta (bpm).
+  final int to;
+
+  /// Quanto sobe a cada rodada limpa (bpm).
+  final int step;
+
+  /// Quanto desce a cada rodada reprovada (bpm).
+  final int back;
 }
 
 /// Figuras de ritmo. [eighths] é a duração em colcheias; pausas têm a mesma
@@ -492,6 +532,7 @@ class PassCriteria {
     this.accents,
     this.choruses,
     this.source,
+    this.tempoLadder,
   });
 
   /// Porcentagem mínima numa rodada.
@@ -539,6 +580,10 @@ class PassCriteria {
   /// % mínima das notas entre os alvos que saíram da fonte (EX18, com
   /// `between: source` ou `free`).
   final int? source;
+
+  /// O andamento que sobe e desce por rodada (EX22). Com ele, [speed] não vale:
+  /// o andamento é o da escada.
+  final TempoLadder? tempoLadder;
 }
 
 /// Quais notas um exercício usa: lista fixa ou sorteio numa faixa.
@@ -787,6 +832,8 @@ class PlayScoreSpec extends ExerciseSpec {
     this.keys,
     this.cycle,
     this.keyStart = KeyStart.written,
+    this.practice,
+    this.curtain = false,
   });
 
   @override
@@ -806,6 +853,13 @@ class PlayScoreSpec extends ExerciseSpec {
 
   /// `key-start:` (EX05): só vale com [keys] ou [cycle].
   final KeyStart keyStart;
+
+  /// `practice: cumulative` (EX22), ou `null` para a passagem toda.
+  final PracticeChoice? practice;
+
+  /// `curtain: true` (EX22): os compassos já tocados somem da partitura, e o
+  /// seguinte só aparece no último tempo do atual. Só em `mode: realtime`.
+  final bool curtain;
 }
 
 class ChoiceSpec extends ExerciseSpec {
@@ -2086,10 +2140,15 @@ class PlayPatternSpec extends ExerciseSpec {
     this.cycle,
     this.keyStart = KeyStart.written,
     this.bpm,
+    this.handSequence = false,
   });
 
   @override
   ExerciseType get type => ExerciseType.playPattern;
+
+  /// `hand: sequence` (EX22): as rodadas são esquerda, direita e juntas (a 80%
+  /// do andamento). O [hand] é `both` nesse caso, e o gerador troca a mão.
+  final bool handSequence;
 
   final PatternKind pattern;
 

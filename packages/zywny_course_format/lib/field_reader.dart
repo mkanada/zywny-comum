@@ -537,6 +537,21 @@ class FieldReader {
           '`enter` precisa ser um mapa como `{bars: 11-12, pattern: block}` ou '
           '`{section: B, pattern: block}`.',
         );
+      case ValueType.tempoLadder:
+        // EX22: o mapa `{from, to, step, back}`, com as quatro chaves.
+        if (node is YamlMap) {
+          return read(
+            node,
+            kTempoLadderKeys,
+            firstLine: firstLine,
+            blockLine: line,
+            where: 'em `tempo-ladder`',
+          );
+        }
+        return bad(
+          '`tempo-ladder` precisa ser um mapa, como '
+          '`{from: 60, to: 96, step: 4, back: 8}`.',
+        );
       case ValueType.passMap:
         if (node is! YamlMap) {
           return bad('`pass` precisa ser um mapa, como `{accuracy: 90}`.');

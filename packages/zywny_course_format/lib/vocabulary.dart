@@ -90,6 +90,9 @@ enum ValueType {
   /// `enter:` do `follow-form` (EX20): o mapa `{bars, pattern}` ou `{section,
   /// pattern}`.
   enterSpec,
+
+  /// `tempo-ladder:` do `pass` (EX22): o mapa `{from, to, step, back}`.
+  tempoLadder,
 }
 
 @immutable
@@ -381,6 +384,15 @@ const kFollowEnterKeys = <String, KeyDef>{
   'pattern': KeyDef(ValueType.text, required: true),
 };
 
+/// O mapa `tempo-ladder:` do `pass` (EX22): andamento inicial, meta, passo para
+/// cima e para baixo, todos em bpm. Os quatro são obrigatórios.
+const kTempoLadderKeys = <String, KeyDef>{
+  'from': KeyDef(ValueType.integer, required: true, min: 25, max: 240),
+  'to': KeyDef(ValueType.integer, required: true, min: 25, max: 240),
+  'step': KeyDef(ValueType.integer, required: true, min: 1, max: 30),
+  'back': KeyDef(ValueType.integer, required: true, min: 1, max: 60),
+};
+
 /// O mapa `melody:` do `harmonize` (EX16). `step` e `key` geram a melodia; `file`
 /// é o `.musicxml` da pasta. O leitor confere que haja uma das duas formas.
 const kMelodyMapKeys = <String, KeyDef>{
@@ -592,6 +604,16 @@ final kPassKeys = <String, PassKey>{
   'source': PassKey(const KeyDef(ValueType.integer, min: 1, max: 100), {
     ExerciseType.targetNotes,
   }, note: '`between: source` ou `free`'),
+  // EX22: o andamento sobe e desce por rodada, até a meta. Substitui o `speed`
+  // (o leitor recusa os dois juntos). Vale onde há tempo real e a grade.
+  'tempo-ladder': PassKey(
+    const KeyDef(ValueType.tempoLadder),
+    {ExerciseType.playScore, ExerciseType.playPattern, ExerciseType.playChart},
+    note:
+        'só vale com tempo real (`play-score` e `play-pattern` com '
+        '`mode: realtime`, e `play-chart`)',
+    realtimeOnly: true,
+  ),
 };
 
 final _commonExerciseKeys = <String, KeyDef>{
@@ -679,6 +701,10 @@ final _typeKeys = <ExerciseType, Map<String, KeyDef>>{
       values: _wires(KeyStart.values),
       fallback: 'written',
     ),
+    // EX22: a prática acumulativa (Pike 27) e a cortina (Pike 34). `hand:
+    // sequence` é um valor de `hand` (o HandChoice).
+    'practice': KeyDef(ValueType.option, values: _wires(PracticeChoice.values)),
+    'curtain': const KeyDef(ValueType.boolean, fallback: 'false'),
   },
   ExerciseType.choice: {
     'question': const KeyDef(ValueType.text, required: true),
@@ -860,7 +886,9 @@ final _typeKeys = <ExerciseType, Map<String, KeyDef>>{
     ),
     'hand': KeyDef(
       ValueType.option,
-      values: _wires(PatternHand.values),
+      // `sequence` (EX22) não é um PatternHand: o leitor o traduz para `both`
+      // com `handSequence`.
+      values: [..._wires(PatternHand.values), 'sequence'],
       fallback: 'right',
     ),
     'fingering': const KeyDef(ValueType.boolean, fallback: 'true'),

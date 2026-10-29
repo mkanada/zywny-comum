@@ -366,7 +366,43 @@ PassCriteria _pass(Fields? pass) => PassCriteria(
   accents: pass?.get<int>('accents'),
   choruses: pass?.get<int>('choruses'),
   source: pass?.get<int>('source'),
+  tempoLadder: _ladderOf(pass?.get<Fields>('tempo-ladder')),
 );
+
+/// O `tempo-ladder` lido (EX22). Com uma chave faltando, o erro já foi
+/// registrado pelo leitor, e a especificação sai de qualquer jeito (com
+/// `null`): o `pass` sem escada não é usado.
+TempoLadder? _ladderOf(Fields? f) {
+  final from = f?.get<int>('from');
+  final to = f?.get<int>('to');
+  final step = f?.get<int>('step');
+  final back = f?.get<int>('back');
+  if (from == null || to == null || step == null || back == null) return null;
+  return TempoLadder(from: from, to: to, step: step, back: back);
+}
+
+/// `tempo-ladder` (EX22) troca o `speed` (o andamento é o da escada), e a meta
+/// (`to`) não fica abaixo do começo (`from`).
+void _checkLadder(Fields pass, FileIssues issues) {
+  if (!pass.has('tempo-ladder')) return;
+  final line = pass.lineOf('tempo-ladder');
+  if (pass.has('speed')) {
+    issues.error(
+      pass.lineOf('speed'),
+      '`speed` não vale junto com `tempo-ladder`: a escada já põe o andamento '
+      '(tire `speed`).',
+    );
+  }
+  final ladder = pass.get<Fields>('tempo-ladder');
+  final from = ladder?.get<int>('from');
+  final to = ladder?.get<int>('to');
+  if (from != null && to != null && to < from) {
+    issues.error(
+      line,
+      '`tempo-ladder`: a meta (`to: $to`) fica abaixo do começo (`from: $from`).',
+    );
+  }
+}
 
 /// `pass` só pode ter as chaves que valem no tipo (e `speed` só com tempo
 /// real).
@@ -377,6 +413,7 @@ void _checkPass(
   required bool realtime,
 }) {
   if (pass == null) return;
+  _checkLadder(pass, issues);
   for (final key in pass.values.keys) {
     final rule = kPassKeys[key]!;
     if (!rule.types.contains(type)) {
@@ -615,6 +652,15 @@ ExerciseSpec? _buildExercise(
       final keys = _keyChoice(f);
       final cycle = _enumOf(KeyCycle.values, f.get<String>('cycle'));
       if (!_keyRules(f, issues)) return null;
+      final curtain = f.get<bool>('curtain') ?? false;
+      if (curtain && mode != PlayMode.realtime) {
+        issues.error(
+          f.lineOf('curtain'),
+          '`curtain: true` só vale com `mode: realtime` (no modo espera a '
+          'partitura não anda sozinha).',
+        );
+        return null;
+      }
       return PlayScoreSpec(
         id: id,
         title: title,
@@ -632,6 +678,8 @@ ExerciseSpec? _buildExercise(
         keyStart:
             _enumOf(KeyStart.values, f.get<String>('key-start')) ??
             KeyStart.written,
+        practice: _enumOf(PracticeChoice.values, f.get<String>('practice')),
+        curtain: curtain,
       );
     case ExerciseType.choice:
       final options = f.get<List<Object>>('options')!.cast<String>();
@@ -936,8 +984,13 @@ PlayPatternSpec? _playPattern(
     direction:
         _enumOf(PatternDirection.values, f.get<String>('direction')) ??
         PatternDirection.upDown,
-    hand:
-        _enumOf(PatternHand.values, f.get<String>('hand')) ?? PatternHand.right,
+    // `sequence` (EX22) não é um PatternHand: a mão do molde é as duas, e a
+    // rodada troca a mão em cada passo.
+    hand: f.get<String>('hand') == 'sequence'
+        ? PatternHand.both
+        : _enumOf(PatternHand.values, f.get<String>('hand')) ??
+              PatternHand.right,
+    handSequence: f.get<String>('hand') == 'sequence',
     fingering: f.get<bool>('fingering') ?? true,
     articulation:
         _enumOf(PatternArticulation.values, f.get<String>('articulation')) ??
