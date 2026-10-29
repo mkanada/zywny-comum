@@ -797,6 +797,8 @@ ExerciseSpec? _buildExercise(
       return _listenChord(f, id, title, line, pass, issues);
     case ExerciseType.listenGroove:
       return _listenGroove(f, id, title, line, pass, issues);
+    case ExerciseType.echo:
+      return _echo(f, id, title, line, pass, issues);
   }
 }
 
@@ -1260,7 +1262,9 @@ BackingSpec? _backingOf(
   }
   // Só com o texto `drums` o baixo é desligado; com o mapa, é a 5ª.
   final bass = BackingBass.values.firstWhere(
-    (b) => b.wire == (map?.get<String>('bass') ?? (map == null ? 'none' : 'root-fifth')),
+    (b) =>
+        b.wire ==
+        (map?.get<String>('bass') ?? (map == null ? 'none' : 'root-fifth')),
   );
   if (bass == BackingBass.walking && time == '3/4') {
     issues.warning(
@@ -1845,5 +1849,171 @@ ListenGrooveSpec? _listenGroove(
     line: line,
     grooves: grooves,
     count: f.get<int>('count') ?? 8,
+  );
+}
+
+/// `echo` (EX14): a fonte das notas (`source:`, uma das três formas), a faixa, o
+/// tamanho e o andamento das frases, e a conferência (`octave`, `rhythm`, a mão).
+/// `null` com erro (o erro já saiu).
+EchoSpec? _echo(
+  Fields f,
+  String id,
+  String title,
+  int line,
+  Fields? pass,
+  FileIssues issues,
+) {
+  var ok = true;
+  final map = f.values['source'] as Fields?;
+  // Sem `source:` a leitura do campo obrigatório já disse o que falta.
+  if (map == null) return null;
+  final scale = map.get<String>('scale');
+  final chordTones = map.get<bool>('chord-tones') ?? false;
+  final licks = map.get<String>('licks');
+  final forms = [scale, if (chordTones) 'chord-tones', licks].nonNulls.length;
+  if (forms != 1) {
+    issues.error(
+      f.lineOf('source'),
+      '`source` pede uma das três formas: `{scale, key, range}`, '
+      '`{chord-tones: true}` ou `{licks: <biblioteca>}`.',
+    );
+    return null;
+  }
+  final rangeText = map.get<String>('range') ?? 'C4-C6';
+  final range = NoteRange.tryParse(rangeText);
+  if (range == null) {
+    issues.error(
+      map.lineOf('range'),
+      '`range`: `$rangeText` não é uma faixa de notas, como C4-G5.',
+    );
+    ok = false;
+  }
+  final EchoSource source;
+  if (scale != null) {
+    source = EchoScaleSource(
+      scale: ScaleKind.values.firstWhere((s) => s.wire == scale),
+      key: map.get<String>('key') ?? 'C',
+    );
+  } else if (chordTones) {
+    source = const EchoChordSource();
+  } else {
+    source = EchoLickSource(licks!);
+  }
+
+  // Sem `scale`, o tom é o da grade (ou dó): um `key:` na fonte não faria efeito.
+  if (scale == null && map.has('key')) {
+    issues.error(
+      map.lineOf('key'),
+      '`key` só vale com `scale`: com `licks` ou `chord-tones`, o tom é o da '
+      'grade (ou dó).',
+    );
+    ok = false;
+  }
+  // Com `licks`, a frase vem da biblioteca: estas chaves não fazem efeito.
+  if (licks != null) {
+    for (final key in ['notes', 'figures', 'leaps', 'start']) {
+      if (!f.has(key)) continue;
+      issues.error(
+        f.lineOf(key),
+        '`$key` não vale com `licks`: a frase vem da biblioteca.',
+      );
+      ok = false;
+    }
+  }
+  final chart = f.values['chart'];
+  final chartMap = chart is Fields ? chart : null;
+  final chartText = chartMap == null ? chart as String? : null;
+  final progression = chartMap?.get<String>('progression');
+  final chartKey = chartMap?.get<String>('key') ?? 'C';
+  if (chordTones && chart == null) {
+    issues.error(
+      f.lineOf('source'),
+      '`chord-tones` pede a grade: escreva `chart:` (o acorde de cada compasso).',
+    );
+    ok = false;
+  }
+  if (chart != null &&
+      !_gradeOf(
+        text: chartText,
+        progression: progression,
+        key: chartKey,
+        time: '4/4',
+        textLine: f.lineOf('chart'),
+        progressionLine: chartMap?.lineOf('progression') ?? f.lineOf('chart'),
+        issues: issues,
+      )) {
+    ok = false;
+  }
+  final backing = _echoBacking(f, issues);
+  if (f.has('backing') && backing == null) ok = false;
+  if (!ok || range == null) return null;
+  return EchoSpec(
+    id: id,
+    title: title,
+    pass: _pass(pass),
+    line: line,
+    source: source,
+    range: range,
+    notes: f.get<int>('notes') ?? 4,
+    figures: f.get<List<Object>>('figures')?.cast<Figure>() ?? [Figure.quarter],
+    measures: f.get<int>('measures') ?? 1,
+    leaps: f.get<int>('leaps') ?? 3,
+    start: _enumOf(EchoStart.values, f.get<String>('start')) ?? EchoStart.tonic,
+    bpm: f.get<int>('bpm') ?? 80,
+    swing: f.get<int>('swing') ?? 50,
+    count: f.get<int>('count') ?? 8,
+    octave:
+        _enumOf(EchoOctave.values, f.get<String>('octave')) ?? EchoOctave.any,
+    transpose:
+        _enumOf(EchoTranspose.values, f.get<String>('transpose')) ??
+        EchoTranspose.none,
+    rhythm:
+        _enumOf(EchoRhythm.values, f.get<String>('rhythm')) ?? EchoRhythm.loose,
+    split: f.get<Pitch>('split') ?? Pitch.parse('C4'),
+    hand: f.get<String>('hand') == 'left' ? HandChoice.left : HandChoice.right,
+    backing: backing,
+    chartText: chartText,
+    progression: progression,
+    progressionBars: chartMap?.get<int>('bars'),
+    chartKey: chartKey,
+  );
+}
+
+/// O `backing:` do `echo` (EX14): o texto `drums` ou o mapa da base, como no
+/// `play-chart`, mas sem molde: sem `style:`, é o `straight`. `null` sem
+/// `backing:` ou com erro (o erro já saiu).
+BackingSpec? _echoBacking(Fields f, FileIssues issues) {
+  final raw = f.values['backing'];
+  if (raw == null) return null;
+  final map = raw is Fields ? raw : null;
+  final name = map?.get<String>('style') ?? 'straight';
+  final style = backingStyleNamed(name);
+  if (style == null) {
+    final hint = suggestFor(name, backingStyleNames);
+    issues.error(
+      map?.lineOf('style') ?? f.lineOf('backing'),
+      'não há o estilo `$name` na tabela de estilos'
+      '${hint != null ? ' — você quis dizer `$hint`?' : ''}.',
+    );
+    return null;
+  }
+  if (style.time != '4/4') {
+    issues.error(
+      f.lineOf('backing'),
+      'o estilo `${style.name}` é de ${style.time}, e o echo é em 4/4.',
+    );
+    return null;
+  }
+  final bass = BackingBass.values.firstWhere(
+    (b) =>
+        b.wire ==
+        (map?.get<String>('bass') ?? (map == null ? 'none' : 'root-fifth')),
+  );
+  return BackingSpec(
+    style: style,
+    drums: map?.get<bool>('drums') ?? true,
+    bass: bass,
+    volume: map?.get<int>('volume') ?? 70,
+    intro: map?.get<int>('intro') ?? 1,
   );
 }

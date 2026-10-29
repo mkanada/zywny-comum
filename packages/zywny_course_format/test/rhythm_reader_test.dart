@@ -37,6 +37,7 @@ String _text(List<List<RhythmSymbol>> bars) => [
             RhythmSymbol.rest => '.',
             RhythmSymbol.attack => 'X',
             RhythmSymbol.accent => 'A',
+            RhythmSymbol.hold => '-',
           },
         )
         .join(' '),
@@ -367,7 +368,7 @@ pass: {accuracy: 80}
       expect(
         _messages(result),
         contains(
-          '`right`: `Q` não é um símbolo do ritmo (use `X`, `A` ou `.`).',
+          '`right`: `Q` não é um símbolo do ritmo (use `X`, `A`, `-` ou `.`).',
         ),
       );
       final issue = result.issues.singleWhere(

@@ -491,6 +491,21 @@ class FieldReader {
           '`backing` precisa ser `drums` (só a bateria) ou um mapa como '
           '`{style: shuffle, bass: walking}`.',
         );
+      case ValueType.echoSource:
+        // EX14: o mapa da fonte (escala, acordes ou licks).
+        if (node is YamlMap) {
+          return read(
+            node,
+            kEchoSourceKeys,
+            firstLine: firstLine,
+            blockLine: line,
+            where: 'em `source`',
+          );
+        }
+        return bad(
+          '`source` precisa ser um mapa como `{scale: major, key: C, '
+          'range: C4-G5}`, `{chord-tones: true}` ou `{licks: blues-basic}`.',
+        );
       case ValueType.passMap:
         if (node is! YamlMap) {
           return bad('`pass` precisa ser um mapa, como `{accuracy: 90}`.');

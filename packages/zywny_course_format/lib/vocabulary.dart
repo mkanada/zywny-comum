@@ -78,6 +78,10 @@ enum ValueType {
   /// `backing:` do `play-chart` (EX12): o texto `drums` ou o mapa
   /// `{style, drums, bass, volume, intro}`.
   backingSpec,
+
+  /// `source:` do `echo` (EX14): o mapa `{scale, key}`, `{chord-tones: true}`
+  /// ou `{licks: <biblioteca>}`, com `range` onde couber.
+  echoSource,
 }
 
 @immutable
@@ -348,6 +352,33 @@ const kBackingMapKeys = <String, KeyDef>{
   ),
   'volume': KeyDef(ValueType.integer, min: 0, max: 100, fallback: '70'),
   'intro': KeyDef(ValueType.integer, min: 0, max: 4, fallback: '1'),
+};
+
+/// As bibliotecas de licks do `echo` (EX14). O conteúdo de cada uma está no app
+/// (`lib/course/exercise/lick_library.dart`), que confere que os nomes batem.
+const kLickLibraryNames = [
+  'blues-basic',
+  'blues-crossover',
+  'rock-pentatonic',
+  'country-major-pent',
+  'ii-v-major',
+  'ii-v-minor',
+  'bebop-enclosure',
+  'gospel-fills',
+  'montuno-figures',
+];
+
+/// O mapa `source:` do `echo` (EX14). Sem `scale`, `chord-tones` nem `licks`, o
+/// leitor do exercício diz o que falta.
+final kEchoSourceKeys = <String, KeyDef>{
+  'scale': KeyDef(
+    ValueType.option,
+    values: [for (final scale in ScaleKind.values) scale.wire],
+  ),
+  'key': _key,
+  'chord-tones': KeyDef(ValueType.boolean),
+  'licks': KeyDef(ValueType.option, values: kLickLibraryNames),
+  'range': KeyDef(ValueType.text),
 };
 
 final kChordRandomKeys = <String, KeyDef>{
@@ -808,6 +839,51 @@ final _typeKeys = <ExerciseType, Map<String, KeyDef>>{
   ExerciseType.listenGroove: {
     'grooves': const KeyDef(ValueType.stringList, required: true, minItems: 2),
     'count': const KeyDef(ValueType.integer, min: 1, max: 40, fallback: '8'),
+  },
+  // EX14: a frase que o app toca e o aluno repete. `source` diz de onde vêm as
+  // notas; `notes`, `figures`, `leaps` e `start` não valem com `licks` (o leitor
+  // confere).
+  ExerciseType.echo: {
+    'source': const KeyDef(ValueType.echoSource, required: true),
+    'notes': const KeyDef(ValueType.integer, min: 1, max: 12, fallback: '4'),
+    'figures': const KeyDef(
+      ValueType.figureList,
+      minItems: 1,
+      fallback: '[quarter]',
+    ),
+    'measures': const KeyDef(ValueType.integer, min: 1, max: 2, fallback: '1'),
+    'leaps': const KeyDef(ValueType.integer, min: 1, max: 7, fallback: '3'),
+    'start': KeyDef(
+      ValueType.option,
+      values: _wires(EchoStart.values),
+      fallback: 'tonic',
+    ),
+    'bpm': const KeyDef(ValueType.integer, min: 30, max: 240, fallback: '80'),
+    'swing': const KeyDef(ValueType.integer, min: 50, max: 75),
+    'backing': const KeyDef(ValueType.backingSpec),
+    'chart': const KeyDef(ValueType.chartSpec),
+    'count': const KeyDef(ValueType.integer, min: 1, max: 40, fallback: '8'),
+    'octave': KeyDef(
+      ValueType.option,
+      values: _wires(EchoOctave.values),
+      fallback: 'any',
+    ),
+    'transpose': KeyDef(
+      ValueType.option,
+      values: _wires(EchoTranspose.values),
+      fallback: 'none',
+    ),
+    'rhythm': KeyDef(
+      ValueType.option,
+      values: _wires(EchoRhythm.values),
+      fallback: 'loose',
+    ),
+    'split': const KeyDef(ValueType.note, fallback: 'C4'),
+    'hand': const KeyDef(
+      ValueType.option,
+      values: ['right', 'left'],
+      fallback: 'right',
+    ),
   },
 };
 

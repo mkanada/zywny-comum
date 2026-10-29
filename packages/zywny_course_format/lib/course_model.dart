@@ -265,7 +265,8 @@ enum ExerciseType implements WireEnum {
   listenChord('listen-chord'),
   playPattern('play-pattern'),
   playChart('play-chart'),
-  listenGroove('listen-groove');
+  listenGroove('listen-groove'),
+  echo('echo');
 
   const ExerciseType(this.wire);
 
@@ -1225,6 +1226,168 @@ class ListenGrooveSpec extends ExerciseSpec {
 
   /// Quantas perguntas (1 a 40); cada uma sorteia um groove da lista.
   final int count;
+}
+
+/// `source:` do `echo` (EX14): de onde vêm as notas das frases que o app toca.
+sealed class EchoSource {
+  const EchoSource();
+}
+
+/// `{scale, key}`: notas sorteadas na escala, no tom [key], dentro da faixa do
+/// exercício.
+class EchoScaleSource extends EchoSource {
+  const EchoScaleSource({required this.scale, required this.key});
+
+  final ScaleKind scale;
+  final String key;
+}
+
+/// `{chord-tones: true}`: as notas do acorde de cada compasso da grade.
+class EchoChordSource extends EchoSource {
+  const EchoChordSource();
+}
+
+/// `{licks: <biblioteca>}`: frases curtas de uma biblioteca de estilo (EX14),
+/// escritas em graus da escala da biblioteca.
+class EchoLickSource extends EchoSource {
+  const EchoLickSource(this.library);
+
+  /// O nome da biblioteca (`blues-basic`, `ii-v-major`…).
+  final String library;
+}
+
+/// `transpose:` do `echo` (EX14): em que tom cada frase vem.
+enum EchoTranspose implements WireEnum {
+  none('none'),
+  cycle5('cycle-5'),
+  cycle4('cycle-4'),
+  chromatic('chromatic'),
+  random('random');
+
+  const EchoTranspose(this.wire);
+
+  @override
+  final String wire;
+}
+
+/// `start:` do `echo` (EX14): a primeira nota da frase.
+enum EchoStart implements WireEnum {
+  tonic('tonic'),
+  chordTone('chord-tone'),
+  any('any');
+
+  const EchoStart(this.wire);
+
+  @override
+  final String wire;
+}
+
+/// `octave:` do `echo` (EX14): `exact` pede a altura; `any` aceita a mesma nota
+/// numa oitava qualquer.
+enum EchoOctave implements WireEnum {
+  exact('exact'),
+  any('any');
+
+  const EchoOctave(this.wire);
+
+  @override
+  final String wire;
+}
+
+/// `rhythm:` do `echo` (EX14): `loose` vê só a ordem e o contorno; `strict`
+/// também confere o tempo de cada nota.
+enum EchoRhythm implements WireEnum {
+  loose('loose'),
+  strict('strict');
+
+  const EchoRhythm(this.wire);
+
+  @override
+  final String wire;
+}
+
+/// `echo` (EX14): o app toca uma frase curta, sobre a base ou o metrônomo, e o
+/// aluno a repete no compasso seguinte, sem partitura. Cada frase ocupa
+/// [measures] compassos de "OUÇA" e outros tantos de "TOQUE".
+class EchoSpec extends ExerciseSpec {
+  const EchoSpec({
+    required super.id,
+    required super.title,
+    required super.pass,
+    required super.line,
+    required this.source,
+    required this.range,
+    required this.notes,
+    required this.figures,
+    required this.measures,
+    required this.leaps,
+    required this.start,
+    required this.bpm,
+    required this.swing,
+    required this.count,
+    required this.octave,
+    required this.transpose,
+    required this.rhythm,
+    required this.split,
+    required this.hand,
+    this.backing,
+    this.chartText,
+    this.progression,
+    this.progressionBars,
+    this.chartKey = 'C',
+  });
+
+  @override
+  ExerciseType get type => ExerciseType.echo;
+
+  final EchoSource source;
+
+  /// A faixa das frases (`C4-C6` quando o autor não diz).
+  final NoteRange range;
+
+  /// Notas por frase (1 a 12). Não vale com `licks`.
+  final int notes;
+
+  /// As figuras que a frase pode ter. Não vale com `licks`.
+  final List<Figure> figures;
+
+  /// Compassos por frase (1 ou 2).
+  final int measures;
+
+  /// O maior salto, em graus da escala. Não vale com `licks`.
+  final int leaps;
+
+  /// Não vale com `licks`.
+  final EchoStart start;
+
+  final int bpm;
+
+  /// 50 é reto; 67 é a tercina.
+  final int swing;
+
+  /// A base gerada (EX12) e o estilo; `null` sem `backing:`.
+  final BackingSpec? backing;
+
+  /// A grade do exercício (`chart:`): a escrita ([chartText]) ou a progressão da
+  /// biblioteca ([progression], com [progressionBars] e [chartKey]). Obrigatória
+  /// com `chord-tones`; sem ela, a base fica no acorde da tônica.
+  final String? chartText;
+  final String? progression;
+  final int? progressionBars;
+  final String chartKey;
+
+  /// Quantas frases (1 a 40).
+  final int count;
+
+  final EchoOctave octave;
+  final EchoTranspose transpose;
+  final EchoRhythm rhythm;
+
+  /// A altura que separa as mãos (D-EXE-MAOS).
+  final Pitch split;
+
+  /// A mão que responde: as teclas da outra mão não contam.
+  final HandChoice hand;
 }
 
 /// `pattern:` do `play-pattern` (EX06): o padrão técnico que o app gera.
