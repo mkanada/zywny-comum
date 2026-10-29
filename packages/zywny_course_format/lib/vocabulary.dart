@@ -536,6 +536,11 @@ final kPassKeys = <String, PassKey>{
     note: _realtimeNote,
     realtimeOnly: true,
   ),
+  // EX18: a % de notas entre os alvos que saíram da fonte. Só vale com
+  // `between: source` ou `free` (o leitor confere).
+  'source': PassKey(const KeyDef(ValueType.integer, min: 1, max: 100), {
+    ExerciseType.targetNotes,
+  }, note: '`between: source` ou `free`'),
 };
 
 final _commonExerciseKeys = <String, KeyDef>{
@@ -936,6 +941,35 @@ final _typeKeys = <ExerciseType, Map<String, KeyDef>>{
     'bpm': const KeyDef(ValueType.integer, min: 30, max: 200, fallback: '70'),
     'split': const KeyDef(ValueType.note, fallback: 'C4'),
     'count': const KeyDef(ValueType.integer, min: 1, max: 10, fallback: '1'),
+  },
+  // EX18: a grade e o andamento como no `play-chart`; o alvo (`target`), onde
+  // ele cai (`when`), o que se toca entre os alvos (`between`, com a fonte
+  // `source`), a mão esquerda (`left`) e a faixa da direita (`register`). Sem
+  // `fallback` nas que o leitor decide sozinho, para saber o que o autor pôs.
+  ExerciseType.targetNotes: {
+    'chart': const KeyDef(ValueType.chartSpec, required: true),
+    'key': _key,
+    'time': _time,
+    'bpm': const KeyDef(ValueType.integer, min: 30, max: 240, fallback: '80'),
+    'swing': const KeyDef(ValueType.integer, min: 50, max: 75),
+    'keys': const KeyDef(ValueType.keyChoice, minItems: 1),
+    'cycle': KeyDef(ValueType.option, values: _wires(KeyCycle.values)),
+    'key-start': KeyDef(
+      ValueType.option,
+      values: _wires(KeyStart.values),
+      fallback: 'written',
+    ),
+    'split': const KeyDef(ValueType.note, fallback: 'C4'),
+    'target': KeyDef(ValueType.option, values: _wires(TargetNote.values)),
+    'when': KeyDef(ValueType.option, values: _wires(TargetWhen.values)),
+    'between': KeyDef(ValueType.option, values: _wires(TargetBetween.values)),
+    'source': KeyDef(ValueType.option, values: _wires(TargetSource.values)),
+    'left': KeyDef(
+      ValueType.option,
+      values: ['none', 'root', ...kVoicingShapes.keys],
+    ),
+    'register': const KeyDef(ValueType.text),
+    'backing': const KeyDef(ValueType.backingSpec),
   },
   // EX17: a melodia do autor (`file`, com as cifras) e o molde ou o estilo. O
   // `abc`, o tom por rodada (`keys`, `cycle`, `key-start`) e a base (`backing`)

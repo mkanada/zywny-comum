@@ -365,6 +365,7 @@ PassCriteria _pass(Fields? pass) => PassCriteria(
   swing: pass?.get<(int, int)>('swing'),
   accents: pass?.get<int>('accents'),
   choruses: pass?.get<int>('choruses'),
+  source: pass?.get<int>('source'),
 );
 
 /// `pass` só pode ter as chaves que valem no tipo (e `speed` só com tempo
@@ -806,6 +807,8 @@ ExerciseSpec? _buildExercise(
       return _harmonize(f, id, title, line, pass, issues);
     case ExerciseType.playLeadSheet:
       return _playLeadSheet(f, id, title, line, pass, issues);
+    case ExerciseType.targetNotes:
+      return _targetNotes(f, id, title, line, pass, issues);
   }
 }
 
@@ -1197,7 +1200,9 @@ PlayChartSpec? _playChart(
     issues.error(f.lineOf('beats'), '`beats` não vale no `play-chart`.');
     ok = false;
   }
-  final backing = pattern == null ? null : _backingOf(f, pattern, time, issues);
+  final backing = pattern == null
+      ? null
+      : _backingOf(f, backingStyleFor(pattern), time, issues);
   if (f.has('backing') && backing == null) ok = false;
   if (!ok || pattern == null) return null;
   return PlayChartSpec(
@@ -1231,12 +1236,161 @@ PlayChartSpec? _playChart(
   );
 }
 
-/// `backing:` do `play-chart` (EX12): `drums` (só a bateria, sem baixo) ou o
-/// mapa `{style, drums, bass, volume, intro}`. Sem `style:`, é o estilo que
-/// combina com o molde. `null` sem `backing:` ou com erro (o erro já saiu).
+/// `target-notes` (EX18): a grade (texto, ou a progressão da biblioteca, como no
+/// `play-chart`), a nota-alvo (`target`), onde ela cai (`when`), o que se toca
+/// entre os alvos (`between`, e a fonte delas, `source`), a mão esquerda (`left`)
+/// e a faixa da direita (`register`). O que o juiz confere (se a nota é a 3ª do
+/// acorde, se o trecho cabe na fonte) é do app. `null` com erro (o erro já saiu).
+TargetNotesSpec? _targetNotes(
+  Fields f,
+  String id,
+  String title,
+  int line,
+  Fields? pass,
+  FileIssues issues,
+) {
+  var ok = _keyRules(f, issues);
+  final time = f.get<String>('time') ?? '4/4';
+  final chart = f.values['chart'];
+  final map = chart is Fields ? chart : null;
+  // Com a progressão, o tom vai dentro do `chart`; em texto, é o `key:`.
+  if (map != null && f.has('key')) {
+    issues.error(
+      f.lineOf('key'),
+      '`key` fica dentro de `chart` quando a grade vem da biblioteca: '
+      '`chart: {progression: …, key: …}`.',
+    );
+    ok = false;
+  }
+  final key = map != null
+      ? map.get<String>('key') ?? 'C'
+      : f.get<String>('key') ?? 'C';
+  if (chart == null) return null;
+  final text = map == null ? chart as String : null;
+  final progression = map?.get<String>('progression');
+  if (!_gradeOf(
+    text: text,
+    progression: progression,
+    key: key,
+    time: time,
+    textLine: f.lineOf('chart'),
+    progressionLine: map?.lineOf('progression') ?? f.lineOf('chart'),
+    issues: issues,
+  )) {
+    ok = false;
+  }
+  final between =
+      _enumOf(TargetBetween.values, f.get<String>('between')) ??
+      TargetBetween.free;
+  if (!_targetRules(f, pass, between, time, issues)) ok = false;
+  final range = NoteRange.tryParse(f.get<String>('register') ?? 'C4-C6');
+  if (range == null) {
+    issues.error(
+      f.lineOf('register'),
+      '`register` é uma faixa de notas, da mais grave para a mais aguda '
+      '(como C4-C6).',
+    );
+    ok = false;
+  }
+  final split = f.get<Pitch>('split') ?? Pitch.parse('C4');
+  if (range != null && range.from.midi < split.midi) {
+    issues.error(
+      f.lineOf('register'),
+      '`register` começa abaixo do `split` (${split.midi}): a mão direita '
+      'começa nele, e a faixa da direita não pode descer até a esquerda.',
+    );
+    ok = false;
+  }
+  final backing = _backingOf(f, backingStyleNamed('swing')!, time, issues);
+  if (f.has('backing') && backing == null) ok = false;
+  if (!ok || range == null) return null;
+  return TargetNotesSpec(
+    id: id,
+    title: title,
+    pass: _pass(pass),
+    line: line,
+    chartText: text,
+    progression: progression,
+    progressionBars: map?.get<int>('bars'),
+    key: key,
+    time: time,
+    bpm: f.get<int>('bpm') ?? 80,
+    swing: f.get<int>('swing'),
+    target:
+        _enumOf(TargetNote.values, f.get<String>('target')) ?? TargetNote.three,
+    when:
+        _enumOf(TargetWhen.values, f.get<String>('when')) ?? TargetWhen.change,
+    between: between,
+    source:
+        _enumOf(TargetSource.values, f.get<String>('source')) ??
+        TargetSource.keyScale,
+    left: f.get<String>('left') ?? 'none',
+    registerFrom: range.from,
+    registerTo: range.to,
+    split: split,
+    keys: _keyChoice(f),
+    cycle: _enumOf(KeyCycle.values, f.get<String>('cycle')),
+    keyStart:
+        _enumOf(KeyStart.values, f.get<String>('key-start')) ??
+        KeyStart.written,
+    backing: backing,
+  );
+}
+
+/// As regras de combinação do `target-notes` (EX18): o `source` (da chave e do
+/// `pass`) só com `between: source` ou `free`, e o `half-bar` só em compasso de
+/// tempo par (os tempos 1 e 3 são o meio do compasso). Falso se algo está errado.
+bool _targetRules(
+  Fields f,
+  Fields? pass,
+  TargetBetween between,
+  String time,
+  FileIssues issues,
+) {
+  var ok = true;
+  final fromFree =
+      between == TargetBetween.source || between == TargetBetween.free;
+  if (f.has('source') && !fromFree) {
+    issues.error(
+      f.lineOf('source'),
+      '`source` só vale com `between: source` ou `free`: a fonte é das notas '
+      'entre os alvos.',
+    );
+    ok = false;
+  }
+  if (pass != null && pass.has('source') && !fromFree) {
+    issues.error(
+      pass.lineOf('source'),
+      '`source` no `pass` só vale com `between: source` ou `free`.',
+    );
+    ok = false;
+  }
+  if (f.get<String>('when') == 'half-bar' && _beatsOfTime(time).isOdd) {
+    issues.error(
+      f.lineOf('when'),
+      '`when: half-bar` pede um compasso de tempo par (4/4, 2/4, 6/8, 12/8 '
+      'ou C), e a grade é de $time.',
+    );
+    ok = false;
+  }
+  return ok;
+}
+
+/// Os tempos de um compasso de [time], pela conta do `ChordChart` (6/8 leva 2).
+int _beatsOfTime(String time) {
+  if (time == 'C') return 4;
+  final parts = time.split('/');
+  final top = int.parse(parts[0]);
+  return parts[1] == '8' && top % 3 == 0 ? top ~/ 3 : top;
+}
+
+/// `backing:` do `play-chart` (EX12) e do `target-notes` (EX18): `drums` (só a
+/// bateria, sem baixo) ou o mapa `{style, drums, bass, volume, intro}`. Sem
+/// `style:`, é [defaultStyle] (o do molde, no `play-chart`). `null` sem
+/// `backing:` ou com erro (o erro já saiu).
 BackingSpec? _backingOf(
   Fields f,
-  CompingPattern pattern,
+  BackingStyle defaultStyle,
   String time,
   FileIssues issues,
 ) {
@@ -1246,7 +1400,7 @@ BackingSpec? _backingOf(
   final name = map?.get<String>('style');
   final BackingStyle style;
   if (name == null) {
-    style = backingStyleFor(pattern);
+    style = defaultStyle;
   } else {
     final named = backingStyleNamed(name);
     if (named == null) {

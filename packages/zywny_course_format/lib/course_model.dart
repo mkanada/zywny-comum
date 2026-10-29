@@ -280,7 +280,8 @@ enum ExerciseType implements WireEnum {
   echo('echo'),
   listenProgression('listen-progression'),
   harmonize('harmonize'),
-  playLeadSheet('play-lead-sheet');
+  playLeadSheet('play-lead-sheet'),
+  targetNotes('target-notes');
 
   const ExerciseType(this.wire);
 
@@ -488,6 +489,7 @@ class PassCriteria {
     this.swing,
     this.accents,
     this.choruses,
+    this.source,
   });
 
   /// Porcentagem mínima numa rodada.
@@ -531,6 +533,10 @@ class PassCriteria {
 
   /// Voltas seguidas sem erro.
   final int? choruses;
+
+  /// % mínima das notas entre os alvos que saíram da fonte (EX18, com
+  /// `between: source` ou `free`).
+  final int? source;
 }
 
 /// Quais notas um exercício usa: lista fixa ou sorteio numa faixa.
@@ -1463,6 +1469,144 @@ class PlayLeadSheetSpec extends ExerciseSpec {
 
   /// A altura que separa as mãos: abaixo é a esquerda (os acordes).
   final Pitch split;
+}
+
+/// `target:` do `target-notes` (EX18): a nota que o aluno toca no tempo forte.
+/// `chord-tone` é qualquer nota do acorde; `guide-tone` é a 3ª ou a 7ª mais
+/// perto da nota tocada antes (a linha de guide tones).
+enum TargetNote implements WireEnum {
+  one('1'),
+  three('3'),
+  five('5'),
+  seven('7'),
+  nine('9'),
+  chordTone('chord-tone'),
+  guideTone('guide-tone');
+
+  const TargetNote(this.wire);
+
+  @override
+  final String wire;
+}
+
+/// `when:` do `target-notes` (EX18): em que tempos cai o alvo. `bar` é o tempo 1
+/// de cada compasso; `half-bar`, os tempos 1 e 3 (Rawlins 8); `change`, cada
+/// troca de acorde.
+enum TargetWhen implements WireEnum {
+  bar('bar'),
+  halfBar('half-bar'),
+  change('change');
+
+  const TargetWhen(this.wire);
+
+  @override
+  final String wire;
+}
+
+/// `between:` do `target-notes` (EX18): o que o aluno toca entre os alvos.
+enum TargetBetween implements WireEnum {
+  rest('rest'),
+  free('free'),
+  source('source'),
+  enclosure('enclosure'),
+  arpeggio3579('arpeggio-3579');
+
+  const TargetBetween(this.wire);
+
+  @override
+  final String wire;
+}
+
+/// `source:` do `target-notes` (EX18), com `between: source` ou `free`: de onde
+/// saem as notas entre os alvos.
+enum TargetSource implements WireEnum {
+  keyScale('key-scale'),
+  blues('blues'),
+  byChord('by-chord');
+
+  const TargetSource(this.wire);
+
+  @override
+  final String wire;
+}
+
+/// `target-notes` (EX18): sobre a grade e a base, o aluno toca a nota-alvo em
+/// cada tempo forte que [when] pede, e o que houver entre os alvos segue
+/// [between]. [left] é `none` (a base faz o baixo), `root` ou o nome de um
+/// molde de voicing (`shell-17`, `7-3`…), na esquerda, por troca de acorde.
+class TargetNotesSpec extends ExerciseSpec {
+  const TargetNotesSpec({
+    required super.id,
+    required super.title,
+    required super.pass,
+    required super.line,
+    required this.key,
+    required this.time,
+    required this.bpm,
+    required this.target,
+    required this.when,
+    required this.between,
+    required this.source,
+    required this.left,
+    required this.registerFrom,
+    required this.registerTo,
+    required this.split,
+    required this.keyStart,
+    this.chartText,
+    this.progression,
+    this.progressionBars,
+    this.swing,
+    this.keys,
+    this.cycle,
+    this.backing,
+  }) : assert((chartText == null) != (progression == null));
+
+  @override
+  ExerciseType get type => ExerciseType.targetNotes;
+
+  /// A grade escrita (o texto do EX09), ou `null` quando vem de [progression].
+  final String? chartText;
+
+  /// O nome da progressão da biblioteca, ou `null`.
+  final String? progression;
+
+  /// Quantos compassos a progressão ocupa, ou `null` para o tamanho dela.
+  final int? progressionBars;
+
+  /// O tom e a fórmula da grade (o tom escrito, com `keys` ou `cycle`).
+  final String key;
+  final String time;
+
+  /// O andamento, em semínimas por minuto.
+  final int bpm;
+
+  /// O swing, de 50 a 75; `null` é o reto (50).
+  final int? swing;
+
+  final TargetNote target;
+  final TargetWhen when;
+  final TargetBetween between;
+
+  /// A fonte das notas entre os alvos (com `between: source` ou `free`).
+  final TargetSource source;
+
+  /// `none`, `root` ou o nome de um molde de voicing (`kVoicingShapes`).
+  final String left;
+
+  /// A faixa da mão direita: as notas fora dela não contam.
+  final Pitch registerFrom;
+  final Pitch registerTo;
+
+  /// A altura que separa as mãos: abaixo é a esquerda (D-EXE-MAOS).
+  final Pitch split;
+
+  /// `keys:`, `cycle:` e `key-start:` (EX05): a grade é transposta em cada rodada.
+  final KeyChoice? keys;
+  final KeyCycle? cycle;
+  final KeyStart keyStart;
+
+  /// A base gerada (EX12), ou `null` para só o metrônomo.
+  final BackingSpec? backing;
 }
 
 /// `source:` do `echo` (EX14): de onde vêm as notas das frases que o app toca.
