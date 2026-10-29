@@ -809,6 +809,8 @@ ExerciseSpec? _buildExercise(
       return _playLeadSheet(f, id, title, line, pass, issues);
     case ExerciseType.targetNotes:
       return _targetNotes(f, id, title, line, pass, issues);
+    case ExerciseType.followForm:
+      return _followForm(f, id, title, line, pass, issues);
   }
 }
 
@@ -1382,6 +1384,297 @@ int _beatsOfTime(String time) {
   final parts = time.split('/');
   final top = int.parse(parts[0]);
   return parts[1] == '8' && top % 3 == 0 ? top ~/ 3 : top;
+}
+
+/// `follow-form` (EX20): a grade (como no `play-chart`), o modo e as chaves de
+/// cada modo. `intro-outro`, `break` e `trading` estão no formato, mas o leitor
+/// os recusa com "ainda não roda" (o passe deles vem depois). `null` com erro (o
+/// erro já saiu).
+FollowFormSpec? _followForm(
+  Fields f,
+  String id,
+  String title,
+  int line,
+  Fields? pass,
+  FileIssues issues,
+) {
+  var ok = _keyRules(f, issues);
+  final time = f.get<String>('time') ?? '4/4';
+  final chart = f.values['chart'];
+  final map = chart is Fields ? chart : null;
+  // Com a progressão, o tom vai dentro do `chart`; em texto, é o `key:`.
+  if (map != null && f.has('key')) {
+    issues.error(
+      f.lineOf('key'),
+      '`key` fica dentro de `chart` quando a grade vem da biblioteca: '
+      '`chart: {progression: …, key: …}`.',
+    );
+    ok = false;
+  }
+  final key = map != null
+      ? map.get<String>('key') ?? 'C'
+      : f.get<String>('key') ?? 'C';
+  if (chart == null) return null;
+  final text = map == null ? chart as String : null;
+  final progression = map?.get<String>('progression');
+  if (!_gradeOf(
+    text: text,
+    progression: progression,
+    key: key,
+    time: time,
+    textLine: f.lineOf('chart'),
+    progressionLine: map?.lineOf('progression') ?? f.lineOf('chart'),
+    issues: issues,
+  )) {
+    ok = false;
+  }
+  final mode = _enumOf(FollowMode.values, f.get<String>('mode'));
+  if (mode == null) return null;
+  if (mode == FollowMode.introOutro ||
+      mode == FollowMode.breakBars ||
+      mode == FollowMode.trading) {
+    issues.error(
+      f.lineOf('mode'),
+      '`mode: ${mode.wire}` ainda não roda: o `follow-form` roda `where`, '
+      '`enter` e `cues` (os outros modos estão no formato, sem o passe).',
+    );
+    return null;
+  }
+  final grade = _gradeQuietly(
+    text: text,
+    progression: progression,
+    progressionBars: map?.get<int>('bars'),
+    key: key,
+    time: time,
+  );
+  if (!_followModeRules(f, mode, issues)) ok = false;
+  final enter = mode == FollowMode.enter
+      ? _followEnter(f, time, grade, issues)
+      : null;
+  final cues = mode == FollowMode.cues ? _followCues(f, grade, issues) : null;
+  final pattern = mode == FollowMode.cues
+      ? _cuesPattern(f, time, issues)
+      : null;
+  if (mode == FollowMode.enter && enter == null) ok = false;
+  if (mode == FollowMode.cues && (cues == null || pattern == null)) ok = false;
+  final backing = _backingOf(f, backingStyleNamed('swing')!, time, issues);
+  if (f.has('backing') && backing == null) ok = false;
+  if (!ok) return null;
+  return FollowFormSpec(
+    id: id,
+    title: title,
+    pass: _pass(pass),
+    line: line,
+    mode: mode,
+    chartText: text,
+    progression: progression,
+    progressionBars: map?.get<int>('bars'),
+    key: key,
+    time: time,
+    bpm: f.get<int>('bpm') ?? 80,
+    swing: f.get<int>('swing'),
+    choruses: f.get<int>('choruses') ?? 2,
+    split: f.get<Pitch>('split') ?? Pitch.parse('C4'),
+    questions: f.get<int>('questions') ?? 6,
+    answerWindow: f.get<int>('answer-window') ?? 4,
+    cues: cues ?? const [],
+    enter: enter,
+    pattern: pattern,
+    keys: _keyChoice(f),
+    cycle: _enumOf(KeyCycle.values, f.get<String>('cycle')),
+    keyStart:
+        _enumOf(KeyStart.values, f.get<String>('key-start')) ??
+        KeyStart.written,
+    backing: backing,
+  );
+}
+
+/// A grade de um `follow-form` sem erros de texto (para os limites dos modos):
+/// `null` se ela não se lê, o que já saiu como erro.
+ChordChart? _gradeQuietly({
+  required String? text,
+  required String? progression,
+  required int? progressionBars,
+  required String key,
+  required String time,
+}) {
+  final parsedKey = KeySpec.parse(key);
+  if (parsedKey == null) return null;
+  if (progression != null) {
+    if (progressionNamed(progression) == null) return null;
+    return ChordChart.fromProgression(
+      progression,
+      key: parsedKey,
+      time: time,
+      bars: progressionBars,
+    );
+  }
+  return ChordChart.parse(text!, key: parsedKey, time: time);
+}
+
+/// As chaves que valem só em alguns modos de `follow-form` (EX20). Cada uma
+/// fora do seu modo é erro, com o modo que ela pede. Falso se algo está errado.
+bool _followModeRules(Fields f, FollowMode mode, FileIssues issues) {
+  const modeOf = {
+    'questions': FollowMode.where,
+    'answer-window': FollowMode.where,
+    'enter': FollowMode.enter,
+    'cues': FollowMode.cues,
+    'pattern': FollowMode.cues,
+    'intro': FollowMode.introOutro,
+    'ending': FollowMode.introOutro,
+    'break-bars': FollowMode.breakBars,
+    'trade-bars': FollowMode.trading,
+  };
+  var ok = true;
+  for (final entry in modeOf.entries) {
+    if (f.has(entry.key) && entry.value != mode) {
+      issues.error(
+        f.lineOf(entry.key),
+        '`${entry.key}` só vale com `mode: ${entry.value.wire}`, e este '
+        'exercício é `mode: ${mode.wire}`.',
+      );
+      ok = false;
+    }
+  }
+  if (f.has('choruses') && mode == FollowMode.cues) {
+    issues.error(
+      f.lineOf('choruses'),
+      '`choruses` não vale com `mode: cues`: a forma é a que os sinais pedem.',
+    );
+    ok = false;
+  }
+  return ok;
+}
+
+/// O `enter:` do modo `enter`: os compassos (`bars`, contando do 1) ou a seção,
+/// e o molde do que se toca ali. `null` com erro.
+FollowEnter? _followEnter(
+  Fields f,
+  String time,
+  ChordChart? grade,
+  FileIssues issues,
+) {
+  final raw = f.values['enter'];
+  if (raw is! Fields) {
+    issues.error(
+      f.lineOf('enter'),
+      '`mode: enter` pede `enter`, com `bars` (ou `section`) e `pattern`.',
+    );
+    return null;
+  }
+  final bars = raw.get<MeasureRange>('bars');
+  final section = raw.get<String>('section');
+  if ((bars == null) == (section == null)) {
+    issues.error(
+      raw.lineOf('bars'),
+      '`enter` pede `bars` ou `section`, um dos dois.',
+    );
+    return null;
+  }
+  final patternName = raw.get<String>('pattern')!;
+  final pattern = compingPatternNamed(patternName);
+  if (pattern == null) {
+    final hint = suggestFor(patternName, compingPatternNames);
+    issues.error(
+      raw.lineOf('pattern'),
+      'não há o padrão `$patternName` na biblioteca'
+      '${hint != null ? ' — você quis dizer `$hint`?' : ''}.',
+    );
+    return null;
+  }
+  if (pattern.time != null && pattern.time != time) {
+    issues.error(
+      raw.lineOf('pattern'),
+      'o molde `${pattern.name}` é de ${pattern.time}, e a grade é de $time.',
+    );
+    return null;
+  }
+  if (grade != null) {
+    final problem = _enterProblem(grade, bars, section);
+    if (problem != null) {
+      issues.error(raw.lineOf(bars == null ? 'section' : 'bars'), problem);
+      return null;
+    }
+  }
+  return FollowEnter(pattern: pattern, bars: bars, section: section);
+}
+
+/// Por que `bars` ou `section` do `enter` não cabem na grade, ou `null`.
+String? _enterProblem(ChordChart grade, MeasureRange? bars, String? section) {
+  if (bars != null) {
+    if (bars.to > grade.bars.length) {
+      return 'o `enter` pede os compassos $bars, e a grade tem '
+          '${grade.bars.length}.';
+    }
+    return null;
+  }
+  if (!grade.sections.any((s) => s.label == section)) {
+    return 'não há a seção `$section` na grade.';
+  }
+  return null;
+}
+
+/// O `pattern:` do `cues`: o molde da biblioteca, como no `play-chart`. Sem a
+/// chave, é erro (o `cues` precisa do que o aluno toca). `null` com erro.
+CompingPattern? _cuesPattern(Fields f, String time, FileIssues issues) {
+  if (!f.has('pattern')) {
+    issues.error(
+      f.lineOf('mode'),
+      '`mode: cues` pede `pattern`, o molde que o aluno segue (como '
+      '`pattern: straight-beat`).',
+    );
+    return null;
+  }
+  final pattern = _patternOf(f, issues);
+  if (pattern != null && pattern.time != null && pattern.time != time) {
+    issues.error(
+      f.lineOf('pattern'),
+      'o molde `${pattern.name}` é de ${pattern.time}, e a grade é de $time.',
+    );
+    return null;
+  }
+  return pattern;
+}
+
+/// Os sinais do `cues`, em ordem; o padrão são `again`, `next` e `end`. Confere
+/// o que cada um pede da grade: `bridge` a seção `B`, `next`, `back-to-A` e
+/// `bridge` mais de uma seção, e `tag` quatro compassos. Sem `end` nem `tag`, a
+/// forma não acabaria. `null` com erro.
+List<FormSignal>? _followCues(Fields f, ChordChart? grade, FileIssues issues) {
+  final raw = f.values['cues'];
+  if (raw == null) {
+    return const [FormSignal.again, FormSignal.next, FormSignal.end];
+  }
+  final names = raw is String ? [raw] : [for (final v in raw as List) '$v'];
+  final signals = [for (final name in names) _enumOf(FormSignal.values, name)!];
+  if (!signals.contains(FormSignal.end) && !signals.contains(FormSignal.tag)) {
+    issues.error(
+      f.lineOf('cues'),
+      '`cues` precisa de `end` ou `tag`, para a forma acabar.',
+    );
+    return null;
+  }
+  if (grade == null) return signals;
+  var ok = true;
+  final sections = grade.sections.length;
+  for (final signal in signals) {
+    final problem = switch (signal) {
+      FormSignal.bridge when !grade.sections.any((s) => s.label == 'B') =>
+        '`bridge` vai para a seção `B:`, e a grade não tem.',
+      FormSignal.next || FormSignal.backToA || FormSignal.bridge
+          when sections < 2 =>
+        '`${signal.wire}` pede uma grade com mais de uma seção (`A:`, `B:`).',
+      FormSignal.tag when grade.bars.length < 4 =>
+        '`tag` volta quatro compassos antes do fim, e a grade tem menos.',
+      _ => null,
+    };
+    if (problem != null) {
+      issues.error(f.lineOf('cues'), problem);
+      ok = false;
+    }
+  }
+  return ok ? signals : null;
 }
 
 /// `backing:` do `play-chart` (EX12) e do `target-notes` (EX18): `drums` (só a

@@ -281,7 +281,8 @@ enum ExerciseType implements WireEnum {
   listenProgression('listen-progression'),
   harmonize('harmonize'),
   playLeadSheet('play-lead-sheet'),
-  targetNotes('target-notes');
+  targetNotes('target-notes'),
+  followForm('follow-form');
 
   const ExerciseType(this.wire);
 
@@ -1599,6 +1600,164 @@ class TargetNotesSpec extends ExerciseSpec {
 
   /// A altura que separa as mãos: abaixo é a esquerda (D-EXE-MAOS).
   final Pitch split;
+
+  /// `keys:`, `cycle:` e `key-start:` (EX05): a grade é transposta em cada rodada.
+  final KeyChoice? keys;
+  final KeyCycle? cycle;
+  final KeyStart keyStart;
+
+  /// A base gerada (EX12), ou `null` para só o metrônomo.
+  final BackingSpec? backing;
+}
+
+/// `mode:` do `follow-form` (EX20): como o aluno acompanha a forma. `where`,
+/// `enter` e `cues` rodam; os outros três estão no formato e o leitor os recusa
+/// até o passe que os traz.
+enum FollowMode implements WireEnum {
+  where('where'),
+  enter('enter'),
+  cues('cues'),
+  introOutro('intro-outro'),
+  breakBars('break'),
+  trading('trading');
+
+  const FollowMode(this.wire);
+
+  @override
+  final String wire;
+}
+
+/// Os sinais do `cues` (EX20): o que o aluno deve tocar depois do sinal. Cada
+/// um aparece um compasso antes da mudança.
+enum FormSignal implements WireEnum {
+  again('again'),
+  next('next'),
+  backToA('back-to-A'),
+  bridge('bridge'),
+  tag('tag'),
+  end('end');
+
+  const FormSignal(this.wire);
+
+  @override
+  final String wire;
+}
+
+/// `intro:` do `intro-outro` (EX20). Recusado pelo leitor até o passe do modo.
+enum FormIntro implements WireEnum {
+  turnaround4('turnaround-4'),
+  last8('last-8'),
+  dominantPedal('dominant-pedal'),
+  latinVamp('latin-vamp');
+
+  const FormIntro(this.wire);
+
+  @override
+  final String wire;
+}
+
+/// `ending:` do `intro-outro` (EX20). Recusado pelo leitor até o passe do modo.
+enum FormEnding implements WireEnum {
+  tag('tag'),
+  tagMinorThird('tag-minor-third'),
+  stop('stop');
+
+  const FormEnding(this.wire);
+
+  @override
+  final String wire;
+}
+
+/// `enter:` do `follow-form` no modo `enter` (EX20): os compassos (ou a seção)
+/// em que o aluno entra, e o padrão do que ele toca ali.
+@immutable
+class FollowEnter {
+  const FollowEnter({required this.pattern, this.bars, this.section})
+    : assert((bars == null) != (section == null));
+
+  /// Os compassos da volta, contando do 1 (`11-12`), ou `null` com [section].
+  final MeasureRange? bars;
+
+  /// O nome da seção (`B`), ou `null` com [bars].
+  final String? section;
+
+  /// O molde que o aluno toca nos compassos de entrada (`block`…).
+  final CompingPattern pattern;
+}
+
+/// `follow-form` (EX20): acompanhar a forma de uma grade, com a base gerada. A
+/// grade vem como em `play-chart` (texto ou progressão); o que o aluno faz
+/// depende de [mode]. As chaves que valem só num modo ficam nulas nos outros.
+class FollowFormSpec extends ExerciseSpec {
+  const FollowFormSpec({
+    required super.id,
+    required super.title,
+    required super.pass,
+    required super.line,
+    required this.mode,
+    required this.key,
+    required this.time,
+    required this.bpm,
+    required this.choruses,
+    required this.split,
+    required this.questions,
+    required this.answerWindow,
+    required this.cues,
+    required this.keyStart,
+    this.chartText,
+    this.progression,
+    this.progressionBars,
+    this.swing,
+    this.enter,
+    this.pattern,
+    this.keys,
+    this.cycle,
+    this.backing,
+  }) : assert((chartText == null) != (progression == null));
+
+  @override
+  ExerciseType get type => ExerciseType.followForm;
+
+  final FollowMode mode;
+
+  /// A grade escrita (o texto do EX09), ou `null` quando vem de [progression].
+  final String? chartText;
+
+  /// O nome da progressão da biblioteca, ou `null`.
+  final String? progression;
+
+  /// Quantos compassos a progressão ocupa, ou `null` para o tamanho dela.
+  final int? progressionBars;
+
+  /// O tom e a fórmula da grade (o tom escrito, com `keys` ou `cycle`).
+  final String key;
+  final String time;
+
+  /// O andamento, em semínimas por minuto.
+  final int bpm;
+
+  /// O swing, de 50 a 75; `null` é o reto (50).
+  final int? swing;
+
+  /// Quantas voltas da forma (com `where`, `enter`, `break` e `trading`).
+  final int choruses;
+
+  /// A altura que separa as mãos (D-EXE-MAOS).
+  final Pitch split;
+
+  /// `where`: quantas perguntas na forma, e quantos tempos o aluno tem para
+  /// responder cada uma.
+  final int questions;
+  final int answerWindow;
+
+  /// `cues`: os sinais possíveis, na forma em que o autor os pôs.
+  final List<FormSignal> cues;
+
+  /// `enter`: os compassos (ou a seção) de entrada e o padrão do que se toca.
+  final FollowEnter? enter;
+
+  /// `cues`: o molde de comping que o aluno segue, como no `play-chart`.
+  final CompingPattern? pattern;
 
   /// `keys:`, `cycle:` e `key-start:` (EX05): a grade é transposta em cada rodada.
   final KeyChoice? keys;

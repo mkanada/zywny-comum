@@ -521,6 +521,22 @@ class FieldReader {
           '`melody` precisa ser um mapa como `{step: 7b, key: G}` ou '
           '`{file: media/folclore.musicxml}`.',
         );
+      case ValueType.enterSpec:
+        // EX20: o mapa de entrada do `follow-form`, `{bars, pattern}` ou
+        // `{section, pattern}`.
+        if (node is YamlMap) {
+          return read(
+            node,
+            kFollowEnterKeys,
+            firstLine: firstLine,
+            blockLine: line,
+            where: 'em `enter`',
+          );
+        }
+        return bad(
+          '`enter` precisa ser um mapa como `{bars: 11-12, pattern: block}` ou '
+          '`{section: B, pattern: block}`.',
+        );
       case ValueType.passMap:
         if (node is! YamlMap) {
           return bad('`pass` precisa ser um mapa, como `{accuracy: 90}`.');

@@ -86,6 +86,10 @@ enum ValueType {
 
   /// `melody:` do `harmonize` (EX16): o mapa `{step, key}` ou `{file}`.
   melodySpec,
+
+  /// `enter:` do `follow-form` (EX20): o mapa `{bars, pattern}` ou `{section,
+  /// pattern}`.
+  enterSpec,
 }
 
 @immutable
@@ -368,6 +372,15 @@ const kHarmonizeTechniques = [
   'line-cliche',
 ];
 
+/// O mapa `enter:` do `follow-form` (EX20). `bars` (`11-12`) ou `section` (`B`)
+/// dizem onde o aluno entra; `pattern` é o molde do que ele toca ali. O leitor
+/// confere que haja um dos dois e que o padrão exista.
+const kFollowEnterKeys = <String, KeyDef>{
+  'bars': KeyDef(ValueType.measureRange),
+  'section': KeyDef(ValueType.text),
+  'pattern': KeyDef(ValueType.text, required: true),
+};
+
 /// O mapa `melody:` do `harmonize` (EX16). `step` e `key` geram a melodia; `file`
 /// é o `.musicxml` da pasta. O leitor confere que haja uma das duas formas.
 const kMelodyMapKeys = <String, KeyDef>{
@@ -451,6 +464,7 @@ final _meterTypes = {
   ..._timedTypes,
   ExerciseType.playChart,
   ExerciseType.playLeadSheet,
+  ExerciseType.followForm,
 };
 
 const _realtimeNote =
@@ -969,6 +983,61 @@ final _typeKeys = <ExerciseType, Map<String, KeyDef>>{
       values: ['none', 'root', ...kVoicingShapes.keys],
     ),
     'register': const KeyDef(ValueType.text),
+    'backing': const KeyDef(ValueType.backingSpec),
+  },
+  // EX20: a grade e o andamento como no `play-chart`, e o que o aluno faz no
+  // modo (`mode`): perguntas (`where`), a entrada (`enter`) ou os sinais
+  // (`cues`, com o molde `pattern`). `intro`, `ending`, `break-bars` e
+  // `trade-bars` são dos modos que o leitor ainda recusa. As chaves de um modo
+  // só são conferidas no leitor, que sabe o modo.
+  ExerciseType.followForm: {
+    'mode': KeyDef(
+      ValueType.option,
+      required: true,
+      values: _wires(FollowMode.values),
+    ),
+    'chart': const KeyDef(ValueType.chartSpec, required: true),
+    'key': _key,
+    'time': _time,
+    'bpm': const KeyDef(ValueType.integer, min: 30, max: 240, fallback: '80'),
+    'swing': const KeyDef(ValueType.integer, min: 50, max: 75),
+    'choruses': const KeyDef(ValueType.integer, min: 1, max: 20, fallback: '2'),
+    'split': const KeyDef(ValueType.note, fallback: 'C4'),
+    'questions': const KeyDef(
+      ValueType.integer,
+      min: 1,
+      max: 40,
+      fallback: '6',
+    ),
+    'answer-window': const KeyDef(
+      ValueType.integer,
+      min: 1,
+      max: 16,
+      fallback: '4',
+    ),
+    'enter': const KeyDef(ValueType.enterSpec),
+    'cues': KeyDef(
+      ValueType.optionOrList,
+      values: _wires(FormSignal.values),
+      minItems: 1,
+      fallback: 'again, next, end',
+    ),
+    'pattern': const KeyDef(ValueType.patternSpec),
+    'intro': KeyDef(ValueType.option, values: _wires(FormIntro.values)),
+    'ending': KeyDef(ValueType.option, values: _wires(FormEnding.values)),
+    'break-bars': const KeyDef(ValueType.measureRange),
+    'trade-bars': const KeyDef(
+      ValueType.option,
+      values: ['4', '8'],
+      fallback: '4',
+    ),
+    'keys': const KeyDef(ValueType.keyChoice, minItems: 1),
+    'cycle': KeyDef(ValueType.option, values: _wires(KeyCycle.values)),
+    'key-start': KeyDef(
+      ValueType.option,
+      values: _wires(KeyStart.values),
+      fallback: 'written',
+    ),
     'backing': const KeyDef(ValueType.backingSpec),
   },
   // EX17: a melodia do autor (`file`, com as cifras) e o molde ou o estilo. O
