@@ -1,5 +1,6 @@
 import 'package:meta/meta.dart';
 import 'package:zywny_music/chord_voicing.dart';
+import 'package:zywny_music/rhythm_grooves.dart';
 import 'package:zywny_music/scale.dart';
 
 import 'course_model.dart';
@@ -424,6 +425,7 @@ final kPassKeys = <String, PassKey>{
     ExerciseType.listenScore,
     ExerciseType.playChord,
     ExerciseType.listenChord,
+    ExerciseType.listenGroove,
   }, note: 'só vale nos exercícios de pergunta'),
   // Medidores (EX08, meters.dart): medem a execução que o teclado mandou.
   // Dinâmica, equilíbrio e acentos leem só a força da tecla, e valem no modo
@@ -525,6 +527,14 @@ final _typeKeys = <ExerciseType, Map<String, KeyDef>>{
     'abc': _abc,
     'bpm': const KeyDef(ValueType.integer, min: 30, max: 240, fallback: '80'),
     'note': const KeyDef(ValueType.note, fallback: 'C4'),
+    // EX13: duas mãos e grooves. `groove` é um nome da biblioteca (no lugar de
+    // `figures` e `abc`); `right` e `left` são moldes escritos (`X . | A .`);
+    // `split` é a nota que separa as mãos, como no EX10.
+    'hands': KeyDef(ValueType.option, values: ['one', 'two'], fallback: 'one'),
+    'groove': KeyDef(ValueType.option, values: rhythmGrooveNames),
+    'right': const KeyDef(ValueType.text),
+    'left': const KeyDef(ValueType.text),
+    'split': const KeyDef(ValueType.note, fallback: 'C4'),
   },
   ExerciseType.countBeats: {
     'time': _time,
@@ -792,6 +802,12 @@ final _typeKeys = <ExerciseType, Map<String, KeyDef>>{
       minItems: 1,
       fallback: '[I, IV, V, vi]',
     ),
+  },
+  // EX13: os grooves que os botões mostram (dois ou mais; o leitor confere os
+  // nomes com sugestão) e as perguntas.
+  ExerciseType.listenGroove: {
+    'grooves': const KeyDef(ValueType.stringList, required: true, minItems: 2),
+    'count': const KeyDef(ValueType.integer, min: 1, max: 40, fallback: '8'),
   },
 };
 

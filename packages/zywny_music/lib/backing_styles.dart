@@ -49,7 +49,7 @@ class BackingStyle {
 
   final String name;
 
-  /// A fórmula de compasso: `4/4` ou `3/4`.
+  /// A fórmula de compasso: `4/4`, `3/4` ou `6/8`.
   final String time;
 
   /// Os tempos de cada compasso na grade do molde.
@@ -123,6 +123,15 @@ const kBackingStyles = <BackingStyle>[
     drums: 'k . h . h .',
     bass: '1 . . . . .',
     source: 'PFA 1, oom-pah-pah',
+  ),
+  BackingStyle(
+    name: 'six-eight',
+    time: '6/8',
+    grid: 6,
+    bars: 1,
+    drums: 'k+h h h k+h h h',
+    bass: '1 . . 5 . .',
+    source: 'PFA 1, six-eight-split',
   ),
   BackingStyle(
     name: 'ballad',
@@ -217,6 +226,7 @@ BackingStyle backingStyleFor(CompingPattern pattern) {
   final name = pattern.name;
   final style = switch (name) {
     _ when pattern.time == '3/4' => 'waltz',
+    _ when pattern.time == '6/8' => 'six-eight',
     _ when name.startsWith('boogie') || name == 'country-shuffle' => 'shuffle',
     _ when pattern.swingDefault => 'swing',
     'bossa-bounce' || 'bossa-bass' => 'bossa',

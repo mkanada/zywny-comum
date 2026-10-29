@@ -4,6 +4,7 @@ import 'package:zywny_music/backing_styles.dart';
 import 'package:zywny_music/chord.dart';
 import 'package:zywny_music/comping_patterns.dart';
 import 'package:zywny_music/note_name.dart';
+import 'package:zywny_music/rhythm_grooves.dart';
 import 'package:zywny_music/scale.dart';
 
 /// Valor do formato como aparece no arquivo (`type: play-notes`).
@@ -230,6 +231,25 @@ enum ChordPlay implements WireEnum {
   String get wire => name;
 }
 
+/// `listen-groove` (EX13): o groove que a pergunta toca. O som é a base do EX12
+/// no estilo do groove (`straight`, `shuffle`, `salsa-3-2`…).
+enum ListenGroove implements WireEnum {
+  straightEighths('straight-eighths'),
+  swingEighths('swing-eighths'),
+  shuffle128('shuffle-12-8'),
+  clave32('clave-3-2'),
+  clave23('clave-2-3'),
+  bossa('bossa'),
+  samba('samba'),
+  waltz('waltz'),
+  sixEight('six-eight');
+
+  const ListenGroove(this.wire);
+
+  @override
+  final String wire;
+}
+
 enum ExerciseType implements WireEnum {
   findKey('find-key'),
   playNotes('play-notes'),
@@ -244,7 +264,8 @@ enum ExerciseType implements WireEnum {
   playChord('play-chord'),
   listenChord('listen-chord'),
   playPattern('play-pattern'),
-  playChart('play-chart');
+  playChart('play-chart'),
+  listenGroove('listen-groove');
 
   const ExerciseType(this.wire);
 
@@ -617,10 +638,18 @@ class RhythmSpec extends ExerciseSpec {
     required this.time,
     required this.bpm,
     required this.note,
+    required this.hands,
+    required this.split,
     this.figures,
     this.measures,
     this.abc,
-  });
+    this.groove,
+    this.right,
+    this.left,
+  }) : assert(
+         (hands == 2) == (left != null),
+         'a mão esquerda existe só com duas mãos',
+       );
 
   @override
   ExerciseType get type => ExerciseType.rhythm;
@@ -637,6 +666,22 @@ class RhythmSpec extends ExerciseSpec {
 
   /// …ou o ritmo escrito pelo autor.
   final String? abc;
+
+  /// EX13: quantas mãos tocam, 1 ou 2. Com 2, a rodada é uma `TimedRound`
+  /// (EX10), e a mão de cada toque sai do [split].
+  final int hands;
+
+  /// EX13: a nota que separa as mãos (padrão C4).
+  final Pitch split;
+
+  /// EX13: o groove da biblioteca (`kRhythmGrooves`), ou `null`. Com ele, o
+  /// [right] e o [left] são os moldes do groove.
+  final RhythmGroove? groove;
+
+  /// EX13: os moldes da mão direita e da esquerda (`X . X | A . .`), uma lista
+  /// de símbolos por compasso. O [left] é `null` quando a mão não toca.
+  final List<List<RhythmSymbol>>? right;
+  final List<List<RhythmSymbol>>? left;
 }
 
 class CountBeatsSpec extends ExerciseSpec {
@@ -1157,6 +1202,29 @@ class ListenChordSpec extends ExerciseSpec {
 
   /// `function`: os graus que podem soar. Vazio no `quality`.
   final List<String> degrees;
+}
+
+/// `listen-groove` (EX13): a pergunta toca dois compassos da base (EX12) num
+/// dos grooves da lista, e o aluno diz qual é (botões com o nome). Sem teclado
+/// MIDI, como o `listen-chord`.
+class ListenGrooveSpec extends ExerciseSpec {
+  const ListenGrooveSpec({
+    required super.id,
+    required super.title,
+    required super.pass,
+    required super.line,
+    required this.grooves,
+    required this.count,
+  });
+
+  @override
+  ExerciseType get type => ExerciseType.listenGroove;
+
+  /// Os grooves que os botões mostram, na ordem do autor (dois ou mais).
+  final List<ListenGroove> grooves;
+
+  /// Quantas perguntas (1 a 40); cada uma sorteia um groove da lista.
+  final int count;
 }
 
 /// `pattern:` do `play-pattern` (EX06): o padrão técnico que o app gera.

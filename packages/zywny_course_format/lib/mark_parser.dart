@@ -15,6 +15,7 @@ import 'package:zywny_music/comping_patterns.dart';
 import 'package:zywny_music/fingering.dart';
 import 'package:zywny_music/note_name.dart';
 import 'package:zywny_music/progressions.dart';
+import 'package:zywny_music/rhythm_grooves.dart';
 import 'package:zywny_music/scale.dart';
 
 import 'suggest.dart';
@@ -794,6 +795,8 @@ ExerciseSpec? _buildExercise(
       return _playChart(f, id, title, line, pass, issues);
     case ExerciseType.listenChord:
       return _listenChord(f, id, title, line, pass, issues);
+    case ExerciseType.listenGroove:
+      return _listenGroove(f, id, title, line, pass, issues);
   }
 }
 
@@ -1588,6 +1591,10 @@ int _itemLine(Fields f, String key, int i) =>
 /// Um passo do treino de leitura, `1a` a `100d`: o nível e o subnível.
 final _stepPattern = RegExp(r'^(100|[1-9][0-9]?)([a-d])$');
 
+/// `rhythm` (EX13): o sorteio (`figures`), o ABC (`abc`), ou um groove ou
+/// moldes escritos (`groove`, ou `right` com `left`), com uma mão ou duas
+/// (`hands`, e a nota que as separa, `split`). Os erros que cruzam chaves saem
+/// aqui, cada um com a linha da chave que está errada.
 RhythmSpec? _rhythm(
   Fields f,
   String id,
@@ -1598,8 +1605,37 @@ RhythmSpec? _rhythm(
 ) {
   final abc = f.get<String>('abc');
   final time = f.get<String>('time');
+  final grooveName = f.get<String>('groove');
+  final groove = grooveName == null ? null : rhythmGrooveNamed(grooveName);
+  // Com um groove ou um molde escrito (`right`), o ritmo é o molde: não há
+  // sorteio nem ABC.
+  final molde = groove != null || f.has('right');
   var ok = true;
-  if (abc != null) {
+  if (f.has('groove') && (f.has('right') || f.has('left'))) {
+    issues.error(
+      f.lineOf('groove'),
+      '`groove` não vale com `right` e `left`: o groove já traz os moldes.',
+    );
+    ok = false;
+  }
+  if (molde) {
+    for (final key in ['figures', 'abc']) {
+      if (f.has(key)) {
+        issues.error(
+          f.lineOf(key),
+          '`$key` não vale com `groove` ou `right`: o ritmo é o molde.',
+        );
+        ok = false;
+      }
+    }
+    if (f.has('note')) {
+      issues.error(
+        f.lineOf('note'),
+        '`note` só vale no sorteio, com `figures`.',
+      );
+      ok = false;
+    }
+  } else if (abc != null) {
     for (final key in ['figures', 'measures', 'note']) {
       if (f.has(key)) {
         issues.error(
@@ -1616,30 +1652,198 @@ RhythmSpec? _rhythm(
       );
       ok = false;
     }
-  } else if (!f.has('figures')) {
+  } else if (!f.has('figures') && !f.has('left')) {
     issues.error(
       f.blockLine,
-      'informe `figures` (ritmo sorteado) ou `abc` (ritmo escrito).',
+      'informe `figures` (ritmo sorteado), `abc` (ritmo escrito), `groove` ou '
+      '`right` (molde).',
     );
     ok = false;
   }
-  final figures = f.get<List<Object>>('figures')?.cast<Figure>();
-  if (abc == null &&
-      figures != null &&
-      !_figuresFit(figures, time ?? '4/4', f, issues)) {
+  // O compasso: o do groove (que o exercício tem de repetir), ou 4/4.
+  final effective = time ?? groove?.time ?? '4/4';
+  if (groove != null && time != null && time != groove.time) {
+    issues.error(
+      f.lineOf('time'),
+      'o groove `${groove.name}` é de ${groove.time}, e o exercício é de '
+      '$time.',
+    );
     ok = false;
   }
+  final figures = molde ? null : f.get<List<Object>>('figures')?.cast<Figure>();
+  if (abc == null &&
+      figures != null &&
+      !_figuresFit(figures, effective, f, issues)) {
+    ok = false;
+  }
+
+  // `hands`: o groove diz as mãos que toca; sem groove, duas mãos são as que
+  // têm `left:`, e `hands: two` sem `left:` é erro.
+  final handsName = f.get<String>('hands');
+  var hands = 1;
+  if (groove != null) {
+    hands = groove.hands;
+    if (handsName == 'one' && groove.hands == 2) {
+      issues.error(
+        f.lineOf('hands'),
+        'o groove `${groove.name}` toca as duas mãos: tire `hands:`.',
+      );
+      ok = false;
+    }
+    if (handsName == 'two' && groove.hands == 1) {
+      issues.error(
+        f.lineOf('hands'),
+        'o groove `${groove.name}` toca só a mão direita: tire `hands: two`.',
+      );
+      ok = false;
+    }
+  } else {
+    final twoHands = f.has('left');
+    if (handsName == 'two' && !twoHands) {
+      issues.error(
+        f.lineOf('hands'),
+        '`hands: two` pede `left:` ou um `groove` de duas mãos.',
+      );
+      ok = false;
+    }
+    if (handsName == 'one' && twoHands) {
+      issues.error(f.lineOf('hands'), '`left:` não vale com `hands: one`.');
+      ok = false;
+    }
+    hands = twoHands ? 2 : 1;
+  }
+  if (f.has('split') && hands != 2) {
+    issues.error(
+      f.lineOf('split'),
+      '`split` só vale com duas mãos (`hands: two`, ou um `groove` de duas '
+      'mãos).',
+    );
+    ok = false;
+  }
+
+  // Os moldes: os do groove, ou os escritos (`right`, e `left` se tiver).
+  List<List<RhythmSymbol>>? right;
+  List<List<RhythmSymbol>>? left;
+  if (groove != null) {
+    right = groove.rightBars;
+    left = groove.left == null ? null : groove.leftBars;
+  } else if (f.has('right')) {
+    right = _moldeOf(f, 'right', effective, issues);
+    if (f.has('left')) left = _moldeOf(f, 'left', effective, issues);
+    if (right == null || (f.has('left') && left == null)) ok = false;
+  } else if (f.has('left')) {
+    issues.error(
+      f.lineOf('left'),
+      '`left` pede `right`: os dois moldes vêm juntos.',
+    );
+    ok = false;
+  }
+  if (right != null && left != null && right.length != left.length) {
+    issues.error(
+      f.lineOf('left'),
+      '`left` tem ${left.length} compasso(s) e `right` tem ${right.length}: as '
+      'duas mãos têm de ter o mesmo número de compassos.',
+    );
+    ok = false;
+  }
+
+  // `measures` conta os compassos do exercício (4 por padrão), e o molde se
+  // repete até fechá-los: tem de ser múltiplo dos compassos do molde.
+  var measures = figures == null ? null : (f.get<int>('measures') ?? 4);
+  if (right != null) {
+    final bars = right.length;
+    final given = f.get<int>('measures');
+    final count = given ?? 4;
+    measures = count;
+    if (count % bars != 0) {
+      issues.error(
+        given != null
+            ? f.lineOf('measures')
+            : (groove != null ? f.lineOf('groove') : f.lineOf('right')),
+        given != null
+            ? '`measures` precisa ser múltiplo de $bars, o número de compassos '
+                  'do molde (recebi $count).'
+            : 'o molde tem $bars compasso(s), e `measures` (padrão 4) não é '
+                  'múltiplo disso: escreva `measures:`.',
+      );
+      ok = false;
+    }
+  }
+
   if (!ok) return null;
   return RhythmSpec(
     id: id,
     title: title,
     pass: _pass(pass),
     line: line,
-    time: time ?? '4/4',
+    time: effective,
     bpm: f.get<int>('bpm') ?? 80,
     note: f.get<Pitch>('note') ?? Pitch.parse('C4'),
     figures: figures,
-    measures: figures == null ? null : (f.get<int>('measures') ?? 4),
+    measures: measures,
     abc: abc,
+    hands: hands,
+    split: f.get<Pitch>('split') ?? Pitch.parse('C4'),
+    groove: groove,
+    right: right,
+    left: left,
+  );
+}
+
+/// Lê o molde escrito na chave [key] (`right` ou `left`) no compasso [time].
+/// O erro vai para a linha da chave, com o nome dela na frente.
+List<List<RhythmSymbol>>? _moldeOf(
+  Fields f,
+  String key,
+  String time,
+  FileIssues issues,
+) => parseRhythmMolde(
+  f.get<String>(key)!,
+  time: time,
+  error: (message) => issues.error(f.lineOf(key), '`$key`: $message.'),
+);
+
+/// `listen-groove` (EX13): os grooves que os botões mostram (dois ou mais, com
+/// os nomes do vocabulário; um nome que não existe tem sugestão) e as
+/// perguntas.
+ListenGrooveSpec? _listenGroove(
+  Fields f,
+  String id,
+  String title,
+  int line,
+  Fields? pass,
+  FileIssues issues,
+) {
+  final names = f.get<List<Object>>('grooves')!.cast<String>();
+  final wires = [for (final groove in ListenGroove.values) groove.wire];
+  var ok = true;
+  final grooves = <ListenGroove>[];
+  for (final (i, name) in names.indexed) {
+    final groove = ListenGroove.values.where((g) => g.wire == name).firstOrNull;
+    if (groove == null) {
+      final hint = suggestFor(name, wires);
+      issues.error(
+        _itemLine(f, 'grooves', i),
+        'groove `$name` desconhecido'
+        '${hint != null ? ' — você quis dizer `$hint`?' : ''} '
+        '(use ${wires.join(', ')}).',
+      );
+      ok = false;
+    } else {
+      grooves.add(groove);
+    }
+  }
+  if (grooves.toSet().length != grooves.length) {
+    issues.error(f.lineOf('grooves'), '`grooves` repete um groove.');
+    ok = false;
+  }
+  if (!ok) return null;
+  return ListenGrooveSpec(
+    id: id,
+    title: title,
+    pass: _pass(pass),
+    line: line,
+    grooves: grooves,
+    count: f.get<int>('count') ?? 8,
   );
 }

@@ -58,8 +58,12 @@ void main() {
     expect(_slotsOf(backingStyleNamed('salsa-2-3')!, 'l'), [2, 4, 8, 11, 14]);
   });
 
-  test('o estilo do molde de comping: 3/4 é valsa, boogie é shuffle', () {
+  test('o estilo do molde de comping: valsa, seis-oito e shuffle', () {
     expect(backingStyleFor(compingPatternNamed('oom-pah-pah')!).name, 'waltz');
+    expect(
+      backingStyleFor(compingPatternNamed('six-eight-split')!).name,
+      'six-eight',
+    );
     expect(backingStyleFor(compingPatternNamed('boogie')!).name, 'shuffle');
     expect(backingStyleFor(compingPatternNamed('bossa-bounce')!).name, 'bossa');
     expect(backingStyleFor(compingPatternNamed('oom-pah')!).name, 'straight');
