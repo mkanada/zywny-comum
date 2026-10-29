@@ -33,6 +33,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart' show VoidCallback;
 import 'package:zywny_diag/diag_log.dart';
 
+import 'band_staves.dart';
 import 'performance_track.dart';
 import 'metronome.dart';
 import 'sound_engine.dart';
@@ -121,6 +122,20 @@ class ScoreAudioScheduler {
 
   /// Metrônomo ligado: clica em cada batida enquanto toca.
   bool metronomeOn = false;
+
+  /// Os cliques da contagem inicial (T15): desligados, a banda põe a
+  /// introdução no lugar deles. Ligados por padrão, como sempre.
+  bool countInClicks = true;
+
+  /// A banda (T15): ligada, e o volume (0 a 100) das notas das pautas dela
+  /// ([kBandFirstStaff] em diante). Mudam na hora: a próxima nota agendada já
+  /// sai com o volume novo.
+  bool bandOn = true;
+  int bandVolume = 70;
+
+  /// A introdução da banda (T15): as notas que soam antes do compasso 1, na
+  /// contagem (de tempos negativos). Só tocam com [play] em `countIn`.
+  List<SoundEvent> leadIn = const [];
 
   /// A altura que o motor recebe para a nota de altura **escrita** `w` (fase
   /// Q, `PitchFrame`): com a música transposta é a soada, e o agendador não
@@ -359,7 +374,9 @@ class ScoreAudioScheduler {
         _countIn = clicks;
         _floorMs = fromMs;
         _musicalT0 = clicks.first.ms;
-        _scheduledUpToMs = clicks.first.ms;
+        // Uma folga de 1 ms antes do primeiro clique: a introdução da banda
+        // cai nela (a janela de [pump] começa aqui, sem buraco nem repetição).
+        _scheduledUpToMs = clicks.first.ms - 1;
       }
     }
     _running = true;
@@ -431,7 +448,7 @@ class ScoreAudioScheduler {
 
   void _sendProgramChanges() {
     final programs = <int, int>{};
-    for (final e in track.events) {
+    for (final e in [...track.events, ...leadIn]) {
       programs.putIfAbsent(e.channel, () => e.program);
     }
     if (programs.isEmpty) return;
@@ -556,20 +573,22 @@ class ScoreAudioScheduler {
     final noteHi = stopAt != null && hi > stopAt ? stopAt : hi;
     if (noteHi > noteLo) {
       for (final e in track.startingIn(noteLo, noteHi, staves: _staves)) {
-        // Atrasado (tick perdido, GC): nunca descarte o par — toque no mais
-        // cedo possível.
-        final onAt = _clamp(_deviceAt(e.onMs), earliest);
-        final offMs = cutMs != null && e.offMs > cutMs ? cutMs : e.offMs;
-        final rawOffAt = _deviceAt(offMs) - _kNoteOffLeadSeconds;
-        final offAt = _clamp(rawOffAt, earliest).clamp(onAt, double.infinity);
-        final pitch = pitchOf(e.pitch);
-        midi.add(ScheduledMidi(onAt, 0x90 | e.channel, pitch, e.velocity));
-        midi.add(ScheduledMidi(offAt, 0x80 | e.channel, pitch, 0));
+        if (e.staff >= kBandFirstStaff && !bandOn) continue;
+        _note(midi, e, cutMs: cutMs, earliest: earliest);
       }
     }
-    for (final b in _countIn) {
-      if (b.ms >= lo && b.ms < hi && (stopAt == null || b.ms < stopAt)) {
-        _click(midi, b, earliest);
+    if (bandOn) {
+      for (final e in leadIn) {
+        if (e.onMs >= lo && e.onMs < hi) {
+          _note(midi, e, earliest: earliest);
+        }
+      }
+    }
+    if (countInClicks) {
+      for (final b in _countIn) {
+        if (b.ms >= lo && b.ms < hi && (stopAt == null || b.ms < stopAt)) {
+          _click(midi, b, earliest);
+        }
       }
     }
     if (metronomeOn) {
@@ -581,6 +600,28 @@ class ScoreAudioScheduler {
         }
       }
     }
+  }
+
+  /// Uma nota (o par de note-on/note-off) de [e]: com [cutMs], o `offMs` é
+  /// cortado nele. As notas da banda saem com o [bandVolume] na velocity.
+  void _note(
+    List<ScheduledMidi> midi,
+    SoundEvent e, {
+    double? cutMs,
+    required double earliest,
+  }) {
+    // Atrasado (tick perdido, GC): nunca descarte o par — toque no mais
+    // cedo possível.
+    final onAt = _clamp(_deviceAt(e.onMs), earliest);
+    final offMs = cutMs != null && e.offMs > cutMs ? cutMs : e.offMs;
+    final rawOffAt = _deviceAt(offMs) - _kNoteOffLeadSeconds;
+    final offAt = _clamp(rawOffAt, earliest).clamp(onAt, double.infinity);
+    final pitch = pitchOf(e.pitch);
+    final velocity = e.staff >= kBandFirstStaff
+        ? (e.velocity * bandVolume / 100).round().clamp(0, 127)
+        : e.velocity;
+    midi.add(ScheduledMidi(onAt, 0x90 | e.channel, pitch, velocity));
+    midi.add(ScheduledMidi(offAt, 0x80 | e.channel, pitch, 0));
   }
 
   void _click(List<ScheduledMidi> midi, Beat b, double earliest) {

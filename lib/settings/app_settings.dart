@@ -85,6 +85,9 @@ class AppSettings extends ChangeNotifier {
   static const _kUseScoreInstruments = 'sound_use_score_instruments';
   static const _kSoundOn = 'sound_on';
   static const _kMetronome = 'practice_metronome';
+  // T15: a banda dos primeiros níveis da leitura (ligada e volume).
+  static const _kBandOn = 'practice_band_on';
+  static const _kBandVolume = 'practice_band_volume';
   static const _kPracticeMode = 'practice_mode';
   static const _kHighlightColor = 'ui_highlight_color';
   static const _kPracticePendingColor = 'ui_practice_pending_color';
@@ -117,6 +120,8 @@ class AppSettings extends ChangeNotifier {
   // quem gravou desligado continua desligado (`load` só troca se há chave).
   bool _soundOn = true;
   bool _metronomeOn = false;
+  bool _bandOn = true;
+  int _bandVolume = 70;
   PracticeMode _practiceMode = PracticeMode.wait;
   // Verde, não o vermelho padrão do player: é também a cor da nota certa
   // no treino, e vermelho lá é a errada.
@@ -171,6 +176,24 @@ class AppSettings extends ChangeNotifier {
     if (value == _metronomeOn) return;
     _metronomeOn = value;
     _changed(_prefs.setBool(_kMetronome, value));
+  }
+
+  /// A banda que toca com o aluno nos primeiros níveis da leitura (T15),
+  /// ligada por padrão.
+  bool get bandOn => _bandOn;
+  set bandOn(bool value) {
+    if (value == _bandOn) return;
+    _bandOn = value;
+    _changed(_prefs.setBool(_kBandOn, value));
+  }
+
+  /// O volume da banda (0 a 100), 70 por padrão.
+  int get bandVolume => _bandVolume;
+  set bandVolume(int value) {
+    final clamped = value.clamp(0, 100);
+    if (clamped == _bandVolume) return;
+    _bandVolume = clamped;
+    _changed(_prefs.setInt(_kBandVolume, clamped));
   }
 
   /// Espera ou tempo real — o tipo de treino que "Espera" arma.
@@ -430,6 +453,8 @@ class AppSettings extends ChangeNotifier {
       'somLigado': _soundOn,
       'instrumentosDaPartitura': _useScoreInstruments,
       'metronomo': _metronomeOn,
+      'banda': _bandOn,
+      'volumeDaBanda': _bandVolume,
       'modoDeTreino': _practiceMode.name,
       'corDestaque': hex(_highlightColor),
       'corPendente': hex(_practicePendingColor),
@@ -504,6 +529,8 @@ class AppSettings extends ChangeNotifier {
     final instruments = await read(() => _prefs.getBool(_kUseScoreInstruments));
     final soundOn = await read(() => _prefs.getBool(_kSoundOn));
     final metronome = await read(() => _prefs.getBool(_kMetronome));
+    final bandOn = await read(() => _prefs.getBool(_kBandOn));
+    final bandVolume = await read(() => _prefs.getInt(_kBandVolume));
     final mode = await read(() => _prefs.getString(_kPracticeMode));
     final highlight = await read(() => _prefs.getInt(_kHighlightColor));
     final pending = await read(() => _prefs.getInt(_kPracticePendingColor));
@@ -535,6 +562,8 @@ class AppSettings extends ChangeNotifier {
     _useScoreInstruments = instruments ?? _useScoreInstruments;
     _soundOn = soundOn ?? _soundOn;
     _metronomeOn = metronome ?? _metronomeOn;
+    _bandOn = bandOn ?? _bandOn;
+    if (bandVolume != null) _bandVolume = bandVolume.clamp(0, 100);
     _practiceMode = byName(PracticeMode.values, mode) ?? _practiceMode;
     if (highlight != null) _highlightColor = Color(highlight);
     if (pending != null) _practicePendingColor = Color(pending);
