@@ -811,6 +811,8 @@ ExerciseSpec? _buildExercise(
       return _targetNotes(f, id, title, line, pass, issues);
     case ExerciseType.followForm:
       return _followForm(f, id, title, line, pass, issues);
+    case ExerciseType.theoryQuiz:
+      return _theoryQuiz(f, id, title, line, pass, issues);
   }
 }
 
@@ -2789,3 +2791,135 @@ BackingSpec? _echoBacking(Fields f, FileIssues issues) {
     intro: map?.get<int>('intro') ?? 1,
   );
 }
+
+/// `theory-quiz` (EX21): os tópicos (a rodada divide as perguntas entre eles),
+/// os tons, o número de perguntas, a resposta e as qualidades dos acordes. Os
+/// erros de combinação saem aqui: o tópico da forma (ainda não roda), o teclado
+/// sem tópico de nota ou acorde, o `interval-build` com botões e a qualidade
+/// sem tópico de acorde.
+TheoryQuizSpec? _theoryQuiz(
+  Fields f,
+  String id,
+  String title,
+  int line,
+  Fields? pass,
+  FileIssues issues,
+) {
+  final topics = _theoryTopics(f, issues);
+  final keys = _theoryKeys(f, issues);
+  if (topics == null || keys == null) return null;
+  final answer =
+      _enumOf(TheoryAnswer.values, f.get<String>('answer')) ??
+      TheoryAnswer.buttons;
+  var ok = true;
+  if (answer == TheoryAnswer.keyboard && !topics.any(_answersNote)) {
+    issues.error(
+      f.lineOf('answer'),
+      '`answer: keyboard` pede um tópico de nota ou acorde (`scale-degree`, '
+      '`interval-build`, `chord-tones` ou `black-key-count`).',
+    );
+    ok = false;
+  }
+  if (topics.contains(TheoryTopic.intervalBuild) &&
+      answer != TheoryAnswer.keyboard) {
+    issues.error(
+      f.lineOf('answer'),
+      '`interval-build` só se responde no teclado: use `answer: keyboard`.',
+    );
+    ok = false;
+  }
+  if (f.has('qualities') && !topics.any(_chordTopics)) {
+    issues.error(
+      f.lineOf('qualities'),
+      '`qualities` só vale com `chord-tones` ou `chord-from-staff`.',
+    );
+    ok = false;
+  }
+  final qualities = _stringsOf(f.get<Object>('qualities')) ?? const ['M', 'm'];
+  for (final quality in qualities) {
+    if (kTheoryQualities.contains(quality)) continue;
+    issues.error(
+      f.lineOf('qualities'),
+      '`$quality` não é uma qualidade de acorde do formato: use '
+      '${kTheoryQualities.join(', ')}.',
+    );
+    ok = false;
+  }
+  if (!ok) return null;
+  return TheoryQuizSpec(
+    id: id,
+    title: title,
+    pass: _pass(pass),
+    line: line,
+    topics: topics,
+    keys: keys,
+    count: f.get<int>('count') ?? 10,
+    answer: answer,
+    qualities: qualities,
+  );
+}
+
+/// Os tópicos do `theory-quiz`, na ordem do autor. O da forma ainda não roda.
+List<TheoryTopic>? _theoryTopics(Fields f, FileIssues issues) {
+  final names = _stringsOf(f.get<Object>('topics'));
+  if (names == null) return null;
+  // O leitor do campo já recusou os nomes que não existem.
+  final topics = [for (final name in names) _enumOf(TheoryTopic.values, name)!];
+  if (topics.contains(TheoryTopic.formTemplate)) {
+    issues.error(
+      f.lineOf('topics'),
+      '`form-template` ainda não roda: a forma e o modelo harmônico são texto '
+      'das lições, fora do `theory-quiz`.',
+    );
+    return null;
+  }
+  return topics;
+}
+
+/// As tônicas do `theory-quiz`: `all` são os 12 tons; uma lista traz só a
+/// tônica, sem `m` (o modo vem do tópico); o padrão é `[C, G, F]`.
+List<String>? _theoryKeys(Fields f, FileIssues issues) {
+  final raw = f.get<Object>('keys');
+  if (raw == null) return const ['C', 'G', 'F'];
+  if (raw == 'all') return kTheoryAllKeys;
+  if (raw is! List<Object>) {
+    issues.error(
+      f.lineOf('keys'),
+      '`keys: random` não vale no `theory-quiz`: use `all` ou uma lista de tônicas.',
+    );
+    return null;
+  }
+  final names = raw.cast<String>();
+  for (final name in names) {
+    if (name.endsWith('m')) {
+      issues.error(
+        f.lineOf('keys'),
+        '`$name` é um tom menor: escreva só a tônica (como `A` para Lá menor). '
+        'O modo vem do tópico.',
+      );
+      return null;
+    }
+  }
+  return names;
+}
+
+/// Um texto ou uma lista de textos, como lista; `null` se a chave não está.
+List<String>? _stringsOf(Object? value) => switch (value) {
+  null => null,
+  final String text => [text],
+  final List<Object> items => items.cast<String>(),
+  _ => null,
+};
+
+/// Os tópicos que respondem com nota (o teclado vale neles).
+bool _answersNote(TheoryTopic topic) => switch (topic) {
+  TheoryTopic.scaleDegree ||
+  TheoryTopic.intervalBuild ||
+  TheoryTopic.chordTones ||
+  TheoryTopic.blackKeyCount => true,
+  _ => false,
+};
+
+/// Os tópicos que pedem uma qualidade de acorde (`qualities:`).
+bool _chordTopics(TheoryTopic topic) =>
+    topic == TheoryTopic.chordTones || topic == TheoryTopic.chordFromStaff;

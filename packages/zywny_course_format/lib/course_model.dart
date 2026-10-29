@@ -282,7 +282,8 @@ enum ExerciseType implements WireEnum {
   harmonize('harmonize'),
   playLeadSheet('play-lead-sheet'),
   targetNotes('target-notes'),
-  followForm('follow-form');
+  followForm('follow-form'),
+  theoryQuiz('theory-quiz');
 
   const ExerciseType(this.wire);
 
@@ -2131,4 +2132,81 @@ class PlayPatternSpec extends ExerciseSpec {
   /// `mode:` e `bpm:`, como no `play-score`.
   final PlayMode mode;
   final int? bpm;
+}
+
+/// `topics:` do `theory-quiz` (EX21): os tópicos de teoria. A rodada divide as
+/// perguntas entre eles. `formTemplate` está no formato, e o leitor o recusa
+/// com "ainda não roda": a forma é texto das lições (fora do EX21).
+enum TheoryTopic implements WireEnum {
+  keySignature('key-signature'),
+  sharpsOrder('sharps-order'),
+  relativeMinor('relative-minor'),
+  relativeMajor('relative-major'),
+  parallel('parallel'),
+  scaleDegree('scale-degree'),
+  intervalName('interval-name'),
+  intervalBuild('interval-build'),
+  chordTones('chord-tones'),
+  chordDegree('chord-degree'),
+  degreeChord('degree-chord'),
+  chordFromStaff('chord-from-staff'),
+  circleNext('circle-next'),
+  harmonicFunction('function'),
+  functionByTritone('function-by-tritone'),
+  blackKeyCount('black-key-count'),
+  availableExtensions('available-extensions'),
+  romanAnalysis('roman-analysis'),
+  formTemplate('form-template');
+
+  const TheoryTopic(this.wire);
+
+  @override
+  final String wire;
+}
+
+/// `answer:` do `theory-quiz` (EX21): os botões, ou o teclado nos tópicos em que
+/// a resposta é uma nota ou um acorde (o resto segue com botões).
+enum TheoryAnswer implements WireEnum {
+  buttons('buttons'),
+  keyboard('keyboard');
+
+  const TheoryAnswer(this.wire);
+
+  @override
+  final String wire;
+}
+
+/// `theory-quiz` (EX21): perguntas de teoria geradas a cada rodada (armadura,
+/// relativas, graus, funções, análise romana…). Cada tópico tem a sua fórmula;
+/// as opções erradas vêm dos erros comuns dele.
+class TheoryQuizSpec extends ExerciseSpec {
+  const TheoryQuizSpec({
+    required super.id,
+    required super.title,
+    required super.pass,
+    required super.line,
+    required this.topics,
+    required this.keys,
+    required this.count,
+    required this.answer,
+    required this.qualities,
+  });
+
+  @override
+  ExerciseType get type => ExerciseType.theoryQuiz;
+
+  /// Os tópicos, na ordem do autor, sem repetir.
+  final List<TheoryTopic> topics;
+
+  /// As tônicas (`C`, `Bb`, `F#`), sem `m`: o modo vem do tópico. `all` são os
+  /// 12 tons, já escritos aqui.
+  final List<String> keys;
+
+  /// Quantas perguntas (de 1 a 40).
+  final int count;
+
+  final TheoryAnswer answer;
+
+  /// As qualidades dos tópicos de acorde (`M`, `m`, `7`…); o padrão é `[M, m]`.
+  final List<String> qualities;
 }

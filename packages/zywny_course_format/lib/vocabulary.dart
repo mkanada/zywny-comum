@@ -457,6 +457,42 @@ const _timedTypes = {
   ExerciseType.playPattern,
 };
 
+/// As qualidades de `qualities:` do `theory-quiz` (EX21): as de
+/// `kChordQualities`, sem a 9ª (que pede a tensão a mais).
+const kTheoryQualities = [
+  'M',
+  'm',
+  'dim',
+  'aug',
+  '7',
+  'maj7',
+  'm7',
+  'm7b5',
+  'dim7',
+  '6',
+  'm6',
+  'sus2',
+  'sus4',
+  '7sus4',
+];
+
+/// Os 12 tons de `keys: all` no `theory-quiz` (EX21), com a grafia que cada um
+/// leva: `F#` (e não `Gb`), `Db` (e não `C#`).
+const kTheoryAllKeys = [
+  'C',
+  'G',
+  'D',
+  'A',
+  'E',
+  'B',
+  'F#',
+  'F',
+  'Bb',
+  'Eb',
+  'Ab',
+  'Db',
+];
+
 /// A regularidade, o swing e as voltas (EX08) valem também no `play-chart`
 /// (EX11), que é sempre com tempo. O `speed` não: o andamento da grade é o do
 /// autor, e o legato, o pedal e os acentos não têm o que medir numa grade.
@@ -498,6 +534,7 @@ final kPassKeys = <String, PassKey>{
     ExerciseType.listenChord,
     ExerciseType.listenGroove,
     ExerciseType.listenProgression,
+    ExerciseType.theoryQuiz,
   }, note: 'só vale nos exercícios de pergunta'),
   // Medidores (EX08, meters.dart): medem a execução que o teclado mandou.
   // Dinâmica, equilíbrio e acentos leem só a força da tecla, e valem no modo
@@ -990,6 +1027,25 @@ final _typeKeys = <ExerciseType, Map<String, KeyDef>>{
   // (`cues`, com o molde `pattern`). `intro`, `ending`, `break-bars` e
   // `trade-bars` são dos modos que o leitor ainda recusa. As chaves de um modo
   // só são conferidas no leitor, que sabe o modo.
+  // EX21: perguntas de teoria geradas. `topics` é a lista dos tópicos (o
+  // leitor recusa o da forma, que ainda não roda); `keys` são as tônicas (sem
+  // `m`; o leitor confere); `answer` vale só com tópico de nota ou acorde.
+  ExerciseType.theoryQuiz: {
+    'topics': KeyDef(
+      ValueType.optionOrList,
+      required: true,
+      values: _wires(TheoryTopic.values),
+    ),
+    'keys': const KeyDef(ValueType.keyChoice, fallback: '[C, G, F]'),
+    'count': const KeyDef(ValueType.integer, min: 1, max: 40, fallback: '10'),
+    'answer': KeyDef(
+      ValueType.option,
+      values: _wires(TheoryAnswer.values),
+      fallback: 'buttons',
+    ),
+    // Texto, como em `listen-chord`: o `7` sem aspas é número, e vale como 7.
+    'qualities': const KeyDef(ValueType.stringList, fallback: '[M, m]'),
+  },
   ExerciseType.followForm: {
     'mode': KeyDef(
       ValueType.option,
