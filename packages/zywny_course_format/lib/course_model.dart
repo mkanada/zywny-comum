@@ -231,6 +231,17 @@ enum ChordPlay implements WireEnum {
   String get wire => name;
 }
 
+/// `listen-progression` (EX15): como o aluno responde. Os botões mostram os
+/// graus da progressão (`choice`), ou ele toca no teclado a fundamental de cada
+/// acorde, em ordem (`bass`).
+enum ProgressionAnswer implements WireEnum {
+  choice,
+  bass;
+
+  @override
+  String get wire => name;
+}
+
 /// `listen-groove` (EX13): o groove que a pergunta toca. O som é a base do EX12
 /// no estilo do groove (`straight`, `shuffle`, `salsa-3-2`…).
 enum ListenGroove implements WireEnum {
@@ -266,7 +277,8 @@ enum ExerciseType implements WireEnum {
   playPattern('play-pattern'),
   playChart('play-chart'),
   listenGroove('listen-groove'),
-  echo('echo');
+  echo('echo'),
+  listenProgression('listen-progression');
 
   const ExerciseType(this.wire);
 
@@ -1225,6 +1237,48 @@ class ListenGrooveSpec extends ExerciseSpec {
   final List<ListenGroove> grooves;
 
   /// Quantas perguntas (1 a 40); cada uma sorteia um groove da lista.
+  final int count;
+}
+
+/// `listen-progression` (EX15): o zywny toca o acorde da tônica, uma pausa e
+/// uma progressão; o aluno diz qual é (`choice`) ou toca o baixo de cada acorde
+/// (`bass`). Cada uma das [progressions] é a grade escrita (`I | vi | ii V | I`),
+/// já com o nome da biblioteca trocado por ela.
+class ListenProgressionSpec extends ExerciseSpec {
+  const ListenProgressionSpec({
+    required super.id,
+    required super.title,
+    required super.pass,
+    required super.line,
+    required this.answer,
+    required this.progressions,
+    required this.key,
+    required this.style,
+    required this.bpm,
+    required this.count,
+  });
+
+  @override
+  ExerciseType get type => ExerciseType.listenProgression;
+
+  final ProgressionAnswer answer;
+
+  /// As progressões, como grades escritas (dois ou mais com `choice`). Os
+  /// botões mostram os graus delas, na ordem do autor.
+  final List<String> progressions;
+
+  /// O tom (`C`, `Am`…), ou `random` para sortear um por pergunta.
+  final String key;
+
+  /// A base que soa com a progressão (EX12): `null` é o bloco (a mão direita
+  /// em acordes e o baixo). Só estilos de compasso 4/4.
+  final BackingStyle? style;
+
+  /// O andamento, em semínimas por minuto (50 a 140).
+  final int bpm;
+
+  /// Quantas perguntas (1 a 40). Com `bass`, quantas progressões: cada acorde
+  /// de uma progressão é uma nota a tocar.
   final int count;
 }
 

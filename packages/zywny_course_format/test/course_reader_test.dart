@@ -824,6 +824,138 @@ roots: {random: C3-G4, count: 4}
       expect(_messages(result).single, contains('use o `count` da lição'));
     });
 
+    // EX15: o listen-progression, com nomes da biblioteca e grades escritas.
+    test('listen-progression lê as duas respostas e põe os padrões', () async {
+      final result = await _read('''
+```zywny-exercise
+id: p1-qual
+type: listen-progression
+title: Qual progressão?
+progressions: [I-IV-V-I, I-V-vi-IV, I-vi-IV-V]
+key: random
+count: 8
+pass: {accuracy: 75}
+```
+
+```zywny-exercise
+id: p2-baixos
+type: listen-progression
+title: Toque os baixos que você ouviu
+answer: bass
+progressions: ["I | vi | ii V | I", ii-V-I]
+key: C
+style: straight
+bpm: 70
+count: 6
+pass: {accuracy: 70}
+```
+
+```zywny-exercise
+id: p3-padroes
+type: listen-progression
+title: Só o nome
+progressions: [I-IV-V-I, turnaround]
+```
+''');
+      expect(_messages(result), isEmpty);
+      final specs = result.course!.lessons.single.exercises.toList();
+
+      final qual = specs[0] as ListenProgressionSpec;
+      expect(qual.type, ExerciseType.listenProgression);
+      expect(qual.answer, ProgressionAnswer.choice);
+      expect(qual.progressions, [
+        'I | IV | V | I',
+        'I | V | vi | IV',
+        'I | vi | IV | V',
+      ]);
+      expect(qual.key, 'random');
+      expect(qual.style, isNull);
+      expect(qual.bpm, 90);
+      expect(qual.count, 8);
+      expect(qual.pass.accuracy, 75);
+
+      final baixos = specs[1] as ListenProgressionSpec;
+      expect(baixos.answer, ProgressionAnswer.bass);
+      expect(baixos.progressions, [
+        'I | vi | ii V | I',
+        'ii7 | V7 | Imaj7 | Imaj7',
+      ]);
+      expect(baixos.style!.name, 'straight');
+      expect(baixos.bpm, 70);
+      expect(baixos.count, 6);
+
+      final padroes = specs[2] as ListenProgressionSpec;
+      expect(padroes.key, 'C');
+      expect(padroes.count, 8);
+      expect(padroes.bpm, 90);
+      expect(padroes.answer, ProgressionAnswer.choice);
+    });
+
+    test('listen-progression: os erros da progressão', () async {
+      final result = await _read('''
+```zywny-exercise
+id: p1
+type: listen-progression
+title: Um só
+progressions: [I-IV-V-I]
+```
+
+```zywny-exercise
+id: p2
+type: listen-progression
+title: Desconhecida
+progressions: [I-IV-V-I, I-IV-VI-I]
+```
+
+```zywny-exercise
+id: p3
+type: listen-progression
+title: Nove acordes
+progressions: ["I | IV | V | I | vi | ii | V | I | IV"]
+answer: bass
+```
+
+```zywny-exercise
+id: p4
+type: listen-progression
+title: Graus iguais
+progressions: [I-IV-V-I, "I | IV | V | I"]
+```
+
+```zywny-exercise
+id: p5
+type: listen-progression
+title: Compasso de 6/8
+answer: bass
+progressions: [I-V-vi-IV]
+style: six-eight
+```
+''');
+      final messages = _messages(result);
+      expect(
+        messages.any((m) => m.contains('pede duas ou mais progressões')),
+        isTrue,
+      );
+      expect(
+        messages.any(
+          (m) => m.contains('`I-IV-VI-I` não é uma progressão da biblioteca'),
+        ),
+        isTrue,
+      );
+      expect(
+        messages.any((m) => m.contains('tem 9 acordes: o máximo é 8')),
+        isTrue,
+      );
+      expect(
+        messages.any((m) => m.contains('tem os mesmos graus de uma')),
+        isTrue,
+      );
+      expect(
+        messages.any((m) => m.contains('o estilo `six-eight` é de 6/8')),
+        isTrue,
+      );
+    });
+
     test('avisos não impedem o curso', () async {
       final result = await _read('Um <b>negrito</b>.\n');
       expect(_messages(result), [

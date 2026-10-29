@@ -1,4 +1,5 @@
 import 'package:meta/meta.dart';
+import 'package:zywny_music/backing_styles.dart';
 import 'package:zywny_music/chord_voicing.dart';
 import 'package:zywny_music/rhythm_grooves.dart';
 import 'package:zywny_music/scale.dart';
@@ -457,6 +458,7 @@ final kPassKeys = <String, PassKey>{
     ExerciseType.playChord,
     ExerciseType.listenChord,
     ExerciseType.listenGroove,
+    ExerciseType.listenProgression,
   }, note: 'só vale nos exercícios de pergunta'),
   // Medidores (EX08, meters.dart): medem a execução que o teclado mandou.
   // Dinâmica, equilíbrio e acentos leem só a força da tecla, e valem no modo
@@ -884,6 +886,33 @@ final _typeKeys = <ExerciseType, Map<String, KeyDef>>{
       values: ['right', 'left'],
       fallback: 'right',
     ),
+  },
+  // EX15: as progressões (nomes da biblioteca ou grades escritas), a resposta
+  // (botões com os graus, ou o baixo no teclado), o tom (ou `random`), a base
+  // (`block` ou um estilo de 4/4), o andamento e as perguntas.
+  ExerciseType.listenProgression: {
+    'answer': KeyDef(
+      ValueType.option,
+      values: _wires(ProgressionAnswer.values),
+      fallback: 'choice',
+    ),
+    'progressions': const KeyDef(
+      ValueType.stringList,
+      required: true,
+      minItems: 1,
+    ),
+    'key': KeyDef(
+      ValueType.option,
+      values: [...kKeyNames, 'random'],
+      fallback: 'C',
+    ),
+    'style': KeyDef(
+      ValueType.option,
+      values: ['block', ...backingStyleNames],
+      fallback: 'block',
+    ),
+    'bpm': const KeyDef(ValueType.integer, min: 50, max: 140, fallback: '90'),
+    'count': const KeyDef(ValueType.integer, min: 1, max: 40, fallback: '8'),
   },
 };
 

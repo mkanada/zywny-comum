@@ -799,6 +799,8 @@ ExerciseSpec? _buildExercise(
       return _listenGroove(f, id, title, line, pass, issues);
     case ExerciseType.echo:
       return _echo(f, id, title, line, pass, issues);
+    case ExerciseType.listenProgression:
+      return _listenProgression(f, id, title, line, pass, issues);
   }
 }
 
@@ -1848,6 +1850,98 @@ ListenGrooveSpec? _listenGroove(
     pass: _pass(pass),
     line: line,
     grooves: grooves,
+    count: f.get<int>('count') ?? 8,
+  );
+}
+
+/// `listen-progression` (EX15): as progressões (um nome da biblioteca ou uma
+/// grade escrita, de até 8 acordes, sem graus repetidos), a resposta, o tom, a
+/// base e o andamento. Com `choice`, são duas ou mais. O nome da biblioteca sai
+/// da grade dela, para o app ter só grades.
+ListenProgressionSpec? _listenProgression(
+  Fields f,
+  String id,
+  String title,
+  int line,
+  Fields? pass,
+  FileIssues issues,
+) {
+  final answer =
+      _enumOf(ProgressionAnswer.values, f.get<String>('answer')) ??
+      ProgressionAnswer.choice;
+  final given = f.get<List<Object>>('progressions')!.cast<String>();
+  var ok = true;
+  if (answer == ProgressionAnswer.choice && given.length < 2) {
+    issues.error(
+      f.lineOf('progressions'),
+      '`answer: choice` pede duas ou mais progressões: os botões escolhem entre elas.',
+    );
+    ok = false;
+  }
+  final charts = <String>[];
+  final spelled = <String>{};
+  for (final (i, text) in given.indexed) {
+    final chart = progressionNamed(text)?.chart ?? text;
+    String? detail;
+    final bars = parseProgression(chart, error: (m) => detail = m);
+    if (bars == null) {
+      final hint = suggestFor(text, [for (final p in kProgressions) p.name]);
+      issues.error(
+        _itemLine(f, 'progressions', i),
+        '`$text` não é uma progressão da biblioteca'
+        '${hint != null ? ' — você quis dizer `$hint`?' : ''}, nem uma grade '
+        'escrita${detail != null ? ' ($detail)' : ''}: escreva os graus '
+        'separados por espaço e os compassos por `|`, como `I | vi | ii V | I`.',
+      );
+      ok = false;
+      continue;
+    }
+    final chords = bars.fold<int>(0, (sum, bar) => sum + bar.length);
+    if (chords > 8) {
+      issues.error(
+        _itemLine(f, 'progressions', i),
+        '`$text` tem $chords acordes: o máximo é 8 (é longo demais para o ouvido).',
+      );
+      ok = false;
+      continue;
+    }
+    final degrees = [
+      for (final bar in bars)
+        for (final degree in bar) degree.label,
+    ].join(' ');
+    if (!spelled.add(degrees)) {
+      issues.error(
+        _itemLine(f, 'progressions', i),
+        '`$text` tem os mesmos graus de uma progressão anterior.',
+      );
+      ok = false;
+      continue;
+    }
+    charts.add(chart);
+  }
+  final styleName = f.get<String>('style') ?? 'block';
+  BackingStyle? style;
+  if (styleName != 'block') {
+    style = backingStyleNamed(styleName);
+    if (style != null && style.time != '4/4') {
+      issues.error(
+        f.lineOf('style'),
+        'o estilo `${style.name}` é de ${style.time}, e a progressão é em 4/4.',
+      );
+      ok = false;
+    }
+  }
+  if (!ok) return null;
+  return ListenProgressionSpec(
+    id: id,
+    title: title,
+    pass: _pass(pass),
+    line: line,
+    answer: answer,
+    progressions: charts,
+    key: f.get<String>('key') ?? 'C',
+    style: style,
+    bpm: f.get<int>('bpm') ?? 90,
     count: f.get<int>('count') ?? 8,
   );
 }
