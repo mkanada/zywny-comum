@@ -27,6 +27,7 @@ class FirebaseSdkAuthStore extends AuthStoreBase implements AuthStore {
     DateTime Function()? clock,
     this.googleClientId,
     this.googleServerClientId,
+    this.antesDeApagar,
   }) : _auth = auth ?? fb.FirebaseAuth.instance,
        _google = googleSignIn ?? GoogleSignIn.instance,
        _storage = SessionStorage(prefs: prefs),
@@ -39,6 +40,10 @@ class FirebaseSdkAuthStore extends AuthStoreBase implements AuthStore {
 
   /// O `server_client_id` do Google (o mesmo que vai no `firebase_options`).
   final String? googleServerClientId;
+
+  /// O que o app limpa, na conta [uid] que vai sair, antes de o Auth apagá-la
+  /// (por exemplo, os dados do Firestore). Se ela falhar, a conta fica.
+  final Future<void> Function(String uid)? antesDeApagar;
 
   final fb.FirebaseAuth _auth;
   final GoogleSignIn _google;
@@ -178,6 +183,7 @@ class FirebaseSdkAuthStore extends AuthStoreBase implements AuthStore {
   Future<void> deleteAccount() async {
     final firebaseUser = _auth.currentUser;
     if (firebaseUser != null) {
+      await antesDeApagar?.call(firebaseUser.uid);
       await firebaseUser.delete();
     }
     await _storage.clear();

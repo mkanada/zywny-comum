@@ -44,7 +44,9 @@ AuthPath authPathFor(AuthPlatform platform) => switch (platform) {
   AuthPlatform.other => AuthPath.none,
 };
 
-/// Cria o store de autenticação da plataforma (D03).
+/// Cria o store de autenticação da plataforma (D03). [antesDeApagar] limpa o
+/// que o app guarda da conta antes de ela sair (só o caminho do SDK, Android e
+/// Web, chama; no Linux e no Windows a conta sai sem essa limpeza).
 ///
 /// Devolve `null` quando o build **não** traz a configuração do Firebase: o
 /// app abre direto, sem o portão da conta (D-NEG-SEM-CONTA). É o caso dos
@@ -56,6 +58,7 @@ AuthPath authPathFor(AuthPlatform platform) => switch (platform) {
 Future<AuthStore?> createPlatformAuthStore({
   FirebaseConfig? config,
   AuthPlatform? platform,
+  Future<void> Function(String uid)? antesDeApagar,
 }) async {
   if (FirebaseConfig.authOff) return null;
   final cfg = config ?? FirebaseConfig.fromEnvironment;
@@ -82,6 +85,7 @@ Future<AuthStore?> createPlatformAuthStore({
       // app Android. Na Web o login é o popup do próprio Firebase.
       return FirebaseSdkAuthStore(
         googleServerClientId: cfg.googleServerClientId,
+        antesDeApagar: antesDeApagar,
       );
     case AuthPath.rest:
       return FirebaseRestAuthStore(
