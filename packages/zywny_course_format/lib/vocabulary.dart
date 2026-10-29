@@ -83,6 +83,9 @@ enum ValueType {
   /// `source:` do `echo` (EX14): o mapa `{scale, key}`, `{chord-tones: true}`
   /// ou `{licks: <biblioteca>}`, com `range` onde couber.
   echoSource,
+
+  /// `melody:` do `harmonize` (EX16): o mapa `{step, key}` ou `{file}`.
+  melodySpec,
 }
 
 @immutable
@@ -353,6 +356,24 @@ const kBackingMapKeys = <String, KeyDef>{
   ),
   'volume': KeyDef(ValueType.integer, min: 0, max: 100, fallback: '70'),
   'intro': KeyDef(ValueType.integer, min: 0, max: 4, fallback: '1'),
+};
+
+/// As técnicas de rearmonização do `harmonize` (EX16, o modo `reharmonize`,
+/// que ainda não roda). Ficam no vocabulário para o leitor dizer o que falta.
+const kHarmonizeTechniques = [
+  'diatonic-sub',
+  'add-ii-v',
+  'passing-dim',
+  'tritone-sub',
+  'line-cliche',
+];
+
+/// O mapa `melody:` do `harmonize` (EX16). `step` e `key` geram a melodia; `file`
+/// é o `.musicxml` da pasta. O leitor confere que haja uma das duas formas.
+const kMelodyMapKeys = <String, KeyDef>{
+  'step': KeyDef(ValueType.text),
+  'key': _key,
+  'file': KeyDef(ValueType.path, extensions: kScoreExtensions),
 };
 
 /// As bibliotecas de licks do `echo` (EX14). O conteúdo de cada uma está no app
@@ -890,6 +911,28 @@ final _typeKeys = <ExerciseType, Map<String, KeyDef>>{
   // EX15: as progressões (nomes da biblioteca ou grades escritas), a resposta
   // (botões com os graus, ou o baixo no teclado), o tom (ou `random`), a base
   // (`block` ou um estilo de 4/4), o andamento e as perguntas.
+  // EX16: a melodia (gerada por `step` ou do autor por `file`), os graus que o
+  // acorde pode ser e onde ele troca. `mode` e `technique` são conferidos no
+  // leitor (o `reharmonize` ainda não roda); o molde (`pattern`) também.
+  ExerciseType.harmonize: {
+    'mode': KeyDef(
+      ValueType.option,
+      values: _wires(HarmonizeMode.values),
+      fallback: 'play',
+    ),
+    'technique': KeyDef(ValueType.option, values: kHarmonizeTechniques),
+    'melody': const KeyDef(ValueType.melodySpec, required: true),
+    'chords': const KeyDef(ValueType.stringList, minItems: 1),
+    'change': KeyDef(
+      ValueType.option,
+      values: _wires(HarmonizeChange.values),
+      fallback: 'bar',
+    ),
+    'pattern': const KeyDef(ValueType.text, fallback: 'block'),
+    'bpm': const KeyDef(ValueType.integer, min: 30, max: 200, fallback: '70'),
+    'split': const KeyDef(ValueType.note, fallback: 'C4'),
+    'count': const KeyDef(ValueType.integer, min: 1, max: 10, fallback: '1'),
+  },
   ExerciseType.listenProgression: {
     'answer': KeyDef(
       ValueType.option,

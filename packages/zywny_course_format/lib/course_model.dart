@@ -278,7 +278,8 @@ enum ExerciseType implements WireEnum {
   playChart('play-chart'),
   listenGroove('listen-groove'),
   echo('echo'),
-  listenProgression('listen-progression');
+  listenProgression('listen-progression'),
+  harmonize('harmonize');
 
   const ExerciseType(this.wire);
 
@@ -1279,6 +1280,100 @@ class ListenProgressionSpec extends ExerciseSpec {
 
   /// Quantas perguntas (1 a 40). Com `bass`, quantas progressões: cada acorde
   /// de uma progressão é uma nota a tocar.
+  final int count;
+}
+
+/// `mode:` do `harmonize` (EX16). `reharmonize` está no formato, mas ainda não
+/// roda: a rearmonização (nível 6) fica para depois, e o leitor a recusa.
+enum HarmonizeMode implements WireEnum {
+  degrees('degrees'),
+  play('play'),
+  byEar('by-ear'),
+  reharmonize('reharmonize');
+
+  const HarmonizeMode(this.wire);
+
+  @override
+  final String wire;
+}
+
+/// `change:` do `harmonize` (EX16): onde o acorde pode trocar.
+enum HarmonizeChange implements WireEnum {
+  bar('bar'),
+  halfBar('half-bar'),
+  marked('marked');
+
+  const HarmonizeChange(this.wire);
+
+  @override
+  final String wire;
+}
+
+/// `melody:` do `harmonize` (EX16): de onde vem a melodia.
+sealed class MelodySource {
+  const MelodySource();
+}
+
+/// `{step, key}`: uma melodia gerada pela leitura à primeira vista (só a mão
+/// direita). Sem [key], o tom é o do passo.
+class StepMelody extends MelodySource {
+  const StepMelody({required this.step, this.key});
+
+  /// O passo da leitura (`1a` a `100d`).
+  final String step;
+
+  /// O tom (`G`, `Am`…), ou `null` para o do passo.
+  final String? key;
+}
+
+/// `{file}`: um `.musicxml` do autor, de domínio público, na pasta do curso.
+class FileMelody extends MelodySource {
+  const FileMelody(this.path);
+
+  /// O caminho na pasta do curso.
+  final String path;
+}
+
+/// `harmonize` (EX16): a melodia e os acordes que cabem nela. Os modos são
+/// `degrees` (escolher o grau de cada trecho), `play` (tocar a melodia e os
+/// acordes) e `by-ear` (ouvir a melodia e tocar só os acordes).
+class HarmonizeSpec extends ExerciseSpec {
+  const HarmonizeSpec({
+    required super.id,
+    required super.title,
+    required super.pass,
+    required super.line,
+    required this.mode,
+    required this.melody,
+    required this.chords,
+    required this.change,
+    required this.bpm,
+    required this.split,
+    required this.count,
+    this.pattern,
+  });
+
+  @override
+  ExerciseType get type => ExerciseType.harmonize;
+
+  final HarmonizeMode mode;
+  final MelodySource melody;
+
+  /// Os graus permitidos (`I`, `IV`, `V7`…), na ordem do autor.
+  final List<String> chords;
+
+  final HarmonizeChange change;
+
+  /// O molde do EX11 (com `play` e `by-ear`), ou `null` nos outros modos.
+  final String? pattern;
+
+  /// O andamento, em semínimas por minuto.
+  final int bpm;
+
+  /// A altura que separa as mãos: abaixo é a esquerda (os acordes).
+  final Pitch split;
+
+  /// Quantas melodias (só com `step`).
   final int count;
 }
 

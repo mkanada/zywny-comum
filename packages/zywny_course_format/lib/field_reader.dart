@@ -506,6 +506,21 @@ class FieldReader {
           '`source` precisa ser um mapa como `{scale: major, key: C, '
           'range: C4-G5}`, `{chord-tones: true}` ou `{licks: blues-basic}`.',
         );
+      case ValueType.melodySpec:
+        // EX16: o mapa da melodia, `{step, key}` ou `{file}`.
+        if (node is YamlMap) {
+          return read(
+            node,
+            kMelodyMapKeys,
+            firstLine: firstLine,
+            blockLine: line,
+            where: 'em `melody`',
+          );
+        }
+        return bad(
+          '`melody` precisa ser um mapa como `{step: 7b, key: G}` ou '
+          '`{file: media/folclore.musicxml}`.',
+        );
       case ValueType.passMap:
         if (node is! YamlMap) {
           return bad('`pass` precisa ser um mapa, como `{accuracy: 90}`.');

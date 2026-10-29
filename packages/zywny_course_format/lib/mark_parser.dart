@@ -801,6 +801,8 @@ ExerciseSpec? _buildExercise(
       return _echo(f, id, title, line, pass, issues);
     case ExerciseType.listenProgression:
       return _listenProgression(f, id, title, line, pass, issues);
+    case ExerciseType.harmonize:
+      return _harmonize(f, id, title, line, pass, issues);
   }
 }
 
@@ -1945,6 +1947,146 @@ ListenProgressionSpec? _listenProgression(
     count: f.get<int>('count') ?? 8,
   );
 }
+
+/// `harmonize` (EX16): o modo, a melodia (`step` gerada ou `file` do autor), os
+/// graus que o acorde pode ser, onde ele troca e o molde. O que depende da nota
+/// (se um acorde cabe no compasso, a fórmula da melodia) é do app, que lê a
+/// melodia. `null` com erro (o erro já saiu).
+HarmonizeSpec? _harmonize(
+  Fields f,
+  String id,
+  String title,
+  int line,
+  Fields? pass,
+  FileIssues issues,
+) {
+  var ok = true;
+  final mode =
+      _enumOf(HarmonizeMode.values, f.get<String>('mode')) ??
+      HarmonizeMode.play;
+  // A rearmonização (nível 6) está no formato, mas ainda não roda.
+  if (mode == HarmonizeMode.reharmonize) {
+    issues.error(
+      f.lineOf('mode'),
+      '`mode: reharmonize` ainda não roda: a rearmonização (nível 6) fica '
+      'para depois.',
+    );
+    ok = false;
+  }
+  if (f.has('technique')) {
+    issues.error(
+      f.lineOf('technique'),
+      '`technique` só vale com `mode: reharmonize`, que ainda não roda.',
+    );
+    ok = false;
+  }
+
+  // Sem `melody:` a leitura da chave já disse o que falta.
+  final map = f.values['melody'] as Fields?;
+  if (map == null) return null;
+  final step = map.get<String>('step');
+  final file = map.get<String>('file');
+  if ((step == null) == (file == null)) {
+    issues.error(
+      f.lineOf('melody'),
+      '`melody` pede uma das duas formas: `{step, key}` (uma melodia gerada) '
+      'ou `{file}` (um `.musicxml` da pasta).',
+    );
+    return null;
+  }
+  final MelodySource melody;
+  if (step != null) {
+    if (!_stepPattern.hasMatch(step)) {
+      issues.error(
+        map.lineOf('step'),
+        '`step` `$step` não é um passo da leitura: use `1a` a `100d`.',
+      );
+      ok = false;
+    }
+    melody = StepMelody(step: step, key: map.get<String>('key'));
+  } else {
+    if (map.has('key')) {
+      issues.error(
+        map.lineOf('key'),
+        '`key` não vale com `file`: o tom vem da armadura do arquivo.',
+      );
+      ok = false;
+    }
+    melody = FileMelody(file!);
+  }
+  if (melody is FileMelody && f.has('count')) {
+    issues.error(
+      f.lineOf('count'),
+      '`count` só vale com `step`: a melodia do arquivo é uma só.',
+    );
+    ok = false;
+  }
+
+  final chords =
+      f.get<List<Object>>('chords')?.cast<String>() ?? const ['I', 'IV', 'V7'];
+  for (final (i, text) in chords.indexed) {
+    if (ChordDegree.parse(text) == null) {
+      issues.error(
+        _itemLine(f, 'chords', i),
+        '`$text` não é um grau: use romanos, como `I`, `ii`, `V7` ou `V7/vi`.',
+      );
+      ok = false;
+    }
+  }
+
+  final change =
+      _enumOf(HarmonizeChange.values, f.get<String>('change')) ??
+      HarmonizeChange.bar;
+  if (change == HarmonizeChange.marked && melody is StepMelody) {
+    issues.error(
+      f.lineOf('change'),
+      '`change: marked` pede uma melodia do autor (`file`): a melodia gerada '
+      'não tem marcas de troca.',
+    );
+    ok = false;
+  }
+
+  // O molde só vale com `play` e `by-ear`. `block` é o acorde na esquerda nos
+  // tempos 1 e 3 (a direita é a melodia; ver o EX16); os outros são os do EX11.
+  final pattern = f.get<String>('pattern');
+  if (mode == HarmonizeMode.degrees && pattern != null) {
+    issues.error(
+      f.lineOf('pattern'),
+      '`pattern` não vale com `mode: degrees`: o trecho só pede o grau.',
+    );
+    ok = false;
+  }
+  final name = pattern ?? 'block';
+  if (mode != HarmonizeMode.degrees && !_harmonizePattern(name)) {
+    final hint = suggestFor(name, ['block', 'any', ...compingPatternNames]);
+    issues.error(
+      f.lineOf('pattern'),
+      'não há o molde `$name`'
+      '${hint != null ? ' — você quis dizer `$hint`?' : ''}.',
+    );
+    ok = false;
+  }
+
+  if (!ok) return null;
+  return HarmonizeSpec(
+    id: id,
+    title: title,
+    pass: _pass(pass),
+    line: line,
+    mode: mode,
+    melody: melody,
+    chords: chords,
+    change: change,
+    pattern: mode == HarmonizeMode.degrees ? null : name,
+    bpm: f.get<int>('bpm') ?? 70,
+    split: f.get<Pitch>('split') ?? Pitch.parse('C4'),
+    count: f.get<int>('count') ?? 1,
+  );
+}
+
+/// Os moldes que o `harmonize` aceita: `block` (o dele), `any` e os do EX11.
+bool _harmonizePattern(String name) =>
+    name == 'block' || name == 'any' || compingPatternNamed(name) != null;
 
 /// `echo` (EX14): a fonte das notas (`source:`, uma das três formas), a faixa, o
 /// tamanho e o andamento das frases, e a conferência (`octave`, `rhythm`, a mão).

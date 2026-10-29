@@ -113,6 +113,7 @@ class ChartSlot {
     required this.beats,
     required this.chord,
     required this.degree,
+    this.candidates = const [],
   });
 
   final int barOccurrence;
@@ -124,6 +125,11 @@ class ChartSlot {
   final ChordSymbol? chord;
   final String degree;
 
+  /// Outros acordes que também servem neste tempo (EX16, `harmonize`: os que
+  /// cabem na melodia). Quem confere o acorde aceita qualquer um deles, além de
+  /// [chord], que é a referência. Vazio nas grades comuns.
+  final List<ChordSymbol> candidates;
+
   @override
   bool operator ==(Object other) =>
       other is ChartSlot &&
@@ -132,11 +138,20 @@ class ChartSlot {
       other.startBeat == startBeat &&
       other.beats == beats &&
       other.chord == chord &&
-      other.degree == degree;
+      other.degree == degree &&
+      _sameChords(other.candidates, candidates);
 
   @override
   int get hashCode =>
       Object.hash(barOccurrence, writtenBar, startBeat, beats, chord, degree);
+
+  static bool _sameChords(List<ChordSymbol> a, List<ChordSymbol> b) {
+    if (a.length != b.length) return false;
+    for (var i = 0; i < a.length; i++) {
+      if (a[i] != b[i]) return false;
+    }
+    return true;
+  }
 }
 
 /// Uma grade de acordes: o tom, o compasso e os compassos como escritos.
