@@ -1,5 +1,3 @@
-import 'package:zywny_audio/band_staves.dart' show kBandStaves;
-
 /// Mão que o aluno escolhe tocar no modo treino (T02) — mesmo vocabulário do
 /// painel de opções do mockup (`apps/zywny_mockup/lib/mockup/practice_state.dart`),
 /// que importa este enum do app em vez de definir o seu próprio.
@@ -16,13 +14,12 @@ extension HandStaves on Hand {
     Hand.ambas => const {1, 2},
   };
 
-  /// Pautas que o app toca: a outra mão e a banda (T15, pautas 3 em diante).
-  /// Com "ambas", só a banda: sem ela, o app não toca nada, só o metrônomo
-  /// (T04).
+  /// Pautas que o app toca (a outra mão). Vazio para "ambas": o app não
+  /// toca nada, só o metrônomo (T04).
   Set<int> get appStaves => switch (this) {
-    Hand.esquerda => const {1, ...kBandStaves},
-    Hand.direita => const {2, ...kBandStaves},
-    Hand.ambas => kBandStaves,
+    Hand.esquerda => const {1},
+    Hand.direita => const {2},
+    Hand.ambas => const {},
   };
 }
 

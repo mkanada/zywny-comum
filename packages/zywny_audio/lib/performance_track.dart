@@ -294,25 +294,6 @@ class PerformanceTrack {
     groupId: groupId ?? e.groupId,
   );
 
-  /// A banda (T15) somada à trilha: as notas das pautas da banda
-  /// (`kBandStaves`), na ordem de [SoundEvent.onMs]. O volume da banda não
-  /// entra aqui: o agendador o aplica ao tocar. [staves] fica o da partitura:
-  /// a banda não entra no que o aluno toca nem nas medidas.
-  PerformanceTrack withBand(List<SoundEvent> band) {
-    if (band.isEmpty) return this;
-    final merged = [...events, ...band]
-      ..sort((a, b) {
-        final byOnMs = a.onMs.compareTo(b.onMs);
-        return byOnMs != 0 ? byOnMs : a.pitch.compareTo(b.pitch);
-      });
-    return PerformanceTrack._(
-      events: merged,
-      pedal: pedal,
-      durationMs: durationMs,
-      staves: staves,
-    );
-  }
-
   /// Recorte para as sessões de um intervalo com saltos (J08): só eventos
   /// com `onMs` em `[startMs, endMs)` fora dos vãos. Sem pedal (as sessões
   /// não usam). O agendador continua na peça cheia, com teto e saltos.
