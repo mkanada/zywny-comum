@@ -1,6 +1,7 @@
 // `MidiDeviceManager`: conexão automática no plugue (M01).
 import 'dart:async';
 
+import 'package:flutter/widgets.dart' show AppLifecycleState;
 import 'package:flutter_midi_command/flutter_midi_command.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -16,6 +17,12 @@ class FakeMidiCommand implements MidiCommand {
 
   /// O Bluetooth: o que a busca mandou fazer, na ordem, e o estado do rádio.
   final List<String> bluetoothCalls = [];
+  final List<String> disconnects = [];
+
+  /// Como o plugin BLE de verdade: quem desconecta sai da lista e só volta
+  /// quando a busca o vê de novo (`appearsOnScan`).
+  bool forgetsOnDisconnect = false;
+  MidiDevice? appearsOnScan;
   BluetoothState radio = BluetoothState.poweredOn;
 
   @override
@@ -32,8 +39,14 @@ class FakeMidiCommand implements MidiCommand {
   BluetoothState get bluetoothState => radio;
 
   @override
-  Future<void> startScanningForBluetoothDevices() async =>
-      bluetoothCalls.add('escanear');
+  Future<void> startScanningForBluetoothDevices() async {
+    bluetoothCalls.add('escanear');
+    final seen = appearsOnScan;
+    if (seen != null) {
+      list = [...list, seen];
+      setup.add(MidiSetupChange.deviceAppeared);
+    }
+  }
 
   @override
   void stopScanningForBluetoothDevices() => bluetoothCalls.add('parar');
@@ -54,7 +67,16 @@ class FakeMidiCommand implements MidiCommand {
   }
 
   @override
-  void disconnectDevice(MidiDevice device) => device.connected = false;
+  void disconnectDevice(MidiDevice device) {
+    disconnects.add(device.id);
+    device.connected = false;
+    if (forgetsOnDisconnect) {
+      list = [
+        for (final d in list)
+          if (d.id != device.id) d,
+      ];
+    }
+  }
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
@@ -70,6 +92,7 @@ MidiDevice usb(String id, String name) =>
     MidiDevice(id, name, MidiDeviceType.serial, false);
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
   late FakeMidiCommand midi;
   late MidiDeviceManager manager;
 
@@ -206,6 +229,79 @@ void main() {
       await manager.searchBluetooth(window: const Duration(milliseconds: 10));
       expect(manager.bluetooth, isFalse);
       expect(midi.bluetoothCalls, isEmpty);
+    });
+  });
+  group('segundo plano: solta o teclado Bluetooth para o outro app (#2)', () {
+    late MidiDeviceManager ble;
+    final keys = MidiDevice('b1', 'Teclado BLE', MidiDeviceType.ble, false);
+
+    setUp(() async {
+      // Só este gerenciador escuta o teclado de mentira (o do `setUp` de fora
+      // reconectaria junto e embaralharia as contagens).
+      manager.dispose();
+      manager = ble = MidiDeviceManager(
+        midi: midi,
+        prefs: SharedPreferencesAsync(),
+        bluetooth: true,
+        newBleTransport: () => FakeBleTransport(),
+      );
+      midi.forgetsOnDisconnect = true;
+      midi.list = [keys];
+      await ble.connect(keys);
+      await pumpEventQueue();
+    });
+
+    test(
+      'ao ir para segundo plano, desconecta e não reconecta sozinho',
+      () async {
+        ble.onLifecycleChanged(AppLifecycleState.paused);
+        expect(midi.disconnects, ['b1']);
+        expect(ble.connected.value, isNull);
+        midi.list = [keys];
+        midi.setup.add(MidiSetupChange.deviceAppeared);
+        await pumpEventQueue();
+        expect(ble.connected.value, isNull);
+        expect(midi.connects, ['b1']);
+      },
+    );
+
+    test('ao voltar, procura de novo, reconecta e para a busca', () async {
+      midi.appearsOnScan = keys;
+      ble.onLifecycleChanged(AppLifecycleState.hidden);
+      ble.onLifecycleChanged(AppLifecycleState.resumed);
+      await pumpEventQueue();
+      expect(ble.connected.value?.id, 'b1');
+      expect(midi.connects, ['b1', 'b1']);
+      expect(midi.bluetoothCalls, contains('escanear'));
+      expect(midi.bluetoothCalls.last, 'parar');
+    });
+
+    test('inactive (diálogo do sistema) não solta nada', () async {
+      ble.onLifecycleChanged(AppLifecycleState.inactive);
+      expect(midi.disconnects, isEmpty);
+      expect(ble.connected.value?.id, 'b1');
+    });
+
+    test('desconectado à mão: voltar ao app não reconecta', () async {
+      ble.disconnect();
+      midi.disconnects.clear();
+      ble.onLifecycleChanged(AppLifecycleState.paused);
+      ble.onLifecycleChanged(AppLifecycleState.resumed);
+      await pumpEventQueue();
+      expect(midi.disconnects, isEmpty);
+      expect(ble.connected.value, isNull);
+      expect(midi.bluetoothCalls, isNot(contains('escanear')));
+    });
+
+    test('teclado USB não é solto em segundo plano', () async {
+      ble.disconnect();
+      final piano = usb('3', 'Piano');
+      midi.list = [piano];
+      await ble.connect(piano);
+      midi.disconnects.clear();
+      ble.onLifecycleChanged(AppLifecycleState.paused);
+      expect(midi.disconnects, isEmpty);
+      expect(ble.connected.value?.id, '3');
     });
   });
 }

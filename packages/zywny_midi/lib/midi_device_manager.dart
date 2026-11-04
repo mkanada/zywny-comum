@@ -1,6 +1,8 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart'
+    show AppLifecycleListener, AppLifecycleState;
 import 'package:flutter_midi_command/flutter_midi_command.dart';
 import 'package:flutter_midi_command_ble/flutter_midi_command_ble.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -182,7 +184,7 @@ class MidiDeviceManager {
       _pausedName = null;
     }
 
-    if (connected.value != null) return;
+    if (connected.value != null || _bleReleased) return;
     final match = await _autoConnectCandidate(list);
     if (_disposed || match == null) return;
     await connect(match);
@@ -221,8 +223,10 @@ class MidiDeviceManager {
       if (_disposed) return;
       DiagLog.log('midi-dev', 'conectado a ${device.name}');
       _pausedName = null;
+      _bleReleased = false;
       connected.value = device;
       lastError.value = null;
+      if (device.type == MidiDeviceType.ble) _watchLifecycle();
       await _prefs.setString(_kLastDeviceIdKey, device.id);
       await _prefs.setString(_kLastDeviceNameKey, device.name);
     } on MidiConnectionException catch (e) {
@@ -238,6 +242,74 @@ class MidiDeviceManager {
     _midi.disconnectDevice(device);
     _pausedName = device.name;
     connected.value = null;
+  }
+
+  AppLifecycleListener? _lifecycle;
+
+  /// Se o teclado Bluetooth foi solto porque o app foi para segundo plano e
+  /// ainda deve voltar quando o app voltar.
+  bool _bleReleased = false;
+
+  /// Só quando há um teclado Bluetooth conectado (e, portanto, um `binding`
+  /// de verdade): a ponte com o ciclo de vida do app.
+  void _watchLifecycle() {
+    if (_isWeb || _disposed) return;
+    _lifecycle ??= AppLifecycleListener(onStateChange: onLifecycleChanged);
+  }
+
+  /// Um teclado Bluetooth LE só aceita um aparelho conectado por vez: se o
+  /// app fica em segundo plano segurando a conexão, o outro app zywny (o
+  /// aprendizado e o músicas) não consegue conectar (issue #2). Então, ao ir
+  /// para segundo plano o teclado Bluetooth é solto e, ao voltar, procurado
+  /// de novo e reconectado sozinho. `inactive` (diálogo de permissão, painel
+  /// do sistema) não solta nada; USB também não: o sistema já o isola.
+  @visibleForTesting
+  void onLifecycleChanged(AppLifecycleState state) {
+    switch (state) {
+      case AppLifecycleState.hidden:
+      case AppLifecycleState.paused:
+      case AppLifecycleState.detached:
+        _releaseBle();
+      case AppLifecycleState.resumed:
+        _resumeBle();
+      case AppLifecycleState.inactive:
+        break;
+    }
+  }
+
+  void _releaseBle() {
+    final device = connected.value;
+    if (_disposed || device == null || device.type != MidiDeviceType.ble) {
+      return;
+    }
+    DiagLog.log('midi-dev', 'segundo plano: soltando ${device.name}');
+    _bleReleased = true;
+    _midi.disconnectDevice(device);
+    connected.value = null;
+  }
+
+  void _resumeBle() {
+    if (!_bleReleased || _disposed) return;
+    DiagLog.log('midi-dev', 'primeiro plano: voltando ao teclado Bluetooth');
+    unawaited(_reconnectBle());
+  }
+
+  Future<void> _reconnectBle() async {
+    _bleReleased = false;
+    await refresh();
+    if (_disposed || connected.value != null || !_bluetooth) return;
+    // Solto o teclado, o plugin o esquece: só volta à lista ao ser visto de
+    // novo pela busca. A busca para assim que ele conecta.
+    void stopWhenConnected() {
+      if (connected.value != null) stopBluetoothSearch();
+    }
+
+    connected.addListener(stopWhenConnected);
+    try {
+      await searchBluetooth(window: const Duration(seconds: 15));
+    } finally {
+      if (!_disposed) connected.removeListener(stopWhenConnected);
+    }
   }
 
   /// Procura teclados Bluetooth por [window] (só com [bluetooth] ligado): liga
@@ -355,6 +427,7 @@ class MidiDeviceManager {
 
   void dispose() {
     _disposed = true;
+    _lifecycle?.dispose();
     stopBluetoothSearch();
     unawaited(_setupSub?.cancel());
     unawaited(_transportInstalled.close());
