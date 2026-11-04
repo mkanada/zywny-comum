@@ -10,6 +10,8 @@ import 'package:score_bridge/score_bridge.dart' show ScoreTrace;
 import 'package:zywny_diag/diag_log.dart';
 
 import '../about/about_screen.dart' show packageVersionText;
+import 'audio_recording_corner.dart';
+import 'audio_recording_service.dart';
 import 'bug_report_builder.dart';
 import 'bug_report_delivery.dart';
 import 'bug_report_page.dart';
@@ -39,6 +41,7 @@ class BugReportScope extends StatefulWidget {
     required this.appName,
     required this.child,
     @visibleForTesting this.deliver = deliverBugReport,
+    @visibleForTesting this.recorder,
   });
 
   /// `aprendizado`, `musicas`: vai no nome do arquivo e no relatório.
@@ -48,6 +51,10 @@ class BugReportScope extends StatefulWidget {
   /// Entrega o arquivo; os testes trocam por um falso.
   final Future<BugReportDelivery> Function(String fileName, Uint8List bytes)
   deliver;
+
+  /// Grava o microfone (canto inferior esquerdo, ver [AudioRecordingCorner]);
+  /// os testes trocam por um falso.
+  final AudioRecordingService? recorder;
 
   /// O escopo do app (há um só). `null` nos testes sem ele.
   static BugReportScopeState? get current => BugReportScopeState._current;
@@ -352,6 +359,9 @@ class BugReportScopeState extends State<BugReportScope>
                 child: RepaintBoundary(key: _boundary, child: widget.child),
               ),
             ),
+          ),
+          Positioned.fill(
+            child: AudioRecordingCorner(service: widget.recorder),
           ),
           if (_formShown)
             Positioned.fill(
