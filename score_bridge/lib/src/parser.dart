@@ -670,11 +670,21 @@ SceneNode _parseNode(Map<String, dynamic> json, String path, _PageIndex index) {
     staffRef: json['staff'] == null
         ? null
         : _asString(json['staff'], '$path.staff'),
+    inner: className.split(' ').first == 'measure' && json['inner'] != null
+        ? _parseInner(json['inner'], '$path.inner')
+        : null,
   );
   if (id != null) {
     index.byId[id] = node;
   }
   return node;
+}
+
+(double, double) _parseInner(dynamic value, String path) {
+  if (value is! List || value.length != 2) {
+    throw VsbFormatException(path, 'esperado [x0, x1]');
+  }
+  return (_asDouble(value[0], '$path[0]'), _asDouble(value[1], '$path[1]'));
 }
 
 SceneRotate _parseRotate(Map<String, dynamic> json, String path) {

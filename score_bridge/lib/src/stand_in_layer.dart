@@ -67,6 +67,10 @@ class StandInController extends ChangeNotifier {
   VsbDocument? _document;
   Map<Object, List<String>> _columns = const {};
   final Map<Object, StandInRest?> _rests = {};
+
+  /// Os compassos escondidos por inteiro (T17): a chave é o `id` do compasso.
+  List<String> _measures = const [];
+  final Map<String, List<StandInRest>> _measureRests = {};
   final Map<Object, _Flash> _flashes = {};
   final Stopwatch _clock = Stopwatch()..start();
   Ticker? _ticker;
@@ -83,8 +87,9 @@ class StandInController extends ChangeNotifier {
     _document = document;
     _flashes.clear();
     _stopTicker();
-    if (_columns.isNotEmpty) {
+    if (_columns.isNotEmpty || _measures.isNotEmpty) {
       _compute();
+      _computeMeasures();
       notifyListeners();
     }
   }
@@ -102,15 +107,40 @@ class StandInController extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Tira a pausa da coluna [key] (ela foi revelada). Sem efeito se não
-  /// existe.
+  /// Os compassos escondidos por inteiro agora ([ids] de compasso da cena;
+  /// ids expandidos valem), no lugar dos de antes. Cada compasso ganha uma
+  /// pausa de compasso por pauta que tem nota nele (§11.2, regra 8); a chave
+  /// de [flash] e [remove] é o `id` do compasso na cena. Um compasso que
+  /// continua mantém o piscar em curso.
+  void setMeasures(Iterable<String> ids) {
+    final doc = _document;
+    final resolved = <String>[
+      for (final id in ids)
+        if (doc == null ? true : doc.sceneIdOf(id) != null)
+          doc?.sceneIdOf(id) ?? id,
+    ];
+    _measures = List.unmodifiable(resolved.toSet());
+    _flashes.removeWhere(
+      (key, _) => !_columns.containsKey(key) && !_measures.contains(key),
+    );
+    _computeMeasures();
+    notifyListeners();
+  }
+
+  /// Tira a pausa da coluna ou do compasso [key] (ele foi revelado). Sem
+  /// efeito se não existe.
   void remove(Object key) {
-    if (!_columns.containsKey(key)) return;
+    if (!_columns.containsKey(key) && !_measures.contains(key)) return;
     _columns = {
       for (final e in _columns.entries)
         if (e.key != key) e.key: e.value,
     };
+    _measures = [
+      for (final m in _measures)
+        if (m != key) m,
+    ];
     _rests.remove(key);
+    _measureRests.remove(key);
     _flashes.remove(key);
     if (_flashes.isEmpty) _stopTicker();
     notifyListeners();
@@ -118,9 +148,11 @@ class StandInController extends ChangeNotifier {
 
   /// Tira todas as pausas.
   void clear() {
-    if (_columns.isEmpty) return;
+    if (_columns.isEmpty && _measures.isEmpty) return;
     _columns = const {};
+    _measures = const [];
     _rests.clear();
+    _measureRests.clear();
     _flashes.clear();
     _stopTicker();
     notifyListeners();
@@ -138,7 +170,7 @@ class StandInController extends ChangeNotifier {
     Duration release = const Duration(milliseconds: 300),
     Curve curve = Curves.easeOut,
   }) {
-    if (!_columns.containsKey(key)) return;
+    if (!_columns.containsKey(key) && !_measures.contains(key)) return;
     _flashes[key] = _Flash(
       color: color,
       attack: attack,
@@ -151,11 +183,20 @@ class StandInController extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// As chaves das colunas que existem agora (com ou sem pausa calculável).
-  Iterable<Object> get keys => _columns.keys;
+  /// As chaves das colunas e dos compassos que existem agora (com ou sem
+  /// pausa calculável).
+  Iterable<Object> get keys => [..._columns.keys, ..._measures];
 
-  /// A pausa de [key] (`null` se a coluna não existe ou não tem pausa).
-  StandInRest? restOf(Object key) => _rests[key];
+  /// A pausa de [key] (`null` se a coluna não existe ou não tem pausa). Num
+  /// compasso, a primeira pausa de compasso (veja [restsOf]).
+  StandInRest? restOf(Object key) =>
+      _rests[key] ?? _measureRests[key]?.firstOrNull;
+
+  /// As pausas de [key]: uma por coluna, ou uma por pauta num compasso.
+  List<StandInRest> restsOf(Object key) => [
+    ?_rests[key],
+    ...?_measureRests[key],
+  ];
 
   /// A cor de [key] agora: a de repouso, ou a do piscar em curso.
   ui.Color colorOf(Object key) => _colorAt(key, _now);
@@ -170,10 +211,15 @@ class StandInController extends ChangeNotifier {
       for (final e in _rests.entries)
         if (e.value case final rest?)
           VisibleStandIn(e.key, rest, _colorAt(e.key, now)),
+      for (final e in _measureRests.entries)
+        for (final rest in e.value)
+          VisibleStandIn(e.key, rest, _colorAt(e.key, now)),
     ];
   }
 
-  bool get isEmpty => _rests.values.every((r) => r == null);
+  bool get isEmpty =>
+      _rests.values.every((r) => r == null) &&
+      _measureRests.values.every((r) => r.isEmpty);
 
   ui.Color _colorAt(Object key, Duration now) {
     final flash = _flashes[key];
@@ -203,6 +249,22 @@ class StandInController extends ChangeNotifier {
         );
       }
       _rests[e.key] = rest;
+    }
+  }
+
+  void _computeMeasures() {
+    final doc = _document;
+    _measureRests.clear();
+    if (doc == null) return;
+    for (final id in _measures) {
+      final rests = doc.measureStandInsFor(id);
+      if (rests.isEmpty) {
+        debugPrint(
+          'pausa de compasso: nenhuma para $id (.vsb sem `inner` ou sem a '
+          'semibreve, compasso de 2 semibreves ou mais, ou id fora da cena)',
+        );
+      }
+      _measureRests[id] = rests;
     }
   }
 

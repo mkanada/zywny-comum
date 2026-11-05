@@ -134,8 +134,21 @@ class ScoreController extends ChangeNotifier {
   );
   final Set<String> _animatedIds = {};
 
-  /// `H` (L02): as notas escondidas, por id da cena.
+  /// `H` (L02): as notas escondidas, por id da cena — as pedidas por
+  /// [setHidden] mais as dos compassos de [setHiddenMeasures].
   final Set<String> _hidden = {};
+
+  /// As notas pedidas por [setHidden] (a parte de `H` que não vem de compasso).
+  final Set<String> _hiddenExplicit = {};
+
+  /// Os compassos escondidos por inteiro (T17, regra 8), por id da cena.
+  final Set<String> _hiddenMeasures = {};
+  late final Set<String> _hiddenMeasuresView = UnmodifiableSetView(
+    _hiddenMeasures,
+  );
+
+  /// As pausas de verdade que somem com os compassos escondidos.
+  final Set<String> _hiddenRests = {};
 
   /// O que é pintado transparente: [_hidden] mais os nós `chord` cujas notas
   /// estão todas escondidas.
@@ -176,6 +189,9 @@ class ScoreController extends ChangeNotifier {
       }
     }
     _hidden.clear();
+    _hiddenExplicit.clear();
+    _hiddenMeasures.clear();
+    _hiddenRests.clear();
     _hiddenNodes.clear();
     _hiddenShapes.clear();
   }
@@ -409,27 +425,63 @@ class ScoreController extends ChangeNotifier {
       for (final raw in noteIds)
         if (_known(_resolve(raw))) _resolve(raw),
     };
-    if (_applyHidden(next)) {
+    if (_applyHidden(next, _hiddenMeasures)) {
       notifyListeners();
     }
   }
 
+  /// Esconde exatamente os compassos [measureIds] por inteiro, no lugar dos
+  /// que estavam (T17, §11.2 regra 8): somem as notas, as pausas de verdade
+  /// das pautas que têm nota, a tercina e as ligaduras que só tocam
+  /// compassos escondidos. A pausa de compasso que entra no lugar é do
+  /// `StandInController.setMeasures`. Ids expandidos valem; id que não é
+  /// compasso da cena é ignorado. Uma notificação. As notas de `setHidden`
+  /// continuam escondidas.
+  void setHiddenMeasures(Set<String> measureIds) {
+    final next = <String>{
+      for (final raw in measureIds)
+        if (_known(_resolve(raw))) _resolve(raw),
+    };
+    if (_applyHidden(_hiddenExplicit, next)) {
+      notifyListeners();
+    }
+  }
+
+  /// Devolve o compasso [id] à tela. Sem efeito se não está escondido.
+  void revealMeasure(String id) {
+    id = _resolve(id);
+    if (!_hiddenMeasures.contains(id)) {
+      return;
+    }
+    if (_applyHidden(_hiddenExplicit, {..._hiddenMeasures}..remove(id))) {
+      notifyListeners();
+    }
+  }
+
+  /// O compasso [id] está escondido por inteiro (id expandido vale).
+  bool isMeasureHidden(String id) => _hiddenMeasures.contains(_resolve(id));
+
+  /// Os compassos escondidos agora, por id da cena. Somente leitura.
+  Set<String> get hiddenMeasureIds => _hiddenMeasuresView;
+
   /// Devolve [id] à tela (e leva consigo o acorde e as formas que só
-  /// sumiam por causa dele). Sem efeito se [id] não está escondido.
+  /// sumiam por causa dele). Sem efeito se [id] não está escondido por
+  /// [setHidden]: uma nota que some com o compasso só volta com
+  /// [revealMeasure].
   void reveal(String id) {
     id = _resolve(id);
     if (!_hidden.contains(id)) {
       return;
     }
-    if (_applyHidden({..._hidden}..remove(id))) {
+    if (_applyHidden({..._hiddenExplicit}..remove(id), _hiddenMeasures)) {
       notifyListeners();
     }
   }
 
-  /// Devolve todas as notas à tela: a página volta, pixel a pixel, ao estado
-  /// de antes de esconder qualquer coisa.
+  /// Devolve todas as notas e compassos à tela: a página volta, pixel a pixel,
+  /// ao estado de antes de esconder qualquer coisa.
   void clearHidden() {
-    if (_applyHidden(const {})) {
+    if (_applyHidden(const {}, const {})) {
       notifyListeners();
     }
   }
@@ -445,33 +497,50 @@ class ScoreController extends ChangeNotifier {
   /// objeto até `H` mudar.
   HiddenShapes hiddenShapesOf(ScenePage page) {
     final document = _document;
-    if (_hidden.isEmpty || document == null) {
+    if ((_hidden.isEmpty && _hiddenRests.isEmpty) || document == null) {
       return HiddenShapes.empty;
     }
     return _hiddenShapes[page] ??= HidePageIndex.of(
       document,
       page,
-    ).shapesFor(_hidden);
+    ).shapesFor(_hidden, hiddenRests: _hiddenRests, measures: _hiddenMeasures);
   }
 
   /// As folhas da cena (formas de barra e traços) que [page] não deve
   /// pintar. É o que o `ScorePageView` tira da segmentação.
-  Set<SceneChild> hiddenLeavesOf(ScenePage page) =>
-      hiddenShapesOf(page).leaves;
+  Set<SceneChild> hiddenLeavesOf(ScenePage page) => hiddenShapesOf(page).leaves;
 
-  /// Troca `H` por [next]. Devolve se algo mudou (o chamador notifica).
-  bool _applyHidden(Set<String> next) {
-    if (setEquals(_hidden, next)) {
+  /// Troca o que está escondido: as notas [explicit] e os compassos
+  /// [measures]. Devolve se algo mudou (o chamador notifica).
+  bool _applyHidden(Set<String> explicit, Set<String> measures) {
+    if (setEquals(_hiddenExplicit, explicit) &&
+        setEquals(_hiddenMeasures, measures)) {
       return false;
     }
+    final newExplicit = {...explicit};
+    final newMeasures = {...measures};
+    _hiddenExplicit
+      ..clear()
+      ..addAll(newExplicit);
+    _hiddenMeasures
+      ..clear()
+      ..addAll(newMeasures);
+    final document = _document;
+    final fromMeasures = document != null && newMeasures.isNotEmpty
+        ? document.measureHideFor(newMeasures)
+        : null;
     _hidden
       ..clear()
-      ..addAll(next);
+      ..addAll(newExplicit)
+      ..addAll(fromMeasures?.notes ?? const <String>{});
+    _hiddenRests
+      ..clear()
+      ..addAll(fromMeasures?.rests ?? const <String>{});
     _hiddenShapes.clear();
 
-    // Os nós transparentes: as notas e os acordes cujas notas somem todas.
-    final nodes = <String>{..._hidden};
-    final document = _document;
+    // Os nós transparentes: as notas, os acordes cujas notas somem todas, as
+    // pausas de verdade e as tercinas que somem por inteiro.
+    final nodes = <String>{..._hidden, ..._hiddenRests};
     if (document != null && _hidden.isNotEmpty) {
       final chords = _chordIndexes[document] ??= _ChordIndex(document);
       for (final note in _hidden) {
@@ -481,6 +550,11 @@ class ScoreController extends ChangeNotifier {
             chords.chordNotes[chord]!.every(_hidden.contains)) {
           nodes.add(chord);
         }
+      }
+    }
+    if (document != null && newMeasures.isNotEmpty) {
+      for (final page in document.pages) {
+        nodes.addAll(hiddenShapesOf(page).tuplets);
       }
     }
 

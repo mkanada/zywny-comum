@@ -49,7 +49,12 @@ class StandInRest {
     required this.sy,
     required this.loc,
     required this.dots,
+    this.measureId,
   });
+
+  /// O compasso que esta pausa substitui (pausa de compasso, regra 8), ou
+  /// `null` numa pausa de coluna.
+  final String? measureId;
 
   /// Página em que a coluna está (onde a pausa é desenhada).
   final PageRef page;
@@ -199,5 +204,94 @@ extension VsbStandInRest on VsbDocument {
       loc: loc,
       dots: dotList,
     );
+  }
+}
+
+/// Duração de [measureId] em semínimas (qstamp), pelo timemap embutido, ou
+/// `null` sem timemap (regra 8.2). O último compasso vai até o fim do timemap.
+double? _measureLengthQ(VsbDocument doc, String measureId) {
+  final timemap = doc.timemap;
+  if (timemap == null || timemap.isEmpty) return null;
+  final points = <(double, String)>[];
+  for (final entry in timemap) {
+    final m = entry.measureOn;
+    final q = entry.qstamp;
+    if (m != null && q != null) points.add((q, m));
+  }
+  final end = timemap.last.qstamp;
+  final want = doc.sceneIdOf(measureId);
+  for (var k = 0; k < points.length; k++) {
+    if (doc.sceneIdOf(points[k].$2) == want) {
+      final next = k + 1 < points.length ? points[k + 1].$1 : end;
+      return next == null ? null : next - points[k].$1;
+    }
+  }
+  return null;
+}
+
+/// O compasso de 2 semibreves ou mais (8 semínimas): o Verovio desenha a
+/// pausa de breve (`E4E2`), que não é glifo reservado.
+const double _kDoubleMeasureQ = 8.0;
+
+extension VsbMeasureStandIn on VsbDocument {
+  /// A pausa de compasso que substitui o compasso escondido [measureId]: uma
+  /// por pauta de desenho que tem nota nele (regra 8.2), na ordem do documento.
+  /// Vazia (nada a desenhar, as notas somem do mesmo jeito) quando: `.vsb` sem
+  /// `inner` (anterior a G11) ou sem `E4E3` (anterior a G08b); compasso de 2
+  /// semibreves ou mais; pauta que não tem 5 linhas; compasso que não está na
+  /// cena. O id expandido (`-rend<N>`) vale.
+  ///
+  /// [page] restringe a procura a uma página (normal ou alternativa).
+  List<StandInRest> measureStandInsFor(String measureId, {PageRef? page}) {
+    final id = sceneIdOf(measureId);
+    if (id == null) return const [];
+    final refs = page != null
+        ? [page]
+        : [for (var i = 0; i < pages.length; i++) PageRef(i)];
+    for (final ref in refs) {
+      final index = HidePageIndex.of(this, pageAt(ref));
+      final inner = index.innerOf(id);
+      if (!index.measureIds.contains(id)) continue;
+      if (inner == null) return const [];
+      final length = _measureLengthQ(this, id);
+      if (length != null && length >= _kDoubleMeasureQ) return const [];
+      final font = glyphs.keys.isEmpty
+          ? null
+          : glyphs.keys.first.split(':').first;
+      if (font == null) return const [];
+      final glyphId = '$font:E4E3';
+      final glyph = glyphs[glyphId];
+      if (glyph == null) return const [];
+      final out = <StandInRest>[];
+      for (final staff in index.staffsWithNotes(id)) {
+        final geometry = staff.staffGeometry;
+        if (geometry == null || geometry.lines != 5) continue;
+        final sx = geometry.glyphScaleX;
+        final sy = geometry.glyphScaleY;
+        // Measure::GetInnerCenterX: divisão inteira; View::DrawMRest: x -= w/2.
+        final cx = inner.$1 + ((inner.$2 - inner.$1).truncate() ~/ 2);
+        final x = cx - ((glyph.bbox.width / 10.0 * sx).floor() ~/ 2);
+        final loc = _restLoc(1, geometry.lines);
+        final y =
+            geometry.topY + (2 * (geometry.lines - 1) - loc) * geometry.unit;
+        out.add(
+          StandInRest(
+            page: ref,
+            staffId: staff.id,
+            glyphId: glyphId,
+            dur: 1,
+            x: x.toDouble(),
+            y: y,
+            sx: sx,
+            sy: sy,
+            loc: loc,
+            dots: const [],
+            measureId: id,
+          ),
+        );
+      }
+      return out;
+    }
+    return const [];
   }
 }

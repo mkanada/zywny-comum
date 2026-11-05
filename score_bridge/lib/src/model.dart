@@ -703,6 +703,10 @@ class SceneNode extends SceneChild {
   /// desenhado. `null` = a pauta ancestral.
   final String? staffRef;
 
+  /// Só nó `measure` (§5.1, G11): `[x0, x1]`, a faixa em que o Verovio centra a
+  /// pausa de compasso. `null` nos demais e em `.vsb` anteriores ao G11.
+  final (double, double)? inner;
+
   const SceneNode({
     this.id,
     required this.className,
@@ -713,6 +717,7 @@ class SceneNode extends SceneChild {
     required this.children,
     this.staffGeometry,
     this.staffRef,
+    this.inner,
   });
 }
 
