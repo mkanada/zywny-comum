@@ -4,6 +4,8 @@ import 'dart:typed_data';
 import 'package:archive/archive.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:zywny_comum/diag/audio_recording_corner.dart';
+import 'package:zywny_comum/diag/audio_recording_service.dart';
 import 'package:zywny_comum/diag/bug_report_builder.dart';
 import 'package:zywny_comum/diag/bug_report_delivery.dart';
 import 'package:zywny_comum/diag/bug_report_scope.dart';
@@ -35,6 +37,34 @@ class _TickingState extends State<_Ticking>
     animation: c,
     builder: (_, _) => Text('v=${c.value.toStringAsFixed(2)}'),
   );
+}
+
+class _FakeRecorder implements AudioRecordingService {
+  int starts = 0;
+  int stops = 0;
+
+  @override
+  Future<bool> start() async {
+    starts++;
+    return true;
+  }
+
+  @override
+  Future<AudioRecordingResult?> stop() async {
+    stops++;
+    return const AudioRecordingResult(savedAt: 'Download/Zywny/a.m4a');
+  }
+
+  @override
+  Future<void> dispose() async {}
+}
+
+/// Segura o dedo no canto da gravação o bastante para ligar/desligar.
+Future<void> _holdCorner(WidgetTester tester, Offset at) async {
+  final g = await tester.startGesture(at);
+  await tester.pump(kAudioRecordingHold + const Duration(milliseconds: 50));
+  await g.up();
+  await tester.pump();
 }
 
 /// `BugReportScope.start` e a captura da tela, que usa o motor de verdade
@@ -168,6 +198,44 @@ void main() {
     await tester.tap(find.text('Fechar'));
     await tester.pump();
     expect(find.text('Reportar um bug'), findsNothing);
+  });
+
+  testWidgets('parar a gravação abre o relatório, com a sessão no log', (
+    tester,
+  ) async {
+    await DiagLog.init(storage: MemoryDiagStorage(), installHandlers: false);
+    final rec = _FakeRecorder();
+    await tester.pumpWidget(
+      MaterialApp(
+        builder: (context, child) => BugReportScope(
+          appName: 'teste',
+          recorder: rec,
+          deliver: (name, data) async => BugReportDelivery(savedAt: '/x/$name'),
+          child: child!,
+        ),
+        home: const Scaffold(body: Center(child: Text('tela'))),
+      ),
+    );
+    final corner =
+        tester.getBottomLeft(find.byType(MaterialApp)) + const Offset(20, -20);
+
+    await _holdCorner(tester, corner);
+    expect(rec.starts, 1);
+    expect(find.text('Reportar um bug'), findsNothing);
+
+    await _holdCorner(tester, corner);
+    expect(rec.stops, 1);
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 300)),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 7));
+
+    expect(find.text('Reportar um bug'), findsOneWidget);
+    final gravacao = DiagLog.collect().singleWhere(
+      (f) => f.text.contains('#sessao tipo=gravacao'),
+    );
+    expect(gravacao.text, contains('fim: gravacao microfone'));
   });
 
   testWidgets('cancelar volta a tela a andar', (tester) async {

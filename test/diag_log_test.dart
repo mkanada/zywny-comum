@@ -19,7 +19,7 @@ void main() {
   });
 
   test(
-    'as linhas vão para a sessão aberta; erro vai também para app',
+    'com sessão aberta, a linha vai para a sessão e também para app',
     () async {
       final store = await start();
       final s = DiagLog.beginSession('exercicio', '34d')!;
@@ -36,9 +36,9 @@ void main() {
       expect(session, isNot(contains('fora da sessão')));
 
       final app = store.read('app');
+      expect(app, contains('[nota] on 60'));
       expect(app, contains('[erro] quebrou'));
       expect(app, contains('fora da sessão'));
-      expect(app, isNot(contains('on 60')));
     },
   );
 

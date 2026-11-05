@@ -37,8 +37,8 @@ class DiagLogFile {
 /// Registro de diagnóstico rotativo, sempre ligado, dos dois apps.
 ///
 /// As linhas vão para a **sessão** aberta mais recente (exercício, música,
-/// aula; ver [beginSession]); sem sessão, ou se for um erro, vão também para
-/// `app`. Ficam as [keepEnded] últimas sessões encerradas mais as abertas
+/// aula; ver [beginSession]); e vão também para `app`, sempre. Ficam as
+/// [keepEnded] últimas sessões encerradas mais as abertas
 /// (inclusive as de execuções anteriores do app: se ele travou, o relatório
 /// da próxima abertura ainda leva a sessão do travamento). O aluno não mexe
 /// em nada: ao reportar um bug (`BugReportScope`, no `zywny_comum`), o
@@ -169,8 +169,8 @@ class DiagLog {
   static int _seqOf(String k) => int.parse(k.substring(1));
 
   /// Uma linha: hora do relógio, ms desde a abertura do log, etiqueta e
-  /// texto. Vai para a sessão aberta mais recente (e, se a etiqueta é
-  /// `erro` ou não há sessão, para `app`). Seguro de chamar antes de [init].
+  /// texto. Vai sempre para `app` e, havendo sessão aberta, também para a
+  /// mais recente. Seguro de chamar antes de [init].
   static void log(String tag, String message) {
     final store = _storage;
     if (store == null) return;
@@ -179,7 +179,7 @@ class DiagLog {
         '${now.toIso8601String()} +${_clock.elapsedMilliseconds}ms '
         '[$tag] $message\n';
     try {
-      if (_open.isEmpty || tag == 'erro') store.append('app', line);
+      store.append('app', line);
       if (_open.isNotEmpty) store.append(_open.last.key, line);
     } catch (_) {
       // Log nunca pode derrubar o app.

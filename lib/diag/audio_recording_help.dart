@@ -28,7 +28,9 @@ class AudioRecordingHelp extends StatelessWidget {
             'Em qualquer tela, segure o dedo por 1 segundo no canto inferior '
             'esquerdo para começar a gravar o som do microfone. Segure de '
             'novo para parar: o arquivo (.m4a, AAC a 160 kbps) fica em '
-            '$folder.',
+            '$folder. Enquanto grava, o app registra tudo o que faz, como '
+            'numa sessão de depuração; ao parar, abre a tela para enviar o '
+            'relatório de bug.',
             style: theme.textTheme.bodySmall,
           ),
         ),

@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:zywny_diag/diag_log.dart';
 
 import 'audio_recording_service.dart';
 
@@ -15,14 +16,22 @@ const double kAudioRecordingCorner = 72;
 /// (modo depuração): segurar o canto inferior esquerdo por [kAudioRecordingHold]
 /// liga; segurar de novo desliga e guarda o `.m4a`.
 ///
+/// Ligar abre uma sessão de depuração no log ([DiagLog.beginSession], tipo
+/// `gravacao`): tudo o que o app registrar enquanto grava vai para ela.
+/// Desligar fecha a sessão e chama [onStopped], que abre a tela de envio do
+/// relatório de bug.
+///
 /// Fica por cima da tela sem tomar os toques: o que está embaixo do canto
 /// continua recebendo-os. Enquanto grava, um ponto vermelho com o tempo fica
 /// à vista, também sem tomar toque.
 class AudioRecordingCorner extends StatefulWidget {
-  const AudioRecordingCorner({super.key, this.service});
+  const AudioRecordingCorner({super.key, this.service, this.onStopped});
 
   /// Os testes passam um falso; sem ele, cria o da plataforma ao primeiro uso.
   final AudioRecordingService? service;
+
+  /// Chamado ao parar a gravação, depois de fechar a sessão de depuração.
+  final VoidCallback? onStopped;
 
   @override
   State<AudioRecordingCorner> createState() => AudioRecordingCornerState();
@@ -30,6 +39,7 @@ class AudioRecordingCorner extends StatefulWidget {
 
 class AudioRecordingCornerState extends State<AudioRecordingCorner> {
   AudioRecordingService? _service;
+  DiagSession? _session;
   Timer? _hold;
   Timer? _tick;
   Timer? _noticeTimer;
@@ -50,6 +60,8 @@ class AudioRecordingCornerState extends State<AudioRecordingCorner> {
     _hold?.cancel();
     _tick?.cancel();
     _noticeTimer?.cancel();
+    DiagLog.endSession(_session);
+    _session = null;
     final service = _service;
     if (service != null) unawaited(service.dispose());
     super.dispose();
@@ -87,6 +99,8 @@ class AudioRecordingCornerState extends State<AudioRecordingCorner> {
       if (_recording) {
         final result = await _svc.stop();
         _tick?.cancel();
+        DiagLog.endSession(_session);
+        _session = null;
         if (!mounted) return;
         setState(() => _recording = false);
         _showNotice(
@@ -95,10 +109,16 @@ class AudioRecordingCornerState extends State<AudioRecordingCorner> {
               : 'Gravação salva: ${result!.savedAt}',
           const Duration(seconds: 6),
         );
+        widget.onStopped?.call();
       } else {
+        // A sessão abre antes do microfone: o que o próprio início registrar
+        // (permissão, arquivo) também fica nela.
+        _session = DiagLog.beginSession('gravacao', 'microfone');
         final ok = await _svc.start();
         if (!mounted) return;
         if (!ok) {
+          DiagLog.endSession(_session);
+          _session = null;
           _showNotice(
             'Não deu para gravar (microfone ou permissão)',
             const Duration(seconds: 4),

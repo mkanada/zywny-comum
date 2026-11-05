@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:zywny_comum/diag/audio_recording_corner.dart';
 import 'package:zywny_comum/diag/audio_recording_service.dart';
+import 'package:zywny_diag/diag_log.dart';
 
 class _Fake implements AudioRecordingService {
   _Fake({this.canStart = true});
@@ -25,18 +26,79 @@ class _Fake implements AudioRecordingService {
   Future<void> dispose() async {}
 }
 
-Widget _app(_Fake fake, {VoidCallback? onTap}) => MaterialApp(
-  home: Stack(
-    children: [
-      Positioned.fill(
-        child: GestureDetector(behavior: HitTestBehavior.opaque, onTap: onTap),
+Widget _app(_Fake fake, {VoidCallback? onTap, VoidCallback? onStopped}) =>
+    MaterialApp(
+      home: Stack(
+        children: [
+          Positioned.fill(
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: onTap,
+            ),
+          ),
+          Positioned.fill(
+            child: AudioRecordingCorner(service: fake, onStopped: onStopped),
+          ),
+        ],
       ),
-      Positioned.fill(child: AudioRecordingCorner(service: fake)),
-    ],
-  ),
-);
+    );
+
+/// O texto do arquivo de log da sessão de gravação (`tipo=gravacao`).
+Iterable<String> _gravacaoLogs() => DiagLog.collect()
+    .where((f) => f.text.contains('#sessao tipo=gravacao'))
+    .map((f) => f.text);
 
 void main() {
+  tearDown(DiagLog.reset);
+
+  testWidgets('gravar abre uma sessão de depuração; parar a fecha e avisa', (
+    tester,
+  ) async {
+    await DiagLog.init(storage: MemoryDiagStorage(), installHandlers: false);
+    var stopped = 0;
+    await tester.pumpWidget(_app(_Fake(), onStopped: () => stopped++));
+    final corner =
+        tester.getBottomLeft(find.byType(MaterialApp)) + const Offset(20, -20);
+
+    var g = await tester.startGesture(corner);
+    await tester.pump(kAudioRecordingHold + const Duration(milliseconds: 50));
+    await g.up();
+    await tester.pump();
+    DiagLog.log('teste', 'durante a gravação');
+    expect(_gravacaoLogs().single, contains('durante a gravação'));
+    expect(stopped, 0);
+
+    g = await tester.startGesture(corner);
+    await tester.pump(kAudioRecordingHold + const Duration(milliseconds: 50));
+    await g.up();
+    await tester.pump();
+    expect(stopped, 1);
+    DiagLog.log('teste', 'depois de parar');
+    final fechada = _gravacaoLogs().single;
+    expect(fechada, contains('fim: gravacao microfone'));
+    expect(fechada, isNot(contains('depois de parar')));
+    await tester.pump(const Duration(seconds: 7));
+  });
+
+  testWidgets('sem microfone, a sessão fecha e não abre o relatório', (
+    tester,
+  ) async {
+    await DiagLog.init(storage: MemoryDiagStorage(), installHandlers: false);
+    var stopped = 0;
+    await tester.pumpWidget(
+      _app(_Fake(canStart: false), onStopped: () => stopped++),
+    );
+    final g = await tester.startGesture(
+      tester.getBottomLeft(find.byType(MaterialApp)) + const Offset(20, -20),
+    );
+    await tester.pump(kAudioRecordingHold + const Duration(milliseconds: 50));
+    await g.up();
+    await tester.pump();
+    expect(stopped, 0);
+    expect(_gravacaoLogs().single, contains('fim: gravacao microfone'));
+    await tester.pump(const Duration(seconds: 5));
+  });
+
   testWidgets('segurar o canto liga e desliga a gravação', (tester) async {
     final fake = _Fake();
     await tester.pumpWidget(_app(fake));

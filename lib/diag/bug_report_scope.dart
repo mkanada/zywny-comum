@@ -361,7 +361,11 @@ class BugReportScopeState extends State<BugReportScope>
             ),
           ),
           Positioned.fill(
-            child: AudioRecordingCorner(service: widget.recorder),
+            child: AudioRecordingCorner(
+              service: widget.recorder,
+              // Parar a gravação abre a tela de envio, com a sessão dela no log.
+              onStopped: () => unawaited(start()),
+            ),
           ),
           if (_formShown)
             Positioned.fill(
