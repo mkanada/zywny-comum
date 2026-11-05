@@ -22,6 +22,7 @@ import 'model.dart';
 import 'page_layers.dart';
 import 'score_controller.dart';
 import 'segmentation.dart';
+import 'stand_in_layer.dart';
 
 class ScorePageView extends StatefulWidget {
   const ScorePageView({
@@ -40,6 +41,7 @@ class ScorePageView extends StatefulWidget {
     this.onElementTap,
     this.tapClasses,
     this.ghosts,
+    this.standIns,
   });
 
   final VsbDocument document;
@@ -106,6 +108,11 @@ class ScorePageView extends StatefulWidget {
   /// mesmo transform dela. `null` (padrão): nenhuma camada extra.
   final GhostController? ghosts;
 
+  /// Pausas substitutas das colunas escondidas (L03), pintadas por cima da
+  /// página com o mesmo transform dela (e por baixo das fantasmas). `null`
+  /// (padrão): nenhuma camada extra, custo zero.
+  final StandInController? standIns;
+
   @override
   State<ScorePageView> createState() => ScorePageViewState();
 }
@@ -114,6 +121,11 @@ class ScorePageViewState extends State<ScorePageView> {
   late final PictureStats _stats = widget.stats ?? PictureStats();
   PageLayers? _layers;
   Set<String> _animatableIds = const {};
+
+  // Folhas da página que o controller manda não pintar (barra de ligação e
+  // linha suplementar de nota escondida, L02); o `Set` do controller, por
+  // identidade, até o conjunto de notas escondidas mudar.
+  Set<SceneChild> _skipLeaves = const {};
 
   // Ids promovidos a dinâmicos porque o controller os colore (ver
   // `_collectPromotions`); zerado quando muda documento/página.
@@ -128,6 +140,7 @@ class ScorePageViewState extends State<ScorePageView> {
     super.initState();
     widget.controller?.attachDocument(widget.document);
     widget.ghosts?.attachDocument(widget.document);
+    widget.standIns?.attachDocument(widget.document);
     widget.controller?.addListener(_onControllerChanged);
     _collectPromotions();
     _rebuildLayers();
@@ -143,6 +156,7 @@ class ScorePageViewState extends State<ScorePageView> {
     }
     controller?.attachDocument(widget.document);
     widget.ghosts?.attachDocument(widget.document);
+    widget.standIns?.attachDocument(widget.document);
     final structural =
         oldWidget.document != widget.document ||
         oldWidget.pageIndex != widget.pageIndex ||
@@ -151,7 +165,9 @@ class ScorePageViewState extends State<ScorePageView> {
     if (structural) {
       _promoted.clear();
     }
-    if (structural || _collectPromotions()) {
+    final promoted = _collectPromotions();
+    final leavesChanged = _skipLeavesChanged();
+    if (structural || promoted || leavesChanged) {
       _rebuildLayers();
     }
   }
@@ -175,10 +191,12 @@ class ScorePageViewState extends State<ScorePageView> {
           )),
       ..._promoted,
     };
+    _skipLeaves = widget.controller?.hiddenLeavesOf(_page) ?? const {};
     _layers = PageLayers(
       _page,
       widget.document.glyphs,
       animatableIds: _animatableIds,
+      skipLeaves: _skipLeaves,
       glyphCache: widget.document.glyphCache,
       stats: _stats,
     );
@@ -186,9 +204,28 @@ class ScorePageViewState extends State<ScorePageView> {
   }
 
   void _onControllerChanged() {
-    if (_collectPromotions()) {
+    final promoted = _collectPromotions();
+    final leavesChanged = _skipLeavesChanged();
+    if (promoted || leavesChanged) {
       setState(_rebuildLayers);
     }
+  }
+
+  /// O controller esconde outras formas desta página que não tem id (barra de
+  /// ligação e traços de linha suplementar)? Só então os `Picture` estáticos
+  /// são recompilados. O controller devolve o mesmo `Set` enquanto nada muda,
+  /// então o caso comum (um destaque por frame) custa uma comparação.
+  bool _skipLeavesChanged() {
+    final next = widget.controller?.hiddenLeavesOf(_page) ?? const {};
+    if (identical(next, _skipLeaves)) {
+      return false;
+    }
+    if (next.length != _skipLeaves.length ||
+        !next.every(_skipLeaves.contains)) {
+      return true;
+    }
+    _skipLeaves = next; // igual em conteúdo: guarda o novo objeto e segue
+    return false;
   }
 
   /// Se o controller tem cor para um id que existe nesta página mas está num
@@ -242,25 +279,42 @@ class ScorePageViewState extends State<ScorePageView> {
     );
     Widget base = baseLayer;
     final ghosts = widget.ghosts;
-    if (ghosts != null) {
+    final standIns = widget.standIns;
+    if (ghosts != null || standIns != null) {
+      final pageRef = PageRef(widget.pageIndex, sequence: widget.sequence);
       base = Stack(
         textDirection: TextDirection.ltr,
         fit: StackFit.passthrough,
         children: [
           baseLayer,
-          IgnorePointer(
-            child: RepaintBoundary(
-              child: CustomPaint(
-                painter: GhostPainter(
-                  controller: ghosts,
-                  page: page,
-                  pageRef: PageRef(widget.pageIndex, sequence: widget.sequence),
-                  glyphCache: widget.document.glyphCache,
-                  applyPageTransform: _layers!.applyPageTransform,
+          if (standIns != null)
+            IgnorePointer(
+              child: RepaintBoundary(
+                child: CustomPaint(
+                  painter: StandInPainter(
+                    controller: standIns,
+                    page: page,
+                    pageRef: pageRef,
+                    glyphCache: widget.document.glyphCache,
+                    applyPageTransform: _layers!.applyPageTransform,
+                  ),
                 ),
               ),
             ),
-          ),
+          if (ghosts != null)
+            IgnorePointer(
+              child: RepaintBoundary(
+                child: CustomPaint(
+                  painter: GhostPainter(
+                    controller: ghosts,
+                    page: page,
+                    pageRef: pageRef,
+                    glyphCache: widget.document.glyphCache,
+                    applyPageTransform: _layers!.applyPageTransform,
+                  ),
+                ),
+              ),
+            ),
         ],
       );
     }
@@ -326,7 +380,8 @@ class ScorePageViewState extends State<ScorePageView> {
             pageWidth: width,
             classes: classes,
           );
-          if (id != null) {
+          // Nota escondida não responde a toque: transparente não é ausente.
+          if (id != null && !(widget.controller?.isHidden(id) ?? false)) {
             onTap(id);
           }
         },

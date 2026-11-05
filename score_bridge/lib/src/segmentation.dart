@@ -196,16 +196,26 @@ Set<String> animatableIdsFromTimemap(
 /// segmento vazio, e [animatableIds] vazio dá um só segmento estático.
 ///
 /// O percurso é o de [walkScene], o mesmo do `ScenePainter`.
-List<PageSegment> segmentPage(ScenePage page, Set<String> animatableIds) {
-  final segmenter = _Segmenter(animatableIds);
+///
+/// [skipLeaves] (L02, nota escondida) são folhas da cena — comparadas por
+/// **identidade** — que deixam de ser pintadas: as formas de uma barra de
+/// ligação e os traços de linha suplementar, que não têm `id` e por isso não
+/// mudam de cor. Mudar o conjunto recompila os `Picture` da página.
+List<PageSegment> segmentPage(
+  ScenePage page,
+  Set<String> animatableIds, {
+  Set<SceneChild> skipLeaves = const {},
+}) {
+  final segmenter = _Segmenter(animatableIds, skipLeaves);
   walkScene(page.root, const ui.Color(0xFF000000), segmenter);
   return segmenter.finish();
 }
 
 class _Segmenter implements SceneVisitor {
-  _Segmenter(this._animatableIds);
+  _Segmenter(this._animatableIds, this._skipLeaves);
 
   final Set<String> _animatableIds;
+  final Set<SceneChild> _skipLeaves;
   final List<PageSegment> _segments = [];
 
   // Segmento aberto: exatamente um dos dois é não nulo, ou nenhum.
@@ -237,6 +247,9 @@ class _Segmenter implements SceneVisitor {
 
   @override
   void visitLeaf(SceneChild leaf, ui.Color color) {
+    if (_skipLeaves.isNotEmpty && _skipLeaves.contains(leaf)) {
+      return;
+    }
     _addStatic(StaticItem(leaf, color, _transforms.last));
   }
 

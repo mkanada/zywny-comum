@@ -254,6 +254,15 @@ class PitchEvent {
   final int? alter;
   final int? loc;
 
+  /// Figura **escrita** (§2.8, G08a): o denominador da duração (`1` semibreve,
+  /// `2` mínima, `4` semínima, `8`, … `1024`). `null` quando o campo falta —
+  /// `.vsb` anterior à nota escondida, `mRest`, breve/longa ou figura sem
+  /// `@dur`; o host trata como "figura desconhecida".
+  final int? dur;
+
+  /// Pontos de aumento (`0` se ausente). Só tem sentido com [dur].
+  final int dots;
+
   const PitchEvent({
     required this.isNote,
     required this.clefOffset,
@@ -264,6 +273,8 @@ class PitchEvent {
     this.octave,
     this.alter,
     this.loc,
+    this.dur,
+    this.dots = 0,
   });
 }
 

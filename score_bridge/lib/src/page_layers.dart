@@ -52,10 +52,11 @@ class PageLayers {
     this.page,
     Map<String, GlyphDef> glyphs, {
     required Set<String> animatableIds,
+    Set<SceneChild> skipLeaves = const {},
     GlyphCache? glyphCache,
     PictureStats? stats,
   }) : stats = stats ?? PictureStats(),
-       segments = segmentPage(page, animatableIds),
+       segments = segmentPage(page, animatableIds, skipLeaves: skipLeaves),
        _painter = ScenePainter(page, glyphs, glyphCache: glyphCache) {
     _pictures = List<ui.Picture?>.filled(segments.length, null);
   }

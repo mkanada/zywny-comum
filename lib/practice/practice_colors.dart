@@ -42,3 +42,10 @@ const kPracticeAppHandColor = Color(0xFFB8B8BD);
 /// Os compassos que reprovaram num medidor (EX08): violeta, longe do vermelho
 /// da nota errada e do âmbar do tempo.
 const kPracticeMeterMarkColor = Color(0xFF7B4FB3);
+
+/// A pausa que ocupa o lugar de uma coluna escondida (L03, a trilha do decorar
+/// e o treino "Notas escondidas"): púrpura, distinto do verde de certa, do azul
+/// de pendente, do vermelho de errada, do âmbar do tempo, do cinza de perdida,
+/// do laranja da fantasma (`kDefaultGhostColor`) e do violeta azulado dos
+/// compassos reprovados (`kPracticeMeterMarkColor`).
+const kMemoRestColor = Color(0xFF8E24AA);

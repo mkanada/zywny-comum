@@ -53,6 +53,7 @@ import 'page_layers.dart';
 import 'score_controller.dart';
 import 'score_page_view.dart';
 import 'score_trace.dart';
+import 'stand_in_layer.dart';
 import 'scene_walk.dart';
 
 enum ScorePageMode { pagedSweep, pagedSlide, continuousScroll }
@@ -307,6 +308,7 @@ class ScoreView extends StatefulWidget {
     this.onElementTap,
     this.tapClasses,
     this.ghosts,
+    this.standIns,
   });
 
   final VsbDocument document;
@@ -365,6 +367,10 @@ class ScoreView extends StatefulWidget {
 
   /// Fantasmas de teclas erradas (G05), repassadas a cada `ScorePageView`.
   final GhostController? ghosts;
+
+  /// Pausas substitutas das colunas escondidas (L03), repassadas a cada
+  /// `ScorePageView`.
+  final StandInController? standIns;
 
   @override
   State<ScoreView> createState() => ScoreViewState();
@@ -979,6 +985,7 @@ class ScoreViewState extends State<ScoreView> with TickerProviderStateMixin {
     onElementTap: widget.onElementTap,
     tapClasses: widget.tapClasses,
     ghosts: widget.ghosts,
+    standIns: widget.standIns,
   );
 
   /// Tamanho da página [ref] desenhada dentro de [box]: a maior escala que

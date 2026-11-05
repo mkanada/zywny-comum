@@ -417,6 +417,9 @@ PitchEvent _parsePitchEvent(Map<String, dynamic> json, String path) {
         ? _asInt(_requireField(json, 'alt', path), '$path.alt')
         : null,
     loc: isNote ? _asInt(_requireField(json, 'loc', path), '$path.loc') : null,
+    // Opcionais (§2.8, nota escondida): ausentes num `.vsb` antigo.
+    dur: json['dur'] == null ? null : _asInt(json['dur'], '$path.dur'),
+    dots: json['dots'] == null ? 0 : _asInt(json['dots'], '$path.dots'),
   );
 }
 
