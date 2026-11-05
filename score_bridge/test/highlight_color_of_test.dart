@@ -71,4 +71,43 @@ void main() {
       controller.dispose();
     }
   });
+
+  testWidgets('a marca do player não cobre o acerto que veio antes dela', (
+    tester,
+  ) async {
+    final bytes = File('test/fixtures/r13-um-compasso.vsb').readAsBytesSync();
+    final doc = VsbDocument.fromBytes(bytes);
+    final controller = ScoreController(document: doc);
+    const green = Color(0xFF2E7D32);
+    final player = ScorePlayer(
+      document: doc,
+      controller: controller,
+      release: Duration.zero,
+    );
+    try {
+      player.seek(const Duration(milliseconds: 3950));
+      // O aluno toca a m2n1 (em 4000) 50 ms antes: o host a pinta de certa.
+      controller.highlight(
+        'm2n1',
+        color: green,
+        hold: const Duration(milliseconds: 300),
+        release: const Duration(milliseconds: 400),
+      );
+      // O player chega na nota: a marca não substitui o verde...
+      player.advance(const Duration(milliseconds: 100));
+      expect(controller.colorOf('m2n1'), green);
+      // ...e o `off` dela também não o corta.
+      player.advance(const Duration(seconds: 10));
+      expect(controller.colorOf('m2n1'), green);
+
+      // Sem destaque do host, a marca acende como sempre (e a do player
+      // substitui a dele mesmo).
+      player.seek(Duration.zero);
+      expect(controller.colorOf('m1n1'), kDefaultHighlightColor);
+    } finally {
+      controller.clearAll();
+      player.dispose();
+      controller.dispose();
+    }
+  });
 }

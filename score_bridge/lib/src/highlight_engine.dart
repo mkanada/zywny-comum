@@ -32,7 +32,12 @@ class HighlightSpec {
     this.hold = Duration.zero,
     this.release = const Duration(milliseconds: 300),
     this.curve = Curves.easeOut,
+    this.cue = false,
   });
+
+  /// Marca do player ("a nota é agora"): não substitui um destaque do host
+  /// em curso na mesma nota (ver [HighlightEngine.start]).
+  final bool cue;
 
   /// A cor de destaque (a de `hold`).
   final ui.Color color;
@@ -53,7 +58,8 @@ class _Entry {
     : color = spec.color,
       base = spec.baseColor,
       attackUs = spec.attack.inMicroseconds,
-      curve = spec.curve {
+      curve = spec.curve,
+      cue = spec.cue {
     releaseStart = start + spec.attack + spec.hold;
     releaseUs = spec.release.inMicroseconds;
     releaseCurve = spec.curve;
@@ -64,6 +70,7 @@ class _Entry {
   ui.Color base;
   final int attackUs;
   final Curve curve;
+  final bool cue;
 
   /// Início e duração do `release`; um `stop` antecipado os substitui.
   late Duration releaseStart;
@@ -151,8 +158,18 @@ class HighlightEngine {
 
   /// Acende [id] em [now]. Se já estava acesa, **reinicia** a própria
   /// animação (do início do `attack`) sem tocar em nenhuma outra.
-  void start(String id, HighlightSpec spec, Duration now) {
+  ///
+  /// Exceção: uma marca do player ([HighlightSpec.cue]) não substitui um
+  /// destaque do host ainda ativo (em qualquer fase) — a nota certa tocada um
+  /// pouco antes do tempo fica na cor de certa, em vez de a marca acesa
+  /// depois cobri-la até o fim da nota. Devolve se acendeu.
+  bool start(String id, HighlightSpec spec, Duration now) {
+    final current = _entries[id];
+    if (spec.cue && current != null && !current.cue) {
+      return false;
+    }
     _entries[id] = _Entry(now, spec);
+    return true;
   }
 
   /// Antecipa o `release` de [id] para [at], a partir da cor que ela tem
@@ -162,9 +179,18 @@ class HighlightEngine {
   ///
   /// Diferença do esboço do plano: [at] é posicional e obrigatório — o motor
   /// não tem relógio, então "agora" tem que vir de fora.
-  void stop(String id, Duration at, {Duration? release, Curve? curve}) {
+  ///
+  /// Com [cue] (o `off` do player), um destaque do host fica como está: ele
+  /// tem o próprio `release`.
+  void stop(
+    String id,
+    Duration at, {
+    Duration? release,
+    Curve? curve,
+    bool cue = false,
+  }) {
     final entry = _entries[id];
-    if (entry == null || at >= entry.releaseStart) {
+    if (entry == null || at >= entry.releaseStart || (cue && !entry.cue)) {
       return;
     }
     final from = entry.colorAt(at) ?? entry.base;

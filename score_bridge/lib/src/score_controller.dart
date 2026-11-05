@@ -342,6 +342,10 @@ class ScoreController extends ChangeNotifier {
   );
 
   /// [highlight] em vários ids, com **uma** notificação.
+  ///
+  /// [cue] é a marca do `ScorePlayer` ("a nota é agora"): ela não substitui
+  /// um destaque do host ainda ativo no id (o acerto do aluno que veio um
+  /// pouco antes da marca continua na cor de certa).
   void highlightAll(
     Iterable<String> ids, {
     ui.Color color = kDefaultHighlightColor,
@@ -349,6 +353,7 @@ class ScoreController extends ChangeNotifier {
     Duration hold = Duration.zero,
     Duration release = const Duration(milliseconds: 300),
     Curve curve = Curves.easeOut,
+    bool cue = false,
   }) {
     var any = false;
     for (final rawId in ids) {
@@ -356,19 +361,21 @@ class ScoreController extends ChangeNotifier {
       if (!_known(id) || _hiddenNodes.contains(id)) {
         continue; // nota escondida não acende (o L05 pisca a pausa)
       }
-      _engine.start(
-        id,
-        HighlightSpec(
-          color: color,
-          baseColor: _baseOf(id),
-          attack: attack,
-          hold: hold,
-          release: release,
-          curve: curve,
-        ),
-        _now,
-      );
-      any = true;
+      any =
+          _engine.start(
+            id,
+            HighlightSpec(
+              color: color,
+              baseColor: _baseOf(id),
+              attack: attack,
+              hold: hold,
+              release: release,
+              curve: curve,
+              cue: cue,
+            ),
+            _now,
+          ) ||
+          any;
     }
     if (any) {
       _afterEngineChange();
@@ -376,9 +383,16 @@ class ScoreController extends ChangeNotifier {
   }
 
   /// Começa agora o `release` de [id] (a partir da cor que ele tem), com a
-  /// [duration] e a [curve] dadas ou, se ausentes, as do destaque.
-  void release(String id, {Duration? duration, Curve? curve}) {
-    _engine.stop(_resolve(id), _now, release: duration, curve: curve);
+  /// [duration] e a [curve] dadas ou, se ausentes, as do destaque. Com [cue]
+  /// (o `off` do `ScorePlayer`), só apaga a marca do player: um destaque do
+  /// host segue o próprio `release`.
+  void release(
+    String id, {
+    Duration? duration,
+    Curve? curve,
+    bool cue = false,
+  }) {
+    _engine.stop(_resolve(id), _now, release: duration, curve: curve, cue: cue);
     _afterEngineChange();
   }
 

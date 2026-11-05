@@ -323,4 +323,47 @@ void main() {
     expect(growth, lessThan(4 * 1024 * 1024), reason: 'RSS +$growth bytes');
     expect(engine.activeCount, 64);
   });
+
+  test(
+    'a marca do player (cue) não substitui nem apaga o destaque do host',
+    () {
+      final engine = HighlightEngine();
+      const green = Color(0xFF2E7D32);
+      const blue = Color(0xFF1E88E5);
+      const host = HighlightSpec(
+        color: green,
+        baseColor: _base,
+        release: Duration(milliseconds: 400),
+        curve: Curves.linear,
+      );
+      const cue = HighlightSpec(
+        color: blue,
+        baseColor: _base,
+        hold: Duration(days: 1),
+        cue: true,
+      );
+      expect(engine.start('n', host, ms(0)), isTrue);
+      // A marca chega 50 ms depois do acerto: o verde segue o próprio release.
+      expect(engine.start('n', cue, ms(50)), isFalse);
+      engine.stop('n', ms(100), release: Duration.zero, cue: true);
+      expect(engine.colorsAt(ms(200))['n'], Color.lerp(green, _base, 0.5));
+      engine.colorsAt(ms(400));
+      engine.colorsAt(ms(401));
+      expect(engine.isActive('n'), isFalse);
+
+      // Sem destaque do host, a marca acende; e a marca seguinte a substitui.
+      expect(engine.start('n', cue, ms(500)), isTrue);
+      expect(engine.start('n', cue, ms(600)), isTrue);
+      expect(engine.colorsAt(ms(700))['n'], blue);
+      // O host substitui a marca, como sempre.
+      expect(engine.start('n', host, ms(800)), isTrue);
+      expect(engine.colorsAt(ms(800))['n'], green);
+      // O stop sem cue (o do host) vale para qualquer destaque.
+      engine.start('m', cue, ms(800));
+      engine.stop('m', ms(900), release: Duration.zero);
+      engine.colorsAt(ms(900));
+      engine.colorsAt(ms(901));
+      expect(engine.isActive('m'), isFalse);
+    },
+  );
 }

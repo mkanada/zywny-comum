@@ -454,7 +454,7 @@ class ScorePlayer {
   void _apply(TimemapEntry e) {
     for (final id in e.off) {
       if (_skips(id)) continue;
-      controller.release(id);
+      controller.release(id, cue: true);
     }
     if (e.on.isNotEmpty) _highlight(e.on);
     if (e.tempo != null) {
@@ -483,6 +483,7 @@ class ScorePlayer {
         color: highlightColor,
         hold: _kForever,
         release: release,
+        cue: true,
       );
       return;
     }
@@ -497,6 +498,7 @@ class ScorePlayer {
         color: color,
         hold: _kForever,
         release: release,
+        cue: true,
       );
     });
   }
