@@ -1,0 +1,572 @@
+{
+ "descricao": "Vetores da nota escondida e da pausa substituta (especificacao-v1.md §11, G08c). Cada caso: `coluna` = C, `escondidas` = H (ausente = só C), `resumo` escrito à mão, `esperado` = saída de compare/scripts/hide_ref.py (tolerância de 0,5 unidade de viewBox nos números).",
+ "tolerancia": 0.5,
+ "casos": [
+  {
+   "nome": "coluna de duas vozes com figuras diferentes: vale a mais curta",
+   "vsb": "h010.vsb",
+   "pagina": 0,
+   "coluna": [
+    "r10709ff",
+    "x1848jna",
+    "z1oagi0k"
+   ],
+   "resumo": {
+    "notes": 3,
+    "chords": 1,
+    "beams": 0,
+    "ledgers": 1,
+    "rest": "E4E5",
+    "restLoc": 4,
+    "dots": 0
+   },
+   "esperado": {
+    "hidden": {
+     "notes": [
+      "r10709ff",
+      "x1848jna",
+      "z1oagi0k"
+     ],
+     "chords": [
+      "yy2zfkq"
+     ],
+     "beams": [],
+     "ledgers": [
+      [
+       "c1k2xsnz",
+       "below",
+       1,
+       3398,
+       3720
+      ]
+     ]
+    },
+    "standIn": {
+     "glyph": "Leipzig:E4E5",
+     "dur": 4,
+     "x": 3446,
+     "y": 1466,
+     "sx": 0.72,
+     "sy": 0.72,
+     "loc": 4,
+     "dots": []
+    }
+   },
+   "conta": "soprano semínima (dur 4) e alto/tenor em acorde de mínimas (dur 2): a mais curta é a semínima -> E4E5; n=5 -> loc 4 (linha do meio), y = 1106 + (8-4)*90 = 1466; x = 3446 (menor x de cabeça); alto e tenor são o acorde yy2zfkq, escondido inteiro; o tenor está em loc -2 -> 1 traço abaixo, só desta coluna (x 3398-3720)"
+  },
+  {
+   "nome": "linha suplementar da coluna some, a das colunas vizinhas fica",
+   "vsb": "h010.vsb",
+   "pagina": 0,
+   "coluna": [
+    "qyrisol",
+    "t1hslndl"
+   ],
+   "resumo": {
+    "notes": 2,
+    "chords": 0,
+    "beams": 0,
+    "ledgers": 1,
+    "rest": "E4E6",
+    "restLoc": 4,
+    "dots": 0
+   },
+   "esperado": {
+    "hidden": {
+     "notes": [
+      "qyrisol",
+      "t1hslndl"
+     ],
+     "chords": [],
+     "beams": [],
+     "ledgers": [
+      [
+       "a1vokjmm",
+       "below",
+       1,
+       16717,
+       17039
+      ]
+     ]
+    },
+    "standIn": {
+     "glyph": "Leipzig:E4E6",
+     "dur": 8,
+     "x": 16765,
+     "y": 1466,
+     "sx": 0.72,
+     "sy": 0.72,
+     "loc": 4,
+     "dots": []
+    }
+   },
+   "conta": "colcheia (soprano) e semínima (baixo-tenor): a mais curta é a colcheia -> E4E6; o tenor em loc -3 pede 1 linha abaixo (loc <= -2); o traço (x 16717-17039 = cabeça 16765-16991 +- 48 de extensão) só pertence a esta coluna: as colunas dos instantes 16 e 18, vizinhas, têm o traço delas e ele NÃO entra em `ledgers`; a colcheia está na barra p1thud05 com u1m1ofen, que continua visível -> a barra fica"
+  },
+  {
+   "nome": "barra com 1 de 2 notas escondidas: a barra fica",
+   "vsb": "h010.vsb",
+   "pagina": 0,
+   "coluna": [
+    "m1ujlm1s",
+    "u1knnyxl",
+    "w1x5tsbc"
+   ],
+   "resumo": {
+    "notes": 3,
+    "chords": 1,
+    "beams": 0,
+    "ledgers": 1,
+    "rest": "E4E6",
+    "restLoc": 4,
+    "dots": 0
+   },
+   "esperado": {
+    "hidden": {
+     "notes": [
+      "m1ujlm1s",
+      "u1knnyxl",
+      "w1x5tsbc"
+     ],
+     "chords": [
+      "vhtnoag"
+     ],
+     "beams": [],
+     "ledgers": [
+      [
+       "c1k2xsnz",
+       "below",
+       1,
+       1678,
+       2000
+      ]
+     ]
+    },
+    "standIn": {
+     "glyph": "Leipzig:E4E6",
+     "dur": 8,
+     "x": 1672,
+     "y": 1466,
+     "sx": 0.72,
+     "sy": 0.72,
+     "loc": 4,
+     "dots": []
+    }
+   },
+   "conta": "a colcheia m1ujlm1s é uma das duas da barra l1z05zi4 (a outra é nc27kmr, visível) -> beams 0; a mínima do alto/tenor é o acorde vhtnoag; mais curta = colcheia -> E4E6"
+  },
+  {
+   "nome": "barra com 2 de 2 notas escondidas: a barra some",
+   "vsb": "h010.vsb",
+   "pagina": 0,
+   "coluna": [
+    "nc27kmr"
+   ],
+   "escondidas": [
+    "m1ujlm1s",
+    "u1knnyxl",
+    "w1x5tsbc",
+    "nc27kmr"
+   ],
+   "resumo": {
+    "notes": 4,
+    "chords": 1,
+    "beams": 1,
+    "ledgers": 1,
+    "rest": "E4E6",
+    "restLoc": 4,
+    "dots": 0
+   },
+   "esperado": {
+    "hidden": {
+     "notes": [
+      "m1ujlm1s",
+      "nc27kmr",
+      "u1knnyxl",
+      "w1x5tsbc"
+     ],
+     "chords": [
+      "vhtnoag"
+     ],
+     "beams": [
+      {
+       "id": "l1z05zi4",
+       "shapes": 1
+      }
+     ],
+     "ledgers": [
+      [
+       "c1k2xsnz",
+       "below",
+       1,
+       1678,
+       2000
+      ]
+     ]
+    },
+    "standIn": {
+     "glyph": "Leipzig:E4E6",
+     "dur": 8,
+     "x": 2116,
+     "y": 1466,
+     "sx": 0.72,
+     "sy": 0.72,
+     "loc": 4,
+     "dots": []
+    }
+   },
+   "conta": "a coluna do instante 0 já estava escondida e agora o instante 0,5 (nc27kmr, colcheia): as duas notas da barra l1z05zi4 estão em H -> a barra some (1 forma filha direta); a pausa é só da coluna nova (x 2116)"
+  },
+  {
+   "nome": "semibreve: a pausa pende uma linha acima do meio",
+   "vsb": "h010.vsb",
+   "pagina": 0,
+   "coluna": [
+    "s15b1q47",
+    "uatlm6o"
+   ],
+   "resumo": {
+    "notes": 2,
+    "chords": 1,
+    "beams": 0,
+    "ledgers": 0,
+    "rest": "E4E3",
+    "restLoc": 6,
+    "dots": 0
+   },
+   "esperado": {
+    "hidden": {
+     "notes": [
+      "s15b1q47",
+      "uatlm6o"
+     ],
+     "chords": [
+      "tm2wsd9"
+     ],
+     "beams": [],
+     "ledgers": []
+    },
+    "standIn": {
+     "glyph": "Leipzig:E4E3",
+     "dur": 1,
+     "x": 1212,
+     "y": 7981,
+     "sx": 0.72,
+     "sy": 0.72,
+     "loc": 6,
+     "dots": []
+    }
+   },
+   "conta": "duas vozes em semibreve (acorde tm2wsd9, locs 0 e 5): dur 1 -> E4E3; loc = 4 + 2 = 6 (a semibreve pende da 4ª linha contada de baixo); y = 7801 + (8-6)*90 = 7981"
+  },
+  {
+   "nome": "figura pontuada: a pausa leva o ponto",
+   "vsb": "h010.vsb",
+   "pagina": 0,
+   "coluna": [
+    "g1qqc06o",
+    "y4ih5in"
+   ],
+   "resumo": {
+    "notes": 2,
+    "chords": 0,
+    "beams": 0,
+    "ledgers": 0,
+    "rest": "E4E5",
+    "restLoc": 4,
+    "dots": 1
+   },
+   "esperado": {
+    "hidden": {
+     "notes": [
+      "g1qqc06o",
+      "y4ih5in"
+     ],
+     "chords": [],
+     "beams": [],
+     "ledgers": []
+    },
+    "standIn": {
+     "glyph": "Leipzig:E4E5",
+     "dur": 4,
+     "x": 12798,
+     "y": 3879,
+     "sx": 0.72,
+     "sy": 0.72,
+     "loc": 4,
+     "dots": [
+      {
+       "cx": 13107.0,
+       "cy": 3789,
+       "rx": 36.0,
+       "ry": 36.0
+      }
+     ]
+    }
+   },
+   "conta": "mínima e semínima pontuada: a mais curta é a semínima pontuada (dur 4, 1 ponto) -> E4E5 + 1 ponto; o ponto cai no espaço acima da linha do meio: loc 4 par -> 5, y = 3519 + (8-5)*90 = 3789; x = 12798 + 219 (largura do glifo, truncada) + 90 (unit) = 13107; raio 2*90/5 = 36"
+  },
+  {
+   "nome": "mesma figura, uma pontuada: a sem ponto é a mais curta",
+   "vsb": "h010.vsb",
+   "pagina": 0,
+   "coluna": [
+    "u1rdh9nl",
+    "yuf88p8"
+   ],
+   "resumo": {
+    "notes": 2,
+    "chords": 0,
+    "beams": 0,
+    "ledgers": 1,
+    "rest": "E4E5",
+    "restLoc": 4,
+    "dots": 0
+   },
+   "esperado": {
+    "hidden": {
+     "notes": [
+      "u1rdh9nl",
+      "yuf88p8"
+     ],
+     "chords": [],
+     "beams": [],
+     "ledgers": [
+      [
+       "a1vokjmm",
+       "below",
+       1,
+       18142,
+       18464
+      ]
+     ]
+    },
+    "standIn": {
+     "glyph": "Leipzig:E4E5",
+     "dur": 4,
+     "x": 18190,
+     "y": 1466,
+     "sx": 0.72,
+     "sy": 0.72,
+     "loc": 4,
+     "dots": []
+    }
+   },
+   "conta": "duas semínimas, uma pontuada (dur 4 nas duas): vale a sem ponto -> E4E5 sem ponto; traço abaixo (loc -3)"
+  },
+  {
+   "nome": "colcheia de quiáltera: vale a figura escrita",
+   "vsb": "h056.vsb",
+   "pagina": 0,
+   "coluna": [
+    "w1ewv8n7"
+   ],
+   "resumo": {
+    "notes": 1,
+    "chords": 0,
+    "beams": 0,
+    "ledgers": 0,
+    "rest": "E4E6",
+    "restLoc": 4,
+    "dots": 0
+   },
+   "esperado": {
+    "hidden": {
+     "notes": [
+      "w1ewv8n7"
+     ],
+     "chords": [],
+     "beams": [],
+     "ledgers": []
+    },
+    "standIn": {
+     "glyph": "Leipzig:E4E6",
+     "dur": 8,
+     "x": 10312,
+     "y": 11151,
+     "sx": 0.72,
+     "sy": 0.72,
+     "loc": 4,
+     "dots": []
+    }
+   },
+   "conta": "tercina de colcheias (dur escrito 8, duração sonora 1/3 de semínima): a pausa é de colcheia -> E4E6, não de semicolcheia; as outras duas notas da tercina seguem na barra u17t1jzh -> a barra fica"
+  },
+  {
+   "nome": "nota ligada: cabeça e continuação escondidas pelo id",
+   "vsb": "h010.vsb",
+   "pagina": 0,
+   "coluna": [
+    "k15ihioq",
+    "n1nkt294",
+    "p1n03y7u"
+   ],
+   "escondidas": [
+    "k15ihioq",
+    "n1nkt294",
+    "p1n03y7u",
+    "kf0fkqg",
+    "m1j3dlmg"
+   ],
+   "resumo": {
+    "notes": 5,
+    "chords": 2,
+    "beams": 0,
+    "ledgers": 2,
+    "rest": "E4E6",
+    "restLoc": 4,
+    "dots": 0
+   },
+   "esperado": {
+    "hidden": {
+     "notes": [
+      "k15ihioq",
+      "kf0fkqg",
+      "m1j3dlmg",
+      "n1nkt294",
+      "p1n03y7u"
+     ],
+     "chords": [
+      "l1wbisrw",
+      "ld7kz8f"
+     ],
+     "beams": [],
+     "ledgers": [
+      [
+       "eqme5w2",
+       "below",
+       1,
+       12750,
+       13072
+      ],
+      [
+       "l1mgo02b",
+       "below",
+       1,
+       12108,
+       12430
+      ]
+     ]
+    },
+    "standIn": {
+     "glyph": "Leipzig:E4E6",
+     "dur": 8,
+     "x": 12156,
+     "y": 1466,
+     "sx": 0.72,
+     "sy": 0.72,
+     "loc": 4,
+     "dots": []
+    }
+   },
+   "conta": "acorde de colcheias no fim de um sistema, ligado a um acorde de semínima pontuada no começo do seguinte (o host esconde as continuações pelo id, midi.json -> tied): os dois acordes saem inteiros (l1wbisrw e ld7kz8f) e o traço abaixo de cada sistema (loc -3 nas duas); a pausa é só da cabeça (colcheia -> E4E6) e não leva ponto, porque a continuação não entra em C"
+  },
+  {
+   "nome": "coluna cross-staff: pausa na pauta de desenho",
+   "vsb": "f04-cross-staff.vsb",
+   "pagina": 0,
+   "coluna": [
+    "f04-c",
+    "f04-f"
+   ],
+   "resumo": {
+    "notes": 2,
+    "chords": 0,
+    "beams": 0,
+    "ledgers": 3,
+    "rest": "E4E5",
+    "restLoc": 4,
+    "dots": 0
+   },
+   "esperado": {
+    "hidden": {
+     "notes": [
+      "f04-c",
+      "f04-f"
+     ],
+     "chords": [],
+     "beams": [],
+     "ledgers": [
+      [
+       "j196sd00",
+       "above",
+       1,
+       2678,
+       3000
+      ],
+      [
+       "j196sd00",
+       "above",
+       2,
+       2678,
+       3000
+      ],
+      [
+       "j196sd00",
+       "above",
+       3,
+       2678,
+       3000
+      ]
+     ]
+    },
+    "standIn": {
+     "glyph": "Leipzig:E4E5",
+     "dur": 4,
+     "x": 2726,
+     "y": 2700,
+     "sx": 0.72,
+     "sy": 0.72,
+     "loc": 4,
+     "dots": []
+    }
+   },
+   "conta": "f04-c é uma nota da mão direita desenhada na pauta de baixo (loc 14: 3 linhas suplementares acima, pelo `staff` do nó) e f04-f é a nota do baixo (mínima); a mais curta é a semínima -> E4E5 na pauta de desenho j196sd00 (topo 2340): y = 2340 + (8-4)*90 = 2700"
+  },
+  {
+   "nome": "página alternativa: mesma regra, coordenadas da página",
+   "vsb": "r04-casas.vsb",
+   "pagina": "alt0.0",
+   "coluna": [
+    "m5n3"
+   ],
+   "resumo": {
+    "notes": 1,
+    "chords": 0,
+    "beams": 0,
+    "ledgers": 1,
+    "rest": "E4E5",
+    "restLoc": 4,
+    "dots": 0
+   },
+   "esperado": {
+    "hidden": {
+     "notes": [
+      "m5n3"
+     ],
+     "chords": [],
+     "beams": [],
+     "ledgers": [
+      [
+       "e1k8yn3w",
+       "below",
+       1,
+       2615,
+       2937
+      ]
+     ]
+    },
+    "standIn": {
+     "glyph": "Leipzig:E4E5",
+     "dur": 4,
+     "x": 2663,
+     "y": 926,
+     "sx": 0.72,
+     "sy": 0.72,
+     "loc": 4,
+     "dots": []
+    }
+   },
+   "conta": "a mesma nota existe na página normal e na alternativa (sequência a partir do compasso m5); em loc -2 pede 1 traço abaixo; topo da pauta 566 -> y = 566 + (8-4)*90 = 926"
+  }
+ ]
+}
