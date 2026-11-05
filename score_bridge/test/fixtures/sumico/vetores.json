@@ -1,5 +1,5 @@
 {
- "descricao": "Vetores da nota escondida e da pausa substituta (especificacao-v1.md §11, G08c). Cada caso: `coluna` = C, `escondidas` = H (ausente = só C), `resumo` escrito à mão, `esperado` = saída de compare/scripts/hide_ref.py (tolerância de 0,5 unidade de viewBox nos números).",
+ "descricao": "Vetores da nota escondida e da pausa substituta (especificacao-v1.md §11, G08c). Cada caso: `coluna` = C, `escondidas` = H (ausente = só C), `resumo` escrito à mão, `esperado` = saída de compare/scripts/hide_ref.py (tolerância de 0,5 unidade de viewBox nos números). `casosCompasso` (G11, regra 8, compasso inteiro): `compassos` = ids dos compassos escondidos por inteiro, `resumo` = contagens (as de notas e pausas conferidas contra o MEI da fonte), `esperado` = saída de `hide_ref.py run_measures` (`hidden`: notes, chords, beams, ledgers, rests, tuplets, controls; `measureStandIn`: [{measure, staff, g, x, y, sx, sy}]), tolerância 0,5.",
  "tolerancia": 0.5,
  "casos": [
   {
@@ -567,6 +567,1112 @@
     }
    },
    "conta": "a mesma nota existe na página normal e na alternativa (sequência a partir do compasso m5); em loc -2 pede 1 traço abaixo; topo da pauta 566 -> y = 566 + (8-4)*90 = 926"
+  }
+ ],
+ "casosCompasso": [
+  {
+   "nome": "primeiro compasso do sistema: a pausa fica depois de clave, armadura e fórmula",
+   "vsb": "h010.vsb",
+   "pagina": 0,
+   "compassos": [
+    "t179lj11"
+   ],
+   "resumo": {
+    "notes": 12,
+    "chords": 2,
+    "beams": 2,
+    "ledgers": 2,
+    "rests": 0,
+    "tuplets": 0,
+    "controls": 0,
+    "standIns": 2
+   },
+   "esperado": {
+    "hidden": {
+     "notes": [
+      "m1ujlm1s",
+      "nc27kmr",
+      "p1l81zsh",
+      "q1vdctu2",
+      "r10709ff",
+      "s2mypdb",
+      "u1knnyxl",
+      "u4ygd0z",
+      "v1gl2r5k",
+      "w1x5tsbc",
+      "x1848jna",
+      "z1oagi0k"
+     ],
+     "chords": [
+      "vhtnoag",
+      "yy2zfkq"
+     ],
+     "beams": [
+      {
+       "id": "l1z05zi4",
+       "shapes": 1
+      },
+      {
+       "id": "of3x1gw",
+       "shapes": 1
+      }
+     ],
+     "ledgers": [
+      [
+       "c1k2xsnz",
+       "below",
+       1,
+       1678,
+       2000
+      ],
+      [
+       "c1k2xsnz",
+       "below",
+       1,
+       3398,
+       3720
+      ]
+     ],
+     "rests": [],
+     "tuplets": [],
+     "controls": []
+    },
+    "measureStandIn": [
+     {
+      "measure": "t179lj11",
+      "staff": "c1k2xsnz",
+      "g": "Leipzig:E4E3",
+      "x": 3031,
+      "y": 1286,
+      "sx": 0.72,
+      "sy": 0.72
+     },
+     {
+      "measure": "t179lj11",
+      "staff": "s5oitah",
+      "g": "Leipzig:E4E3",
+      "x": 3031,
+      "y": 3699,
+      "sx": 0.72,
+      "sy": 0.72
+     }
+    ]
+   },
+   "conta": "inner [1487, 4792]: cx = 1487 + (4792 − 1487)//2 = 3139; x = 3139 − 216//2 = 3031"
+  },
+  {
+   "nome": "compasso comum no meio do sistema",
+   "vsb": "h010.vsb",
+   "pagina": 0,
+   "compassos": [
+    "axzadr3"
+   ],
+   "resumo": {
+    "notes": 12,
+    "chords": 2,
+    "beams": 2,
+    "ledgers": 2,
+    "rests": 0,
+    "tuplets": 0,
+    "controls": 0,
+    "standIns": 2
+   },
+   "esperado": {
+    "hidden": {
+     "notes": [
+      "b1mhurah",
+      "hi17ndi",
+      "i1azs4xd",
+      "orw55dt",
+      "pw80rd",
+      "r1c5f34m",
+      "s1cm0mij",
+      "te33tju",
+      "umdvq0l",
+      "wg8qvcs",
+      "yw90mxt",
+      "z1o3fuh2"
+     ],
+     "chords": [
+      "aep08ey",
+      "xznby47"
+     ],
+     "beams": [
+      {
+       "id": "n169v4an",
+       "shapes": 1
+      },
+      {
+       "id": "q1t6l0ej",
+       "shapes": 1
+      }
+     ],
+     "ledgers": [
+      [
+       "j97m9qh",
+       "below",
+       1,
+       5010,
+       5332
+      ],
+      [
+       "j97m9qh",
+       "below",
+       1,
+       6730,
+       7052
+      ]
+     ],
+     "rests": [],
+     "tuplets": [],
+     "controls": []
+    },
+    "measureStandIn": [
+     {
+      "measure": "axzadr3",
+      "staff": "j97m9qh",
+      "g": "Leipzig:E4E3",
+      "x": 6363,
+      "y": 1286,
+      "sx": 0.72,
+      "sy": 0.72
+     },
+     {
+      "measure": "axzadr3",
+      "staff": "fsep7jy",
+      "g": "Leipzig:E4E3",
+      "x": 6363,
+      "y": 3699,
+      "sx": 0.72,
+      "sy": 0.72
+     }
+    ]
+   },
+   "conta": "inner [4819, 8124]: cx = 4819 + 3305//2 = 6471; x = 6471 − 108 = 6363"
+  },
+  {
+   "nome": "último compasso do sistema (barra no fim da linha)",
+   "vsb": "h010.vsb",
+   "pagina": 0,
+   "compassos": [
+    "r16x677f"
+   ],
+   "resumo": {
+    "notes": 19,
+    "chords": 4,
+    "beams": 3,
+    "ledgers": 5,
+    "rests": 0,
+    "tuplets": 0,
+    "controls": 4,
+    "standIns": 2
+   },
+   "esperado": {
+    "hidden": {
+     "notes": [
+      "c8hri9y",
+      "dtlbm8c",
+      "fun66dm",
+      "h1m0j4dm",
+      "hngeo8z",
+      "l7hddzp",
+      "n1897yff",
+      "q1wk7ubl",
+      "qyrisol",
+      "svu4n1j",
+      "t1hslndl",
+      "t1vpcy3m",
+      "u14764g6",
+      "u1m1ofen",
+      "u1rdh9nl",
+      "vhjh3j6",
+      "x173dcpd",
+      "yuf88p8",
+      "zio4wo3"
+     ],
+     "chords": [
+      "a1spyed0",
+      "i1e23btw",
+      "r1vvsm09",
+      "w1p1bjle"
+     ],
+     "beams": [
+      {
+       "id": "c1pg5804",
+       "shapes": 1
+      },
+      {
+       "id": "gclqjnn",
+       "shapes": 1
+      },
+      {
+       "id": "p1thud05",
+       "shapes": 1
+      }
+     ],
+     "ledgers": [
+      [
+       "a1vokjmm",
+       "below",
+       1,
+       15505,
+       16035
+      ],
+      [
+       "a1vokjmm",
+       "below",
+       1,
+       16717,
+       17039
+      ],
+      [
+       "a1vokjmm",
+       "below",
+       1,
+       18142,
+       18464
+      ],
+      [
+       "a1vokjmm",
+       "below",
+       1,
+       19265,
+       19587
+      ],
+      [
+       "a1vokjmm",
+       "below",
+       2,
+       15505,
+       15827
+      ]
+     ],
+     "rests": [],
+     "tuplets": [],
+     "controls": [
+      "bm3g54f",
+      "d1utvufr",
+      "m9k97pp",
+      "o6xpboo"
+     ]
+    },
+    "measureStandIn": [
+     {
+      "measure": "r16x677f",
+      "staff": "a1vokjmm",
+      "g": "Leipzig:E4E3",
+      "x": 17561,
+      "y": 1286,
+      "sx": 0.72,
+      "sy": 0.72
+     },
+     {
+      "measure": "r16x677f",
+      "staff": "r1luskx3",
+      "g": "Leipzig:E4E3",
+      "x": 17561,
+      "y": 3699,
+      "sx": 0.72,
+      "sy": 0.72
+     }
+    ]
+   },
+   "conta": "inner [15362, 19977]: cx = 15362 + 4615//2 = 17669; x = 17669 − 108 = 17561"
+  },
+  {
+   "nome": "primeiro do sistema, com cabeçalho e barra de repetição à esquerda (página alternativa)",
+   "vsb": "h010.vsb",
+   "pagina": "alt0.0",
+   "compassos": [
+    "p126lw7d"
+   ],
+   "resumo": {
+    "notes": 12,
+    "chords": 2,
+    "beams": 2,
+    "ledgers": 4,
+    "rests": 0,
+    "tuplets": 0,
+    "controls": 0,
+    "standIns": 2
+   },
+   "esperado": {
+    "hidden": {
+     "notes": [
+      "b1tj5xjh",
+      "bslxzc7",
+      "dgr8vy6",
+      "e1t74ksa",
+      "f194n50j",
+      "hjuuq6p",
+      "iw5bkuq",
+      "m83g0ya",
+      "pmvbywz",
+      "uzvdwjq",
+      "x13giwil",
+      "yvtd9by"
+     ],
+     "chords": [
+      "c15fjq7p",
+      "g64u3ve"
+     ],
+     "beams": [
+      {
+       "id": "e85sw2l",
+       "shapes": 1
+      },
+      {
+       "id": "t176k5fk",
+       "shapes": 1
+      }
+     ],
+     "ledgers": [
+      [
+       "y577ljz",
+       "below",
+       1,
+       2101,
+       2423
+      ],
+      [
+       "y577ljz",
+       "below",
+       1,
+       4702,
+       5024
+      ],
+      [
+       "y577ljz",
+       "below",
+       1,
+       5402,
+       5724
+      ],
+      [
+       "y577ljz",
+       "below",
+       2,
+       5402,
+       5724
+      ]
+     ],
+     "rests": [],
+     "tuplets": [],
+     "controls": []
+    },
+    "measureStandIn": [
+     {
+      "measure": "p126lw7d",
+      "staff": "y577ljz",
+      "g": "Leipzig:E4E3",
+      "x": 4578,
+      "y": 720,
+      "sx": 0.72,
+      "sy": 0.72
+     },
+     {
+      "measure": "p126lw7d",
+      "staff": "z1cwln96",
+      "g": "Leipzig:E4E3",
+      "x": 4578,
+      "y": 3443,
+      "sx": 0.72,
+      "sy": 0.72
+     }
+    ]
+   },
+   "conta": "inner [1870, 7503]: cx = 1870 + 5633//2 = 4686; x = 4686 − 108 = 4578"
+  },
+  {
+   "nome": "compasso com armadura trocada no meio da linha",
+   "vsb": "f06-mudanca-armadura.vsb",
+   "pagina": 0,
+   "compassos": [
+    "f-m3"
+   ],
+   "resumo": {
+    "notes": 4,
+    "chords": 0,
+    "beams": 0,
+    "ledgers": 0,
+    "rests": 0,
+    "tuplets": 0,
+    "controls": 0,
+    "standIns": 1
+   },
+   "esperado": {
+    "hidden": {
+     "notes": [
+      "f06-i",
+      "f06-j",
+      "f06-k",
+      "f06-l"
+     ],
+     "chords": [],
+     "beams": [],
+     "ledgers": [],
+     "rests": [],
+     "tuplets": [],
+     "controls": []
+    },
+    "measureStandIn": [
+     {
+      "measure": "f-m3",
+      "staff": "axzadr3",
+      "g": "Leipzig:E4E3",
+      "x": 10428,
+      "y": 720,
+      "sx": 0.72,
+      "sy": 0.72
+     }
+    ]
+   },
+   "conta": "o inner começa depois da armadura nova; ver `inner` do compasso"
+  },
+  {
+   "nome": "mão intercalada (2c): a pauta que só tem pausa fica como está, a outra ganha a pausa de compasso",
+   "vsb": "g11-mao-intercalada.vsb",
+   "pagina": 0,
+   "compassos": [
+    "g1cokkdt"
+   ],
+   "resumo": {
+    "notes": 4,
+    "chords": 0,
+    "beams": 0,
+    "ledgers": 1,
+    "rests": 0,
+    "tuplets": 0,
+    "controls": 0,
+    "standIns": 1
+   },
+   "esperado": {
+    "hidden": {
+     "notes": [
+      "s2-m1-n1",
+      "s2-m1-n2",
+      "s2-m1-n3",
+      "s2-m1-n4"
+     ],
+     "chords": [],
+     "beams": [],
+     "ledgers": [
+      [
+       "q1vdctu2",
+       "above",
+       1,
+       3368,
+       3690
+      ]
+     ],
+     "rests": [],
+     "tuplets": [],
+     "controls": []
+    },
+    "measureStandIn": [
+     {
+      "measure": "g1cokkdt",
+      "staff": "q1vdctu2",
+      "g": "Leipzig:E4E3",
+      "x": 2521,
+      "y": 2597,
+      "sx": 0.72,
+      "sy": 0.72
+     }
+    ]
+   },
+   "conta": "uma pauta com 4 notas e outra só com uma pausa: 1 pausa de compasso, a pausa de verdade fica"
+  },
+  {
+   "nome": "pautas com notas e pausas misturadas: as pausas de verdade somem e entra a pausa de compasso",
+   "vsb": "g11-mao-intercalada.vsb",
+   "pagina": 0,
+   "compassos": [
+    "dgv5qh9"
+   ],
+   "resumo": {
+    "notes": 4,
+    "chords": 0,
+    "beams": 0,
+    "ledgers": 0,
+    "rests": 2,
+    "tuplets": 0,
+    "controls": 0,
+    "standIns": 2
+   },
+   "esperado": {
+    "hidden": {
+     "notes": [
+      "s1-m2-n1",
+      "s1-m2-n2",
+      "s2-m2-n2",
+      "s2-m2-n3"
+     ],
+     "chords": [],
+     "beams": [],
+     "ledgers": [],
+     "rests": [
+      "r1c5f34m",
+      "te33tju"
+     ],
+     "tuplets": [],
+     "controls": []
+    },
+    "measureStandIn": [
+     {
+      "measure": "dgv5qh9",
+      "staff": "m12233q8",
+      "g": "Leipzig:E4E3",
+      "x": 5474,
+      "y": 797,
+      "sx": 0.72,
+      "sy": 0.72
+     },
+     {
+      "measure": "dgv5qh9",
+      "staff": "n169v4an",
+      "g": "Leipzig:E4E3",
+      "x": 5474,
+      "y": 2597,
+      "sx": 0.72,
+      "sy": 0.72
+     }
+    ]
+   },
+   "conta": "duas pautas, cada uma com 2 notas e 1 pausa: 4 notas e 2 pausas somem, 2 pausas de compasso"
+  },
+  {
+   "nome": "melodia na esquerda (4b)",
+   "vsb": "g11-melodia-esquerda.vsb",
+   "pagina": 0,
+   "compassos": [
+    "g1cokkdt"
+   ],
+   "resumo": {
+    "notes": 3,
+    "chords": 0,
+    "beams": 0,
+    "ledgers": 1,
+    "rests": 0,
+    "tuplets": 0,
+    "controls": 0,
+    "standIns": 2
+   },
+   "esperado": {
+    "hidden": {
+     "notes": [
+      "s1-m1-n1",
+      "s2-m1-n1",
+      "s2-m1-n2"
+     ],
+     "chords": [],
+     "beams": [],
+     "ledgers": [
+      [
+       "p1l81zsh",
+       "below",
+       1,
+       1298,
+       1684
+      ]
+     ],
+     "rests": [],
+     "tuplets": [],
+     "controls": []
+    },
+    "measureStandIn": [
+     {
+      "measure": "g1cokkdt",
+      "staff": "p1l81zsh",
+      "g": "Leipzig:E4E3",
+      "x": 2191,
+      "y": 797,
+      "sx": 0.72,
+      "sy": 0.72
+     },
+     {
+      "measure": "g1cokkdt",
+      "staff": "q1vdctu2",
+      "g": "Leipzig:E4E3",
+      "x": 2191,
+      "y": 2597,
+      "sx": 0.72,
+      "sy": 0.72
+     }
+    ]
+   },
+   "conta": "pauta de cima com 1 nota, a de baixo com 2: 3 notas somem, 2 pausas de compasso"
+  },
+  {
+   "nome": "compasso com tercina: o colchete e o número somem com as notas",
+   "vsb": "g11-tercina.vsb",
+   "pagina": 0,
+   "compassos": [
+    "fz4nyf"
+   ],
+   "resumo": {
+    "notes": 9,
+    "chords": 2,
+    "beams": 1,
+    "ledgers": 1,
+    "rests": 0,
+    "tuplets": 1,
+    "controls": 0,
+    "standIns": 2
+   },
+   "esperado": {
+    "hidden": {
+     "notes": [
+      "s1-m14-n1",
+      "s1-m14-n2",
+      "s1-m14-n3",
+      "s1-m14-n4",
+      "s2-m14-n1",
+      "s2-m14-n1-c1",
+      "s2-m14-n2",
+      "s2-m14-n2-c1",
+      "s2-m14-n2-c2"
+     ],
+     "chords": [
+      "ck6wxhy",
+      "z1gcm357"
+     ],
+     "beams": [
+      {
+       "id": "s1oczeuz",
+       "shapes": 1
+      }
+     ],
+     "ledgers": [
+      [
+       "okekurp",
+       "below",
+       1,
+       6784,
+       7106
+      ]
+     ],
+     "rests": [],
+     "tuplets": [
+      "ti6ajh2"
+     ],
+     "controls": []
+    },
+    "measureStandIn": [
+     {
+      "measure": "fz4nyf",
+      "staff": "okekurp",
+      "g": "Leipzig:E4E3",
+      "x": 6824,
+      "y": 4757,
+      "sx": 0.72,
+      "sy": 0.72
+     },
+     {
+      "measure": "fz4nyf",
+      "staff": "pbohl7k",
+      "g": "Leipzig:E4E3",
+      "x": 6824,
+      "y": 6557,
+      "sx": 0.72,
+      "sy": 0.72
+     }
+    ]
+   },
+   "conta": "uma tercina de colcheias (3 notas) e as outras notas do compasso"
+  },
+  {
+   "nome": "6/8: o glifo é a semibreve mesmo assim",
+   "vsb": "g11-6-8.vsb",
+   "pagina": 0,
+   "compassos": [
+    "h6n5g6x"
+   ],
+   "resumo": {
+    "notes": 8,
+    "chords": 0,
+    "beams": 2,
+    "ledgers": 7,
+    "rests": 0,
+    "tuplets": 0,
+    "controls": 0,
+    "standIns": 2
+   },
+   "esperado": {
+    "hidden": {
+     "notes": [
+      "s1-m1-n1",
+      "s1-m1-n2",
+      "s2-m1-n1",
+      "s2-m1-n2",
+      "s2-m1-n3",
+      "s2-m1-n4",
+      "s2-m1-n5",
+      "s2-m1-n6"
+     ],
+     "chords": [],
+     "beams": [
+      {
+       "id": "b107zbnm",
+       "shapes": 1
+      },
+      {
+       "id": "f196b99n",
+       "shapes": 1
+      }
+     ],
+     "ledgers": [
+      [
+       "r10709ff",
+       "above",
+       1,
+       2107,
+       2429
+      ],
+      [
+       "r10709ff",
+       "above",
+       1,
+       3068,
+       3390
+      ],
+      [
+       "r10709ff",
+       "above",
+       1,
+       3548,
+       3870
+      ],
+      [
+       "r10709ff",
+       "above",
+       1,
+       4029,
+       4351
+      ],
+      [
+       "r10709ff",
+       "above",
+       2,
+       3548,
+       3870
+      ],
+      [
+       "r10709ff",
+       "above",
+       2,
+       4029,
+       4351
+      ],
+      [
+       "r10709ff",
+       "above",
+       3,
+       3548,
+       3870
+      ]
+     ],
+     "rests": [],
+     "tuplets": [],
+     "controls": []
+    },
+    "measureStandIn": [
+     {
+      "measure": "h6n5g6x",
+      "staff": "q1vdctu2",
+      "g": "Leipzig:E4E3",
+      "x": 2905,
+      "y": 896,
+      "sx": 0.72,
+      "sy": 0.72
+     },
+     {
+      "measure": "h6n5g6x",
+      "staff": "r10709ff",
+      "g": "Leipzig:E4E3",
+      "x": 2905,
+      "y": 2696,
+      "sx": 0.72,
+      "sy": 0.72
+     }
+    ]
+   },
+   "conta": "compasso de 3 semínimas (6/8): `measure_len_q` = 3, menos de 8"
+  },
+  {
+   "nome": "uma pauta com notas e pausas, a outra já com pausa de compasso (fica, sem outra por cima)",
+   "vsb": "g11-especiais.vsb",
+   "pagina": 0,
+   "compassos": [
+    "g11-m3"
+   ],
+   "resumo": {
+    "notes": 2,
+    "chords": 0,
+    "beams": 0,
+    "ledgers": 0,
+    "rests": 2,
+    "tuplets": 0,
+    "controls": 0,
+    "standIns": 1
+   },
+   "esperado": {
+    "hidden": {
+     "notes": [
+      "g11-c1",
+      "g11-c3"
+     ],
+     "chords": [],
+     "beams": [],
+     "ledgers": [],
+     "rests": [
+      "g11-c2",
+      "g11-c4"
+     ],
+     "tuplets": [],
+     "controls": []
+    },
+    "measureStandIn": [
+     {
+      "measure": "g11-m3",
+      "staff": "i15e9gy3",
+      "g": "Leipzig:E4E3",
+      "x": 12307,
+      "y": 720,
+      "sx": 0.72,
+      "sy": 0.72
+     }
+    ]
+   },
+   "conta": "pauta 1: 2 notas e 2 pausas (as 2 pausas somem); pauta 2: só mRest, fica"
+  },
+  {
+   "nome": "um compasso: a tercina e a ligadura de dentro somem; a ligadura de prolongamento para o seguinte fica",
+   "vsb": "g11-especiais.vsb",
+   "pagina": 0,
+   "compassos": [
+    "g11-m4"
+   ],
+   "resumo": {
+    "notes": 6,
+    "chords": 0,
+    "beams": 0,
+    "ledgers": 0,
+    "rests": 0,
+    "tuplets": 1,
+    "controls": 1,
+    "standIns": 2
+   },
+   "esperado": {
+    "hidden": {
+     "notes": [
+      "g11-d1",
+      "g11-d2",
+      "g11-d3",
+      "g11-d4",
+      "g11-d5",
+      "g11-d6"
+     ],
+     "chords": [],
+     "beams": [],
+     "ledgers": [],
+     "rests": [],
+     "tuplets": [
+      "g11-t1"
+     ],
+     "controls": [
+      "g11-sl1"
+     ]
+    },
+    "measureStandIn": [
+     {
+      "measure": "g11-m4",
+      "staff": "a1h6rxf1",
+      "g": "Leipzig:E4E3",
+      "x": 15483,
+      "y": 720,
+      "sx": 0.72,
+      "sy": 0.72
+     },
+     {
+      "measure": "g11-m4",
+      "staff": "i9x2da4",
+      "g": "Leipzig:E4E3",
+      "x": 15483,
+      "y": 2520,
+      "sx": 0.72,
+      "sy": 0.72
+     }
+    ]
+   },
+   "conta": "tercina g11-t1 e ligadura g11-sl1 (dentro do compasso) somem; g11-ti1 cruza para o compasso 5 e fica"
+  },
+  {
+   "nome": "dois compassos vizinhos escondidos: cada um com a sua pausa, a ligadura de prolongamento entre eles some",
+   "vsb": "g11-especiais.vsb",
+   "pagina": 0,
+   "compassos": [
+    "g11-m4",
+    "g11-m5"
+   ],
+   "resumo": {
+    "notes": 10,
+    "chords": 0,
+    "beams": 0,
+    "ledgers": 0,
+    "rests": 0,
+    "tuplets": 1,
+    "controls": 3,
+    "standIns": 4
+   },
+   "esperado": {
+    "hidden": {
+     "notes": [
+      "g11-d1",
+      "g11-d2",
+      "g11-d3",
+      "g11-d4",
+      "g11-d5",
+      "g11-d6",
+      "g11-e1",
+      "g11-e2",
+      "g11-e3",
+      "g11-e4"
+     ],
+     "chords": [],
+     "beams": [],
+     "ledgers": [],
+     "rests": [],
+     "tuplets": [
+      "g11-t1"
+     ],
+     "controls": [
+      "g11-sl1",
+      "g11-sl2",
+      "g11-ti1"
+     ]
+    },
+    "measureStandIn": [
+     {
+      "measure": "g11-m4",
+      "staff": "a1h6rxf1",
+      "g": "Leipzig:E4E3",
+      "x": 15483,
+      "y": 720,
+      "sx": 0.72,
+      "sy": 0.72
+     },
+     {
+      "measure": "g11-m4",
+      "staff": "i9x2da4",
+      "g": "Leipzig:E4E3",
+      "x": 15483,
+      "y": 2520,
+      "sx": 0.72,
+      "sy": 0.72
+     },
+     {
+      "measure": "g11-m5",
+      "staff": "w1gordwm",
+      "g": "Leipzig:E4E3",
+      "x": 18484,
+      "y": 720,
+      "sx": 0.72,
+      "sy": 0.72
+     },
+     {
+      "measure": "g11-m5",
+      "staff": "boze68i",
+      "g": "Leipzig:E4E3",
+      "x": 18484,
+      "y": 2520,
+      "sx": 0.72,
+      "sy": 0.72
+     }
+    ]
+   },
+   "conta": "ti1 toca só os compassos 4 e 5: some; sl2 sai do compasso 5 para o 6 (outra linha) e a primeira metade some"
+  },
+  {
+   "nome": "compasso de 2 semibreves (4/2): o Verovio desenharia a pausa de breve, que não é glifo reservado",
+   "vsb": "g11-especiais.vsb",
+   "pagina": 0,
+   "compassos": [
+    "g11-m2"
+   ],
+   "resumo": {
+    "notes": 6,
+    "chords": 0,
+    "beams": 0,
+    "ledgers": 0,
+    "rests": 0,
+    "tuplets": 0,
+    "controls": 0,
+    "standIns": 0
+   },
+   "esperado": {
+    "hidden": {
+     "notes": [
+      "g11-b1",
+      "g11-b2",
+      "g11-b3",
+      "g11-b4",
+      "g11-b5",
+      "g11-b6"
+     ],
+     "chords": [],
+     "beams": [],
+     "ledgers": [],
+     "rests": [],
+     "tuplets": [],
+     "controls": []
+    },
+    "measureStandIn": []
+   },
+   "conta": "8 semínimas ≥ 8: sem pausa de compasso substituta; as notas somem"
+  },
+  {
+   "nome": "anacruse (1 semínima): o Verovio desenha a mesma semibreve",
+   "vsb": "g11-especiais.vsb",
+   "pagina": 0,
+   "compassos": [
+    "g11-m0"
+   ],
+   "resumo": {
+    "notes": 1,
+    "chords": 0,
+    "beams": 0,
+    "ledgers": 0,
+    "rests": 0,
+    "tuplets": 0,
+    "controls": 0,
+    "standIns": 1
+   },
+   "esperado": {
+    "hidden": {
+     "notes": [
+      "g11-p1"
+     ],
+     "chords": [],
+     "beams": [],
+     "ledgers": [],
+     "rests": [],
+     "tuplets": [],
+     "controls": []
+    },
+    "measureStandIn": [
+     {
+      "measure": "g11-m0",
+      "staff": "dj9dqf0",
+      "g": "Leipzig:E4E3",
+      "x": 1514,
+      "y": 720,
+      "sx": 0.72,
+      "sy": 0.72
+     }
+    ]
+   },
+   "conta": "1 semínima < 8: a regra vale como nos outros; a pauta da pausa de verdade fica"
   }
  ]
 }
