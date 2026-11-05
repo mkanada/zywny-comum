@@ -18,7 +18,7 @@ class _Fake implements AudioRecordingService {
   @override
   Future<AudioRecordingResult?> stop() async {
     stops++;
-    return const AudioRecordingResult(savedAt: 'Download/Zywny/a.wav');
+    return const AudioRecordingResult(savedAt: 'Download/Zywny/a.m4a');
   }
 
   @override

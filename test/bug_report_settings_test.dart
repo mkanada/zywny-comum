@@ -65,6 +65,21 @@ void main() {
     expect(find.text('Reportar um bug'), findsNothing);
   });
 
+  testWidgets('com o escopo, as configurações trazem a gravação do microfone', (
+    tester,
+  ) async {
+    await pumpPanel(tester, onClose: () {});
+    expect(find.text('Gravar o som do microfone'), findsOneWidget);
+    expect(find.text('Abrir a pasta das gravações'), findsOneWidget);
+  });
+
+  testWidgets('sem o escopo, não há gravação nas configurações', (
+    tester,
+  ) async {
+    await pumpPanel(tester);
+    expect(find.text('Gravar o som do microfone'), findsNothing);
+  });
+
   testWidgets('a linha fecha o painel e abre o relatório', (tester) async {
     var closed = 0;
     await pumpPanel(tester, onClose: () => closed++);

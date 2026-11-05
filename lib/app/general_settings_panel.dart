@@ -12,6 +12,8 @@ import 'package:zywny_auth/zywny_auth.dart';
 
 import '../about/about_screen.dart';
 import '../auth/account_settings_section.dart';
+import '../diag/audio_recording_help.dart';
+import '../diag/audio_recording_service.dart' show audioRecordingSupported;
 import '../diag/bug_report_scope.dart';
 
 import 'package:zywny_music/chord.dart' show ChordNotation;
@@ -497,6 +499,10 @@ class GeneralSettingsPanel extends StatelessWidget {
         formatValue: (v) => v <= 0 ? 'desligado' : '${v.toStringAsFixed(1)}×',
         onChanged: (v) => settings.haloWidth = v,
       ),
+      if (BugReportScope.current != null && audioRecordingSupported) ...[
+        const _Header('Gravar o som do microfone'),
+        const AudioRecordingHelp(),
+      ],
       const _Header('Ajuda'),
       if (onTutorial != null)
         ListTile(

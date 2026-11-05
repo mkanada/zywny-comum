@@ -12,3 +12,10 @@ class _Unsupported implements AudioRecordingService {
   @override
   Future<void> dispose() async {}
 }
+
+/// Na Web não há gravação.
+const bool audioRecordingSupported = false;
+
+String audioRecordingsFolderLabel() => '';
+
+Future<bool> openAudioRecordingsFolder() async => false;

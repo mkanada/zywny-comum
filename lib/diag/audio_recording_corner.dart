@@ -13,7 +13,7 @@ const double kAudioRecordingCorner = 72;
 
 /// Gravação de áudio do microfone, a qualquer hora e em qualquer tela
 /// (modo depuração): segurar o canto inferior esquerdo por [kAudioRecordingHold]
-/// liga; segurar de novo desliga e guarda o `.wav`.
+/// liga; segurar de novo desliga e guarda o `.m4a`.
 ///
 /// Fica por cima da tela sem tomar os toques: o que está embaixo do canto
 /// continua recebendo-os. Enquanto grava, um ponto vermelho com o tempo fica
