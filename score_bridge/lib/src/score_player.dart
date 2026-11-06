@@ -57,6 +57,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/scheduler.dart';
+import 'package:flutter/animation.dart' show Curve, Curves;
 import 'package:flutter/painting.dart' show Color;
 
 import 'model.dart';
@@ -219,6 +220,14 @@ class ScorePlayer {
 
   /// Duração do `release` de cada nota ao chegar o `off`.
   final Duration release;
+
+  /// Fade fixo da marca ("a nota é agora"): com ele, cada nota acende e se
+  /// apaga em [cueFade] a partir do instante dela, **qualquer que seja a
+  /// duração da nota** (o `off` não a corta nem a prolonga), em fade linear.
+  /// `null` (padrão):
+  /// a nota fica acesa até o `off` e então some em [release]. O treino em
+  /// tempo real usa ~1 s: a resposta visual é a mesma em toda nota.
+  Duration? cueFade;
 
   /// Cor do destaque; mutável para o host trocar sem recriar o player (o
   /// painel de opções do zywny, por exemplo). Só vale para a **próxima** nota
@@ -469,6 +478,13 @@ class ScorePlayer {
     return skip != null && skip(document.sceneIdOf(id) ?? id);
   }
 
+  Duration get _cueHold => cueFade == null ? _kForever : Duration.zero;
+  Duration get _cueRelease => cueFade ?? release;
+
+  /// O fade fixo é linear: o `easeOut` de sempre apagava a cor na primeira
+  /// terça parte e o segundo parecia bem mais curto.
+  Curve get _cueCurve => cueFade == null ? Curves.easeOut : Curves.linear;
+
   /// Acende [ids] na [highlightColor], ou na de [highlightColorOf] para os
   /// ids que ela pinta; os de [skipHighlight] ficam de fora.
   void _highlight(Iterable<String> ids) {
@@ -481,8 +497,9 @@ class ScorePlayer {
       controller.highlightAll(
         ids,
         color: highlightColor,
-        hold: _kForever,
-        release: release,
+        hold: _cueHold,
+        release: _cueRelease,
+        curve: _cueCurve,
         cue: true,
       );
       return;
@@ -496,8 +513,9 @@ class ScorePlayer {
       controller.highlightAll(
         group,
         color: color,
-        hold: _kForever,
-        release: release,
+        hold: _cueHold,
+        release: _cueRelease,
+        curve: _cueCurve,
         cue: true,
       );
     });

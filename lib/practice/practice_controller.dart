@@ -7,6 +7,7 @@
 import 'dart:async';
 import 'dart:ui' show Color;
 
+import 'package:flutter/animation.dart' show Curve, Curves;
 import 'package:flutter/foundation.dart';
 import 'package:score_bridge/score_bridge.dart';
 
@@ -57,6 +58,8 @@ class PracticeController {
     this.onRangeJump,
     this.onWaitTarget,
     this.correctColor = kPracticeCorrectColor,
+    this.timedHitRelease = kPracticeCorrectRelease,
+    this.timedHitCurve = Curves.easeOut,
     this.wrongColor = kPracticeWrongColor,
     this._pendingColor = kPracticePendingColor,
     this.rhythmToleranceMs = kDefaultRhythmToleranceMs,
@@ -156,6 +159,14 @@ class PracticeController {
   /// próximo veredito.
   Color correctColor;
   Color wrongColor;
+
+  /// Tempo real: o fade da nota tocada (certa, adiantada ou atrasada), do
+  /// toque até apagar. O treino de leitura usa ~1 s, o mesmo fade da marca do
+  /// player (`ScorePlayer.cueFade`).
+  final Duration timedHitRelease;
+
+  /// A curva desse fade (o treino de leitura usa a linear, como a marca).
+  final Curve timedHitCurve;
 
   /// Modo espera: cor das notas do passo pendente (a camada do meio, ver
   /// [_paintStep]). Trocar recolore o passo atual na hora.
@@ -713,7 +724,8 @@ class PracticeController {
           controller.highlightAll(
             _chainOf(verdict.eventId!),
             color: correctColor,
-            release: kPracticeCorrectRelease,
+            release: timedHitRelease,
+            curve: timedHitCurve,
           );
         }
       case PracticeVerdictKind.wrong:
@@ -755,7 +767,8 @@ class PracticeController {
           controller.highlightAll(
             _chainOf(verdict.eventId!),
             color: kPracticeOffBeatColor,
-            release: kPracticeCorrectRelease,
+            release: timedHitRelease,
+            curve: timedHitCurve,
           );
         }
       case PracticeVerdictKind.missed:
