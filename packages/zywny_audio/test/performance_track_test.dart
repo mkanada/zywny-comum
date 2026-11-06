@@ -136,4 +136,89 @@ void main() {
       expect(track.staves, isEmpty);
     });
   });
+
+  group('withOrnaments: app (issue 22)', () {
+    SoundEvent ev(
+      String id,
+      int pitch,
+      double onMs, {
+      int staff = 1,
+      bool ornament = false,
+    }) => SoundEvent(
+      id: id,
+      pitch: pitch,
+      onMs: onMs,
+      offMs: onMs + 400,
+      staff: staff,
+      channel: 0,
+      program: 0,
+      velocity: 80,
+      ornament: ornament,
+    );
+
+    final track = PerformanceTrack.fromEvents([
+      ev('a', 60, 0),
+      ev('b', 64, 500, staff: 2),
+      ev('c', 67, 1000),
+    ]);
+
+    test(
+      'um id em app sai com ornament e byApp; os outros ficam como estavam',
+      () {
+        final out = track.withOrnaments(app: {'a'});
+        final a = out.events.firstWhere((e) => e.id == 'a');
+        final c = out.events.firstWhere((e) => e.id == 'c');
+        expect(a.ornament, isTrue);
+        expect(a.byApp, isTrue);
+        expect(c.ornament, isFalse);
+        expect(c.byApp, isFalse);
+      },
+    );
+
+    test('um id em app e em expand: todas as partes com ornament e byApp', () {
+      final out = track.withOrnaments(
+        app: {'a'},
+        expand: {
+          'a': const [OrnamentNote(62, 0, .5), OrnamentNote(60, .5, 1)],
+        },
+      );
+      final parts = out.events.where((e) => e.id == 'a').toList();
+      expect([for (final e in parts) e.pitch], [62, 60]);
+      expect([for (final e in parts) e.ornament], [true, true]);
+      expect([for (final e in parts) e.byApp], [true, true]);
+    });
+
+    test(
+      'um id em app e em tremoloHeads: a cabeça não volta a ser cobrada',
+      () {
+        final trem = PerformanceTrack.fromEvents([
+          ev('t', 72, 0, ornament: true),
+          ev('t', 72, 50, ornament: true),
+        ]);
+        final out = trem.withOrnaments(tremoloHeads: true, app: {'t'});
+        expect([for (final e in out.events) e.ornament], [true, true]);
+        expect([for (final e in out.events) e.byApp], [true, true]);
+      },
+    );
+
+    test('startingIn com staves vazio devolve só os eventos byApp', () {
+      final out = track.withOrnaments(app: {'a'});
+      final ids = out.startingIn(0, 2000, staves: const {}).map((e) => e.id);
+      expect(ids.toList(), ['a']);
+    });
+
+    test(
+      'startingIn com staves {1} devolve a pauta 1 e os byApp da pauta 2',
+      () {
+        final out = track.withOrnaments(app: {'b'});
+        final ids = out.startingIn(0, 2000, staves: {1}).map((e) => e.id);
+        // 'a' e 'c' são da pauta 1; 'b' é da pauta 2, mas byApp.
+        expect(ids.toList(), ['a', 'b', 'c']);
+      },
+    );
+
+    test('sem app, withOrnaments() continua devolvendo a própria trilha', () {
+      expect(identical(track.withOrnaments(), track), isTrue);
+    });
+  });
 }

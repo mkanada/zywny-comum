@@ -37,6 +37,10 @@ class SoundEvent {
   /// de novo, mas acendem junto com esta — é uma tecla só.
   final List<String> tied;
 
+  /// A nota que o app toca seja qual for a mão do aluno (o compasso de ouça
+  /// do eco, issue 22). Sai sempre como ornamento: soa e não se cobra.
+  final bool byApp;
+
   const SoundEvent({
     required this.id,
     required this.pitch,
@@ -49,6 +53,7 @@ class SoundEvent {
     required this.ornament,
     this.tied = const [],
     this.groupId,
+    this.byApp = false,
   });
 }
 
@@ -212,6 +217,10 @@ class PerformanceTrack {
   ///   cobrada; as outras continuam ornamento.
   /// - [groups]: id da nota → o grupo irregular dela (T11, a *fioritura* de 9
   ///   notas ou mais): o evento ganha [SoundEvent.groupId].
+  /// - [app]: ids que o app toca e não se cobram (issue 22): viram ornamento com
+  ///   [SoundEvent.byApp]. Vencem os outros ramos: a principal de um
+  ///   ornamento por extenso também sai assim, e a cabeça do trêmolo não
+  ///   volta a ser cobrada.
   ///
   /// Sem nada disso, devolve a própria track.
   PerformanceTrack withOrnaments({
@@ -219,12 +228,23 @@ class PerformanceTrack {
     Set<String> free = const {},
     bool tremoloHeads = false,
     Map<String, int> groups = const {},
+    Set<String> app = const {},
   }) {
-    if (expand.isEmpty && free.isEmpty && !tremoloHeads && groups.isEmpty) {
+    if (expand.isEmpty &&
+        free.isEmpty &&
+        !tremoloHeads &&
+        groups.isEmpty &&
+        app.isEmpty) {
       return this;
     }
     final heads = <String, Set<int>>{};
     final out = <SoundEvent>[];
+    // Todo evento que sai daqui passa por aqui: o id em [app] vence o ramo
+    // que o montou (ornamento, cabeça do trêmolo ou a cópia de `free`).
+    void emit(SoundEvent x) {
+      out.add(app.contains(x.id) ? _copy(x, ornament: true, byApp: true) : x);
+    }
+
     for (final e in events) {
       final notes = expand[e.id];
       if (notes != null && notes.isNotEmpty && !e.ornament) {
@@ -233,7 +253,7 @@ class PerformanceTrack {
         if (principal < 0) principal = 0;
         for (var i = 0; i < notes.length; i++) {
           final n = notes[i];
-          out.add(
+          emit(
             _copy(
               e,
               pitch: n.pitch,
@@ -245,13 +265,13 @@ class PerformanceTrack {
           );
         }
       } else if (free.contains(e.id)) {
-        out.add(_copy(e, ornament: true));
+        emit(_copy(e, ornament: true));
       } else if (tremoloHeads &&
           e.ornament &&
           (heads[e.id] ??= {}).add(e.pitch)) {
-        out.add(_copy(e, ornament: false));
+        emit(_copy(e, ornament: false));
       } else {
-        out.add(e);
+        emit(e);
       }
     }
     if (groups.isNotEmpty) {
@@ -280,6 +300,7 @@ class PerformanceTrack {
     bool? ornament,
     List<String>? tied,
     int? groupId,
+    bool? byApp,
   }) => SoundEvent(
     id: e.id,
     pitch: pitch ?? e.pitch,
@@ -292,6 +313,7 @@ class PerformanceTrack {
     ornament: ornament ?? e.ornament,
     tied: tied ?? e.tied,
     groupId: groupId ?? e.groupId,
+    byApp: byApp ?? e.byApp,
   );
 
   /// Recorte para as sessões de um intervalo com saltos (J08): só eventos
@@ -326,6 +348,10 @@ class PerformanceTrack {
 
   /// Eventos com `onMs` em `[fromMs, toMs)`. Busca binária em [events]
   /// (ordenado por `onMs`) — o agendador (K04) chama isto a cada ~25 ms.
+  ///
+  /// O evento [SoundEvent.byApp] sai mesmo fora de [staves]: o agendador toca
+  /// a nota do app com o filtro da mão (com as duas mãos o filtro é vazio e
+  /// nada mais toca).
   Iterable<SoundEvent> startingIn(
     double fromMs,
     double toMs, {
@@ -334,7 +360,7 @@ class PerformanceTrack {
     for (var i = _lowerBound(fromMs); i < events.length; i++) {
       final e = events[i];
       if (e.onMs >= toMs) break;
-      if (staves == null || staves.contains(e.staff)) yield e;
+      if (staves == null || staves.contains(e.staff) || e.byApp) yield e;
     }
   }
 
