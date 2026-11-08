@@ -131,6 +131,65 @@ bool _keyRules(Fields f, FileIssues issues) {
   return ok;
 }
 
+/// As regras do `play-score` da leitura pela música (T18): o `.mxl`, o
+/// `transpose` e o `student` (a parte do aluno). Devolve `false` se algo não
+/// vale; o erro já foi dado em [issues].
+bool _playScoreT18Rules(Fields f, ScoreSource source, FileIssues issues) {
+  var ok = true;
+  final file = f.get<String>('file');
+  final cumulative = f.has('practice');
+  final sequence = f.get<String>('hand') == 'sequence';
+  if (file != null && file.toLowerCase().endsWith('.mxl')) {
+    if (f.has('keys') || f.has('cycle') || cumulative) {
+      issues.error(
+        f.lineOf('file'),
+        'um `.mxl` não vale com `keys`, `cycle` nem `practice: cumulative`: '
+        'use o `.musicxml` descompactado.',
+      );
+      ok = false;
+    }
+  }
+  if (f.has('transpose') && (f.has('keys') || f.has('cycle'))) {
+    issues.error(
+      f.lineOf('transpose'),
+      '`transpose` não vale junto com `keys` nem `cycle`: escolha um jeito de '
+      'mudar o tom.',
+    );
+    ok = false;
+  }
+  if (f.has('student')) {
+    if (source is! FileSource) {
+      issues.error(
+        f.lineOf('student'),
+        '`student` só vale com `file`: os ids das notas vêm do arquivo '
+        'MusicXML.',
+      );
+      ok = false;
+    }
+    if (cumulative || sequence) {
+      issues.error(
+        f.lineOf('student'),
+        '`student` não vale com `practice: cumulative` nem `hand: sequence`.',
+      );
+      ok = false;
+    }
+    final seen = <String>{};
+    for (final item in f.get<List<Object>>('student') ?? const <Object>[]) {
+      final ids = '$item'.split(RegExp(r'\s+')).where((id) => id.isNotEmpty);
+      for (final id in ids) {
+        if (!seen.add(id)) {
+          issues.error(
+            f.lineOf('student'),
+            'o id `$id` aparece duas vezes em `student`.',
+          );
+          ok = false;
+        }
+      }
+    }
+  }
+  return ok;
+}
+
 ScoreMark? _score(Fields f, MarkSegment mark, FileIssues issues) {
   final source = _scoreSource(f, issues);
   if (source == null) return null;
@@ -652,6 +711,7 @@ ExerciseSpec? _buildExercise(
       final keys = _keyChoice(f);
       final cycle = _enumOf(KeyCycle.values, f.get<String>('cycle'));
       if (!_keyRules(f, issues)) return null;
+      if (!_playScoreT18Rules(f, source, issues)) return null;
       final curtain = f.get<bool>('curtain') ?? false;
       if (curtain && mode != PlayMode.realtime) {
         issues.error(
@@ -680,6 +740,14 @@ ExerciseSpec? _buildExercise(
             KeyStart.written,
         practice: _enumOf(PracticeChoice.values, f.get<String>('practice')),
         curtain: curtain,
+        transpose: f.get<int>('transpose') ?? 0,
+        student: [
+          for (final item in f.get<List<Object>>('student') ?? const <Object>[])
+            [
+              for (final id in '$item'.split(RegExp(r'\s+')))
+                if (id.isNotEmpty) id,
+            ],
+        ],
       );
     case ExerciseType.choice:
       final options = f.get<List<Object>>('options')!.cast<String>();

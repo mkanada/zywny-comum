@@ -834,6 +834,8 @@ class PlayScoreSpec extends ExerciseSpec {
     this.keyStart = KeyStart.written,
     this.practice,
     this.curtain = false,
+    this.transpose = 0,
+    this.student = const [],
   });
 
   @override
@@ -860,6 +862,15 @@ class PlayScoreSpec extends ExerciseSpec {
   /// `curtain: true` (EX22): os compassos já tocados somem da partitura, e o
   /// seguinte só aparece no último tempo do atual. Só em `mode: realtime`.
   final bool curtain;
+
+  /// `transpose:` (T18): semitons que levam a partitura ao tom da rodada; 0
+  /// toca no tom escrito. Não vale junto com [keys] nem [cycle].
+  final int transpose;
+
+  /// `student:` (T18): os trechos que o aluno toca, cada um os `xml:id` das
+  /// notas em ordem; o app toca o resto e não o cobra. Vazio: o aluno toca
+  /// tudo (o de sempre). Os ids são os do Verovio com `xmlIdSeed: 1`.
+  final List<List<String>> student;
 }
 
 class ChoiceSpec extends ExerciseSpec {

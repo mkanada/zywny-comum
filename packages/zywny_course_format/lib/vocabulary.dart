@@ -158,6 +158,10 @@ const kImageExtensions = ['.png', '.jpg', '.webp'];
 const kAudioExtensions = ['.ogg', '.mp3'];
 const kScoreExtensions = ['.musicxml'];
 
+/// O `file` do `play-score` aceita também o MusicXML compactado (T18): quem o
+/// abre é o Verovio, e o arquivo vai a `media/` sem mudar um byte.
+const kPlayScoreExtensions = [...kScoreExtensions, '.mxl'];
+
 KeyDef _clef() =>
     KeyDef(ValueType.option, values: _wires(Clef.values), fallback: 'treble');
 
@@ -679,7 +683,7 @@ final _typeKeys = <ExerciseType, Map<String, KeyDef>>{
   },
   ExerciseType.playScore: {
     'abc': _abc,
-    'file': const KeyDef(ValueType.path, extensions: kScoreExtensions),
+    'file': const KeyDef(ValueType.path, extensions: kPlayScoreExtensions),
     'hand': KeyDef(
       ValueType.option,
       values: _wires(HandChoice.values),
@@ -705,6 +709,10 @@ final _typeKeys = <ExerciseType, Map<String, KeyDef>>{
     // sequence` é um valor de `hand` (o HandChoice).
     'practice': KeyDef(ValueType.option, values: _wires(PracticeChoice.values)),
     'curtain': const KeyDef(ValueType.boolean, fallback: 'false'),
+    // T18: a leitura pela música. `transpose` não vale com `keys`/`cycle`;
+    // `student` pede `file` (os ids vêm do arquivo).
+    'transpose': const KeyDef(ValueType.integer, min: -12, max: 12),
+    'student': const KeyDef(ValueType.stringList, minItems: 1),
   },
   ExerciseType.choice: {
     'question': const KeyDef(ValueType.text, required: true),
