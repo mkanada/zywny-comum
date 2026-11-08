@@ -7,6 +7,9 @@ import 'dart:typed_data';
 import 'package:score_bridge/score_bridge.dart';
 import 'package:verovio/verovio.dart';
 
+import 'music_snapshot_result.dart';
+
+export 'music_snapshot_result.dart';
 export 'page_size.dart';
 
 /// All inputs for one render job: the whole score as a single `.vsb`
@@ -129,6 +132,110 @@ void _renderInIsolate(Map<String, Object?> json) {
   } finally {
     toolkit.dispose();
   }
+}
+
+/// O retrato do Verovio de [inputPath] para quem mede a música (T18, LP01): o
+/// JSON do bridge (`renderToBridgeJson`: cena, timemap, MIDI, contexto de
+/// notação) e os atributos (`getElementAttr`) dos elementos `measure`, `staff`,
+/// `layer` e `note` da cena. Os atributos saem pedidos aqui, de antemão, porque o
+/// Verovio mora neste isolate e quem mede a música não chega até ele.
+///
+/// [options] são as da partitura desenhada (`xmlIdSeed`, `transpose`): é isso que
+/// faz os ids das notas baterem com os do desenho. Passa pela mesma fila de
+/// [renderScoreToVsb], porque o Verovio guarda estado global.
+Future<MusicSnapshotResult> readScoreMusic({
+  required String inputPath,
+  required String libraryPath,
+  required String resourcePath,
+  Map<String, Object> options = const {},
+}) async {
+  final previous = _renderQueue;
+  final done = Completer<void>();
+  _renderQueue = done.future;
+  try {
+    await previous;
+    final json = await Isolate.run(
+      () => _readMusicInIsolate({
+        'inputPath': inputPath,
+        'libraryPath': libraryPath,
+        'resourcePath': resourcePath,
+        'options': options,
+      }),
+    );
+    return MusicSnapshotResult(json);
+  } finally {
+    done.complete();
+  }
+}
+
+/// Os elementos da cena de que o medidor pede atributos. A lista é a
+/// `kMusicAttributeClasses` do `zywny-aprendizado` (`music_verovio.dart`); o
+/// comum não importa o app, então ela foi copiada: mudou numa, mude na outra.
+const _musicAttributeClasses = {'measure', 'staff', 'layer', 'note'};
+
+/// Mesma sequência de [_renderInIsolate] (opções antes de carregar, `vsb` como
+/// formato de saída, `loadFile`): os ids nascem no carregamento, e carregar do
+/// mesmo jeito que o desenho é o que os deixa iguais.
+String _readMusicInIsolate(Map<String, Object?> json) {
+  final inputPath = json['inputPath'] as String;
+  final libraryPath = json['libraryPath'] as String;
+  final resourcePath = json['resourcePath'] as String;
+  final options = (json['options'] as Map).cast<String, Object>();
+
+  final toolkit = VerovioToolkit.withResourcePath(
+    resourcePath,
+    libraryPath: libraryPath,
+  );
+  try {
+    if (!toolkit.setOptions(jsonEncode(options))) {
+      throw StateError(
+        'Verovio rejected the layout options\n${toolkit.getLog()}',
+      );
+    }
+    if (!toolkit.setOutputTo('vsb')) {
+      throw StateError(
+        'Verovio rejected output format vsb\n${toolkit.getLog()}',
+      );
+    }
+    if (!toolkit.loadFile(inputPath)) {
+      throw StateError(
+        'Verovio could not load $inputPath\n${toolkit.getLog()}',
+      );
+    }
+    final bridge = toolkit.renderToBridgeJson();
+    final decoded = jsonDecode(bridge);
+    final attributes = <String, Map<String, String>>{};
+    void walk(Object? node) {
+      if (node is Map) {
+        final id = node['id'];
+        if (id is String && _musicAttributeClasses.contains(node['class'])) {
+          final attrs = _attributesOf(toolkit.getElementAttr(id));
+          if (attrs.isNotEmpty) attributes[id] = attrs;
+        }
+        walk(node['children']);
+        walk(node['pages']);
+        walk(node['root']);
+      } else if (node is List) {
+        node.forEach(walk);
+      }
+    }
+
+    if (decoded is Map) walk(decoded['scene']);
+    return jsonEncode({'bridge': bridge, 'attributes': attributes});
+  } finally {
+    toolkit.dispose();
+  }
+}
+
+/// O `getElementAttr` devolve um objeto JSON (ou texto vazio, sem atributos).
+Map<String, String> _attributesOf(String text) {
+  final trimmed = text.trim();
+  if (trimmed.isEmpty) return const {};
+  final decoded = jsonDecode(trimmed);
+  if (decoded is! Map) return const {};
+  return {
+    for (final entry in decoded.entries) '${entry.key}': '${entry.value}',
+  };
 }
 
 void _assertVsbPackage(String path, Uint8List bytes) {

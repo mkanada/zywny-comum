@@ -52,6 +52,28 @@ Future<VsbDocument> renderBytes(
   }
 }
 
+/// O retrato do Verovio de [bytes] (LP01), pelo mesmo caminho do app nativo:
+/// arquivo temporário com [fileName] e `readScoreMusic`, com a `libverovio.so`
+/// e os dados do bridge direto.
+Future<MusicSnapshotResult> readMusicBytes(
+  Uint8List bytes,
+  String fileName, {
+  Map<String, Object> options = const {},
+}) async {
+  final tmp = await Directory.systemTemp.createTemp('zywny_lp01');
+  try {
+    final input = File('${tmp.path}/$fileName')..writeAsBytesSync(bytes);
+    return await readScoreMusic(
+      inputPath: input.path,
+      libraryPath: File(kLibverovioPath).absolute.path,
+      resourcePath: Directory(kVerovioDataPath).absolute.path,
+      options: options,
+    );
+  } finally {
+    await tmp.delete(recursive: true);
+  }
+}
+
 /// O `ScoreRenderer` dos testes: o mesmo ciclo do app nativo, mas com a
 /// `libverovio.so` e os dados do bridge direto (o `path_provider` do app não
 /// existe em `flutter test`).
