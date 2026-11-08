@@ -11,6 +11,7 @@ export 'src/ghost_layer.dart';
 export 'src/hide.dart' show HiddenShapes, HidePageIndex, HideBeam, HideLedger, MeasureContents, VsbHiddenShapes;
 export 'src/stand_in.dart' show StandInRest, StandInDot, VsbStandInRest, VsbMeasureStandIn, kRestCodepoint;
 export 'src/stand_in_layer.dart';
+export 'src/band.dart';
 export 'src/dash.dart';
 export 'src/glyph_cache.dart';
 export 'src/scene_painter.dart';

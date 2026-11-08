@@ -46,6 +46,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/rendering.dart' show ScrollCacheExtent;
 import 'package:flutter/widgets.dart';
 
+import 'band.dart';
 import 'hit_test.dart';
 import 'ghost_layer.dart';
 import 'model.dart';
@@ -309,6 +310,7 @@ class ScoreView extends StatefulWidget {
     this.tapClasses,
     this.ghosts,
     this.standIns,
+    this.bands,
   });
 
   final VsbDocument document;
@@ -371,6 +373,9 @@ class ScoreView extends StatefulWidget {
   /// Pausas substitutas das colunas escondidas (L03), repassadas a cada
   /// `ScorePageView`.
   final StandInController? standIns;
+
+  /// Faixas atrás das notas (LP03), repassadas a cada `ScorePageView`.
+  final ScoreBandController? bands;
 
   @override
   State<ScoreView> createState() => ScoreViewState();
@@ -986,6 +991,7 @@ class ScoreViewState extends State<ScoreView> with TickerProviderStateMixin {
     tapClasses: widget.tapClasses,
     ghosts: widget.ghosts,
     standIns: widget.standIns,
+    bands: widget.bands,
   );
 
   /// Tamanho da página [ref] desenhada dentro de [box]: a maior escala que

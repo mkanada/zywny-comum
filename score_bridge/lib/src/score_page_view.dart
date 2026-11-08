@@ -17,7 +17,9 @@ import 'dart:ui' as ui;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 
+import 'band.dart';
 import 'ghost_layer.dart';
+import 'hit_test.dart';
 import 'model.dart';
 import 'page_layers.dart';
 import 'score_controller.dart';
@@ -42,6 +44,7 @@ class ScorePageView extends StatefulWidget {
     this.tapClasses,
     this.ghosts,
     this.standIns,
+    this.bands,
   });
 
   final VsbDocument document;
@@ -112,6 +115,10 @@ class ScorePageView extends StatefulWidget {
   /// página com o mesmo transform dela (e por baixo das fantasmas). `null`
   /// (padrão): nenhuma camada extra, custo zero.
   final StandInController? standIns;
+
+  /// Faixas atrás das notas (LP03): o aluno em azul, com o aviso. `null` não
+  /// desenha nenhuma.
+  final ScoreBandController? bands;
 
   @override
   State<ScorePageView> createState() => ScorePageViewState();
@@ -274,6 +281,9 @@ class ScorePageViewState extends State<ScorePageView> {
           widget.controller,
           widget.backgroundColor,
           widget.haloSigmaScale,
+          bands: widget.bands,
+          pageIndex: widget.pageIndex,
+          geometry: widget.document.geometryOf(widget.sequence),
         ),
       ),
     );
@@ -420,18 +430,34 @@ void _unifySystemHeights(Map<String, Rect> rects) {
   flush();
 }
 
+/// O que o `Listenable` do painter escuta: o controller de cores e o de
+/// faixas (os que existirem; `null` se nenhum).
+Listenable? _repaintOf(Listenable? a, Listenable? b) {
+  final list = [a, b].whereType<Listenable>().toList();
+  if (list.isEmpty) return null;
+  return list.length == 1 ? list.single : Listenable.merge(list);
+}
+
 class _PagePainter extends CustomPainter {
   _PagePainter(
     this.layers,
     this.controller,
     this.backgroundColor,
-    this.haloSigmaScale,
-  ) : super(repaint: controller);
+    this.haloSigmaScale, {
+    this.bands,
+    required this.pageIndex,
+    required this.geometry,
+  }) : super(repaint: _repaintOf(controller, bands));
 
   final PageLayers layers;
   final ScoreController? controller;
   final Color? backgroundColor;
   final double haloSigmaScale;
+
+  /// As faixas atrás das notas (LP03); `null` não desenha nenhuma.
+  final ScoreBandController? bands;
+  final int pageIndex;
+  final ScoreGeometry geometry;
 
   @override
   void paint(ui.Canvas canvas, ui.Size size) {
@@ -448,6 +474,18 @@ class _PagePainter extends CustomPainter {
       canvas.scale(scale);
     }
     layers.applyPageTransform(canvas);
+    // A faixa vai depois do fundo e antes das notas: por baixo do halo e das
+    // notas escondidas. As bbox da geometria estão no mesmo espaço de conteúdo
+    // em que o `applyPageTransform` acabou de pôr o canvas.
+    final b = bands;
+    if (b != null && b.bands.isNotEmpty) {
+      paintScoreBands(
+        canvas,
+        scoreBandRects(layers.page, pageIndex, geometry, b.bands),
+        fill: b.fill,
+        labelColor: b.labelColor,
+      );
+    }
     layers.paint(
       canvas,
       controller?.colors ?? const {},
@@ -461,5 +499,6 @@ class _PagePainter extends CustomPainter {
   bool shouldRepaint(_PagePainter oldDelegate) =>
       !identical(oldDelegate.layers, layers) ||
       oldDelegate.backgroundColor != backgroundColor ||
-      oldDelegate.haloSigmaScale != haloSigmaScale;
+      oldDelegate.haloSigmaScale != haloSigmaScale ||
+      !identical(oldDelegate.bands, bands);
 }
