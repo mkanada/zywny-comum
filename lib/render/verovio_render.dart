@@ -168,6 +168,11 @@ Future<MusicSnapshotResult> readScoreMusic({
   }
 }
 
+/// A opção (que o Verovio não conhece) que pede, junto do retrato, o MEI e o
+/// `music.json` da música: o `zywny-aprendizado` gera o baixo com eles (LM16).
+/// Só a leitura nativa a atende; a Web ainda não.
+const musicDerivationOption = 'musicDerivation';
+
 /// Os elementos da cena de que o medidor pede atributos. A lista é a
 /// `kMusicAttributeClasses` do `zywny-aprendizado` (`music_verovio.dart`); o
 /// comum não importa o app, então ela foi copiada: mudou numa, mude na outra.
@@ -180,7 +185,11 @@ String _readMusicInIsolate(Map<String, Object?> json) {
   final inputPath = json['inputPath'] as String;
   final libraryPath = json['libraryPath'] as String;
   final resourcePath = json['resourcePath'] as String;
-  final options = (json['options'] as Map).cast<String, Object>();
+  final allOptions = (json['options'] as Map).cast<String, Object>();
+  // `musicDerivation` não é do Verovio: pede o MEI e o `music.json` (cifras) da
+  // música carregada, para o aprendizado gerar o baixo (T18, LM16).
+  final derivation = allOptions[musicDerivationOption] == true;
+  final options = {...allOptions}..remove(musicDerivationOption);
 
   final toolkit = VerovioToolkit.withResourcePath(
     resourcePath,
@@ -221,7 +230,12 @@ String _readMusicInIsolate(Map<String, Object?> json) {
     }
 
     if (decoded is Map) walk(decoded['scene']);
-    return jsonEncode({'bridge': bridge, 'attributes': attributes});
+    return jsonEncode({
+      'bridge': bridge,
+      'attributes': attributes,
+      if (derivation) 'music': toolkit.renderToMusicJson(),
+      if (derivation) 'mei': toolkit.getMEI(),
+    });
   } finally {
     toolkit.dispose();
   }

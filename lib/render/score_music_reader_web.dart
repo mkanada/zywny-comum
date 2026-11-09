@@ -79,7 +79,12 @@ class WebScoreMusicReader implements ScoreMusicReader {
     final message = JSObject()
       ..setProperty('kind'.toJS, 'music'.toJS)
       ..setProperty('id'.toJS, id.toJS)
-      ..setProperty('options'.toJS, jsonEncode(options).toJS)
+      // `musicDerivation` (o MEI e o `music.json`) a Web ainda não atende: o
+      // worker não tem esses pedidos, e o Verovio não conhece a opção.
+      ..setProperty(
+        'options'.toJS,
+        jsonEncode({...options}..remove('musicDerivation')).toJS,
+      )
       ..setProperty('bytes'.toJS, source.toJS);
     worker.postMessage(message);
     return done.future;

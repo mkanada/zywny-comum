@@ -158,9 +158,10 @@ const kImageExtensions = ['.png', '.jpg', '.webp'];
 const kAudioExtensions = ['.ogg', '.mp3'];
 const kScoreExtensions = ['.musicxml'];
 
-/// O `file` do `play-score` aceita também o MusicXML compactado (T18): quem o
-/// abre é o Verovio, e o arquivo vai a `media/` sem mudar um byte.
-const kPlayScoreExtensions = [...kScoreExtensions, '.mxl'];
+/// O `file` do `play-score` aceita também o MusicXML compactado (T18) e o MEI
+/// (LM16: o baixo gerado pelas cifras vai num MEI): quem os abre é o Verovio, e o
+/// arquivo vai a `media/` sem mudar um byte.
+const kPlayScoreExtensions = [...kScoreExtensions, '.mxl', '.mei'];
 
 KeyDef _clef() =>
     KeyDef(ValueType.option, values: _wires(Clef.values), fallback: 'treble');
