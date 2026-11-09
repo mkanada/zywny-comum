@@ -64,12 +64,14 @@ void main() {
     expect(r.rect.left, left - space);
     expect(r.rect.right, right + space);
     // Vertical: a pauta inteira (com uma folga acima e abaixo), unida às notas
-    // (a nota com linha suplementar sai da pauta e estica o retângulo).
+    // (a nota com linha suplementar sai da pauta e estica o retângulo), e o
+    // topo sobe a altura do aviso, que fica dentro da faixa.
     final staffTop = staff.topY - space;
     final staffBottom = staff.topY + (staff.lines - 1) * space + space;
     expect(
       r.rect.top,
-      refs.map((b) => b.top).fold(staffTop, (a, b) => a < b ? a : b),
+      refs.map((b) => b.top).fold(staffTop, (a, b) => a < b ? a : b) -
+          scoreBandLabelReserve(2.5 * space),
     );
     expect(
       r.rect.bottom,
@@ -80,19 +82,71 @@ void main() {
   });
 
   test(
-    'duas pautas do mesmo sistema dão dois retângulos, o aviso só no 1.º',
+    'duas pautas do mesmo sistema dão um retângulo só, com o aviso nele',
     () {
-      final rects = rectsOf(['xej0b6o', 'i6oe6f0'], label: _doros);
-      expect(rects, hasLength(2));
-      final labelled = rects.where((r) => r.label != null).toList();
-      expect(labelled, hasLength(1));
-      // O aviso cai no retângulo da primeira nota (a pauta de sol, mais acima).
-      expect(
-        labelled.single.rect.top,
-        rects.map((r) => r.rect.top).reduce((a, b) => a < b ? a : b),
-      );
+      const ids = ['xej0b6o', 'i6oe6f0'];
+      final rects = rectsOf(ids, label: _doros);
+      expect(rects, hasLength(1));
+      expect(rects.single.label, _doros);
+      // O retângulo cobre as notas das duas pautas (uma faixa por sistema).
+      for (final id in ids) {
+        final b = geometry.elementOf(id)!.bbox;
+        expect(rects.single.rect.top <= b.top, isTrue, reason: id);
+        expect(b.bottom <= rects.single.rect.bottom, isTrue, reason: id);
+      }
     },
   );
+
+  /// O nó da cena que é o sistema de [staffId] (a linha que contém a pauta).
+  SceneNode systemNodeOf(String staffId) {
+    SceneNode? found;
+    void walk(SceneNode node) {
+      if (found != null) return;
+      if (node.className.split(' ').first == 'system' &&
+          _subtreeIds(node).contains(staffId)) {
+        found = node;
+        return;
+      }
+      for (final child in node.children) {
+        if (child is SceneNode) walk(child);
+      }
+    }
+
+    walk(page.root);
+    return found!;
+  }
+
+  test('oito compassos num sistema dão uma faixa só, não uma por compasso', () {
+    // O sistema da pauta `tdowfwl` tem nove compassos, cada um com a sua
+    // pauta de sol e a de fá: agrupar pela pauta daria 18 retângulos.
+    final system = systemNodeOf('tdowfwl');
+    final measures = _countNodes(system, 'measure');
+    expect(measures, greaterThanOrEqualTo(8));
+
+    final sistema = _subtreeIds(system);
+    final ids = [
+      for (final n in doc.midi!.notes)
+        if (geometry.elementOf(n.id) case final ref?
+            when ref.page == 0 && sistema.contains(ref.id))
+          n.id,
+    ];
+    expect(ids.length, greaterThan(8));
+
+    final rects = rectsOf(ids, label: _doros);
+    expect(rects, hasLength(1));
+    expect(rects.single.label, _doros);
+  });
+
+  test('o aviso fica dentro do topo da faixa, acima da pauta', () {
+    const ids = ['e11eog5', 'xej0b6o'];
+    final r = rectsOf(ids, label: _doros).single;
+    final staff = page.byId['tdowfwl']!.staffGeometry!;
+    final space = 2 * staff.unit;
+    final staffTop = staff.topY - space;
+    // A letra (1,2 da altura da fonte, com a folga de cima) entra no retângulo
+    // e termina acima da pauta.
+    expect(r.rect.top + r.labelSize * 1.4 <= staffTop, isTrue);
+  });
 
   test('faixa que atravessa sistemas: um retângulo por sistema', () {
     final rects = rectsOf(['orw55dt', 'xej0b6o'], label: _doros);
@@ -167,4 +221,32 @@ void main() {
 
     expect(countDifferentPixels(sem, com), greaterThan(0));
   });
+}
+
+int _countNodes(SceneNode root, String kind) {
+  var n = 0;
+  void walk(SceneNode node) {
+    if (node.className.split(' ').first == kind) n++;
+    for (final child in node.children) {
+      if (child is SceneNode) walk(child);
+    }
+  }
+
+  walk(root);
+  return n;
+}
+
+/// Os ids de todos os nós de [root] (ele mesmo incluído).
+Set<String> _subtreeIds(SceneNode root) {
+  final ids = <String>{};
+  void walk(SceneNode node) {
+    final id = node.id;
+    if (id != null) ids.add(id);
+    for (final child in node.children) {
+      if (child is SceneNode) walk(child);
+    }
+  }
+
+  walk(root);
+  return ids;
 }
