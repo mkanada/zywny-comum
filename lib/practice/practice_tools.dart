@@ -208,6 +208,7 @@ class _CalibrationDialogState extends State<_CalibrationDialog> {
   Widget build(BuildContext context) {
     final result = _result;
     return AlertDialog(
+      scrollable: true,
       title: const Text('Ajustar o atraso'),
       content: Column(
         mainAxisSize: MainAxisSize.min,

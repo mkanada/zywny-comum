@@ -103,6 +103,28 @@ void main() {
     expect(midi.reads, greaterThan(before));
   });
 
+  testWidgets(
+    'BG01: na horizontal (800x360) "Procurar de novo" alcança e relê',
+    (tester) async {
+      tester.view.physicalSize = const Size(800, 360);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      await openPicker(tester);
+      final button = find.text('Procurar de novo');
+      expect(button, findsOneWidget);
+      // O conteúdo rola: o botão chega à área visível do diálogo.
+      await tester.ensureVisible(button);
+      await tester.pumpAndSettle();
+      final rect = tester.getRect(button);
+      expect(rect.bottom, lessThanOrEqualTo(360));
+      final before = midi.reads;
+      await tester.tap(button);
+      await tester.pumpAndSettle();
+      expect(midi.reads, greaterThan(before));
+      expect(tester.takeException(), isNull);
+    },
+  );
+
   testWidgets('um aparelho desconectado: "Toque para conectar · USB"', (
     tester,
   ) async {

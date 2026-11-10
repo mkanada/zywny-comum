@@ -155,6 +155,9 @@ Future<void> showMidiDevicePicker(
   return showDialog<void>(
     context: context,
     builder: (context) => AlertDialog(
+      // Na horizontal a altura útil é pequena (BG01): o conteúdo rola, senão o
+      // "Procurar de novo" fica cortado e fora do toque.
+      scrollable: true,
       title: const Text('Teclado MIDI'),
       content: SizedBox(
         width: 360,

@@ -71,6 +71,7 @@ class AccountSettingsSection extends StatelessWidget {
     final ok = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
+        scrollable: true,
         title: const Text('Apagar minha conta?'),
         content: const Text(
           'A conta é apagada no servidor e os dados que ficaram neste '
@@ -196,6 +197,7 @@ class _NicknameDialogState extends State<_NicknameDialog> {
 
   @override
   Widget build(BuildContext context) => AlertDialog(
+    scrollable: true,
     title: const Text('Seu apelido'),
     content: TextField(
       controller: _controller,
