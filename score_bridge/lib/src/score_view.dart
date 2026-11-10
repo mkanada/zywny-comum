@@ -216,6 +216,18 @@ class ScoreViewController extends ChangeNotifier {
 
   bool get isAttached => _state != null;
 
+  /// Avisa quando uma vista se liga a este controller (no quadro seguinte ao
+  /// `initState`, nunca no meio do build). Quem pediu uma página antes de a
+  /// vista existir (o `ScorePlayer`, num `seek` logo depois de montar a
+  /// rodada) a pede de novo aqui.
+  final ValueNotifier<int> attachments = ValueNotifier<int>(0);
+
+  @override
+  void dispose() {
+    attachments.dispose();
+    super.dispose();
+  }
+
   /// Largura efetiva da haste e teto de cada movimento (o `ScorePlayer` os lê
   /// daqui para não duplicar as constantes).
   double get barWidth => _s.barWidth;
@@ -443,6 +455,7 @@ class ScoreViewState extends State<ScoreView> with TickerProviderStateMixin {
     super.initState();
     _current = widget.initialPage.clamp(0, _pageCount - 1);
     widget.viewController?._state = this;
+    _announceAttached(widget.viewController);
     widget.curtain?.addListener(_onCurtainChanged);
     _manual.addListener(_onCurtainChanged);
     _sweepAnim.addListener(_onSweepTick);
@@ -473,12 +486,22 @@ class ScoreViewState extends State<ScoreView> with TickerProviderStateMixin {
     }
   }
 
+  void _announceAttached(ScoreViewController? controller) {
+    if (controller == null) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && controller._state == this) {
+        controller.attachments.value++;
+      }
+    });
+  }
+
   void _applyWidgetUpdate(ScoreView oldWidget) {
     if (oldWidget.viewController != widget.viewController) {
       if (oldWidget.viewController?._state == this) {
         oldWidget.viewController?._state = null;
       }
       widget.viewController?._state = this;
+      _announceAttached(widget.viewController);
     }
     if (oldWidget.curtain != widget.curtain) {
       oldWidget.curtain?.removeListener(_onCurtainChanged);

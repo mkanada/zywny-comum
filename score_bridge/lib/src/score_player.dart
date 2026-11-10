@@ -200,6 +200,7 @@ class ScorePlayer {
     _measureIndex = ValueNotifier<int>(0);
     _tempo = ValueNotifier<double?>(null);
     _publish(force: true);
+    view?.attachments.addListener(_onViewAttached);
     ScoreTrace.log(
       'player',
       () =>
@@ -213,6 +214,15 @@ class ScorePlayer {
 
   final VsbDocument document;
   final ScoreController controller;
+
+  /// A vista se ligou depois de o player já ter uma posição (um `seek` logo ao
+  /// montar a rodada, antes de o `ScoreView` existir): leva a vista à página
+  /// dessa posição, sem esperar a música tocar.
+  void _onViewAttached() {
+    if (_disposed) return;
+    ScoreTrace.log('player', () => 'vista ligada: mostra a página da posição');
+    _publish(seeking: true);
+  }
 
   /// A vista a acompanhar (página de repouso e rolagem). Opcional: sem ela o
   /// player só destaca notas e publica a haste.
@@ -823,6 +833,7 @@ class ScorePlayer {
       () => 'descartado em ${traceMs(_positionMs)}ms, ${_traceView()}',
     );
     _disposed = true;
+    view?.attachments.removeListener(_onViewAttached);
     _ticker?.dispose();
     _ticker = null;
     _curtain.dispose();
