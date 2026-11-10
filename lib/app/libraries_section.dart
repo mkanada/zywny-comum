@@ -15,11 +15,7 @@ import '../ui/theme.dart';
 /// A seleção (trocar a em uso) só aparece com mais de uma instalada: com uma
 /// só, a linha é só informativa (versão, créditos, remover).
 class LibrariesSection extends StatelessWidget {
-  const LibrariesSection({
-    super.key,
-    required this.store,
-    this.onInstall,
-  });
+  const LibrariesSection({super.key, required this.store, this.onInstall});
 
   final LibraryStore store;
 
@@ -159,7 +155,9 @@ class _LibraryRow extends StatelessWidget {
       selectedColor: kAccent,
       leading: selectable
           ? Icon(
-              active ? Icons.radio_button_checked : Icons.radio_button_unchecked,
+              active
+                  ? Icons.radio_button_checked
+                  : Icons.radio_button_unchecked,
               size: 20,
               semanticLabel: active ? 'em uso' : null,
             )
