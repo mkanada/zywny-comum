@@ -1,0 +1,1 @@
+int verovioCores() => 1;

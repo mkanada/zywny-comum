@@ -8,6 +8,7 @@ import 'package:score_bridge/score_bridge.dart';
 import 'package:verovio/verovio.dart';
 
 import 'music_snapshot_result.dart';
+import 'verovio_gate.dart';
 
 export 'music_snapshot_result.dart';
 export 'page_size.dart';
@@ -49,9 +50,6 @@ class VsbRenderRequest {
   };
 }
 
-/// Tail of the render chain; see [renderScoreToVsb].
-Future<void> _renderQueue = Future.value();
-
 /// Renders the whole score to a single `.vsb` in a worker isolate — so the
 /// UI thread never blocks on the native call — and parses the result.
 ///
@@ -61,21 +59,18 @@ Future<void> _renderQueue = Future.value();
 /// here, on the caller's isolate: the model it builds (`ui.Rect`/`ui.Offset`
 /// and the glyph cache's `ui.Path`s) belongs to the isolate that paints it.
 ///
-/// Renders run one at a time: Verovio keeps parser state in process-wide
-/// globals (`ioabc.cpp`: `abcLine`, `dataKey`, `keyPitchAlter`…), so two
-/// isolates loading ABC at once corrupt each other and abort the app with
-/// `std::out_of_range` — a lesson with two ABC scores did exactly that on
-/// the phone.
+/// Renders go through [verovioGate]: one at a time by default, and ABC always
+/// alone. Verovio keeps ABC parser state in process-wide globals (`ioabc.cpp`:
+/// `abcLine`, `dataKey`, `keyPitchAlter`…), so two isolates loading ABC at once
+/// corrupt each other and abort the app with `std::out_of_range` — a lesson
+/// with two ABC scores did exactly that on the phone. MusicXML/MEI may run in
+/// parallel once the caller raises `verovioGate.parallelism` (its ids are
+/// `thread_local`).
 Future<VsbDocument> renderScoreToVsb(VsbRenderRequest request) async {
-  final previous = _renderQueue;
-  final done = Completer<void>();
-  _renderQueue = done.future;
-  try {
-    await previous;
-    await Isolate.run(() => _renderInIsolate(request.toJson()));
-  } finally {
-    done.complete();
-  }
+  await verovioGate.run(
+    () => Isolate.run(() => _renderInIsolate(request.toJson())),
+    exclusive: !verovioSafeInParallel(request.inputPath),
+  );
   final bytes = await File(request.outputPath).readAsBytes();
   _assertVsbPackage(request.outputPath, bytes);
   return VsbDocument.fromBytes(bytes);
@@ -149,23 +144,18 @@ Future<MusicSnapshotResult> readScoreMusic({
   required String resourcePath,
   Map<String, Object> options = const {},
 }) async {
-  final previous = _renderQueue;
-  final done = Completer<void>();
-  _renderQueue = done.future;
-  try {
-    await previous;
-    final json = await Isolate.run(
+  final json = await verovioGate.run(
+    () => Isolate.run(
       () => _readMusicInIsolate({
         'inputPath': inputPath,
         'libraryPath': libraryPath,
         'resourcePath': resourcePath,
         'options': options,
       }),
-    );
-    return MusicSnapshotResult(json);
-  } finally {
-    done.complete();
-  }
+    ),
+    exclusive: !verovioSafeInParallel(inputPath),
+  );
+  return MusicSnapshotResult(json);
 }
 
 /// A opção (que o Verovio não conhece) que pede, junto do retrato, o MEI e o
