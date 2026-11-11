@@ -735,8 +735,12 @@ class ScorePlayer {
       _traceCurtainChange(_curtain.value, c);
       _curtain.value = c;
     }
-    if (c == null && attached) {
-      final ref = ahead?.to ?? _shownView;
+    // Haste com a borda em 0 (o instante em que ela abre, p.ex. o `seek` do
+    // ritmo ao começo do trecho): a vista não a aceita e fica onde estava, na
+    // página 1, durante a contagem. Vale então a página da haste.
+    final atRest = c == null || c.edgeX <= 0;
+    if (atRest && attached) {
+      final ref = c?.page ?? ahead?.to ?? _shownView;
       if (v.displayedPage != ref) {
         final before = v.displayedPage;
         v.showPage(ref);
