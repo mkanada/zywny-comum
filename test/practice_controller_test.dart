@@ -362,6 +362,8 @@ void main() {
         hand: Hand.direita,
         ghosts: ghosts,
         mode: PracticeMode.realtime,
+        // As teclas do teste saem 110 ms fora: têm de cair fora da margem.
+        rhythmToleranceMs: 75,
         measureIndexAt: timeline.measureIndexAt,
       );
       addTearDown(practice.dispose);
