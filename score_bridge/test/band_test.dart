@@ -172,6 +172,28 @@ void main() {
     expect(rects.single.label, isNull);
   });
 
+  test('duas faixas vizinhas no mesmo sistema viram uma só, com um aviso', () {
+    // Dois trechos do aluno seguidos: a folga de cada lado se cruza, e o
+    // resultado tem de ser contínuo, com o aviso só no começo.
+    final rects = scoreBandRects(page, 0, geometry, [
+      const ScoreBand(['e11eog5'], label: _doros),
+      const ScoreBand(['xej0b6o'], label: _doros),
+    ]);
+    final single = rectsOf(['e11eog5', 'xej0b6o'], label: _doros);
+    expect(rects, hasLength(1));
+    expect(rects.single.label, _doros);
+    expect(rects.single.rect, single.single.rect);
+  });
+
+  test('faixas de sistemas diferentes não se juntam', () {
+    final rects = scoreBandRects(page, 0, geometry, [
+      const ScoreBand(['orw55dt'], label: _doros),
+      const ScoreBand(['xej0b6o'], label: _doros),
+    ]);
+    expect(rects, hasLength(2));
+    expect(rects.where((r) => r.label != null), hasLength(2));
+  });
+
   test('faixa vazia dá lista vazia', () {
     expect(rectsOf(const []), isEmpty);
     expect(scoreBandRects(page, 0, geometry, const []), isEmpty);

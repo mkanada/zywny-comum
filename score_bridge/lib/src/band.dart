@@ -107,7 +107,7 @@ List<ScoreBandRect> scoreBandRects(
   List<ScoreBand> bands,
 ) {
   final index = _bandIndexes[page] ??= _BandPageIndex(page);
-  final out = <ScoreBandRect>[];
+  final out = <(Object, ScoreBandRect)>[];
   for (final band in bands) {
     if (band.noteIds.isEmpty) continue;
     final firstId = band.noteIds.first;
@@ -134,14 +134,46 @@ List<ScoreBandRect> scoreBandRects(
         entry.value.refs,
         _firstGeometry(entry.value.staves.values),
       );
-      out.add(
+      out.add((
+        entry.key,
         ScoreBandRect(
           _groupRect(entry.value, label: hasLabel),
           label: hasLabel ? band.label : null,
           labelSize: 2.5 * space,
         ),
+      ));
+    }
+  }
+  return _mergeOverlapping(out);
+}
+
+/// Junta as faixas que se tocam ou se sobrepõem no mesmo sistema (dois trechos
+/// vizinhos do aluno, cuja folga de cada lado se cruza): uma faixa contínua, com
+/// um aviso só (o do retângulo mais à esquerda que tem um). Faixas de sistemas
+/// diferentes, ou separadas por um vão, ficam como estão.
+List<ScoreBandRect> _mergeOverlapping(List<(Object, ScoreBandRect)> entries) {
+  final byGroup = <Object, List<ScoreBandRect>>{};
+  for (final (group, rect) in entries) {
+    byGroup.putIfAbsent(group, () => []).add(rect);
+  }
+  final out = <ScoreBandRect>[];
+  for (final rects in byGroup.values) {
+    rects.sort((a, b) => a.rect.left.compareTo(b.rect.left));
+    var current = rects.first;
+    for (final next in rects.skip(1)) {
+      if (next.rect.left > current.rect.right) {
+        out.add(current);
+        current = next;
+        continue;
+      }
+      final withLabel = current.label != null ? current : next;
+      current = ScoreBandRect(
+        current.rect.expandToInclude(next.rect),
+        label: withLabel.label,
+        labelSize: withLabel.labelSize,
       );
     }
+    out.add(current);
   }
   return out;
 }
