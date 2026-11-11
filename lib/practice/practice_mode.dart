@@ -2,7 +2,7 @@
 // não dependerem do controller (que puxa áudio e MIDI).
 
 /// Margem padrão do tempo real (ver `PracticeController.rhythmToleranceMs`).
-const double kDefaultRhythmToleranceMs = 75;
+const double kDefaultRhythmToleranceMs = 150;
 
 /// Como o treino conduz o tempo (T03).
 enum PracticeMode {

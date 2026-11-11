@@ -69,6 +69,8 @@ void main() {
       hand: Hand.direita,
       ghosts: ghosts,
       mode: PracticeMode.realtime,
+      // Os atrasos do plano (120 a 130 ms) têm de cair fora da margem.
+      rhythmToleranceMs: 75,
       measureIndexAt: timeline.measureIndexAt,
     );
 
