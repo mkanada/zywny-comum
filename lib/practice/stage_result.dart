@@ -50,6 +50,7 @@ class WaitTally {
   int _done = 0;
   int _firstTry = 0;
   final Set<int> _bad = {};
+  final List<bool> _results = [];
 
   /// Um passo ficou pendente (`WaitModeSession.current`).
   void stepStarted(int stepIndex, int measure) {
@@ -72,6 +73,7 @@ class WaitTally {
     final current = _current;
     if (current == null) return;
     _done++;
+    _results.add(!(_hadWrong[current] ?? false));
     if (_hadWrong[current] ?? false) {
       _bad.add(_measureOf[current]!);
     } else {
@@ -84,6 +86,9 @@ class WaitTally {
   /// [result], sem montar o resultado).
   int get firstTry => _firstTry;
   int get done => _done;
+
+  /// Para cada passo concluído, na ordem em que concluíram, se saiu de primeira.
+  List<bool> get steps => List.unmodifiable(_results);
 
   StageResult result() =>
       StageResult(hits: _firstTry, total: _done, badMeasures: Set.of(_bad));

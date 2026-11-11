@@ -137,6 +137,35 @@ void main() {
     });
   });
 
+  group('without', () {
+    SoundEvent ev(String id, int pitch, double onMs) => SoundEvent(
+      id: id,
+      pitch: pitch,
+      onMs: onMs,
+      offMs: onMs + 400,
+      staff: 1,
+      channel: 0,
+      program: 0,
+      velocity: 80,
+      ornament: false,
+    );
+
+    test('tira as notas dos ids e deixa as outras', () {
+      final track = PerformanceTrack.fromEvents([
+        ev('a', 60, 0),
+        ev('b', 64, 500),
+        ev('c', 67, 1000),
+      ]);
+      expect(
+        [
+          for (final e in track.without({'b'}).events) e.id,
+        ],
+        ['a', 'c'],
+      );
+      expect(track.without({}), same(track));
+    });
+  });
+
   group('withOrnaments: app (issue 22)', () {
     SoundEvent ev(
       String id,

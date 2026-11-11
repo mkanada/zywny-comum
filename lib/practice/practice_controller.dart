@@ -527,6 +527,11 @@ class PracticeController {
     onRangeDone?.call();
   }
 
+  /// Modo espera com intervalo: para cada passo concluído, na ordem, se saiu de
+  /// primeira (nenhuma tecla errada enquanto ele estava pendente). Vazio fora
+  /// dele.
+  List<bool> get waitFirstTries => _tally?.steps ?? const [];
+
   /// Resultado da passagem única — válido depois do fim do intervalo ou de
   /// [finish()]. Parar no meio (`stop` antes do fim) dá o parcial avaliado
   /// até ali (`null` se nada foi avaliado ainda); sem [range], `null`.

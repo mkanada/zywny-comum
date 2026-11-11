@@ -204,6 +204,21 @@ class PerformanceTrack {
     );
   }
 
+  /// A mesma track sem as notas de [ids]: não soam e não se cobram (o treino que
+  /// pede só a parte do aluno, sem acompanhamento).
+  PerformanceTrack without(Set<String> ids) {
+    if (ids.isEmpty) return this;
+    return PerformanceTrack._(
+      events: [
+        for (final e in events)
+          if (!ids.contains(e.id)) e,
+      ],
+      pedal: pedal,
+      durationMs: durationMs,
+      staves: staves,
+    );
+  }
+
   /// O que não se cobra, marcado como ornamento (T10), e o ornamento escrito
   /// que soa por extenso:
   ///

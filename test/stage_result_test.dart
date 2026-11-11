@@ -80,6 +80,16 @@ void main() {
       expect(r.passed, isFalse);
       expect(r.badMeasures, {3, 7});
     });
+
+    test('steps: cada passo concluído, na ordem, se saiu de primeira', () {
+      final tally = WaitTally();
+      for (var i = 0; i < 4; i++) {
+        tally.stepStarted(i, 0);
+        if (i == 1) tally.wrong();
+        tally.stepDone();
+      }
+      expect(tally.steps, [true, false, true, true]);
+    });
   });
 
   group('reinforcementBlocks (critério 6)', () {
