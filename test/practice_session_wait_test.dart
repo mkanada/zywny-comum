@@ -461,4 +461,23 @@ void main() {
     final next = track.rangeView(startMs: 9231, endMs: 11538);
     expect(next.events.map((e) => e.id), ['b', 'c']);
   });
+
+  test('resetTo: o ataque meio ms antes do começo arredondado do trecho '
+      'continua sendo o primeiro passo (bug: a 1.ª nota da música)', () async {
+    final track = PerformanceTrack.fromEvents([
+      _ev('a', 67, 15157.5),
+      _ev('b', 67, 15789.5),
+    ]);
+    final wait = WaitModeSession.forStaves(track, staves: {1});
+    wait.resetTo(15158);
+    expect(wait.current.value!.notes.map((e) => e.id), ['a']);
+
+    final rt = RealtimeSession.forStaves(track, staves: {1}, speed: 1);
+    final kinds = <PracticeVerdictKind>[];
+    rt.verdicts.listen((v) => kinds.add(v.kind));
+    rt.resetTo(15158);
+    rt.noteOn(67, 15180);
+    await Future<void>.delayed(Duration.zero);
+    expect(kinds, [PracticeVerdictKind.correct]);
+  });
 }

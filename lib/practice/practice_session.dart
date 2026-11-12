@@ -259,7 +259,11 @@ class WaitModeSession {
 
   /// T04 (loop A-B): reinicia no primeiro passo a partir de `onMs`.
   void resetTo(double onMs) {
-    final index = _steps.indexWhere((s) => s.onMs >= onMs);
+    // O começo do trecho vem arredondado (a barra do compasso, em ms inteiros);
+    // o ataque um pouco antes dele ainda é do trecho (como no `rangeView`).
+    final index = _steps.indexWhere(
+      (s) => s.onMs >= onMs - kRangeBoundaryToleranceMs,
+    );
     _startStep(index == -1 ? _steps.length : index);
   }
 
@@ -638,7 +642,9 @@ class RealtimeSession {
   void resetTo(double musicalMs, {double? untilMs}) {
     _pending = _all
         .where(
-          (e) => e.onMs >= musicalMs && (untilMs == null || e.onMs < untilMs),
+          (e) =>
+              e.onMs >= musicalMs - kRangeBoundaryToleranceMs &&
+              (untilMs == null || e.onMs < untilMs),
         )
         .toList();
   }
