@@ -533,7 +533,13 @@ class ScorePlayer {
 
   /// Vai para [position], recalculando o estado do zero: nenhum destaque
   /// "preso" de antes.
-  void seek(Duration position) {
+  ///
+  /// Com [pending], as entradas **de** [position] ficam por aplicar: não
+  /// acendem agora e acendem no `play`, quando o relógio chega lá. É o que
+  /// quem para no começo antes de uma contagem quer: sem isso o seek as
+  /// consumia já parado, e o `play` seguia sem elas (as notas do primeiro
+  /// tempo nunca acendiam).
+  void seek(Duration position, {bool pending = false}) {
     if (_disposed) {
       return;
     }
@@ -548,9 +554,12 @@ class ScorePlayer {
     final entries = _entries;
     final active = <String>{};
     double? tempo;
+    final until = pending
+        ? ms - _kTstampToleranceMs
+        : ms + _kTstampToleranceMs;
     var i = 0;
     while (i < entries.length &&
-        entries[i].tstamp <= ms + _kTstampToleranceMs) {
+        (pending ? entries[i].tstamp < until : entries[i].tstamp <= until)) {
       final e = entries[i];
       active.removeAll(e.off);
       active.addAll(e.on);

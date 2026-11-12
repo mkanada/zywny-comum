@@ -53,6 +53,28 @@ void main() {
     }
   }
 
+  test(
+    'seek com pending: a nota do instante não acende parada e acende no '
+    'avanço (as notas do primeiro tempo depois da contagem)',
+    () async {
+      // Timemap do r13: on m1n1 em 0.
+      await withPlayer(_fixture('r13-um-compasso.vsb'), (
+        controller,
+        player,
+      ) async {
+        player.seek(Duration.zero, pending: true);
+        expect(player.position, Duration.zero);
+        expect(controller.isHighlighted('m1n1'), isFalse);
+        player.advance(const Duration(milliseconds: 1));
+        expect(controller.isHighlighted('m1n1'), isTrue);
+
+        // Sem pending (o de sempre), acende já no seek.
+        player.seek(Duration.zero);
+        expect(controller.isHighlighted('m1n1'), isTrue);
+      });
+    },
+  );
+
   test('onsetsOf: a nota do compasso 5 tem as duas passagens', () {
     final doc = _fixture('erik-satie.vsb');
     final tl = ScoreTimeline(doc);
