@@ -1,3 +1,12 @@
+# Limites do dart_code_linter (`just qualidade`, no zywny-aprendizado): os
+# mesmos do app. Só a receita lê esta seção; o analisador do editor não.
+dart_code_linter:
+  metrics:
+    cyclomatic-complexity: 20
+    maximum-nesting-level: 5
+    number-of-parameters: 4
+    source-lines-of-code: 50
+
 # This file configures the analyzer, which statically analyzes Dart code to
 # check for errors, warnings, and lints.
 #
