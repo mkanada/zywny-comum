@@ -177,6 +177,22 @@ class ScoreAudioScheduler {
   /// Teto de agendamento da passagem única, ou `null` sem teto.
   double? get stopAt => _stopAtMs;
 
+  /// Portão da volta na hora (LP24.2b): com [setGate], nada com `onMs >=` o
+  /// portão é agendado (nem notas do app, nem cliques), mas a posição segue
+  /// correndo — ao contrário do freio, a avaliação do aluno continua no tempo
+  /// musical. Ao contrário do teto de [setStopAt], nenhum `offMs` é cortado: o
+  /// que já está agendado soa até o fim. O host sobe o portão quando o trecho
+  /// anterior está limpo; para baixá-lo abaixo do que já foi agendado, chame
+  /// [seek] logo depois (ele apaga a agenda pendente).
+  double? _gateMs;
+
+  /// Portão atual, ou `null` sem portão.
+  double? get gate => _gateMs;
+
+  void setGate(double? ms) {
+    _gateMs = ms;
+  }
+
   double get speed => _speed;
   bool get isRunning => _running;
 
@@ -450,9 +466,12 @@ class ScoreAudioScheduler {
 
     final horizonDevice = engine.nowSeconds + lookahead.inMicroseconds / 1e6;
     final brake = _brakeMs;
+    final gate = _gateMs;
     double horizon() {
-      final raw = _musicalAt(horizonDevice);
-      return brake == null || raw < brake ? raw : brake;
+      var h = _musicalAt(horizonDevice);
+      if (brake != null && h > brake) h = brake;
+      if (gate != null && h > gate) h = gate;
+      return h;
     }
 
     final earliest = engine.earliestScheduleSeconds;

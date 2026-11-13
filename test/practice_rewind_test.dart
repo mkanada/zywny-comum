@@ -66,8 +66,24 @@ class _Rig {
         startMs: measures[i].startMs.toDouble(),
         endMs: measures[i].endMs.toDouble(),
       ),
-      onRewind: (measure, startMs) => rewound.add((measure, startMs)),
+      onRewind: (measure, startMs) {
+        rewound.add((measure, startMs));
+        rewoundAt.add(engine.now);
+      },
     );
+    // Cada nota do app que o agendador manda ao motor, com o instante musical
+    // dela (lido com a âncora de agora, que vale para este lote).
+    engine.onSchedule = (events) {
+      for (final e in events) {
+        if (e.status & 0xF0 == 0x90 && e.d2 > 0) {
+          noteOns.add((
+            at: e.at,
+            pitch: e.d1,
+            musical: scheduler.musicalAtDevice(e.at),
+          ));
+        }
+      }
+    };
   }
 
   final PracticeMode mode;
@@ -83,6 +99,43 @@ class _Rig {
   late final PracticeController practice;
   int dones = 0;
   final List<(int, double)> rewound = [];
+
+  /// O instante do motor (segundos) de cada volta, na ordem de [rewound].
+  final List<double> rewoundAt = [];
+
+  /// As notas do app agendadas ao motor (ataques), com o instante e o tempo
+  /// musical de cada uma.
+  final List<({double at, int pitch, double musical})> noteOns = [];
+
+  /// As notas do app (a pauta que o app toca) que começam de [fromMs] até
+  /// [toMs]. Uma folga de 1 ms na fronteira: o Verovio arredonda o começo do
+  /// compasso, e a nota da barra (ex.: 4736,83 ms para o compasso em 4737) é
+  /// a do compasso que começa ali.
+  List<SoundEvent> appNotesFrom(double fromMs, double toMs) => [
+    for (final e in track.events)
+      if (Hand.direita.appStaves.contains(e.staff) &&
+          e.onMs >= fromMs - 1 &&
+          e.onMs < toMs - 1)
+        e,
+  ];
+
+  /// As notas do app do compasso [measure].
+  List<SoundEvent> appNotesOf(int measure) {
+    final m = timeline.measures[measure];
+    return appNotesFrom(m.startMs.toDouble(), m.endMs.toDouble());
+  }
+
+  /// As notas do app que começam no compasso seguinte a [measure] e que o
+  /// motor já tinha recebido até a primeira volta (com `at` até o instante
+  /// dela). Se a volta é do compasso [measure], essas notas não podiam soar.
+  List<({double at, int pitch, double musical})> appSoundedAfter(int measure) {
+    final boundary = timeline.measures[measure].endMs - 1.0;
+    final until = rewoundAt.isEmpty ? double.infinity : rewoundAt.first;
+    return [
+      for (final n in noteOns)
+        if (n.at <= until && n.musical >= boundary) n,
+    ];
+  }
 
   void dispose() {
     practice.dispose();
@@ -252,11 +305,12 @@ void main() {
       await rig.playTimed(1, miss: 0);
       rig.advanceTo(rig.timeline.measures[1].endMs + 400);
       expect(rig.practice.rewinds, {1: 2});
-      // Uma tecla errada no meio (as certas todas tocadas) também volta.
+      // Uma tecla errada depois de as certas todas tocadas também volta, na
+      // hora: o compasso seguinte pode já estar agendado, então não espera o
+      // fim dele.
       await rig.playTimed(1);
       rig.midi.press(20, atSeconds: rig.engine.now);
       await pumpEventQueue();
-      rig.advanceTo(rig.timeline.measures[1].endMs + 400);
       expect(rig.practice.rewinds, {1: 3});
       await rig.playTimed(1);
       await rig.playTimed(2);
@@ -359,6 +413,111 @@ void main() {
       expect(rig.measureOfStep(), 2);
       await rig.playWaitMeasure();
       expect(rig.dones, 1);
+    });
+  });
+
+  group('o app não toca o compasso seguinte depois de um erro', () {
+    late _Rig rig;
+    tearDown(() => rig.dispose());
+
+    test('tempo real: nota perdida no começo do compasso', () async {
+      rig = _Rig(mode: PracticeMode.realtime, firstMeasure: 1, endMeasure: 3);
+      rig.practice.start();
+      await rig.playTimed(1, miss: 0);
+      rig.advanceTo(rig.timeline.measures[1].endMs + 400);
+      expect(rig.rewound, isNotEmpty);
+      expect(rig.appSoundedAfter(1), isEmpty);
+    });
+
+    test(
+      'tempo real: a última nota perdida, que só fecha depois da barra',
+      () async {
+        rig = _Rig(mode: PracticeMode.realtime, firstMeasure: 1, endMeasure: 3);
+        rig.practice.start();
+        await rig.playTimed(1, miss: rig.notesOf(1).length - 1);
+        rig.advanceTo(rig.timeline.measures[1].endMs + 400);
+        expect(rig.rewound, isNotEmpty);
+        expect(rig.appSoundedAfter(1), isEmpty);
+      },
+    );
+
+    test('tempo real: tecla errada no fim do compasso, depois de tocar tudo '
+        'certo', () async {
+      rig = _Rig(mode: PracticeMode.realtime, firstMeasure: 1, endMeasure: 3);
+      rig.practice.start();
+      await rig.playTimed(1);
+      // Antes da barra, mas não em cima dela: a tecla errada cair no próprio
+      // instante da barra é uma corrida com a nota da barra (não é o caso).
+      rig.advanceTo(rig.timeline.measures[1].endMs - 200);
+      rig.midi.press(20, atSeconds: rig.engine.now);
+      await pumpEventQueue();
+      rig.advanceTo(rig.timeline.measures[1].endMs + 400);
+      expect(rig.rewound, isNotEmpty);
+      expect(rig.appSoundedAfter(1), isEmpty);
+    });
+
+    test('tempo real: o compasso certo segue sem atraso, cada nota do app '
+        'sai no instante dela', () async {
+      rig = _Rig(mode: PracticeMode.realtime, firstMeasure: 1, endMeasure: 3);
+      rig.practice.start();
+      await rig.playTimed(1);
+      await rig.playTimed(2);
+      rig.passEnd(2);
+      expect(rig.dones, 1);
+      expect(rig.rewound, isEmpty);
+      final app = rig.appNotesOf(2);
+      expect(app, isNotEmpty);
+      for (final e in app) {
+        expect(
+          rig.noteOns.any(
+            (n) => n.pitch == e.pitch && (n.musical - e.onMs).abs() < 1,
+          ),
+          isTrue,
+          reason: 'nota ${e.pitch} em ${e.onMs} ms',
+        );
+      }
+    });
+
+    test('tempo real: a última nota do compasso chega atrasada, depois da '
+        'barra, num compasso que já tem erro: volta uma vez, e a nota atrasada '
+        'não entra na tentativa seguinte', () async {
+      // O compasso 6 do fixture acaba com uma nota do aluno a 0,1 ms da barra:
+      // a janela dela passa da barra (é o caso).
+      rig = _Rig(mode: PracticeMode.realtime, firstMeasure: 6, endMeasure: 8);
+      rig.practice.start();
+      final end6 = rig.timeline.measures[6].endMs.toDouble();
+      final notes = rig.notesOf(6);
+      final last = notes.last;
+      final late = end6 + 20;
+      expect(late - last.onMs, lessThan(150), reason: 'dentro da janela');
+      rig.advanceTo(notes.first.onMs);
+      rig.midi.press(20, atSeconds: rig.engine.now);
+      await pumpEventQueue();
+      for (final n in notes.take(notes.length - 1)) {
+        rig.advanceTo(n.onMs);
+        rig.midi.press(n.pitch, atSeconds: rig.engine.now);
+        await pumpEventQueue();
+      }
+      rig.advanceTo(late);
+      rig.midi.press(last.pitch, atSeconds: rig.engine.now);
+      await pumpEventQueue();
+      expect(rig.rewound, hasLength(1));
+      // A tentativa seguinte, certa de ponta a ponta: nenhuma volta a mais.
+      await rig.playTimed(6);
+      await rig.playTimed(7);
+      rig.passEnd(7);
+      expect(rig.dones, 1);
+      expect(rig.rewound, hasLength(1));
+      expect(rig.practice.stageResult!.rewinds, {6: 1});
+    });
+
+    test('modo espera: tecla errada no compasso; nada do seguinte soa antes '
+        'da volta', () async {
+      rig = _Rig(mode: PracticeMode.wait, firstMeasure: 1, endMeasure: 3);
+      rig.practice.start();
+      await rig.playWaitMeasure(wrongAt: 0);
+      expect(rig.rewound, isNotEmpty);
+      expect(rig.appSoundedAfter(1), isEmpty);
     });
   });
 

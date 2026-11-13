@@ -11,6 +11,10 @@ class FakeSoundEngine implements SoundEngine {
   final List<List<int>> sent = [];
   int allNotesOffCalls = 0;
 
+  /// Avisado a cada lote agendado, antes de entrar em [scheduled] (o teste lê
+  /// o relógio musical naquele instante).
+  void Function(List<ScheduledMidi> events)? onSchedule;
+
   @override
   double get nowSeconds => now;
   @override
@@ -24,7 +28,11 @@ class FakeSoundEngine implements SoundEngine {
   @override
   void send(List<int> midi) => sent.add(midi);
   @override
-  void schedule(List<ScheduledMidi> events) => scheduled.addAll(events);
+  void schedule(List<ScheduledMidi> events) {
+    onSchedule?.call(events);
+    scheduled.addAll(events);
+  }
+
   @override
   void clearScheduled() {}
   @override

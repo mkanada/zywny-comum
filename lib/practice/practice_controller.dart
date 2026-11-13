@@ -266,9 +266,16 @@ class PracticeController {
 
   final MeasureRewinds _rewindBook = MeasureRewinds();
 
-  /// Tempo real com a volta na hora: o compasso cujo fim se espera para
-  /// conferir (`null` depois do último do intervalo).
+  /// Tempo real com a volta na hora: o primeiro compasso que ainda não está
+  /// limpo (nota do aluno por tocar ou erro). O portão do agendador fica no
+  /// fim dele (ver [_judgeRewind]); `null` depois do último do intervalo.
   int? _watchMeasure;
+
+  /// Tempo real com a volta na hora: já há uma conferência agendada no fim
+  /// da tarefa atual ([_queueJudge]).
+  bool _judgeQueued = false;
+
+  bool _disposed = false;
 
   /// Modo espera: o compasso do passo que o [_tally] tem como pendente.
   int? _tallyMeasure;
@@ -385,6 +392,7 @@ class PracticeController {
   /// teto de áudio vai para `range.endMs`.
   void start({double fromMs = 0, bool countIn = false}) {
     scheduler.setStaves(hand.appStaves);
+    scheduler.setGate(null);
     final range = this.range;
     final wait = _wait;
     if (wait != null) {
@@ -409,7 +417,10 @@ class PracticeController {
     } else {
       final startMs = range?.startMs ?? fromMs;
       _resetTimed(startMs, untilMs: _loopEndMs ?? range?.endMs);
-      if (rewindOnError) _watchMeasure = _measureAt(startMs);
+      if (rewindOnError) {
+        _watchMeasure = _measureAt(startMs);
+        _judgeRewind(startMs);
+      }
       scheduler.setBrake(null);
       if (range != null) {
         scheduler.setStopAt(range.endMs - kRangeBoundaryToleranceMs);
@@ -520,7 +531,10 @@ class PracticeController {
     final pos = scheduler.positionMs;
     final range = this.range;
     if (range != null) {
-      if (_rewindTimed(pos)) return;
+      if (rewindOnError) {
+        _tickTimed(pos);
+        if (_judgeRewind(pos)) return;
+      }
       // Passagem única: a posição passa do fim + folga (o último toque
       // ainda pode casar), aí o que faltou vira `missed` e termina sozinho.
       if (pos >= range.endMs + _slackMs) {
@@ -528,7 +542,7 @@ class PracticeController {
         _finishRange();
       } else {
         _lastPositionMs = pos;
-        _tickTimed(pos);
+        if (!rewindOnError) _tickTimed(pos);
       }
       return;
     }
@@ -551,24 +565,91 @@ class PracticeController {
     }
   }
 
-  /// Tempo real com a volta na hora: confere cada compasso cujo fim (mais a
-  /// folga, para o último toque ainda casar) a posição já passou; o primeiro
-  /// com erro volta. `true` se voltou.
-  bool _rewindTimed(double pos) {
-    if (!rewindOnError) return false;
-    var measure = _watchMeasure;
-    while (measure != null) {
-      final endMs = _measureEndMs(measure);
-      if (pos < endMs + _slackMs) return false;
-      // Os perdidos do compasso entram antes da conta.
-      _tickTimed(pos);
-      if (_rewindBook.hasError(measure)) {
-        _rewindTo(measure);
-        return true;
-      }
-      measure = _watchMeasure = _measureAfter(measure, endMs);
+  /// Tempo real com a volta na hora (LP24.2b). O app não toca o compasso
+  /// seguinte antes de o atual estar decidido: o portão do agendador
+  /// ([ScoreAudioScheduler.setGate]) fica no fim do primeiro compasso que
+  /// ainda não está limpo (com nota do aluno por tocar ou com erro). Assim,
+  /// nada do compasso que vem depois sai ao motor antes da decisão.
+  ///
+  /// - Um compasso já limpo (o portão passou dele) que ganha erro, porque o
+  ///   aluno errou no fim dele: volta já, pois o que vem depois pode ter
+  ///   sido agendado.
+  /// - O compasso do portão com erro volta quando acaba e as notas dele já
+  ///   foram decididas (tocadas ou perdidas); até lá, o app toca o resto dele.
+  /// - O compasso que está limpo (nenhuma nota por tocar, nenhum erro) abre o
+  ///   portão para o seguinte.
+  ///
+  /// `true` se voltou.
+  bool _judgeRewind(double pos) {
+    final range = this.range;
+    final rt = _rt;
+    if (!rewindOnError || range == null || rt == null || _wait != null) {
+      return false;
     }
+    final cursor = _watchMeasure;
+    int? back;
+    for (final m in _rewindBook.errorMeasures) {
+      if ((cursor == null || m < cursor) && (back == null || m < back)) {
+        back = m;
+      }
+    }
+    if (back != null) {
+      _rewindTo(back);
+      return true;
+    }
+    // Com erro e depois do fim, volta quando as notas do compasso já foram
+    // decididas: a que ainda pode chegar (atrasada, dentro da janela) é da
+    // tentativa que acaba, não da seguinte.
+    if (cursor != null &&
+        _rewindBook.hasError(cursor) &&
+        pos >= _measureEndMs(cursor) &&
+        !rt.hasPendingIn(_measureStartMs(cursor), _measureEndMs(cursor))) {
+      _rewindTo(cursor);
+      return true;
+    }
+    var next = cursor;
+    while (next != null &&
+        !_rewindBook.hasError(next) &&
+        !rt.hasPendingIn(_measureStartMs(next), _measureEndMs(next))) {
+      next = _measureAfter(next, _measureEndMs(next));
+    }
+    if (next != cursor) {
+      DiagLog.log(
+        'portao',
+        'compasso ${cursor ?? 'fim'} -> ${next ?? 'fim'} '
+            'em ${pos.toStringAsFixed(1)}ms',
+      );
+    }
+    _watchMeasure = next;
+    scheduler.setGate(next == null ? null : _gateOf(next));
     return false;
+  }
+
+  /// O portão do compasso [measure]: a fronteira do fim dele, menos a
+  /// tolerância de [kRangeBoundaryToleranceMs]. O Verovio arredonda o começo
+  /// do compasso seguinte: a nota da barra soa um pouco antes dela, e é do
+  /// compasso seguinte.
+  double _gateOf(int measure) =>
+      _measureEndMs(measure) - kRangeBoundaryToleranceMs;
+
+  /// Conferência da volta na hora logo depois de um veredito: no fim da
+  /// tarefa atual, quando a entrega do veredito já terminou (a volta mexe no
+  /// agendador e na avaliação, e não pode acontecer no meio de uma delas).
+  void _queueJudge() {
+    if (_judgeQueued) return;
+    _judgeQueued = true;
+    scheduleMicrotask(() {
+      _judgeQueued = false;
+      if (_disposed || _rangeDone || _paused || !scheduler.isRunning) return;
+      _judgeRewind(scheduler.positionMs);
+    });
+  }
+
+  /// O começo do compasso [measure], preso ao começo do intervalo.
+  double _measureStartMs(int measure) {
+    final startMs = measureSpanOf!(measure).startMs;
+    final rangeStart = range!.startMs;
+    return startMs > rangeStart ? startMs : rangeStart;
   }
 
   /// O fim do compasso [measure], preso ao fim do intervalo.
@@ -608,9 +689,7 @@ class PracticeController {
   /// A volta na hora ao começo do compasso [measure]: o agendador vai para
   /// lá (sem contagem), a avaliação recomeça nele e o host é avisado.
   void _rewindTo(int measure) {
-    final spanStart = measureSpanOf!(measure).startMs;
-    final rangeStart = range!.startMs;
-    final startMs = spanStart > rangeStart ? spanStart : rangeStart;
+    final startMs = _measureStartMs(measure);
     final attempt = _rewindBook.rewind(measure);
     _dropAfter(measure);
     DiagLog.log(
@@ -618,15 +697,20 @@ class PracticeController {
       'compasso=$measure tentativa=$attempt modo=${mode.name} '
           'em ${startMs.toStringAsFixed(1)}ms',
     );
-    scheduler.seek(startMs - kRangeBoundaryToleranceMs);
     final wait = _wait;
+    if (wait == null) {
+      // O portão antes do seek: o seek já agenda até ele, e o que vem depois
+      // do compasso (ainda não decidido) não pode entrar.
+      _watchMeasure = measure;
+      scheduler.setGate(_gateOf(measure));
+    }
+    scheduler.seek(startMs - kRangeBoundaryToleranceMs);
     if (wait != null) {
       _tally?.rewindTo(measure);
       // A sessão publica o primeiro passo do compasso, e [_onStepChanged] o
       // conta e arma o freio nele.
       wait.resetTo(startMs);
     } else {
-      _watchMeasure = measure;
       _resetTimed(startMs, untilMs: range!.endMs);
       _lastPositionMs = startMs;
     }
@@ -713,6 +797,7 @@ class PracticeController {
   void stop() {
     _tickTimer?.cancel();
     _tickTimer = null;
+    scheduler.setGate(null);
     if (_wait != null) {
       _setBrake(null);
     } else {
@@ -835,6 +920,9 @@ class PracticeController {
     }
     if (_wait == null) {
       _liveAdd(hit: verdict.kind == PracticeVerdictKind.correct);
+      // Um veredito pode decidir o compasso (abrir o portão, ou voltar):
+      // confere logo, sem esperar o próximo tick.
+      if (rewindOnError && range != null) _queueJudge();
     }
   }
 
@@ -1237,6 +1325,7 @@ class PracticeController {
   void dispose() {
     DiagLog.log('pratica', 'fim');
     _diagOffState();
+    _disposed = true;
     _tickTimer?.cancel();
     unawaited(_noteSub.cancel());
     unawaited(_sustainSub.cancel());

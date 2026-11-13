@@ -18,6 +18,9 @@ class MeasureRewinds {
   /// A tentativa em curso do compasso [measure] teve algum erro.
   bool hasError(int measure) => (_errors[measure] ?? 0) > 0;
 
+  /// Os compassos (ocorrências) com erro na tentativa em curso.
+  Iterable<int> get errorMeasures => _errors.keys;
+
   /// O compasso [measure] volta: a tentativa nova começa limpa nele e em
   /// tudo o que vem depois. Devolve o número da tentativa que começa (2 na
   /// primeira volta).

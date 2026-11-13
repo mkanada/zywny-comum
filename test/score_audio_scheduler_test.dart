@@ -346,6 +346,67 @@ void main() {
       }
     });
 
+    group('portão da volta na hora (LP24.2b)', () {
+      test('nada com onMs a partir do portão é agendado, e a posição segue '
+          'correndo (não estaciona como no freio)', () {
+        final engine = FakeSoundEngine();
+        final track = _loadTrack('maple-leaf-rag.vsb');
+        final scheduler = ScoreAudioScheduler(
+          engine: engine,
+          track: track,
+          autoTick: false,
+        );
+        final gateMs = track.durationMs / 3;
+
+        scheduler.setGate(gateMs);
+        expect(scheduler.gate, gateMs);
+        scheduler.play(0);
+        _advanceUntil(engine, scheduler, gateMs + 2000);
+        for (var i = 0; i < 100; i++) {
+          engine.now += 0.025;
+          scheduler.pump();
+        }
+
+        expect(scheduler.positionMs, greaterThan(gateMs + 2000));
+        final noteOns = engine.scheduled
+            .where((m) => m.status & 0xF0 == 0x90)
+            .length;
+        expect(noteOns, track.events.where((e) => e.onMs < gateMs).length);
+      });
+
+      test('soltar o portão agenda o que ficou para trás, e nenhuma nota é '
+          'cortada (note-on e note-off em número igual)', () {
+        final engine = FakeSoundEngine();
+        final track = _loadTrack('maple-leaf-rag.vsb');
+        final scheduler = ScoreAudioScheduler(
+          engine: engine,
+          track: track,
+          autoTick: false,
+        );
+        final gateMs = track.durationMs / 3;
+
+        scheduler.setGate(gateMs);
+        scheduler.play(0);
+        _advanceUntil(engine, scheduler, gateMs + 2000);
+        scheduler.setGate(null);
+        expect(scheduler.gate, isNull);
+        _advanceUntil(engine, scheduler, track.durationMs + 1);
+        for (var i = 0; i < 100; i++) {
+          engine.now += 0.025;
+          scheduler.pump();
+        }
+
+        final noteOns = engine.scheduled
+            .where((m) => m.status & 0xF0 == 0x90)
+            .length;
+        final noteOffs = engine.scheduled
+            .where((m) => m.status & 0xF0 == 0x80)
+            .length;
+        expect(noteOns, track.events.length);
+        expect(noteOffs, noteOns);
+      });
+    });
+
     group('freio do modo espera (T02)', () {
       test('posição estaciona no onMs armado e não passa dele', () {
         final engine = FakeSoundEngine();

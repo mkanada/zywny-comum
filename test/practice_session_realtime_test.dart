@@ -218,5 +218,24 @@ void main() {
       session.noteOn(62, 1000);
       expect(verdicts.single.eventId, 'b');
     });
+
+    test('hasPendingIn: há nota por tocar no intervalo até o veredito dela; '
+        'ornamento não conta', () {
+      final session = RealtimeSession([
+        _ev('a', 60, 0),
+        _ev('b', 62, 1000),
+        _ev('orn', 65, 1500, ornament: true),
+      ], speed: 1);
+
+      expect(session.hasPendingIn(0, 1000), isTrue); // 'a', em 0
+      expect(session.hasPendingIn(500, 1000), isFalse); // 'b' cai no fim
+      expect(session.hasPendingIn(1000, 2000), isTrue); // 'b' em 1000
+      expect(session.hasPendingIn(1400, 2000), isFalse); // só ornamento
+
+      session.noteOn(60, 0);
+      expect(session.hasPendingIn(0, 1000), isFalse);
+      session.tick(2000); // 'b' passou da janela: missed, sai do pendente
+      expect(session.hasPendingIn(1000, 2000), isFalse);
+    });
   });
 }

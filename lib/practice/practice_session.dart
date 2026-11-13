@@ -615,6 +615,12 @@ class RealtimeSession {
   /// silêncio (não cobrados na 1.0).
   void tick(double musicalNowMs) => _expire(musicalNowMs);
 
+  /// Há nota do aluno ainda sem veredito cujo ataque cai em
+  /// `[startMs, endMs)` (ornamentos não contam: somem em silêncio). É o que a
+  /// volta na hora consulta para saber se um compasso já está decidido.
+  bool hasPendingIn(double startMs, double endMs) =>
+      _pending.any((e) => !e.ornament && e.onMs >= startMs && e.onMs < endMs);
+
   /// O [tick], só para [pitch] quando dado.
   void _expire(double musicalNowMs, {int? pitch}) {
     _pending.removeWhere((e) {
