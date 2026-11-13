@@ -120,4 +120,27 @@ void main() {
       expect(blocks(const {}, 20), isEmpty);
     });
   });
+
+  group('a volta na hora (LP24.2)', () {
+    test('withRewinds guarda a conta e mantém o resto', () {
+      const base = StageResult(hits: 3, total: 4, badMeasures: {1});
+      expect(base.rewinds, isEmpty);
+      final r = base.withRewinds({1: 2});
+      expect(r.rewinds, {1: 2});
+      expect((r.hits, r.total), (3, 4));
+      expect(r.badMeasures, {1});
+    });
+
+    test('WaitTally.rewindTo: o passo refeito começa sem a tecla errada', () {
+      final tally = WaitTally()
+        ..stepStarted(0, 1)
+        ..wrong()
+        ..stepDone()
+        ..rewindTo(1)
+        ..stepStarted(0, 1)
+        ..stepDone();
+      expect(tally.steps, [false, true]);
+      expect(tally.result().badMeasures, {1});
+    });
+  });
 }

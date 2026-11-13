@@ -11,6 +11,7 @@ class StageResult {
     required this.total,
     required this.badMeasures,
     this.nothingToPlay = false,
+    this.rewinds = const {},
   });
 
   final int hits;
@@ -22,6 +23,20 @@ class StageResult {
 
   /// Ocorrências com algum erro ou imprecisão.
   final Set<int> badMeasures;
+
+  /// A volta na hora (LP24.2): quantas vezes cada ocorrência voltou porque
+  /// saiu com erro. Vazio sem volta (ou com a volta desligada). Os erros das
+  /// tentativas que voltaram continuam no resultado.
+  final Map<int, int> rewinds;
+
+  /// O mesmo resultado, com [rewinds].
+  StageResult withRewinds(Map<int, int> rewinds) => StageResult(
+    hits: hits,
+    total: total,
+    badMeasures: badMeasures,
+    nothingToPlay: nothingToPlay,
+    rewinds: rewinds,
+  );
 
   double get accuracy => nothingToPlay ? 1 : (total == 0 ? 0 : hits / total);
 
@@ -57,6 +72,15 @@ class WaitTally {
     _current = stepIndex;
     _measureOf[stepIndex] = measure;
     _hadWrong.putIfAbsent(stepIndex, () => false);
+  }
+
+  /// A volta na hora (LP24.2): os passos do compasso [measure] em diante vão
+  /// ser tocados de novo e começam sem a tecla errada da tentativa que voltou.
+  /// O que já foi contado (concluídos, de primeira, compassos com erro) fica.
+  void rewindTo(int measure) {
+    for (final entry in _measureOf.entries) {
+      if (entry.value >= measure) _hadWrong.remove(entry.key);
+    }
   }
 
   /// Uma tecla errada enquanto havia passo pendente. Antes do primeiro

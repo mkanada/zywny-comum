@@ -20,6 +20,7 @@ import 'package:zywny_audio/performance_track.dart';
 
 import 'stage_result.dart';
 import 'hand.dart';
+import 'measure_rewind.dart';
 import 'performance_capture.dart';
 import 'practice_colors.dart';
 import 'practice_mode.dart';
@@ -65,11 +66,19 @@ class PracticeController {
     this.rhythmToleranceMs = kDefaultRhythmToleranceMs,
     this.adaptiveWindow = false,
     this.forgiveSounding = false,
+    this.rewindOnError = false,
+    this.measureSpanOf,
+    this.onRewind,
   }) : _midiInput = midiInput, // ignore: prefer_initializing_formals
        _track = track {
     if (range != null) {
       assert(range!.startMs < range!.endMs, 'range precisa de startMs < endMs');
     }
+    assert(
+      !rewindOnError ||
+          (range != null && measureSpanOf != null && measureIndexAt != null),
+      'a volta na hora pede range, measureSpanOf e measureIndexAt',
+    );
     _noteSub = _midiInput.notes.listen(_onNote);
     _sustainSub = _midiInput.sustain.listen(_onSustain);
     // As sessões avaliam só o que toca: no intervalo, sem os saltos (J08).
@@ -239,6 +248,34 @@ class PracticeController {
   /// relógio (que fica parado no freio).
   final void Function(double? onMs)? onWaitTarget;
 
+  /// A volta na hora (LP24.2): na passagem única ([range]), o compasso que
+  /// acaba com erro (nota errada ou perdida no tempo real; tecla errada no
+  /// modo espera) volta ao começo dele, sem contagem, até sair certo. Pede
+  /// [measureSpanOf] e [measureIndexAt]. Desligada, nada muda.
+  final bool rewindOnError;
+
+  /// O instante musical (ms do timemap) do começo e do fim de uma ocorrência
+  /// de compasso (`MeasureInfo.startMs`/`endMs`), para a volta na hora.
+  final ({double startMs, double endMs}) Function(int measureIndex)?
+  measureSpanOf;
+
+  /// Chamado a cada volta na hora com o compasso que volta e o instante do
+  /// começo dele: o agendador e a avaliação já foram repostos aqui, e o host
+  /// leva o `ScorePlayer` para lá (como em [onLoopRestart]).
+  final void Function(int measureIndex, double startMs)? onRewind;
+
+  final MeasureRewinds _rewindBook = MeasureRewinds();
+
+  /// Tempo real com a volta na hora: o compasso cujo fim se espera para
+  /// conferir (`null` depois do último do intervalo).
+  int? _watchMeasure;
+
+  /// Modo espera: o compasso do passo que o [_tally] tem como pendente.
+  int? _tallyMeasure;
+
+  /// A volta na hora: quantas vezes cada compasso (ocorrência) voltou.
+  Map<int, int> get rewinds => _rewindBook.counts;
+
   double? _loopStartMs;
   double? _loopEndMs;
 
@@ -372,6 +409,7 @@ class PracticeController {
     } else {
       final startMs = range?.startMs ?? fromMs;
       _resetTimed(startMs, untilMs: _loopEndMs ?? range?.endMs);
+      if (rewindOnError) _watchMeasure = _measureAt(startMs);
       scheduler.setBrake(null);
       if (range != null) {
         scheduler.setStopAt(range.endMs - kRangeBoundaryToleranceMs);
@@ -473,11 +511,16 @@ class PracticeController {
     return _rt!.windowMaxMs;
   }
 
+  /// O [_tick] de cada 30 ms, para os testes andarem o tempo real à mão.
+  @visibleForTesting
+  void debugTick() => _tick();
+
   void _tick() {
     if (!_timed || !scheduler.isRunning) return;
     final pos = scheduler.positionMs;
     final range = this.range;
     if (range != null) {
+      if (_rewindTimed(pos)) return;
       // Passagem única: a posição passa do fim + folga (o último toque
       // ainda pode casar), aí o que faltou vira `missed` e termina sozinho.
       if (pos >= range.endMs + _slackMs) {
@@ -505,6 +548,99 @@ class PracticeController {
       _tickTimed(pos + _slackMs + 1);
       _tickTimer?.cancel();
       _tickTimer = null;
+    }
+  }
+
+  /// Tempo real com a volta na hora: confere cada compasso cujo fim (mais a
+  /// folga, para o último toque ainda casar) a posição já passou; o primeiro
+  /// com erro volta. `true` se voltou.
+  bool _rewindTimed(double pos) {
+    if (!rewindOnError) return false;
+    var measure = _watchMeasure;
+    while (measure != null) {
+      final endMs = _measureEndMs(measure);
+      if (pos < endMs + _slackMs) return false;
+      // Os perdidos do compasso entram antes da conta.
+      _tickTimed(pos);
+      if (_rewindBook.hasError(measure)) {
+        _rewindTo(measure);
+        return true;
+      }
+      measure = _watchMeasure = _measureAfter(measure, endMs);
+    }
+    return false;
+  }
+
+  /// O fim do compasso [measure], preso ao fim do intervalo.
+  double _measureEndMs(int measure) {
+    final endMs = measureSpanOf!(measure).endMs;
+    final rangeEnd = range!.endMs;
+    return endMs < rangeEnd ? endMs : rangeEnd;
+  }
+
+  /// O compasso que toca depois do que acaba em [endMs] (pulando os saltos
+  /// de [rangeJumps]); `null` se o intervalo acabou.
+  int? _measureAfter(int measure, double endMs) {
+    var nextMs = endMs;
+    for (final jump in rangeJumps) {
+      if (jump.startMs <= nextMs + kRangeBoundaryToleranceMs &&
+          nextMs < jump.endMs) {
+        nextMs = jump.endMs;
+      }
+    }
+    if (nextMs >= range!.endMs - kRangeBoundaryToleranceMs) return null;
+    final next = measureIndexAt!(nextMs);
+    return next > measure ? next : null;
+  }
+
+  /// Modo espera com a volta na hora: o passo pendente concluiu e o seguinte
+  /// é [next] (`null` se o intervalo acabou). Se ele é de outro compasso e o
+  /// compasso que acabou teve tecla errada, o compasso volta. `true` se voltou.
+  bool _rewindWait(PracticeStep? next) {
+    final measure = _tallyMeasure;
+    if (!rewindOnError || measure == null) return false;
+    if (next != null && _measureAt(next.onMs) == measure) return false;
+    if (!_rewindBook.hasError(measure)) return false;
+    _rewindTo(measure);
+    return true;
+  }
+
+  /// A volta na hora ao começo do compasso [measure]: o agendador vai para
+  /// lá (sem contagem), a avaliação recomeça nele e o host é avisado.
+  void _rewindTo(int measure) {
+    final spanStart = measureSpanOf!(measure).startMs;
+    final rangeStart = range!.startMs;
+    final startMs = spanStart > rangeStart ? spanStart : rangeStart;
+    final attempt = _rewindBook.rewind(measure);
+    _dropAfter(measure);
+    DiagLog.log(
+      'volta',
+      'compasso=$measure tentativa=$attempt modo=${mode.name} '
+          'em ${startMs.toStringAsFixed(1)}ms',
+    );
+    scheduler.seek(startMs - kRangeBoundaryToleranceMs);
+    final wait = _wait;
+    if (wait != null) {
+      _tally?.rewindTo(measure);
+      // A sessão publica o primeiro passo do compasso, e [_onStepChanged] o
+      // conta e arma o freio nele.
+      wait.resetTo(startMs);
+    } else {
+      _watchMeasure = measure;
+      _resetTimed(startMs, untilMs: range!.endMs);
+      _lastPositionMs = startMs;
+    }
+    onRewind?.call(measure, startMs);
+  }
+
+  /// A volta ao compasso [measure]: o que foi avaliado depois dele (na folga
+  /// depois da barra) vai ser tocado de novo e sai do resumo.
+  void _dropAfter(int measure) {
+    _entries.removeWhere((e) => e.measureIndex > measure);
+    _wrongMarks.removeWhere((m) => m.measureIndex > measure);
+    if (_wait == null) {
+      final now = report;
+      _liveScore.value = (hits: now.correct, total: now.total);
     }
   }
 
@@ -541,7 +677,7 @@ class PracticeController {
     final tally = _tally;
     if (tally != null) {
       final result = tally.result();
-      if (result.total > 0) return result;
+      if (result.total > 0) return result.withRewinds(rewinds);
       if (!_rangeDone) return null;
       return StageResult(
         hits: 0,
@@ -551,7 +687,7 @@ class PracticeController {
       );
     }
     if (hasVerdicts || _rangeDone) {
-      return StageResult.fromReport(report);
+      return StageResult.fromReport(report).withRewinds(rewinds);
     }
     return null;
   }
@@ -692,6 +828,11 @@ class PracticeController {
         : (_wait?.current.value?.onMs ?? _lastPlayedMusicalMs);
     final index = _measureAt(ms);
     _entries.add(ReportEntry(verdict, index, pass: passOf?.call(index) ?? 1));
+    if (rewindOnError &&
+        (verdict.kind == PracticeVerdictKind.wrong ||
+            verdict.kind == PracticeVerdictKind.missed)) {
+      _rewindBook.error(index);
+    }
     if (_wait == null) {
       _liveAdd(hit: verdict.kind == PracticeVerdictKind.correct);
     }
@@ -945,23 +1086,22 @@ class PracticeController {
       // seguinte, se ainda está no intervalo, entra na contagem — senão o
       // intervalo acabou.
       final step = wait.current.value;
-      if (step == null || step.onMs >= range.endMs) {
-        if (_tallyStep != null) {
-          _tally?.stepDone();
-          _tallyStep = null;
-          _liveFromTally();
-        }
+      final ended = step == null || step.onMs >= range.endMs;
+      if (_tallyStep != null && _tallyStep != step?.index) {
+        _tally?.stepDone();
+        _tallyStep = null;
+        _liveFromTally();
+        if (_rewindWait(ended ? null : step)) return;
+      }
+      if (ended) {
         _finishRange();
         return;
       }
       _paintStep();
       if (_tallyStep == step.index) return;
-      if (_tallyStep != null) {
-        _tally?.stepDone();
-        _liveFromTally();
-      }
       _tally?.stepStarted(step.index, measureIndexAt?.call(step.onMs) ?? 0);
       _tallyStep = step.index;
+      _tallyMeasure = _measureAt(step.onMs);
       _setBrake(step.onMs);
       _syncGhostExpected();
       return;
