@@ -92,41 +92,14 @@ class TrailPath {
     if (measures.isEmpty) {
       return const TrailPath(logical: [], jumps: []);
     }
-    final docOrder = _documentOrder(timeline.document);
     final firstOccurrence = <String, int>{};
     for (var i = 0; i < measures.length; i++) {
       firstOccurrence.putIfAbsent(measures[i].id, () => i);
     }
-
-    // Casas não finais: num salto para a frente (`isJump`, destino nunca
-    // tocado antes), os compassos do documento entre a ocorrência anterior
-    // e o destino são a casa descartada (J00).
-    final seenIds = <String>{};
-    final discardedDocIds = <String>{};
-    final orderOfId = <String, int>{};
-    docOrder.asMap().forEach((order, id) {
-      orderOfId.putIfAbsent(id, () => order);
-    });
-    for (var i = 0; i < measures.length; i++) {
-      final m = measures[i];
-      final firstTime = !seenIds.contains(m.id);
-      if (i > 0 && m.isJump && firstTime) {
-        final prev = measures[i - 1];
-        final prevOrder = orderOfId[prev.id];
-        final destOrder = orderOfId[m.id];
-        if (prevOrder != null &&
-            destOrder != null &&
-            destOrder > prevOrder + 1) {
-          for (final entry in orderOfId.entries) {
-            if (entry.value > prevOrder && entry.value < destOrder) {
-              discardedDocIds.add(entry.key);
-            }
-          }
-        }
-      }
-      seenIds.add(m.id);
-    }
-
+    final discardedDocIds = _discardedDocIds(
+      measures,
+      _documentOrder(timeline.document),
+    );
     final sortedIds = firstOccurrence.entries.toList()
       ..sort((a, b) => a.value.compareTo(b.value));
     final chosen = <_Chosen>[];
@@ -152,26 +125,6 @@ class TrailPath {
     final full = _fullQuarters([for (final c in chosen) c.quarters]);
     final groups = _glueIncomplete(chosen, full);
 
-    final logical = <LogicalMeasure>[];
-    for (var i = 0; i < groups.length; i++) {
-      final g = groups[i];
-      logical.add(
-        LogicalMeasure(
-          measures: [
-            for (final c in g)
-              PathMeasure(
-                occurrence: c.occurrence,
-                startMs: c.startMs,
-                endMs: c.endMs,
-              ),
-          ],
-          startMs: g.first.startMs,
-          endMs: g.last.endMs,
-          number: i + 1,
-        ),
-      );
-    }
-
     // Contiguidade: as ocorrências escolhidas têm que ser consecutivas na
     // execução. Dois ritornelos seguidos dão salto mesmo em ordem de
     // documento consecutiva (a 2ª passagem do primeiro fica no meio).
@@ -181,7 +134,70 @@ class TrailPath {
         jumps.add(i);
       }
     }
-    return TrailPath(logical: logical, jumps: jumps);
+    return TrailPath(logical: _logicalOf(groups), jumps: jumps);
+  }
+
+  /// Os compassos lógicos (um por grupo de ocorrências), numerados a partir do
+  /// primeiro.
+  static List<LogicalMeasure> _logicalOf(List<List<_Chosen>> groups) => [
+    for (var i = 0; i < groups.length; i++)
+      LogicalMeasure(
+        measures: [
+          for (final c in groups[i])
+            PathMeasure(
+              occurrence: c.occurrence,
+              startMs: c.startMs,
+              endMs: c.endMs,
+            ),
+        ],
+        startMs: groups[i].first.startMs,
+        endMs: groups[i].last.endMs,
+        number: i + 1,
+      ),
+  ];
+
+  /// Os ids de compasso do documento que ficam de fora: as casas não finais.
+  /// Num salto para a frente (`isJump`, destino nunca tocado antes), os
+  /// compassos do documento entre a ocorrência anterior e o destino são a casa
+  /// descartada (J00).
+  static Set<String> _discardedDocIds(
+    List<MeasureInfo> measures,
+    List<String> docOrder,
+  ) {
+    final seenIds = <String>{};
+    final discardedDocIds = <String>{};
+    final orderOfId = <String, int>{};
+    docOrder.asMap().forEach((order, id) {
+      orderOfId.putIfAbsent(id, () => order);
+    });
+    for (var i = 0; i < measures.length; i++) {
+      final m = measures[i];
+      final firstTime = !seenIds.contains(m.id);
+      if (i > 0 && m.isJump && firstTime) {
+        _addBetween(measures[i - 1].id, m.id, orderOfId, discardedDocIds);
+      }
+      seenIds.add(m.id);
+    }
+    return discardedDocIds;
+  }
+
+  /// Põe em [out] os ids do documento estritamente entre [fromId] e [toId],
+  /// quando [toId] fica mais de um compasso à frente de [fromId].
+  static void _addBetween(
+    String fromId,
+    String toId,
+    Map<String, int> orderOfId,
+    Set<String> out,
+  ) {
+    final prevOrder = orderOfId[fromId];
+    final destOrder = orderOfId[toId];
+    if (prevOrder == null || destOrder == null) return;
+    if (destOrder <= prevOrder + 1) return;
+    for (final entry in orderOfId.entries) {
+      if (entry.value > prevOrder && entry.value < destOrder) {
+        out.add(entry.key);
+      }
+    }
   }
 }
 

@@ -93,86 +93,11 @@ class _AboutScreenState extends State<AboutScreen> {
                 children: [
                   _Header(version: _version),
                   const SizedBox(height: 26),
-                  const _Section(title: 'De onde vem o nome'),
-                  const _Paragraph(
-                    'Wojciech Żywny (1756–1842) foi violinista, pianista e '
-                    'professor. Nasceu na Boêmia, hoje República Tcheca, e viveu '
-                    'em Varsóvia, onde, a partir de 1816, ensinou piano a um '
-                    'menino de seis anos chamado Frédéric Chopin.',
-                  ),
-                  const _Paragraph(
-                    'Żywny deu a Chopin o alicerce: as primeiras lições, o gosto '
-                    'por Bach e Mozart, a alegria de tocar. E, segundo se conta, '
-                    'teve a humildade de admitir quando o aluno já não tinha '
-                    'mais o que aprender com ele.',
-                  ),
-                  const _Paragraph(
-                    'O nome do app é uma homenagem a esse professor: o de quem '
-                    'ensina a primeira tecla, com paciência, para que o aluno '
-                    'possa ir mais longe do que ele. No app, o Ż perdeu o ponto: '
-                    'Zywny. Lê-se, mais ou menos, “JÍV-ni”.',
-                  ),
+                  ..._nameSection(),
                   const SizedBox(height: 18),
-                  const _Section(title: 'O que o Zywny quer ser'),
-                  const _Paragraph(
-                    'Um professor de bolso para quem toca teclado. A ideia é '
-                    'simples: você toca de verdade, e o app escuta.',
-                  ),
-                  const SizedBox(height: 4),
-                  const _Goal(
-                    icon: Icons.piano,
-                    lead: 'Treinar no seu teclado.',
-                    text:
-                        'Ligue um teclado MIDI e o Zywny acompanha cada nota que '
-                        'você toca: espera por você (modo espera) ou anda no '
-                        'ritmo da música (tempo real), e mostra o que acertou e '
-                        'o que errou.',
-                  ),
-                  const _Goal(
-                    icon: Icons.school_outlined,
-                    lead: 'Ensinar do zero.',
-                    text:
-                        'O curso inicial leva do teclado e da pauta até uma '
-                        'peça a duas mãos. Professores podem escrever os seus '
-                        'próprios cursos.',
-                  ),
-                  const _Goal(
-                    icon: Icons.route,
-                    lead: 'Estudar com método.',
-                    text:
-                        'Cada música vira uma trilha de trechos curtos e etapas '
-                        'que se liberam como fases de um jogo, do devagar ao '
-                        'andamento real.',
-                  ),
-                  const _Goal(
-                    icon: Icons.library_music_outlined,
-                    lead: 'Trazer a sua música.',
-                    text:
-                        'O Zywny não traz partituras: elas chegam em '
-                        'bibliotecas que você instala. Dá para transpor para um '
-                        'tom mais fácil, mudar o tamanho da notação e escolher '
-                        'as cores.',
-                  ),
-                  const _Goal(
-                    icon: Icons.devices_outlined,
-                    lead: 'Estar onde você estiver.',
-                    text: 'No celular, no computador e no navegador.',
-                  ),
+                  ..._aimSection(),
                   const SizedBox(height: 18),
-                  const _Section(title: 'Créditos'),
-                  const _Paragraph(
-                    'As partituras são desenhadas com o Verovio. O som do piano '
-                    'vem do soundfont TimGM6mb.',
-                  ),
-                  const SizedBox(height: 4),
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: OutlinedButton.icon(
-                      onPressed: () => widget.openLicenses(context, _version),
-                      icon: const Icon(Icons.description_outlined, size: 18),
-                      label: const Text('Licenças de código aberto'),
-                    ),
-                  ),
+                  ..._creditsSection(context),
                 ],
               ),
             ),
@@ -181,6 +106,96 @@ class _AboutScreenState extends State<AboutScreen> {
       ),
     );
   }
+
+  /// De onde vem o nome: o professor de Chopin e o que o nome quer dizer.
+  List<Widget> _nameSection() => const [
+    _Section(title: 'De onde vem o nome'),
+    _Paragraph(
+      'Wojciech Żywny (1756–1842) foi violinista, pianista e '
+      'professor. Nasceu na Boêmia, hoje República Tcheca, e viveu '
+      'em Varsóvia, onde, a partir de 1816, ensinou piano a um '
+      'menino de seis anos chamado Frédéric Chopin.',
+    ),
+    _Paragraph(
+      'Żywny deu a Chopin o alicerce: as primeiras lições, o gosto '
+      'por Bach e Mozart, a alegria de tocar. E, segundo se conta, '
+      'teve a humildade de admitir quando o aluno já não tinha '
+      'mais o que aprender com ele.',
+    ),
+    _Paragraph(
+      'O nome do app é uma homenagem a esse professor: o de quem '
+      'ensina a primeira tecla, com paciência, para que o aluno '
+      'possa ir mais longe do que ele. No app, o Ż perdeu o ponto: '
+      'Zywny. Lê-se, mais ou menos, “JÍV-ni”.',
+    ),
+  ];
+
+  /// O que o Zywny quer ser: um professor de bolso, e as metas do app.
+  List<Widget> _aimSection() => const [
+    _Section(title: 'O que o Zywny quer ser'),
+    _Paragraph(
+      'Um professor de bolso para quem toca teclado. A ideia é '
+      'simples: você toca de verdade, e o app escuta.',
+    ),
+    SizedBox(height: 4),
+    _Goal(
+      icon: Icons.piano,
+      lead: 'Treinar no seu teclado.',
+      text:
+          'Ligue um teclado MIDI e o Zywny acompanha cada nota que '
+          'você toca: espera por você (modo espera) ou anda no '
+          'ritmo da música (tempo real), e mostra o que acertou e '
+          'o que errou.',
+    ),
+    _Goal(
+      icon: Icons.school_outlined,
+      lead: 'Ensinar do zero.',
+      text:
+          'O curso inicial leva do teclado e da pauta até uma '
+          'peça a duas mãos. Professores podem escrever os seus '
+          'próprios cursos.',
+    ),
+    _Goal(
+      icon: Icons.route,
+      lead: 'Estudar com método.',
+      text:
+          'Cada música vira uma trilha de trechos curtos e etapas '
+          'que se liberam como fases de um jogo, do devagar ao '
+          'andamento real.',
+    ),
+    _Goal(
+      icon: Icons.library_music_outlined,
+      lead: 'Trazer a sua música.',
+      text:
+          'O Zywny não traz partituras: elas chegam em '
+          'bibliotecas que você instala. Dá para transpor para um '
+          'tom mais fácil, mudar o tamanho da notação e escolher '
+          'as cores.',
+    ),
+    _Goal(
+      icon: Icons.devices_outlined,
+      lead: 'Estar onde você estiver.',
+      text: 'No celular, no computador e no navegador.',
+    ),
+  ];
+
+  /// Os créditos (o Verovio e o som do piano) e as licenças.
+  List<Widget> _creditsSection(BuildContext context) => [
+    const _Section(title: 'Créditos'),
+    const _Paragraph(
+      'As partituras são desenhadas com o Verovio. O som do piano '
+      'vem do soundfont TimGM6mb.',
+    ),
+    const SizedBox(height: 4),
+    Align(
+      alignment: Alignment.centerLeft,
+      child: OutlinedButton.icon(
+        onPressed: () => widget.openLicenses(context, _version),
+        icon: const Icon(Icons.description_outlined, size: 18),
+        label: const Text('Licenças de código aberto'),
+      ),
+    ),
+  ];
 }
 
 class _Header extends StatelessWidget {

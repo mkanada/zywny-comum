@@ -33,9 +33,13 @@ FollowFormSpec _only(CourseReadResult result) =>
     result.course!.lessons.single.exercises.single as FollowFormSpec;
 
 void main() {
-  group('follow-form: where', () {
-    test('o exemplo n3 (blues por progressão) com os padrões', () async {
-      final result = await _read('''
+  _parte14();
+  _parte15();
+}
+
+void _parte1() {
+  test('o exemplo n3 (blues por progressão) com os padrões', () async {
+    final result = await _read('''
 ```zywny-exercise
 id: n3-onde-estamos
 type: follow-form
@@ -48,25 +52,27 @@ bpm: 100
 pass: {accuracy: 70}
 ```
 ''');
-      expect(_messages(result), isEmpty);
-      final spec = _only(result);
-      expect(spec.type, ExerciseType.followForm);
-      expect(spec.mode, FollowMode.where);
-      expect(spec.progression, 'blues-12');
-      expect(spec.key, 'F');
-      expect(spec.questions, 6);
-      expect(spec.answerWindow, 4, reason: 'o padrão');
-      expect(spec.choruses, 2, reason: 'o padrão');
-      expect(spec.bpm, 100);
-      expect(spec.split.midi, 60, reason: 'o padrão C4');
-      expect(spec.backing!.style.name, 'shuffle');
-      expect(spec.pattern, isNull);
-      expect(spec.enter, isNull);
-      expect(spec.cues, isEmpty);
-    });
+    expect(_messages(result), isEmpty);
+    final spec = _only(result);
+    expect(spec.type, ExerciseType.followForm);
+    expect(spec.mode, FollowMode.where);
+    expect(spec.progression, 'blues-12');
+    expect(spec.key, 'F');
+    expect(spec.questions, 6);
+    expect(spec.answerWindow, 4, reason: 'o padrão');
+    expect(spec.choruses, 2, reason: 'o padrão');
+    expect(spec.bpm, 100);
+    expect(spec.split.midi, 60, reason: 'o padrão C4');
+    expect(spec.backing!.style.name, 'shuffle');
+    expect(spec.pattern, isNull);
+    expect(spec.enter, isNull);
+    expect(spec.cues, isEmpty);
+  });
+}
 
-    test('`answer-window` e `choruses` valem com `where`', () async {
-      final result = await _read('''
+void _parte2() {
+  test('`answer-window` e `choruses` valem com `where`', () async {
+    final result = await _read('''
 ```zywny-exercise
 id: w
 type: follow-form
@@ -80,15 +86,14 @@ choruses: 1
 pass: {accuracy: 70}
 ```
 ''');
-      expect(_messages(result), isEmpty);
-      final spec = _only(result);
-      expect(spec.answerWindow, 6);
-      expect(spec.choruses, 1);
-      expect(spec.chartText, '| C | Am | F | G |');
-    });
-
-    test('`questions` fora de `where` é erro', () async {
-      final result = await _read('''
+    expect(_messages(result), isEmpty);
+    final spec = _only(result);
+    expect(spec.answerWindow, 6);
+    expect(spec.choruses, 1);
+    expect(spec.chartText, '| C | Am | F | G |');
+  });
+  test('`questions` fora de `where` é erro', () async {
+    final result = await _read('''
 ```zywny-exercise
 id: w
 type: follow-form
@@ -101,16 +106,16 @@ questions: 3
 pass: {accuracy: 70}
 ```
 ''');
-      expect(
-        _messages(result),
-        contains('`questions` só vale com `mode: where`'),
-      );
-    });
+    expect(
+      _messages(result),
+      contains('`questions` só vale com `mode: where`'),
+    );
   });
+}
 
-  group('follow-form: enter', () {
-    test('o exemplo n3 (entrada no compasso 11 e 12)', () async {
-      final result = await _read('''
+void _parte3() {
+  test('o exemplo n3 (entrada no compasso 11 e 12)', () async {
+    final result = await _read('''
 ```zywny-exercise
 id: n3-turnaround
 type: follow-form
@@ -124,18 +129,20 @@ bpm: 90
 pass: {accuracy: 80}
 ```
 ''');
-      expect(_messages(result), isEmpty);
-      final spec = _only(result);
-      expect(spec.mode, FollowMode.enter);
-      expect(spec.choruses, 3);
-      final enter = spec.enter!;
-      expect(enter.bars.toString(), '11-12');
-      expect(enter.section, isNull);
-      expect(enter.pattern.name, 'block');
-    });
+    expect(_messages(result), isEmpty);
+    final spec = _only(result);
+    expect(spec.mode, FollowMode.enter);
+    expect(spec.choruses, 3);
+    final enter = spec.enter!;
+    expect(enter.bars.toString(), '11-12');
+    expect(enter.section, isNull);
+    expect(enter.pattern.name, 'block');
+  });
+}
 
-    test('`section:` aponta uma seção da grade', () async {
-      final result = await _read('''
+void _parte4() {
+  test('`section:` aponta uma seção da grade', () async {
+    final result = await _read('''
 ```zywny-exercise
 id: e
 type: follow-form
@@ -148,12 +155,11 @@ enter: {section: B, pattern: block}
 pass: {accuracy: 70}
 ```
 ''');
-      expect(_messages(result), isEmpty);
-      expect(_only(result).enter!.section, 'B');
-    });
-
-    test('`bars` além do fim da grade é erro', () async {
-      final result = await _read('''
+    expect(_messages(result), isEmpty);
+    expect(_only(result).enter!.section, 'B');
+  });
+  test('`bars` além do fim da grade é erro', () async {
+    final result = await _read('''
 ```zywny-exercise
 id: e
 type: follow-form
@@ -165,11 +171,13 @@ enter: {bars: 3-6, pattern: block}
 pass: {accuracy: 70}
 ```
 ''');
-      expect(_messages(result), contains('a grade tem 4'));
-    });
+    expect(_messages(result), contains('a grade tem 4'));
+  });
+}
 
-    test('`section` que a grade não tem é erro', () async {
-      final result = await _read('''
+void _parte5() {
+  test('`section` que a grade não tem é erro', () async {
+    final result = await _read('''
 ```zywny-exercise
 id: e
 type: follow-form
@@ -181,11 +189,10 @@ enter: {section: B, pattern: block}
 pass: {accuracy: 70}
 ```
 ''');
-      expect(_messages(result), contains('não há a seção `B`'));
-    });
-
-    test('`enter` sem `bars` nem `section` é erro', () async {
-      final result = await _read('''
+    expect(_messages(result), contains('não há a seção `B`'));
+  });
+  test('`enter` sem `bars` nem `section` é erro', () async {
+    final result = await _read('''
 ```zywny-exercise
 id: e
 type: follow-form
@@ -197,13 +204,13 @@ enter: {pattern: block}
 pass: {accuracy: 70}
 ```
 ''');
-      expect(_messages(result), contains('um dos dois'));
-    });
+    expect(_messages(result), contains('um dos dois'));
+  });
+}
 
-    test(
-      '`enter` de outro modo é erro, e o modo enter sem ele também',
-      () async {
-        final result = await _read('''
+void _parte6() {
+  test('`enter` de outro modo é erro, e o modo enter sem ele também', () async {
+    final result = await _read('''
 ```zywny-exercise
 id: e
 type: follow-form
@@ -214,14 +221,13 @@ key: C
 pass: {accuracy: 70}
 ```
 ''');
-        expect(_messages(result), contains('`mode: enter` pede `enter`'));
-      },
-    );
+    expect(_messages(result), contains('`mode: enter` pede `enter`'));
   });
+}
 
-  group('follow-form: cues', () {
-    test('o exemplo n4 (sinais com seções), com o molde', () async {
-      final result = await _read('''
+void _parte7() {
+  test('o exemplo n4 (sinais com seções), com o molde', () async {
+    final result = await _read('''
 ```zywny-exercise
 id: n4-gospel-sinais
 type: follow-form
@@ -237,20 +243,22 @@ bpm: 84
 pass: {accuracy: 75}
 ```
 ''');
-      expect(_messages(result), isEmpty);
-      final spec = _only(result);
-      expect(spec.mode, FollowMode.cues);
-      expect(spec.cues, [
-        FormSignal.again,
-        FormSignal.next,
-        FormSignal.backToA,
-        FormSignal.end,
-      ]);
-      expect(spec.pattern!.name, 'straight-beat');
-    });
+    expect(_messages(result), isEmpty);
+    final spec = _only(result);
+    expect(spec.mode, FollowMode.cues);
+    expect(spec.cues, [
+      FormSignal.again,
+      FormSignal.next,
+      FormSignal.backToA,
+      FormSignal.end,
+    ]);
+    expect(spec.pattern!.name, 'straight-beat');
+  });
+}
 
-    test('sem `cues`, são `again`, `next` e `end`', () async {
-      final result = await _read('''
+void _parte8() {
+  test('sem `cues`, são `again`, `next` e `end`', () async {
+    final result = await _read('''
 ```zywny-exercise
 id: c
 type: follow-form
@@ -263,16 +271,15 @@ pattern: block
 pass: {accuracy: 70}
 ```
 ''');
-      expect(_messages(result), isEmpty);
-      expect(_only(result).cues, [
-        FormSignal.again,
-        FormSignal.next,
-        FormSignal.end,
-      ]);
-    });
-
-    test('um sinal só, sem lista', () async {
-      final result = await _read('''
+    expect(_messages(result), isEmpty);
+    expect(_only(result).cues, [
+      FormSignal.again,
+      FormSignal.next,
+      FormSignal.end,
+    ]);
+  });
+  test('um sinal só, sem lista', () async {
+    final result = await _read('''
 ```zywny-exercise
 id: c
 type: follow-form
@@ -285,12 +292,14 @@ pattern: block
 pass: {accuracy: 70}
 ```
 ''');
-      expect(_messages(result), isEmpty);
-      expect(_only(result).cues, [FormSignal.end]);
-    });
+    expect(_messages(result), isEmpty);
+    expect(_only(result).cues, [FormSignal.end]);
+  });
+}
 
-    test('sem `pattern` é erro', () async {
-      final result = await _read('''
+void _parte9() {
+  test('sem `pattern` é erro', () async {
+    final result = await _read('''
 ```zywny-exercise
 id: c
 type: follow-form
@@ -301,11 +310,10 @@ key: C
 pass: {accuracy: 70}
 ```
 ''');
-      expect(_messages(result), contains('`mode: cues` pede `pattern`'));
-    });
-
-    test('um sinal que não existe, com a sugestão', () async {
-      final result = await _read('''
+    expect(_messages(result), contains('`mode: cues` pede `pattern`'));
+  });
+  test('um sinal que não existe, com a sugestão', () async {
+    final result = await _read('''
 ```zywny-exercise
 id: c
 type: follow-form
@@ -318,11 +326,13 @@ pattern: block
 pass: {accuracy: 70}
 ```
 ''');
-      expect(_messages(result), contains('você quis dizer `again`'));
-    });
+    expect(_messages(result), contains('você quis dizer `again`'));
+  });
+}
 
-    test('sem `end` nem `tag`, a forma não acaba', () async {
-      final result = await _read('''
+void _parte10() {
+  test('sem `end` nem `tag`, a forma não acaba', () async {
+    final result = await _read('''
 ```zywny-exercise
 id: c
 type: follow-form
@@ -335,11 +345,13 @@ pattern: block
 pass: {accuracy: 70}
 ```
 ''');
-      expect(_messages(result), contains('precisa de `end` ou `tag`'));
-    });
+    expect(_messages(result), contains('precisa de `end` ou `tag`'));
+  });
+}
 
-    test('`bridge` sem a seção `B:` é erro', () async {
-      final result = await _read('''
+void _parte11() {
+  test('`bridge` sem a seção `B:` é erro', () async {
+    final result = await _read('''
 ```zywny-exercise
 id: c
 type: follow-form
@@ -353,8 +365,8 @@ pattern: block
 pass: {accuracy: 70}
 ```
 ''');
-      expect(_messages(result), isEmpty, reason: 'a grade tem a seção B');
-      final bad = await _read('''
+    expect(_messages(result), isEmpty, reason: 'a grade tem a seção B');
+    final bad = await _read('''
 ```zywny-exercise
 id: c
 type: follow-form
@@ -367,11 +379,13 @@ pattern: block
 pass: {accuracy: 70}
 ```
 ''');
-      expect(_messages(bad), contains('`bridge` vai para a seção `B:`'));
-    });
+    expect(_messages(bad), contains('`bridge` vai para a seção `B:`'));
+  });
+}
 
-    test('`next` numa grade de uma seção só é erro', () async {
-      final result = await _read('''
+void _parte12() {
+  test('`next` numa grade de uma seção só é erro', () async {
+    final result = await _read('''
 ```zywny-exercise
 id: c
 type: follow-form
@@ -384,14 +398,10 @@ pattern: block
 pass: {accuracy: 70}
 ```
 ''');
-      expect(
-        _messages(result),
-        contains('pede uma grade com mais de uma seção'),
-      );
-    });
-
-    test('`tag` com menos de quatro compassos é erro', () async {
-      final result = await _read('''
+    expect(_messages(result), contains('pede uma grade com mais de uma seção'));
+  });
+  test('`tag` com menos de quatro compassos é erro', () async {
+    final result = await _read('''
 ```zywny-exercise
 id: c
 type: follow-form
@@ -404,11 +414,13 @@ pattern: block
 pass: {accuracy: 70}
 ```
 ''');
-      expect(_messages(result), contains('`tag` volta quatro compassos'));
-    });
+    expect(_messages(result), contains('`tag` volta quatro compassos'));
+  });
+}
 
-    test('`choruses` com `cues` é erro', () async {
-      final result = await _read('''
+void _parte13() {
+  test('`choruses` com `cues` é erro', () async {
+    final result = await _read('''
 ```zywny-exercise
 id: c
 type: follow-form
@@ -422,13 +434,35 @@ pattern: block
 pass: {accuracy: 70}
 ```
 ''');
-      expect(
-        _messages(result),
-        contains('`choruses` não vale com `mode: cues`'),
-      );
-    });
+    expect(_messages(result), contains('`choruses` não vale com `mode: cues`'));
   });
+}
 
+// Testes: follow-form: where · follow-form: enter · follow-form: cues
+void _parte14() {
+  group('follow-form: where', () {
+    _parte1();
+    _parte2();
+  });
+  group('follow-form: enter', () {
+    _parte3();
+    _parte4();
+    _parte5();
+    _parte6();
+  });
+  group('follow-form: cues', () {
+    _parte7();
+    _parte8();
+    _parte9();
+    _parte10();
+    _parte11();
+    _parte12();
+    _parte13();
+  });
+}
+
+// Testes: follow-form: modos ainda não rodam
+void _parte15() {
   group('follow-form: modos ainda não rodam', () {
     for (final mode in ['intro-outro', 'break', 'trading']) {
       test('`mode: $mode` é recusado', () async {

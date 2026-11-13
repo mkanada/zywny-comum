@@ -66,102 +66,138 @@ ScannedFile scanLessonFile(
   required void Function(int line, String message) onError,
 }) {
   final lines = splitLines(text);
-  FrontMatter? front;
-  var start = 0;
+  final head = _frontOf(lines, onError);
+  if (head == null) return const ScannedFile(null, []);
+  final scanner = _Scanner(lines, onError)..run(head.start);
+  return ScannedFile(head.front, scanner.segments);
+}
 
-  if (lines.first.trimRight() == '---') {
-    final close = lines.indexWhere((l) => l.trimRight() == '---', 1);
-    if (close < 0) {
-      onError(
-        1,
-        'O front matter começa em `---`, mas não há outro `---` '
-        'para fechá-lo.',
-      );
-      return const ScannedFile(null, []);
-    }
-    front = FrontMatter(lines.sublist(1, close).join('\n'), 2);
-    start = close + 1;
-  } else {
+/// O front matter de [lines] e a linha em que o corpo começa. `null` se o
+/// front matter não fecha (o erro já foi dado: não há o que cortar).
+({FrontMatter? front, int start})? _frontOf(
+  List<String> lines,
+  void Function(int line, String message) onError,
+) {
+  if (lines.first.trimRight() != '---') {
     onError(
       1,
       'O arquivo precisa começar pelo front matter: uma linha `---`, as '
       'chaves e outra linha `---`.',
     );
+    return (front: null, start: 0);
+  }
+  final close = lines.indexWhere((l) => l.trimRight() == '---', 1);
+  if (close < 0) {
+    onError(
+      1,
+      'O front matter começa em `---`, mas não há outro `---` '
+      'para fechá-lo.',
+    );
+    return null;
+  }
+  return (
+    front: FrontMatter(lines.sublist(1, close).join('\n'), 2),
+    start: close + 1,
+  );
+}
+
+/// O corte do corpo: o texto em curso, a cerca de código aberta e os
+/// segmentos prontos (em [segments]).
+class _Scanner {
+  _Scanner(this._lines, this._onError);
+
+  final List<String> _lines;
+  final void Function(int line, String message) _onError;
+  final segments = <Segment>[];
+  final _buffer = <String>[];
+  var _bufferStart = 0;
+  String? _fenceMark;
+  var _fenceLength = 0;
+
+  /// Corta as linhas a partir de [start].
+  void run(int start) {
+    _bufferStart = start;
+    var i = start;
+    while (i < _lines.length) {
+      final line = _lines[i];
+      if (_fenceMark != null) {
+        _inFence(line);
+        i++;
+        continue;
+      }
+      final mark = _markOpen.firstMatch(line);
+      if (mark != null) {
+        i = _mark(mark.group(1)!, i);
+        continue;
+      }
+      final fence = _fenceOpen.firstMatch(line);
+      if (fence != null) {
+        _fenceMark = fence.group(1)![0];
+        _fenceLength = fence.group(1)!.length;
+      }
+      if (_buffer.isEmpty) _bufferStart = i;
+      _buffer.add(line);
+      i++;
+    }
+    _flushText();
   }
 
-  final segments = <Segment>[];
-  final buffer = <String>[];
-  var bufferStart = start;
-  String? fenceMark;
-  var fenceLength = 0;
+  /// Dentro de uma cerca a linha é texto; a cerca fecha com a mesma marca e
+  /// pelo menos o mesmo tamanho.
+  void _inFence(String line) {
+    _buffer.add(line);
+    final mark = _fenceMark!;
+    final trimmed = line.trimRight().trimLeft();
+    if (trimmed.startsWith(mark * _fenceLength) &&
+        trimmed.replaceAll(mark, '').isEmpty) {
+      _fenceMark = null;
+    }
+  }
 
-  void flushText() {
+  /// A marca `zywny-…` que abre na linha [i] (índice); devolve a linha
+  /// seguinte a ela.
+  int _mark(String name, int i) {
+    _flushText();
+    final openLine = i + 1;
+    var j = i + 1;
+    while (j < _lines.length && !_markClose.hasMatch(_lines[j])) {
+      j++;
+    }
+    if (j >= _lines.length) {
+      _onError(
+        openLine,
+        'A marca `zywny-$name` não foi fechada: falta uma linha só com '
+        'três crases (```).',
+      );
+      _bufferStart = _lines.length;
+      return _lines.length;
+    }
+    segments.add(
+      MarkSegment(name, _lines.sublist(i + 1, j).join('\n'), openLine),
+    );
+    _bufferStart = j + 1;
+    return j + 1;
+  }
+
+  /// Fecha o texto em curso (sem as linhas em branco das pontas) como um
+  /// segmento.
+  void _flushText() {
     var first = 0;
-    var last = buffer.length;
-    while (first < last && buffer[first].trim().isEmpty) {
+    var last = _buffer.length;
+    while (first < last && _buffer[first].trim().isEmpty) {
       first++;
     }
-    while (last > first && buffer[last - 1].trim().isEmpty) {
+    while (last > first && _buffer[last - 1].trim().isEmpty) {
       last--;
     }
     if (first < last) {
       segments.add(
         TextSegment(
-          buffer.sublist(first, last).join('\n'),
-          bufferStart + first + 1,
+          _buffer.sublist(first, last).join('\n'),
+          _bufferStart + first + 1,
         ),
       );
     }
-    buffer.clear();
+    _buffer.clear();
   }
-
-  var i = start;
-  while (i < lines.length) {
-    final line = lines[i];
-    if (fenceMark != null) {
-      buffer.add(line);
-      final trimmed = line.trimRight().trimLeft();
-      if (trimmed.startsWith(fenceMark * fenceLength) &&
-          trimmed.replaceAll(fenceMark, '').isEmpty) {
-        fenceMark = null;
-      }
-      i++;
-      continue;
-    }
-    final mark = _markOpen.firstMatch(line);
-    if (mark != null) {
-      flushText();
-      final name = mark.group(1)!;
-      final openLine = i + 1;
-      final body = <String>[];
-      var j = i + 1;
-      while (j < lines.length && !_markClose.hasMatch(lines[j])) {
-        body.add(lines[j]);
-        j++;
-      }
-      if (j >= lines.length) {
-        onError(
-          openLine,
-          'A marca `zywny-$name` não foi fechada: falta uma linha só com '
-          'três crases (```).',
-        );
-        i = lines.length;
-      } else {
-        segments.add(MarkSegment(name, body.join('\n'), openLine));
-        i = j + 1;
-      }
-      bufferStart = i;
-      continue;
-    }
-    final fence = _fenceOpen.firstMatch(line);
-    if (fence != null) {
-      fenceMark = fence.group(1)![0];
-      fenceLength = fence.group(1)!.length;
-    }
-    if (buffer.isEmpty) bufferStart = i;
-    buffer.add(line);
-    i++;
-  }
-  flushText();
-  return ScannedFile(front, segments);
 }

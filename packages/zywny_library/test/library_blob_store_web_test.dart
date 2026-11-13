@@ -55,8 +55,7 @@ void main() {
     final watch = Stopwatch()..start();
     final sealed = await LibraryEnvelope.seal(
       zip,
-      privateSeed: seed,
-      publicKey: pub,
+      keys: (privateSeed: seed, publicKey: pub),
     );
     final back = await LibraryEnvelope.open(sealed, pub);
     // ignore: avoid_print

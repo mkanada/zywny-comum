@@ -103,8 +103,15 @@ class _CornerPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
+    _paintBody(canvas, size);
+    _paintStaff(canvas, size);
+    _paintCorner(canvas, size);
+    _paintHint(canvas, size);
+  }
+
+  /// O corpo do cartão: o fundo e a borda.
+  void _paintBody(Canvas canvas, Size size) {
     final outline = theme.colorScheme.outline;
-    final soft = theme.colorScheme.outlineVariant;
     final body = RRect.fromRectAndRadius(
       Offset.zero & size,
       const Radius.circular(14),
@@ -120,10 +127,12 @@ class _CornerPainter extends CustomPainter {
         ..style = PaintingStyle.stroke
         ..strokeWidth = 2.5,
     );
+  }
 
-    // A "partitura": cinco pautas, só para dar contexto.
+  /// A "partitura": cinco pautas, só para dar contexto.
+  void _paintStaff(Canvas canvas, Size size) {
     final staff = Paint()
-      ..color = soft
+      ..color = theme.colorScheme.outlineVariant
       ..strokeWidth = 1;
     for (var s = 0; s < 2; s++) {
       final top = size.height * (0.18 + s * 0.28);
@@ -136,8 +145,10 @@ class _CornerPainter extends CustomPainter {
         );
       }
     }
+  }
 
-    // O canto sensível: 72 dp numa tela de ~700 dp, um pouco exagerado.
+  /// O canto sensível: 72 dp numa tela de ~700 dp, um pouco exagerado.
+  void _paintCorner(Canvas canvas, Size size) {
     final side = size.width * 0.17;
     final corner = Rect.fromLTWH(0, size.height - side, side, side);
     final clip = RRect.fromRectAndCorners(
@@ -152,8 +163,12 @@ class _CornerPainter extends CustomPainter {
         ..style = PaintingStyle.stroke
         ..strokeWidth = 2,
     );
+  }
 
-    // O dedo, no meio do canto.
+  /// O dedo, no meio do canto, e a legenda "segure 1 s".
+  void _paintHint(Canvas canvas, Size size) {
+    final side = size.width * 0.17;
+    final corner = Rect.fromLTWH(0, size.height - side, side, side);
     final icon = TextPainter(
       text: TextSpan(
         text: String.fromCharCode(Icons.touch_app.codePoint),

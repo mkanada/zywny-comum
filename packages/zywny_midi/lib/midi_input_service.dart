@@ -139,19 +139,23 @@ class FlutterMidiInputService implements MidiInputService {
         // (running status de muitos teclados; docs/plano/M01-entrada-midi.md)
         // — não depende de um detalhe de implementação de terceiros.
         _emitNote(
-          pitch: note,
-          velocity: velocity,
-          channel: channel,
-          on: velocity > 0,
-          atSeconds: atSeconds,
+          PlayedNote(
+            pitch: note,
+            velocity: velocity,
+            channel: channel,
+            on: velocity > 0,
+            atSeconds: atSeconds,
+          ),
         );
       case NoteOffMessage(:final channel, :final note, :final velocity):
         _emitNote(
-          pitch: note,
-          velocity: velocity,
-          channel: channel,
-          on: false,
-          atSeconds: atSeconds,
+          PlayedNote(
+            pitch: note,
+            velocity: velocity,
+            channel: channel,
+            on: false,
+            atSeconds: atSeconds,
+          ),
         );
       case CCMessage(:final controller, :final value) when controller == 64:
         _sustain.add(SustainChange(value: value, atSeconds: atSeconds));
@@ -160,27 +164,13 @@ class FlutterMidiInputService implements MidiInputService {
     }
   }
 
-  void _emitNote({
-    required int pitch,
-    required int velocity,
-    required int channel,
-    required bool on,
-    required double atSeconds,
-  }) {
-    _notes.add(
-      PlayedNote(
-        pitch: pitch,
-        velocity: velocity,
-        channel: channel,
-        on: on,
-        atSeconds: atSeconds,
-      ),
-    );
+  void _emitNote(PlayedNote note) {
+    _notes.add(note);
     final next = Set<int>.of(_held.value);
-    if (on) {
-      next.add(pitch);
+    if (note.on) {
+      next.add(note.pitch);
     } else {
-      next.remove(pitch);
+      next.remove(note.pitch);
     }
     _held.value = next;
   }

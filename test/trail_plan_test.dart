@@ -99,8 +99,10 @@ void main() {
         _path(6),
         track,
         n: 5,
-        phases: [TrailPhase.notasJ, TrailPhase.junto],
-        speeds: {0.75, 1.0},
+        options: TrailPlanOptions(
+          phases: [TrailPhase.notasJ, TrailPhase.junto],
+          speeds: {0.75, 1.0},
+        ),
       );
       expect(
         [for (final s in plan.stages) s.id],
@@ -124,9 +126,11 @@ void main() {
         _path(4),
         track,
         n: 5,
-        includeFinal: false,
-        phases: [TrailPhase.tempoD, TrailPhase.notasD, TrailPhase.junto],
-        speeds: {1.0},
+        options: TrailPlanOptions(
+          includeFinal: false,
+          phases: [TrailPhase.tempoD, TrailPhase.notasD, TrailPhase.junto],
+          speeds: {1.0},
+        ),
       );
       expect(
         [for (final s in plan.stages) s.id],

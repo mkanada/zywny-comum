@@ -90,8 +90,6 @@ class _LatencyMeterScreenState extends State<LatencyMeterScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final runner = _runner;
-    final result = _result;
     return DiagScreen(
       name: 'medidor de latência',
       child: Scaffold(
@@ -114,36 +112,12 @@ class _LatencyMeterScreenState extends State<LatencyMeterScreen> {
                     'atraso entre o app mandar a nota e você ouvi-la.',
                   ),
                   const SizedBox(height: 12),
-                  const _Tip(
-                    Icons.near_me_outlined,
-                    'Deixe o celular perto do alto-falante do teclado, a uns '
-                    '30 cm.',
-                  ),
-                  const _Tip(
-                    Icons.volume_up_outlined,
-                    'Volume do teclado médio ou alto, e a sala quieta. Sem '
-                    'fone no teclado.',
-                  ),
-                  const _Tip(
-                    Icons.phone_android,
-                    'O celular também toca uns cliques: use o alto-falante '
-                    'dele, sem fone Bluetooth.',
-                  ),
+                  ..._tips(),
                   const SizedBox(height: 16),
-                  if (runner != null) _Running(runner: runner),
-                  if (result != null) _Report(result: result),
+                  if (_runner != null) _Running(runner: _runner!),
+                  if (_result != null) _Report(result: _result!),
                   const SizedBox(height: 16),
-                  if (runner == null)
-                    FilledButton.icon(
-                      onPressed: () => unawaited(_measure()),
-                      icon: const Icon(Icons.mic),
-                      label: Text(result == null ? 'Medir' : 'Medir de novo'),
-                    )
-                  else
-                    OutlinedButton(
-                      onPressed: runner.cancel,
-                      child: const Text('Parar'),
-                    ),
+                  _measureButton(),
                 ],
               ),
             ),
@@ -151,6 +125,36 @@ class _LatencyMeterScreenState extends State<LatencyMeterScreen> {
         ),
       ),
     );
+  }
+
+  /// As três dicas de posição, volume e som do celular.
+  List<Widget> _tips() => const [
+    _Tip(
+      Icons.near_me_outlined,
+      'Deixe o celular perto do alto-falante do teclado, a uns 30 cm.',
+    ),
+    _Tip(
+      Icons.volume_up_outlined,
+      'Volume do teclado médio ou alto, e a sala quieta. Sem fone no teclado.',
+    ),
+    _Tip(
+      Icons.phone_android,
+      'O celular também toca uns cliques: use o alto-falante dele, sem fone '
+      'Bluetooth.',
+    ),
+  ];
+
+  /// "Medir" (ou "Medir de novo") quando não há medida em curso; "Parar" quando há.
+  Widget _measureButton() {
+    final runner = _runner;
+    if (runner == null) {
+      return FilledButton.icon(
+        onPressed: () => unawaited(_measure()),
+        icon: const Icon(Icons.mic),
+        label: Text(_result == null ? 'Medir' : 'Medir de novo'),
+      );
+    }
+    return OutlinedButton(onPressed: runner.cancel, child: const Text('Parar'));
   }
 }
 

@@ -379,11 +379,13 @@ void main() {
       bool? out,
       bool appIsSound = false,
     }) => shouldRemindTransposeReset(
-      previousWasTransposed: previous,
-      nowTransposed: now,
-      hasKeyboard: keyboard,
-      keyboardShiftsOut: out,
-      appIsSound: appIsSound,
+      state: ResetReminderState(
+        previousWasTransposed: previous,
+        nowTransposed: now,
+        hasKeyboard: keyboard,
+        keyboardShiftsOut: out,
+        appIsSound: appIsSound,
+      ),
     );
 
     test('só no caso do passo 3', () {

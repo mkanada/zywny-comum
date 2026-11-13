@@ -477,75 +477,12 @@ class ScoreAudioScheduler {
     final earliest = engine.earliestScheduleSeconds;
     final midi = <ScheduledMidi>[];
     var horizonMs = horizon();
+    horizonMs = _closeLoops(midi, earliest, horizon, horizonMs);
+    horizonMs = _closeJumps(midi, earliest, horizon, horizonMs);
 
-    // Fecha as voltas do loop que cabem na janela. Cada volta tem que
-    // avançar (start < end e a âncora anda para `startMs`), então o laço
-    // termina; o teto protege de um loop ínfimo com o relógio parado.
-    final loopStart = _loopStartMs;
     final loopEnd = _loopEndMs;
-    if (loopStart != null && loopEnd != null) {
-      var guard = 0;
-      while (_scheduledUpToMs < loopEnd &&
-          horizonMs >= loopEnd &&
-          guard++ < 64) {
-        _emit(midi, _scheduledUpToMs, loopEnd, earliest, cutMs: loopEnd);
-        final wrapDevice = _deviceAt(loopEnd);
-        _segments.add(_Segment(wrapDevice, _deviceT0, _musicalT0));
-        _musicalT0 = loopStart;
-        _deviceT0 = wrapDevice;
-        _scheduledUpToMs = loopStart;
-        _laps++;
-        onLoop?.call(_laps);
-        horizonMs = horizon();
-      }
-    }
-
-    // Fecha os saltos de caminho que cabem na janela: igual à volta do
-    // loop, mas para a frente — ao alcançar o início, emite até ele (com os
-    // `offMs` cortados) e reancora no destino no instante em que o início
-    // soa, sem lacuna. Cada salto avança, então o laço termina.
-    if (_jumps.isNotEmpty) {
-      var guard = 0;
-      while (guard++ < 64) {
-        ({double startMs, double endMs})? gap;
-        for (final jump in _jumps) {
-          if (jump.startMs >= _scheduledUpToMs && horizonMs >= jump.startMs) {
-            gap = jump;
-            break;
-          }
-        }
-        if (gap == null) break;
-        final g = gap;
-        _emit(
-          midi,
-          _scheduledUpToMs,
-          g.startMs,
-          earliest,
-          cutMs: g.startMs,
-          stopAt: _stopAtMs,
-        );
-        final jumpDevice = _deviceAt(g.startMs);
-        _segments.add(_Segment(jumpDevice, _deviceT0, _musicalT0));
-        _musicalT0 = g.endMs;
-        _deviceT0 = jumpDevice;
-        _scheduledUpToMs = g.endMs;
-        _jumpsTaken++;
-        onJump?.call(g.endMs);
-        horizonMs = horizon();
-      }
-    }
-
     if (horizonMs > _scheduledUpToMs) {
-      _emit(
-        midi,
-        _scheduledUpToMs,
-        horizonMs,
-        earliest,
-        cutMs: loopEnd != null && horizonMs > loopEnd
-            ? loopEnd
-            : (_stopAtMs != null && horizonMs > _stopAtMs! ? _stopAtMs : null),
-        stopAt: _stopAtMs,
-      );
+      _emitUpTo(midi, earliest, horizonMs, loopEnd);
       _scheduledUpToMs = horizonMs;
     }
     if (midi.isNotEmpty) engine.schedule(midi);
@@ -558,46 +495,165 @@ class ScoreAudioScheduler {
     }
   }
 
+  /// Fecha as voltas do loop que cabem até [horizonMs]. Cada volta tem que
+  /// avançar (start < end e a âncora anda para `startMs`), então o laço
+  /// termina; o teto protege de um loop ínfimo com o relógio parado. Devolve o
+  /// horizonte depois das voltas.
+  double _closeLoops(
+    List<ScheduledMidi> midi,
+    double earliest,
+    double Function() horizon,
+    double horizonMs,
+  ) {
+    final loopStart = _loopStartMs;
+    final loopEnd = _loopEndMs;
+    if (loopStart == null || loopEnd == null) return horizonMs;
+    var h = horizonMs;
+    var guard = 0;
+    while (_scheduledUpToMs < loopEnd && h >= loopEnd && guard++ < 64) {
+      _emit(midi, (
+        lo: _scheduledUpToMs,
+        hi: loopEnd,
+        earliest: earliest,
+      ), cutMs: loopEnd);
+      final wrapDevice = _deviceAt(loopEnd);
+      _segments.add(_Segment(wrapDevice, _deviceT0, _musicalT0));
+      _musicalT0 = loopStart;
+      _deviceT0 = wrapDevice;
+      _scheduledUpToMs = loopStart;
+      _laps++;
+      onLoop?.call(_laps);
+      h = horizon();
+    }
+    return h;
+  }
+
+  /// Fecha os saltos de caminho que cabem até [horizonMs]: igual à volta do
+  /// loop, mas para a frente — ao alcançar o início, emite até ele (com os
+  /// `offMs` cortados) e reancora no destino no instante em que o início soa,
+  /// sem lacuna. Cada salto avança, então o laço termina. Devolve o horizonte
+  /// depois dos saltos.
+  double _closeJumps(
+    List<ScheduledMidi> midi,
+    double earliest,
+    double Function() horizon,
+    double horizonMs,
+  ) {
+    if (_jumps.isEmpty) return horizonMs;
+    var h = horizonMs;
+    var guard = 0;
+    while (guard++ < 64) {
+      ({double startMs, double endMs})? gap;
+      for (final jump in _jumps) {
+        if (jump.startMs >= _scheduledUpToMs && h >= jump.startMs) {
+          gap = jump;
+          break;
+        }
+      }
+      if (gap == null) break;
+      final g = gap;
+      _emit(
+        midi,
+        (lo: _scheduledUpToMs, hi: g.startMs, earliest: earliest),
+        cutMs: g.startMs,
+        stopAt: _stopAtMs,
+      );
+      final jumpDevice = _deviceAt(g.startMs);
+      _segments.add(_Segment(jumpDevice, _deviceT0, _musicalT0));
+      _musicalT0 = g.endMs;
+      _deviceT0 = jumpDevice;
+      _scheduledUpToMs = g.endMs;
+      _jumpsTaken++;
+      onJump?.call(g.endMs);
+      h = horizon();
+    }
+    return h;
+  }
+
+  /// Emite o que vai de [_scheduledUpToMs] até [horizonMs]; com um [loopEnd],
+  /// corta os `offMs` no fim do loop (ou no teto de parada, se ele vem antes).
+  void _emitUpTo(
+    List<ScheduledMidi> midi,
+    double earliest,
+    double horizonMs,
+    double? loopEnd,
+  ) {
+    final stopAt = _stopAtMs;
+    final double? cut;
+    if (loopEnd != null && horizonMs > loopEnd) {
+      cut = loopEnd;
+    } else if (stopAt != null && horizonMs > stopAt) {
+      cut = stopAt;
+    } else {
+      cut = null;
+    }
+    _emit(
+      midi,
+      (lo: _scheduledUpToMs, hi: horizonMs, earliest: earliest),
+      cutMs: cut,
+      stopAt: stopAt,
+    );
+  }
+
   /// Agenda em [midi] o que começa em `[lo, hi)`: notas (com `offMs`
   /// cortado em [cutMs]), cliques do metrônomo e da contagem inicial.
   /// [stopAt] (teto da passagem única, J04) capa o `onMs` de notas e cliques
   /// — a posição continua correndo além dele.
   void _emit(
     List<ScheduledMidi> midi,
-    double lo,
-    double hi,
-    double earliest, {
+    ({double lo, double hi, double earliest}) window, {
     double? cutMs,
     double? stopAt,
   }) {
+    final lo = window.lo;
+    final hi = window.hi;
+    final earliest = window.earliest;
     final floor = _floorMs;
     final noteLo = floor != null && lo < floor ? floor : lo;
     final noteHi = stopAt != null && hi > stopAt ? stopAt : hi;
     if (noteHi > noteLo) {
-      for (final e in track.startingIn(noteLo, noteHi, staves: _staves)) {
-        // Atrasado (tick perdido, GC): nunca descarte o par — toque no mais
-        // cedo possível.
-        final onAt = _clamp(_deviceAt(e.onMs), earliest);
-        final offMs = cutMs != null && e.offMs > cutMs ? cutMs : e.offMs;
-        final rawOffAt = _deviceAt(offMs) - _kNoteOffLeadSeconds;
-        final offAt = _clamp(rawOffAt, earliest).clamp(onAt, double.infinity);
-        final pitch = pitchOf(e.pitch);
-        midi.add(ScheduledMidi(onAt, 0x90 | e.channel, pitch, e.velocity));
-        midi.add(ScheduledMidi(offAt, 0x80 | e.channel, pitch, 0));
-      }
+      _noteEvents(midi, (lo: noteLo, hi: noteHi, earliest: earliest), cutMs);
     }
     for (final b in _countIn) {
       if (b.ms >= lo && b.ms < hi && (stopAt == null || b.ms < stopAt)) {
         _click(midi, b, earliest);
       }
     }
-    if (metronomeOn) {
-      for (final b in beats) {
-        if (b.ms >= hi) break;
-        if (stopAt != null && b.ms >= stopAt) break;
-        if (b.ms >= lo && (floor == null || b.ms >= floor)) {
-          _click(midi, b, earliest);
-        }
+    if (metronomeOn) _metronomeClicks(midi, window, stopAt, floor);
+  }
+
+  /// As notas que começam em [window] (com o `offMs` cortado em [cutMs]).
+  void _noteEvents(
+    List<ScheduledMidi> midi,
+    ({double lo, double hi, double earliest}) window,
+    double? cutMs,
+  ) {
+    final earliest = window.earliest;
+    for (final e in track.startingIn(window.lo, window.hi, staves: _staves)) {
+      // Atrasado (tick perdido, GC): nunca descarte o par — toque no mais
+      // cedo possível.
+      final onAt = _clamp(_deviceAt(e.onMs), earliest);
+      final offMs = cutMs != null && e.offMs > cutMs ? cutMs : e.offMs;
+      final rawOffAt = _deviceAt(offMs) - _kNoteOffLeadSeconds;
+      final offAt = _clamp(rawOffAt, earliest).clamp(onAt, double.infinity);
+      final pitch = pitchOf(e.pitch);
+      midi.add(ScheduledMidi(onAt, 0x90 | e.channel, pitch, e.velocity));
+      midi.add(ScheduledMidi(offAt, 0x80 | e.channel, pitch, 0));
+    }
+  }
+
+  /// Os cliques do metrônomo em [window], até [stopAt] e a partir de [floor].
+  void _metronomeClicks(
+    List<ScheduledMidi> midi,
+    ({double lo, double hi, double earliest}) window,
+    double? stopAt,
+    double? floor,
+  ) {
+    for (final b in beats) {
+      if (b.ms >= window.hi) break;
+      if (stopAt != null && b.ms >= stopAt) break;
+      if (b.ms >= window.lo && (floor == null || b.ms >= floor)) {
+        _click(midi, b, window.earliest);
       }
     }
   }

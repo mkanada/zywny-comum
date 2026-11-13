@@ -90,61 +90,68 @@ ThemeData buildAppTheme() {
     colorScheme: kAppColorScheme,
     scaffoldBackgroundColor: kLibraryBg,
   );
-  return base.copyWith(
-    // IBM Plex Sans no corpo, como no artboard.
-    textTheme: GoogleFonts.ibmPlexSansTextTheme(base.textTheme)
-        .apply(bodyColor: kInk, displayColor: kInk),
-    dialogTheme: DialogThemeData(
-      backgroundColor: kSurface,
-      surfaceTintColor: Colors.transparent,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-    ),
-    bottomSheetTheme: const BottomSheetThemeData(
-      backgroundColor: kSurface,
-      surfaceTintColor: Colors.transparent,
-      modalBackgroundColor: kSurface,
-    ),
-    filledButtonTheme: FilledButtonThemeData(
-      style: FilledButton.styleFrom(
-        backgroundColor: kAccent,
-        foregroundColor: Colors.white,
+  return _controlThemes(
+    base.copyWith(
+      // IBM Plex Sans no corpo, como no artboard.
+      textTheme: GoogleFonts.ibmPlexSansTextTheme(base.textTheme)
+          .apply(bodyColor: kInk, displayColor: kInk),
+      dialogTheme: DialogThemeData(
+        backgroundColor: kSurface,
+        surfaceTintColor: Colors.transparent,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      ),
+      bottomSheetTheme: const BottomSheetThemeData(
+        backgroundColor: kSurface,
+        surfaceTintColor: Colors.transparent,
+        modalBackgroundColor: kSurface,
+      ),
+      snackBarTheme: const SnackBarThemeData(
+        backgroundColor: kInk,
+        contentTextStyle: TextStyle(color: Colors.white),
+        behavior: SnackBarBehavior.floating,
       ),
     ),
-    textButtonTheme: TextButtonThemeData(
-      style: TextButton.styleFrom(foregroundColor: kAccent),
-    ),
-    outlinedButtonTheme: OutlinedButtonThemeData(
-      style: OutlinedButton.styleFrom(
-        foregroundColor: kAccent,
-        side: const BorderSide(color: kBorder),
-      ),
-    ),
-    switchTheme: SwitchThemeData(
-      thumbColor: WidgetStateProperty.resolveWith(
-        (states) =>
-            states.contains(WidgetState.selected) ? Colors.white : kInkMuted,
-      ),
-      trackColor: WidgetStateProperty.resolveWith(
-        (states) => states.contains(WidgetState.selected) ? kAccent : kChipBg,
-      ),
-      trackOutlineColor: WidgetStateProperty.resolveWith(
-        (states) => states.contains(WidgetState.selected) ? kAccent : kBorder,
-      ),
-    ),
-    // O primário (kAccent) já vem do esquema de cores.
-    sliderTheme: const SliderThemeData(inactiveTrackColor: kBorder),
-    segmentedButtonTheme: SegmentedButtonThemeData(
-      style: SegmentedButton.styleFrom(
-        selectedBackgroundColor: kAccentSoftBg,
-        selectedForegroundColor: kAccentDark,
-        side: const BorderSide(color: kBorder),
-      ),
-    ),
-    snackBarTheme: const SnackBarThemeData(
-      backgroundColor: kInk,
-      contentTextStyle: TextStyle(color: Colors.white),
-      behavior: SnackBarBehavior.floating,
-    ),
-    progressIndicatorTheme: const ProgressIndicatorThemeData(color: kAccent),
   );
 }
+
+/// Os controles (botões, chave, deslizador, escolha segmentada e indicador)
+/// nas cores do app: o primário é o [kAccent].
+ThemeData _controlThemes(ThemeData theme) => theme.copyWith(
+  filledButtonTheme: FilledButtonThemeData(
+    style: FilledButton.styleFrom(
+      backgroundColor: kAccent,
+      foregroundColor: Colors.white,
+    ),
+  ),
+  textButtonTheme: TextButtonThemeData(
+    style: TextButton.styleFrom(foregroundColor: kAccent),
+  ),
+  outlinedButtonTheme: OutlinedButtonThemeData(
+    style: OutlinedButton.styleFrom(
+      foregroundColor: kAccent,
+      side: const BorderSide(color: kBorder),
+    ),
+  ),
+  switchTheme: SwitchThemeData(
+    thumbColor: WidgetStateProperty.resolveWith(
+      (states) =>
+          states.contains(WidgetState.selected) ? Colors.white : kInkMuted,
+    ),
+    trackColor: WidgetStateProperty.resolveWith(
+      (states) => states.contains(WidgetState.selected) ? kAccent : kChipBg,
+    ),
+    trackOutlineColor: WidgetStateProperty.resolveWith(
+      (states) => states.contains(WidgetState.selected) ? kAccent : kBorder,
+    ),
+  ),
+  // O primário (kAccent) já vem do esquema de cores.
+  sliderTheme: const SliderThemeData(inactiveTrackColor: kBorder),
+  segmentedButtonTheme: SegmentedButtonThemeData(
+    style: SegmentedButton.styleFrom(
+      selectedBackgroundColor: kAccentSoftBg,
+      selectedForegroundColor: kAccentDark,
+      side: const BorderSide(color: kBorder),
+    ),
+  ),
+  progressIndicatorTheme: const ProgressIndicatorThemeData(color: kAccent),
+);

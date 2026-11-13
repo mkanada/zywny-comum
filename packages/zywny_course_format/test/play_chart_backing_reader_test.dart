@@ -31,9 +31,12 @@ PlayChartSpec _spec(CourseReadResult result) =>
     result.course!.lessons.single.exercises.single as PlayChartSpec;
 
 void main() {
-  group('play-chart: backing', () {
-    test('backing: drums é a bateria do estilo do molde, sem baixo', () async {
-      final result = await _read('''
+  _parte6();
+}
+
+void _parte1() {
+  test('backing: drums é a bateria do estilo do molde, sem baixo', () async {
+    final result = await _read('''
 ```zywny-exercise
 id: n2-oom-pah-base
 type: play-chart
@@ -45,22 +48,24 @@ backing: drums
 pass: {accuracy: 80}
 ```
 ''');
-      expect(_messages(result), isEmpty);
-      final backing = _spec(result).backing!;
-      expect(backing.style.name, 'straight');
-      expect(backing.drums, isTrue);
-      expect(backing.bass, BackingBass.none);
-      expect(backing.volume, 70);
-      expect(backing.intro, 1);
-      expect(
-        _spec(result).metronome,
-        isFalse,
-        reason: 'com a base, o metrônomo começa desligado',
-      );
-    });
+    expect(_messages(result), isEmpty);
+    final backing = _spec(result).backing!;
+    expect(backing.style.name, 'straight');
+    expect(backing.drums, isTrue);
+    expect(backing.bass, BackingBass.none);
+    expect(backing.volume, 70);
+    expect(backing.intro, 1);
+    expect(
+      _spec(result).metronome,
+      isFalse,
+      reason: 'com a base, o metrônomo começa desligado',
+    );
+  });
+}
 
-    test('o mapa escolhe o estilo, o baixo, o volume e a intro', () async {
-      final result = await _read('''
+void _parte2() {
+  test('o mapa escolhe o estilo, o baixo, o volume e a intro', () async {
+    final result = await _read('''
 ```zywny-exercise
 id: n3-blues-base
 type: play-chart
@@ -72,16 +77,15 @@ bpm: 96
 pass: {accuracy: 80}
 ```
 ''');
-      expect(_messages(result), isEmpty);
-      final backing = _spec(result).backing!;
-      expect(backing.style.name, 'shuffle');
-      expect(backing.bass, BackingBass.walking);
-      expect(backing.volume, 55);
-      expect(backing.intro, 2);
-    });
-
-    test('sem style, o mapa usa o do molde; o baixo padrão é a 5ª', () async {
-      final result = await _read('''
+    expect(_messages(result), isEmpty);
+    final backing = _spec(result).backing!;
+    expect(backing.style.name, 'shuffle');
+    expect(backing.bass, BackingBass.walking);
+    expect(backing.volume, 55);
+    expect(backing.intro, 2);
+  });
+  test('sem style, o mapa usa o do molde; o baixo padrão é a 5ª', () async {
+    final result = await _read('''
 ```zywny-exercise
 id: n3-boogie-base
 type: play-chart
@@ -93,14 +97,16 @@ backing: {drums: true}
 pass: {accuracy: 80}
 ```
 ''');
-      expect(_messages(result), isEmpty);
-      final backing = _spec(result).backing!;
-      expect(backing.style.name, 'shuffle');
-      expect(backing.bass, BackingBass.rootFifth);
-    });
+    expect(_messages(result), isEmpty);
+    final backing = _spec(result).backing!;
+    expect(backing.style.name, 'shuffle');
+    expect(backing.bass, BackingBass.rootFifth);
+  });
+}
 
-    test('o metrônomo pedido continua ligado com a base', () async {
-      final result = await _read('''
+void _parte3() {
+  test('o metrônomo pedido continua ligado com a base', () async {
+    final result = await _read('''
 ```zywny-exercise
 id: n2-com-clique
 type: play-chart
@@ -113,12 +119,11 @@ metronome: true
 pass: {accuracy: 80}
 ```
 ''');
-      expect(_messages(result), isEmpty);
-      expect(_spec(result).metronome, isTrue);
-    });
-
-    test('um estilo que não existe sugere o parecido', () async {
-      final result = await _read('''
+    expect(_messages(result), isEmpty);
+    expect(_spec(result).metronome, isTrue);
+  });
+  test('um estilo que não existe sugere o parecido', () async {
+    final result = await _read('''
 ```zywny-exercise
 id: n2-erro
 type: play-chart
@@ -130,15 +135,14 @@ backing: {style: shufle}
 pass: {accuracy: 80}
 ```
 ''');
-      expect(
-        _messages(result),
-        contains('não há o estilo `shufle`'),
-      );
-      expect(_messages(result), contains('você quis dizer `shuffle`'));
-    });
+    expect(_messages(result), contains('não há o estilo `shufle`'));
+    expect(_messages(result), contains('você quis dizer `shuffle`'));
+  });
+}
 
-    test('o estilo de outro compasso que a grade é erro', () async {
-      final result = await _read('''
+void _parte4() {
+  test('o estilo de outro compasso que a grade é erro', () async {
+    final result = await _read('''
 ```zywny-exercise
 id: n2-valsa
 type: play-chart
@@ -150,11 +154,10 @@ backing: {style: waltz}
 pass: {accuracy: 80}
 ```
 ''');
-      expect(_messages(result), contains('o estilo `waltz` é de 3/4'));
-    });
-
-    test('walking em 3/4 é aviso, e a leitura segue', () async {
-      final result = await _read('''
+    expect(_messages(result), contains('o estilo `waltz` é de 3/4'));
+  });
+  test('walking em 3/4 é aviso, e a leitura segue', () async {
+    final result = await _read('''
 ```zywny-exercise
 id: n2-walk-3-4
 type: play-chart
@@ -166,12 +169,14 @@ backing: {style: waltz, bass: walking}
 pass: {accuracy: 80}
 ```
 ''');
-      expect(_messages(result), contains('walking em 3/4 soa estranho'));
-      expect(_messages(result), contains('use `root`'));
-    });
+    expect(_messages(result), contains('walking em 3/4 soa estranho'));
+    expect(_messages(result), contains('use `root`'));
+  });
+}
 
-    test('o tipo errado de `backing:` é recusado', () async {
-      final result = await _read('''
+void _parte5() {
+  test('o tipo errado de `backing:` é recusado', () async {
+    final result = await _read('''
 ```zywny-exercise
 id: n2-tipo
 type: play-chart
@@ -183,7 +188,17 @@ backing: 42
 pass: {accuracy: 80}
 ```
 ''');
-      expect(_messages(result), contains('`backing` precisa ser `drums`'));
-    });
+    expect(_messages(result), contains('`backing` precisa ser `drums`'));
+  });
+}
+
+// Testes: play-chart: backing
+void _parte6() {
+  group('play-chart: backing', () {
+    _parte1();
+    _parte2();
+    _parte3();
+    _parte4();
+    _parte5();
   });
 }

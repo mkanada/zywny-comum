@@ -78,8 +78,7 @@ class TestKeys {
     }
     return LibraryEnvelope.seal(
       Uint8List.fromList(ZipEncoder().encode(archive)),
-      privateSeed: signWith ?? seed,
-      publicKey: pub,
+      keys: (privateSeed: signWith ?? seed, publicKey: pub),
     );
   }
 }

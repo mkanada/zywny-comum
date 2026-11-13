@@ -124,35 +124,7 @@ class AccountSettingsSection extends StatelessWidget {
               title: const Text('E-mail'),
               subtitle: Text(user.email ?? 'a rede social não informou'),
             ),
-            ListTile(
-              dense: true,
-              leading: const Icon(Icons.badge_outlined, size: 20),
-              title: const Text('Código do aluno'),
-              subtitle: const Text(
-                'o tutor digita este código para te vincular',
-              ),
-              trailing: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    code,
-                    style: const TextStyle(
-                      fontSize: 13.5,
-                      fontWeight: FontWeight.w600,
-                      color: kAccent,
-                    ),
-                  ),
-                  IconButton(
-                    tooltip: 'Copiar o código',
-                    icon: const Icon(Icons.content_copy, size: 18),
-                    onPressed: () {
-                      Clipboard.setData(ClipboardData(text: code));
-                      _say(context, 'Código copiado: $code');
-                    },
-                  ),
-                ],
-              ),
-            ),
+            _codeTile(context, code),
             ListTile(
               dense: true,
               leading: const Icon(Icons.logout, size: 20),
@@ -171,6 +143,35 @@ class AccountSettingsSection extends StatelessWidget {
       },
     );
   }
+
+  /// O código do aluno, que o tutor digita para vincular, com o botão de copiar.
+  Widget _codeTile(BuildContext context, String code) => ListTile(
+    dense: true,
+    leading: const Icon(Icons.badge_outlined, size: 20),
+    title: const Text('Código do aluno'),
+    subtitle: const Text('o tutor digita este código para te vincular'),
+    trailing: Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          code,
+          style: const TextStyle(
+            fontSize: 13.5,
+            fontWeight: FontWeight.w600,
+            color: kAccent,
+          ),
+        ),
+        IconButton(
+          tooltip: 'Copiar o código',
+          icon: const Icon(Icons.content_copy, size: 18),
+          onPressed: () {
+            Clipboard.setData(ClipboardData(text: code));
+            _say(context, 'Código copiado: $code');
+          },
+        ),
+      ],
+    ),
+  );
 }
 
 /// O diálogo do apelido: o campo e os dois botões. O campo é do diálogo

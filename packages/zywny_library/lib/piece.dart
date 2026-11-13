@@ -155,7 +155,8 @@ class PieceCatalog {
   /// Como o manifesto manda chamar cada música, e se elas são numeradas.
   final LibraryTerm term;
   final bool numbered;
-  final Future<Uint8List> Function(Piece piece, {bool simplified})? _scoreLoader;
+  final Future<Uint8List> Function(Piece piece, {bool simplified})?
+  _scoreLoader;
 
   bool get hasLibrary => libraryId != null;
 

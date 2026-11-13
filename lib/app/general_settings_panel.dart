@@ -196,15 +196,30 @@ class GeneralSettingsPanel extends StatelessWidget {
     );
   }
 
-  List<Widget> _rows(BuildContext context) {
-    final live = this.live;
+  List<Widget> _rows(BuildContext context) => [
+    if (authStore != null) AccountSettingsSection(store: authStore!),
+    ?libraries,
+    ?courses,
+    ..._soundRows(context),
+    ..._midiRows(context),
+    ..._textRows(),
+    if (showTranspose) ..._transposeRows(),
+    ..._rhythmRows(),
+    if (showTrail) ..._trailRows(context),
+    ..._colorRows(),
+    if (BugReportScope.current != null && audioRecordingSupported) ...[
+      const _Header('Gravar o som do microfone'),
+      const AudioRecordingHelp(),
+    ],
+    ..._helpRows(context),
+    const SizedBox(height: 12),
+  ];
+
+  /// O som: se toca, por onde sai (o app ou o teclado) e o timbre do piano.
+  List<Widget> _soundRows(BuildContext context) {
     final busy = live?.busy ?? false;
-    final device = midiDeviceManager.connected.value;
     final toMidi = settings.output == SoundOutput.midiKeyboard;
     return [
-      if (authStore != null) AccountSettingsSection(store: authStore!),
-      ?libraries,
-      ?courses,
       const _Header('Som'),
       SwitchListTile(
         dense: true,
@@ -248,23 +263,36 @@ class GeneralSettingsPanel extends StatelessWidget {
           value: settings.useScoreInstruments,
           onChanged: (v) => settings.useScoreInstruments = v,
         ),
-      // Na Web não há onde guardar o .sf2 escolhido (W04): só o padrão.
-      if (!kIsWeb)
-        ListTile(
-          dense: true,
-          leading: const Icon(Icons.library_music, size: 20),
-          title: const Text('Timbre do piano'),
-          subtitle: Text(customSoundFont ? 'personalizado' : 'padrão'),
-          trailing: const _RowAction('Trocar'),
-          onTap: busy ? null : onChooseSoundFont,
-        ),
-      if (customSoundFont)
-        ListTile(
-          dense: true,
-          leading: const Icon(Icons.restore, size: 20),
-          title: const Text('Voltar ao timbre padrão'),
-          onTap: busy ? null : onResetSoundFont,
-        ),
+      ..._soundFontRows(busy),
+    ];
+  }
+
+  /// O timbre do piano: trocar pelo .sf2 escolhido, ou voltar ao padrão.
+  List<Widget> _soundFontRows(bool busy) => [
+    // Na Web não há onde guardar o .sf2 escolhido (W04): só o padrão.
+    if (!kIsWeb)
+      ListTile(
+        dense: true,
+        leading: const Icon(Icons.library_music, size: 20),
+        title: const Text('Timbre do piano'),
+        subtitle: Text(customSoundFont ? 'personalizado' : 'padrão'),
+        trailing: const _RowAction('Trocar'),
+        onTap: busy ? null : onChooseSoundFont,
+      ),
+    if (customSoundFont)
+      ListTile(
+        dense: true,
+        leading: const Icon(Icons.restore, size: 20),
+        title: const Text('Voltar ao timbre padrão'),
+        onTap: busy ? null : onResetSoundFont,
+      ),
+  ];
+
+  /// O teclado MIDI: o aparelho e o medidor de latência; com um teclado
+  /// conectado, também o monitor e o atraso.
+  List<Widget> _midiRows(BuildContext context) {
+    final device = midiDeviceManager.connected.value;
+    return [
       const _Header('Teclado MIDI'),
       ListTile(
         dense: true,
@@ -280,275 +308,325 @@ class GeneralSettingsPanel extends StatelessWidget {
       ),
       if (device != null)
         _LatencyMeterTile(devices: midiDeviceManager, device: device),
-      if (live != null) ...[
-        SwitchListTile(
-          dense: true,
-          title: Text('Ouvir o que eu toco pelo ${deviceNoun(context)}'),
-          subtitle: const Text('para teclado sem som próprio'),
-          value: live.monitorOn,
-          onChanged: busy ? null : live.onMonitorChanged,
-        ),
-        ListTile(
-          dense: true,
-          leading: const Icon(Icons.timer_outlined, size: 20),
-          title: const Text('Atraso do teclado'),
-          subtitle: Text(
-            live.inputLatencyMs == 0
-                ? 'não ajustado'
-                : '${live.inputLatencyMs.round()} ms',
-          ),
-          trailing: const _RowAction('Ajustar'),
-          enabled: device != null,
-          onTap: live.onCalibrate,
-        ),
-        ListTile(
-          dense: true,
-          leading: const Icon(Icons.keyboard_alt_outlined, size: 20),
-          title: const Text('Ver as teclas que chegam'),
-          onTap: live.onOpenMidiPanel,
-        ),
-      ],
-      const _Header('Texto'),
-      Padding(
-        padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Nomes das notas',
-              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
-            ),
-            const SizedBox(height: 6),
-            SegmentedButton<NoteNaming>(
-              showSelectedIcon: false,
-              segments: const [
-                ButtonSegment(value: NoteNaming.latin, label: Text('Dó-Ré-Mi')),
-                ButtonSegment(value: NoteNaming.letters, label: Text('C-D-E')),
-              ],
-              selected: {settings.noteNaming},
-              onSelectionChanged: (s) => settings.noteNaming = s.first,
-            ),
-            const SizedBox(height: 14),
-            const Text(
-              'Cifra',
-              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
-            ),
-            const SizedBox(height: 6),
-            SegmentedButton<ChordNotation>(
-              showSelectedIcon: false,
-              segments: const [
-                ButtonSegment(
-                  value: ChordNotation.brazilian,
-                  label: Text('C7M · Cm7(b5)'),
-                ),
-                ButtonSegment(
-                  value: ChordNotation.american,
-                  label: Text('Cmaj7 · Cm7b5'),
-                ),
-              ],
-              selected: {settings.chordNotation},
-              onSelectionChanged: (s) => settings.chordNotation = s.first,
-            ),
-            const SizedBox(height: 6),
-            const Text(
-              'Um curso pode fixar a sua cifra; nele, esta escolha não vale.',
-              style: TextStyle(fontSize: 12, color: kInkCaption),
-            ),
-          ],
-        ),
-      ),
-      if (showTranspose) ...[
-        const _Header('Transpor'),
-        SwitchListTile(
-          dense: true,
-          title: const Text('Abrir as músicas já sem acidentes'),
-          subtitle: const Text('Cada música pode voltar ao original na gaveta'),
-          value: settings.transposeByDefault,
-          onChanged: (v) => settings.transposeByDefault = v,
-        ),
-      ],
-      const _Header('Ritmo'),
-      _SliderRow(
-        label: 'Margem do tempo (no andamento original)',
-        value: settings.rhythmToleranceMs,
-        min: kMinRhythmToleranceMs,
-        max: kMaxRhythmToleranceMs,
-        step: 5,
-        formatValue: (v) => '±${v.round()} ms',
-        onChanged: (v) => settings.rhythmToleranceMs = v,
-      ),
-      const Padding(
-        padding: EdgeInsets.symmetric(horizontal: 16),
-        child: Text(
-          'Quanto a nota pode sair antes ou depois e ainda contar como certa. '
-          'Mais devagar, a margem cresce junto: a 50%, vale o dobro.',
-          style: TextStyle(fontSize: 12, color: kInkCaption),
-        ),
-      ),
-      if (showTrail) ...[
-        const _Header('Trilha de estudo'),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          child: TrailNSelector(
-            value: settings.trailMeasures,
-            max: 20,
-            onChanged: (v) => unawaited(_changeTrailN(context, settings, v)),
-          ),
-        ),
-        const Padding(
-          padding: EdgeInsets.fromLTRB(16, 8, 16, 0),
-          child: Text(
-            'Etapas de cada trecho (arraste para mudar a ordem)',
-            style: TextStyle(fontSize: 13, color: kInkCaption),
-          ),
-        ),
-        // Arrastar pela alça muda a ordem; a caixa liga e desliga a etapa.
-        ReorderableListView(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          buildDefaultDragHandles: false,
-          onReorderItem: (from, to) {
-            final order = [...settings.trailPhaseOrder];
-            order.insert(to, order.removeAt(from));
-            settings.trailPhaseOrder = order;
-          },
-          children: [
-            for (final (i, phase) in settings.trailPhaseOrder.indexed)
-              CheckboxListTile(
-                key: ValueKey(phase),
-                dense: true,
-                controlAffinity: ListTileControlAffinity.leading,
-                title: Text(phase.label),
-                value: settings.trailPhases.contains(phase),
-                // A última marcada não sai: a trilha precisa de alguma etapa.
-                onChanged:
-                    settings.trailPhases.length == 1 &&
-                        settings.trailPhases.contains(phase)
-                    ? null
-                    : (on) => settings.trailPhases = on == true
-                          ? {...settings.trailPhases, phase}
-                          : ({...settings.trailPhases}..remove(phase)),
-                secondary: ReorderableDragStartListener(
-                  index: i,
-                  child: const Icon(Icons.drag_handle, color: kInkCaption),
-                ),
-              ),
-          ],
-        ),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-          child: Wrap(
-            spacing: 8,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            children: [
-              const Text(
-                'Andamentos no ritmo',
-                style: TextStyle(fontSize: 13, color: kInkCaption),
-              ),
-              for (final speed in kTrailSpeeds)
-                FilterChip(
-                  label: Text('${(speed * 100).round()}%'),
-                  selected: settings.trailSpeeds.contains(speed),
-                  onSelected:
-                      settings.trailSpeeds.length == 1 &&
-                          settings.trailSpeeds.contains(speed)
-                      ? null
-                      : (on) => settings.trailSpeeds = on
-                            ? {...settings.trailSpeeds, speed}
-                            : ({...settings.trailSpeeds}..remove(speed)),
-                ),
-            ],
-          ),
-        ),
-      ],
-      const _Header('Cores'),
-      _ColorRow(
-        label: 'Nota certa',
-        hint: 'e a nota que soa ao ouvir',
-        value: settings.highlightColor,
-        defaultValue: kPracticeCorrectColor,
-        onChanged: (c) => settings.highlightColor = c,
-      ),
-      _ColorRow(
-        label: 'Nota esperada',
-        hint: 'a que o app aguarda você tocar',
-        value: settings.practicePendingColor,
-        defaultValue: kPracticePendingColor,
-        onChanged: (c) => settings.practicePendingColor = c,
-      ),
-      _ColorRow(
-        label: 'Nota errada',
-        hint: 'pisca na nota esperada mais próxima',
-        value: settings.practiceWrongColor,
-        defaultValue: kPracticeWrongColor,
-        onChanged: (c) => settings.practiceWrongColor = c,
-      ),
-      if (showPageBar)
-        _ColorRow(
-          label: 'Barra de virada de página',
-          hint: 'a barra que varre a página',
-          value: settings.barColor,
-          defaultValue: kDefaultBarColor,
-          onChanged: (c) => settings.barColor = c,
-        ),
-      _SliderRow(
-        label: 'Brilho em volta da nota',
-        value: settings.haloWidth,
-        min: 0,
-        max: 3,
-        formatValue: (v) => v <= 0 ? 'desligado' : '${v.toStringAsFixed(1)}×',
-        onChanged: (v) => settings.haloWidth = v,
-      ),
-      if (BugReportScope.current != null && audioRecordingSupported) ...[
-        const _Header('Gravar o som do microfone'),
-        const AudioRecordingHelp(),
-      ],
-      const _Header('Ajuda'),
-      if (onTutorial != null)
-        ListTile(
-          dense: true,
-          leading: const Icon(Icons.tour_outlined, size: 20),
-          title: const Text('Rever o tutorial'),
-          subtitle: const Text('o passeio pelos botões e telas'),
-          trailing: const _RowAction('Rever'),
-          onTap: onTutorial,
-        ),
-      if (BugReportScope.current != null)
-        ListTile(
-          dense: true,
-          leading: const Icon(Icons.bug_report_outlined, size: 20),
-          title: const Text('Reportar um bug'),
-          subtitle: const Text(
-            'para tudo, guarda a tela e o registro e gera o arquivo para '
-            'enviar (ou segure três dedos na tela)',
-          ),
-          trailing: const _RowAction('Reportar'),
-          onTap: () {
-            // Fecha as configurações primeiro: a captura é da tela onde o
-            // erro aconteceu, não da lista de opções.
-            onClose();
-            unawaited(
-              Future<void>.delayed(
-                const Duration(milliseconds: 450),
-                BugReportScope.start,
-              ),
-            );
-          },
-        ),
-      ListTile(
-        dense: true,
-        leading: const Icon(Icons.info_outline, size: 20),
-        title: const Text('Sobre o Zywny'),
-        subtitle: const Text('a origem do nome e o que o app quer ser'),
-        onTap: () => unawaited(
-          Navigator.of(
-            context,
-          ).push(MaterialPageRoute<void>(builder: (_) => const AboutScreen())),
-        ),
-      ),
-      const SizedBox(height: 12),
+      ..._liveRows(context),
     ];
   }
+
+  /// O que vale com o teclado ao vivo (o monitor, o atraso e as teclas que
+  /// chegam). Sem as ações ao vivo, nada.
+  List<Widget> _liveRows(BuildContext context) {
+    final live = this.live;
+    if (live == null) return const [];
+    final busy = live.busy;
+    final device = midiDeviceManager.connected.value;
+    return [
+      SwitchListTile(
+        dense: true,
+        title: Text('Ouvir o que eu toco pelo ${deviceNoun(context)}'),
+        subtitle: const Text('para teclado sem som próprio'),
+        value: live.monitorOn,
+        onChanged: busy ? null : live.onMonitorChanged,
+      ),
+      ListTile(
+        dense: true,
+        leading: const Icon(Icons.timer_outlined, size: 20),
+        title: const Text('Atraso do teclado'),
+        subtitle: Text(
+          live.inputLatencyMs == 0
+              ? 'não ajustado'
+              : '${live.inputLatencyMs.round()} ms',
+        ),
+        trailing: const _RowAction('Ajustar'),
+        enabled: device != null,
+        onTap: live.onCalibrate,
+      ),
+      ListTile(
+        dense: true,
+        leading: const Icon(Icons.keyboard_alt_outlined, size: 20),
+        title: const Text('Ver as teclas que chegam'),
+        onTap: live.onOpenMidiPanel,
+      ),
+    ];
+  }
+
+  /// O texto: o nome das notas e a cifra (um curso pode fixar a sua).
+  List<Widget> _textRows() => [
+    const _Header('Texto'),
+    Padding(
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _noteNamesPart(),
+          const SizedBox(height: 14),
+          _chordNotationPart(),
+        ],
+      ),
+    ),
+  ];
+
+  /// Os nomes das notas: Dó-Ré-Mi ou C-D-E.
+  Widget _noteNamesPart() => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      const Text(
+        'Nomes das notas',
+        style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+      ),
+      const SizedBox(height: 6),
+      SegmentedButton<NoteNaming>(
+        showSelectedIcon: false,
+        segments: const [
+          ButtonSegment(value: NoteNaming.latin, label: Text('Dó-Ré-Mi')),
+          ButtonSegment(value: NoteNaming.letters, label: Text('C-D-E')),
+        ],
+        selected: {settings.noteNaming},
+        onSelectionChanged: (s) => settings.noteNaming = s.first,
+      ),
+    ],
+  );
+
+  /// A cifra: C7M (brasileira) ou Cmaj7 (americana).
+  Widget _chordNotationPart() => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      const Text(
+        'Cifra',
+        style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+      ),
+      const SizedBox(height: 6),
+      SegmentedButton<ChordNotation>(
+        showSelectedIcon: false,
+        segments: const [
+          ButtonSegment(
+            value: ChordNotation.brazilian,
+            label: Text('C7M · Cm7(b5)'),
+          ),
+          ButtonSegment(
+            value: ChordNotation.american,
+            label: Text('Cmaj7 · Cm7b5'),
+          ),
+        ],
+        selected: {settings.chordNotation},
+        onSelectionChanged: (s) => settings.chordNotation = s.first,
+      ),
+      const SizedBox(height: 6),
+      const Text(
+        'Um curso pode fixar a sua cifra; nele, esta escolha não vale.',
+        style: TextStyle(fontSize: 12, color: kInkCaption),
+      ),
+    ],
+  );
+
+  /// Abrir as músicas já sem acidentes (quando a transposição está à vista).
+  List<Widget> _transposeRows() => [
+    const _Header('Transpor'),
+    SwitchListTile(
+      dense: true,
+      title: const Text('Abrir as músicas já sem acidentes'),
+      subtitle: const Text('Cada música pode voltar ao original na gaveta'),
+      value: settings.transposeByDefault,
+      onChanged: (v) => settings.transposeByDefault = v,
+    ),
+  ];
+
+  /// O ritmo: a margem de tempo que o aluno tem para acertar.
+  List<Widget> _rhythmRows() => [
+    const _Header('Ritmo'),
+    _SliderRow(
+      label: 'Margem do tempo (no andamento original)',
+      value: settings.rhythmToleranceMs,
+      min: kMinRhythmToleranceMs,
+      max: kMaxRhythmToleranceMs,
+      step: 5,
+      formatValue: (v) => '±${v.round()} ms',
+      onChanged: (v) => settings.rhythmToleranceMs = v,
+    ),
+    const Padding(
+      padding: EdgeInsets.symmetric(horizontal: 16),
+      child: Text(
+        'Quanto a nota pode sair antes ou depois e ainda contar como certa. '
+        'Mais devagar, a margem cresce junto: a 50%, vale o dobro.',
+        style: TextStyle(fontSize: 12, color: kInkCaption),
+      ),
+    ),
+  ];
+
+  /// A trilha de estudo: o tamanho do trecho, as etapas (na ordem que o aluno
+  /// escolhe) e os andamentos.
+  List<Widget> _trailRows(BuildContext context) => [
+    const _Header('Trilha de estudo'),
+    Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: TrailNSelector(
+        value: settings.trailMeasures,
+        max: 20,
+        onChanged: (v) => unawaited(_changeTrailN(context, settings, v)),
+      ),
+    ),
+    const Padding(
+      padding: EdgeInsets.fromLTRB(16, 8, 16, 0),
+      child: Text(
+        'Etapas de cada trecho (arraste para mudar a ordem)',
+        style: TextStyle(fontSize: 13, color: kInkCaption),
+      ),
+    ),
+    _phaseOrder(),
+    _speedChips(),
+  ];
+
+  /// As etapas do trecho, arrastáveis pela alça; a caixa liga e desliga cada uma.
+  Widget _phaseOrder() =>
+      // Arrastar pela alça muda a ordem; a caixa liga e desliga a etapa.
+      ReorderableListView(
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        buildDefaultDragHandles: false,
+        onReorderItem: (from, to) {
+          final order = [...settings.trailPhaseOrder];
+          order.insert(to, order.removeAt(from));
+          settings.trailPhaseOrder = order;
+        },
+        children: [
+          for (final (i, phase) in settings.trailPhaseOrder.indexed)
+            CheckboxListTile(
+              key: ValueKey(phase),
+              dense: true,
+              controlAffinity: ListTileControlAffinity.leading,
+              title: Text(phase.label),
+              value: settings.trailPhases.contains(phase),
+              // A última marcada não sai: a trilha precisa de alguma etapa.
+              onChanged:
+                  settings.trailPhases.length == 1 &&
+                      settings.trailPhases.contains(phase)
+                  ? null
+                  : (on) => settings.trailPhases = on == true
+                        ? {...settings.trailPhases, phase}
+                        : ({...settings.trailPhases}..remove(phase)),
+              secondary: ReorderableDragStartListener(
+                index: i,
+                child: const Icon(Icons.drag_handle, color: kInkCaption),
+              ),
+            ),
+        ],
+      );
+
+  /// Os andamentos no ritmo que a trilha usa (o último marcado não sai).
+  Widget _speedChips() => Padding(
+    padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+    child: Wrap(
+      spacing: 8,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: [
+        const Text(
+          'Andamentos no ritmo',
+          style: TextStyle(fontSize: 13, color: kInkCaption),
+        ),
+        for (final speed in kTrailSpeeds)
+          FilterChip(
+            label: Text('${(speed * 100).round()}%'),
+            selected: settings.trailSpeeds.contains(speed),
+            onSelected:
+                settings.trailSpeeds.length == 1 &&
+                    settings.trailSpeeds.contains(speed)
+                ? null
+                : (on) => settings.trailSpeeds = on
+                      ? {...settings.trailSpeeds, speed}
+                      : ({...settings.trailSpeeds}..remove(speed)),
+          ),
+      ],
+    ),
+  );
+
+  /// As cores do que o aluno vê, e o brilho em volta da nota.
+  List<Widget> _colorRows() => [
+    const _Header('Cores'),
+    _ColorRow(
+      label: 'Nota certa',
+      hint: 'e a nota que soa ao ouvir',
+      value: settings.highlightColor,
+      defaultValue: kPracticeCorrectColor,
+      onChanged: (c) => settings.highlightColor = c,
+    ),
+    _ColorRow(
+      label: 'Nota esperada',
+      hint: 'a que o app aguarda você tocar',
+      value: settings.practicePendingColor,
+      defaultValue: kPracticePendingColor,
+      onChanged: (c) => settings.practicePendingColor = c,
+    ),
+    _ColorRow(
+      label: 'Nota errada',
+      hint: 'pisca na nota esperada mais próxima',
+      value: settings.practiceWrongColor,
+      defaultValue: kPracticeWrongColor,
+      onChanged: (c) => settings.practiceWrongColor = c,
+    ),
+    if (showPageBar)
+      _ColorRow(
+        label: 'Barra de virada de página',
+        hint: 'a barra que varre a página',
+        value: settings.barColor,
+        defaultValue: kDefaultBarColor,
+        onChanged: (c) => settings.barColor = c,
+      ),
+    _SliderRow(
+      label: 'Brilho em volta da nota',
+      value: settings.haloWidth,
+      min: 0,
+      max: 3,
+      formatValue: (v) => v <= 0 ? 'desligado' : '${v.toStringAsFixed(1)}×',
+      onChanged: (v) => settings.haloWidth = v,
+    ),
+  ];
+
+  /// A ajuda: rever o tutorial, reportar um bug e a história do nome do app.
+  List<Widget> _helpRows(BuildContext context) => [
+    const _Header('Ajuda'),
+    if (onTutorial != null)
+      ListTile(
+        dense: true,
+        leading: const Icon(Icons.tour_outlined, size: 20),
+        title: const Text('Rever o tutorial'),
+        subtitle: const Text('o passeio pelos botões e telas'),
+        trailing: const _RowAction('Rever'),
+        onTap: onTutorial,
+      ),
+    if (BugReportScope.current != null) _bugReportRow(),
+    ListTile(
+      dense: true,
+      leading: const Icon(Icons.info_outline, size: 20),
+      title: const Text('Sobre o Zywny'),
+      subtitle: const Text('a origem do nome e o que o app quer ser'),
+      onTap: () => unawaited(
+        Navigator.of(context)
+            .push(MaterialPageRoute<void>(builder: (_) => const AboutScreen())),
+      ),
+    ),
+  ];
+
+  /// Reportar um bug: fecha as configurações e começa a captura da tela.
+  Widget _bugReportRow() => ListTile(
+    dense: true,
+    leading: const Icon(Icons.bug_report_outlined, size: 20),
+    title: const Text('Reportar um bug'),
+    subtitle: const Text(
+      'para tudo, guarda a tela e o registro e gera o arquivo para '
+      'enviar (ou segure três dedos na tela)',
+    ),
+    trailing: const _RowAction('Reportar'),
+    onTap: () {
+      // Fecha as configurações primeiro: a captura é da tela onde o
+      // erro aconteceu, não da lista de opções.
+      onClose();
+      unawaited(
+        Future<void>.delayed(
+          const Duration(milliseconds: 450),
+          BugReportScope.start,
+        ),
+      );
+    },
+  );
 }
 
 /// Ação à direita de uma linha das configurações ("Trocar", "Conectar",

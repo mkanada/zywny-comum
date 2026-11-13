@@ -168,6 +168,32 @@ const musicDerivationOption = 'musicDerivation';
 /// comum não importa o app, então ela foi copiada: mudou numa, mude na outra.
 const _musicAttributeClasses = {'measure', 'staff', 'layer', 'note'};
 
+/// Os atributos que o medidor pede dos elementos da cena [decoded] (ver
+/// [_musicAttributeClasses]), por id.
+Map<String, Map<String, String>> _sceneAttributes(
+  VerovioToolkit toolkit,
+  Object? decoded,
+) {
+  final attributes = <String, Map<String, String>>{};
+  void walk(Object? node) {
+    if (node is Map) {
+      final id = node['id'];
+      if (id is String && _musicAttributeClasses.contains(node['class'])) {
+        final attrs = _attributesOf(toolkit.getElementAttr(id));
+        if (attrs.isNotEmpty) attributes[id] = attrs;
+      }
+      walk(node['children']);
+      walk(node['pages']);
+      walk(node['root']);
+    } else if (node is List) {
+      node.forEach(walk);
+    }
+  }
+
+  if (decoded is Map) walk(decoded['scene']);
+  return attributes;
+}
+
 /// Mesma sequência de [_renderInIsolate] (opções antes de carregar, `vsb` como
 /// formato de saída, `loadFile`): os ids nascem no carregamento, e carregar do
 /// mesmo jeito que o desenho é o que os deixa iguais.
@@ -203,23 +229,7 @@ String _readMusicInIsolate(Map<String, Object?> json) {
     }
     final bridge = toolkit.renderToBridgeJson();
     final decoded = jsonDecode(bridge);
-    final attributes = <String, Map<String, String>>{};
-    void walk(Object? node) {
-      if (node is Map) {
-        final id = node['id'];
-        if (id is String && _musicAttributeClasses.contains(node['class'])) {
-          final attrs = _attributesOf(toolkit.getElementAttr(id));
-          if (attrs.isNotEmpty) attributes[id] = attrs;
-        }
-        walk(node['children']);
-        walk(node['pages']);
-        walk(node['root']);
-      } else if (node is List) {
-        node.forEach(walk);
-      }
-    }
-
-    if (decoded is Map) walk(decoded['scene']);
+    final attributes = _sceneAttributes(toolkit, decoded);
     return jsonEncode({
       'bridge': bridge,
       'attributes': attributes,

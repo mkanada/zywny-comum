@@ -55,6 +55,20 @@ List<String> trailStageMeasureIds(
 }
 
 /// Lista ordenada de etapas: trecho 0 inteiro, trecho 1…, fase final.
+/// O que muda a montagem de um plano de trilha (ver [TrailPlan.build]).
+class TrailPlanOptions {
+  const TrailPlanOptions({this.includeFinal = true, this.phases, this.speeds});
+
+  /// Se a fase final (J07) entra no plano, depois dos trechos.
+  final bool includeFinal;
+
+  /// As fases escolhidas; `null` são todas.
+  final List<TrailPhase>? phases;
+
+  /// Os andamentos escolhidos; `null` são todos.
+  final Set<double>? speeds;
+}
+
 class TrailPlan {
   const TrailPlan({required this.n, required this.stages});
 
@@ -84,10 +98,10 @@ class TrailPlan {
     TrailPath path,
     PerformanceTrack track, {
     required int n,
-    bool includeFinal = true,
-    List<TrailPhase>? phases,
-    Set<double>? speeds,
+    TrailPlanOptions options = const TrailPlanOptions(),
   }) {
+    final phases = options.phases;
+    final speeds = options.speeds;
     final segments = cutSegments(path, n);
     if (segments.isEmpty) return TrailPlan(n: n, stages: const []);
     final stages = <TrailStage>[];
@@ -104,66 +118,80 @@ class TrailPlan {
         Hand.esquerda => left,
         Hand.ambas => both,
       };
-      final segPhases = (phases ?? TrailPhase.values).where(fits);
-      for (final phase in segPhases) {
-        if (phase.mode == PracticeMode.wait) {
-          stages.add(
-            TrailStage(
-              id: 't${seg.index}.${phase.name}',
-              segment: seg.index,
-              phase: phase,
-              speed: null,
-              startMs: seg.startMs,
-              endMs: seg.endMs,
-              label: trailStageLabel(phase, null),
-              first: seg.first,
-              last: seg.last,
-            ),
-          );
-        } else {
-          for (final speed in kTrailSpeeds) {
-            if (speeds != null && !speeds.contains(speed)) continue;
-            final pct = (speed * 100).round();
-            stages.add(
-              TrailStage(
-                id: 't${seg.index}.${phase.name}.$pct',
-                segment: seg.index,
-                phase: phase,
-                speed: speed,
-                startMs: seg.startMs,
-                endMs: seg.endMs,
-                label: trailStageLabel(phase, speed),
-                first: seg.first,
-                last: seg.last,
-              ),
-            );
-          }
-        }
-      }
+      stages.addAll(
+        _segmentStages(seg, (phases ?? TrailPhase.values).where(fits), speeds),
+      );
     }
-    final startMs = path.logical.first.startMs;
-    final endMs = path.logical.last.endMs;
     // A fase final é do J07: o J05 monta o plano só com os trechos e mostra
     // "fase final em breve" ao acabar o último.
-    if (includeFinal) {
-      for (final speed in kTrailSpeeds) {
-        final pct = (speed * 100).round();
-        stages.add(
+    if (options.includeFinal) stages.addAll(_finalStages(path));
+    return TrailPlan(n: n, stages: stages);
+  }
+
+  /// As etapas de um trecho, nas [phases] que cabem nele: uma por fase no modo
+  /// espera, e uma por andamento (dos [speeds] escolhidos) nas com tempo.
+  static List<TrailStage> _segmentStages(
+    TrailSegment seg,
+    Iterable<TrailPhase> phases,
+    Set<double>? speeds,
+  ) {
+    final out = <TrailStage>[];
+    for (final phase in phases) {
+      if (phase.mode == PracticeMode.wait) {
+        out.add(
           TrailStage(
-            id: 'final.$pct',
-            segment: null,
-            phase: TrailPhase.junto,
+            id: 't${seg.index}.${phase.name}',
+            segment: seg.index,
+            phase: phase,
+            speed: null,
+            startMs: seg.startMs,
+            endMs: seg.endMs,
+            label: trailStageLabel(phase, null),
+            first: seg.first,
+            last: seg.last,
+          ),
+        );
+        continue;
+      }
+      for (final speed in kTrailSpeeds) {
+        if (speeds != null && !speeds.contains(speed)) continue;
+        final pct = (speed * 100).round();
+        out.add(
+          TrailStage(
+            id: 't${seg.index}.${phase.name}.$pct',
+            segment: seg.index,
+            phase: phase,
             speed: speed,
-            startMs: startMs,
-            endMs: endMs,
-            label: trailStageLabel(TrailPhase.junto, speed),
-            first: 0,
-            last: path.measureCount - 1,
+            startMs: seg.startMs,
+            endMs: seg.endMs,
+            label: trailStageLabel(phase, speed),
+            first: seg.first,
+            last: seg.last,
           ),
         );
       }
     }
-    return TrailPlan(n: n, stages: stages);
+    return out;
+  }
+
+  /// A fase final (J07): uma etapa por andamento, sobre a música inteira.
+  static List<TrailStage> _finalStages(TrailPath path) {
+    final startMs = path.logical.first.startMs;
+    final endMs = path.logical.last.endMs;
+    return [
+      for (final speed in kTrailSpeeds)
+        TrailStage(
+          id: 'final.${(speed * 100).round()}',
+          segment: null,
+          phase: TrailPhase.junto,
+          speed: speed,
+          startMs: startMs,
+          endMs: endMs,
+          label: trailStageLabel(TrailPhase.junto, speed),
+          first: 0,
+          last: path.measureCount - 1,
+        ),
+    ];
   }
 }
 

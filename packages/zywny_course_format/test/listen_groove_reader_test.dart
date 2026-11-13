@@ -31,9 +31,12 @@ ListenGrooveSpec _spec(CourseReadResult result) =>
     result.course!.lessons.single.exercises.single as ListenGrooveSpec;
 
 void main() {
-  group('listen-groove: leitura', () {
-    test('lê os grooves na ordem do autor, com count e pass', () async {
-      final result = await _read('''
+  _parte7();
+}
+
+void _parte1() {
+  test('lê os grooves na ordem do autor, com count e pass', () async {
+    final result = await _read('''
 ```zywny-exercise
 id: n3-reto-ou-swing
 type: listen-groove
@@ -43,19 +46,18 @@ count: 8
 pass: {accuracy: 80}
 ```
 ''');
-      expect(_messages(result), isEmpty);
-      final spec = _spec(result);
-      expect(spec.type, ExerciseType.listenGroove);
-      expect(spec.grooves, [
-        ListenGroove.straightEighths,
-        ListenGroove.swingEighths,
-      ]);
-      expect(spec.count, 8);
-      expect(spec.pass.accuracy, 80);
-    });
-
-    test('count vale 8 quando o autor não diz', () async {
-      final result = await _read('''
+    expect(_messages(result), isEmpty);
+    final spec = _spec(result);
+    expect(spec.type, ExerciseType.listenGroove);
+    expect(spec.grooves, [
+      ListenGroove.straightEighths,
+      ListenGroove.swingEighths,
+    ]);
+    expect(spec.count, 8);
+    expect(spec.pass.accuracy, 80);
+  });
+  test('count vale 8 quando o autor não diz', () async {
+    final result = await _read('''
 ```zywny-exercise
 id: n3-clave
 type: listen-groove
@@ -64,12 +66,14 @@ grooves: [clave-3-2, clave-2-3]
 pass: {accuracy: 80}
 ```
 ''');
-      expect(_messages(result), isEmpty);
-      expect(_spec(result).count, 8);
-    });
+    expect(_messages(result), isEmpty);
+    expect(_spec(result).count, 8);
+  });
+}
 
-    test('os nove grooves do vocabulário se leem pelos nomes de fio', () async {
-      final result = await _read('''
+void _parte2() {
+  test('os nove grooves do vocabulário se leem pelos nomes de fio', () async {
+    final result = await _read('''
 ```zywny-exercise
 id: n5-todos
 type: listen-groove
@@ -79,28 +83,30 @@ count: 40
 pass: {accuracy: 80}
 ```
 ''');
-      expect(_messages(result), isEmpty);
-      final spec = _spec(result);
-      expect(spec.grooves, ListenGroove.values);
-      expect(spec.count, 40);
-      expect(
-        [for (final groove in ListenGroove.values) groove.wire],
-        [
-          'straight-eighths',
-          'swing-eighths',
-          'shuffle-12-8',
-          'clave-3-2',
-          'clave-2-3',
-          'bossa',
-          'samba',
-          'waltz',
-          'six-eight',
-        ],
-      );
-    });
+    expect(_messages(result), isEmpty);
+    final spec = _spec(result);
+    expect(spec.grooves, ListenGroove.values);
+    expect(spec.count, 40);
+    expect(
+      [for (final groove in ListenGroove.values) groove.wire],
+      [
+        'straight-eighths',
+        'swing-eighths',
+        'shuffle-12-8',
+        'clave-3-2',
+        'clave-2-3',
+        'bossa',
+        'samba',
+        'waltz',
+        'six-eight',
+      ],
+    );
+  });
+}
 
-    test('time-limit vale como nos outros exercícios de pergunta', () async {
-      final result = await _read('''
+void _parte3() {
+  test('time-limit vale como nos outros exercícios de pergunta', () async {
+    final result = await _read('''
 ```zywny-exercise
 id: n3-x
 type: listen-groove
@@ -109,13 +115,13 @@ grooves: [bossa, samba]
 pass: {accuracy: 80, time-limit: 10}
 ```
 ''');
-      expect(_messages(result), isEmpty);
-    });
+    expect(_messages(result), isEmpty);
   });
+}
 
-  group('listen-groove: erros', () {
-    test('menos de dois grooves', () async {
-      final result = await _read('''
+void _parte4() {
+  test('menos de dois grooves', () async {
+    final result = await _read('''
 ```zywny-exercise
 id: n3-x
 type: listen-groove
@@ -124,14 +130,13 @@ grooves: [bossa]
 pass: {accuracy: 80}
 ```
 ''');
-      expect(
-        _messages(result),
-        contains('`grooves` precisa de pelo menos 2 itens.'),
-      );
-    });
-
-    test('falta grooves', () async {
-      final result = await _read('''
+    expect(
+      _messages(result),
+      contains('`grooves` precisa de pelo menos 2 itens.'),
+    );
+  });
+  test('falta grooves', () async {
+    final result = await _read('''
 ```zywny-exercise
 id: n3-x
 type: listen-groove
@@ -140,16 +145,18 @@ count: 5
 pass: {accuracy: 80}
 ```
 ''');
-      expect(
-        _messages(result),
-        contains(
-          'falta a chave obrigatória `grooves` no exercício `listen-groove`.',
-        ),
-      );
-    });
+    expect(
+      _messages(result),
+      contains(
+        'falta a chave obrigatória `grooves` no exercício `listen-groove`.',
+      ),
+    );
+  });
+}
 
-    test('nome de groove desconhecido, com sugestão', () async {
-      final result = await _read('''
+void _parte5() {
+  test('nome de groove desconhecido, com sugestão', () async {
+    final result = await _read('''
 ```zywny-exercise
 id: n3-x
 type: listen-groove
@@ -158,12 +165,11 @@ grooves: [swing-eighth, bossa]
 pass: {accuracy: 80}
 ```
 ''');
-      expect(_messages(result), contains('groove `swing-eighth` desconhecido'));
-      expect(_messages(result), contains('você quis dizer `swing-eighths`?'));
-    });
-
-    test('nome de groove sem sugestão, com a lista dos nomes', () async {
-      final result = await _read('''
+    expect(_messages(result), contains('groove `swing-eighth` desconhecido'));
+    expect(_messages(result), contains('você quis dizer `swing-eighths`?'));
+  });
+  test('nome de groove sem sugestão, com a lista dos nomes', () async {
+    final result = await _read('''
 ```zywny-exercise
 id: n3-x
 type: listen-groove
@@ -172,14 +178,13 @@ grooves: [valsa-lenta, bossa]
 pass: {accuracy: 80}
 ```
 ''');
-      expect(
-        _messages(result),
-        contains('groove `valsa-lenta` desconhecido (use straight-eighths, '),
-      );
-    });
-
-    test('groove repetido', () async {
-      final result = await _read('''
+    expect(
+      _messages(result),
+      contains('groove `valsa-lenta` desconhecido (use straight-eighths, '),
+    );
+  });
+  test('groove repetido', () async {
+    final result = await _read('''
 ```zywny-exercise
 id: n3-x
 type: listen-groove
@@ -188,11 +193,13 @@ grooves: [bossa, samba, bossa]
 pass: {accuracy: 80}
 ```
 ''');
-      expect(_messages(result), contains('`grooves` repete um groove.'));
-    });
+    expect(_messages(result), contains('`grooves` repete um groove.'));
+  });
+}
 
-    test('count fora de 1 a 40', () async {
-      final result = await _read('''
+void _parte6() {
+  test('count fora de 1 a 40', () async {
+    final result = await _read('''
 ```zywny-exercise
 id: n3-x
 type: listen-groove
@@ -202,14 +209,13 @@ count: 41
 pass: {accuracy: 80}
 ```
 ''');
-      expect(
-        _messages(result),
-        contains('`count` precisa estar entre 1 e 40 (recebi 41).'),
-      );
-    });
-
-    test('speed não vale no listen-groove (só com tempo real)', () async {
-      final result = await _read('''
+    expect(
+      _messages(result),
+      contains('`count` precisa estar entre 1 e 40 (recebi 41).'),
+    );
+  });
+  test('speed não vale no listen-groove (só com tempo real)', () async {
+    final result = await _read('''
 ```zywny-exercise
 id: n3-x
 type: listen-groove
@@ -218,10 +224,20 @@ grooves: [bossa, samba]
 pass: {accuracy: 80, speed: 90}
 ```
 ''');
-      expect(
-        _messages(result),
-        contains('`speed` não vale em `listen-groove`'),
-      );
-    });
+    expect(_messages(result), contains('`speed` não vale em `listen-groove`'));
+  });
+}
+
+// Testes: listen-groove: leitura · listen-groove: erros
+void _parte7() {
+  group('listen-groove: leitura', () {
+    _parte1();
+    _parte2();
+    _parte3();
+  });
+  group('listen-groove: erros', () {
+    _parte4();
+    _parte5();
+    _parte6();
   });
 }

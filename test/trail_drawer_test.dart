@@ -53,7 +53,7 @@ TrailPlan _plan() => TrailPlan.build(
     _ev(2, 4200),
   ]),
   n: 5,
-  includeFinal: false,
+  options: TrailPlanOptions(includeFinal: false),
 );
 
 Widget _app(Widget child) => MaterialApp(home: Scaffold(body: child));

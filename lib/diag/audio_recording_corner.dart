@@ -170,51 +170,50 @@ class AudioRecordingCornerState extends State<AudioRecordingCorner> {
             onPointerCancel: _up,
           ),
         ),
-        if (_recording || _notice != null)
-          Positioned(
-            left: 8,
-            bottom: 8,
-            child: IgnorePointer(
-              child: Directionality(
-                textDirection: TextDirection.ltr,
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    color: const Color(0xCC000000),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 6,
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        if (_recording) ...[
-                          const Icon(
-                            Icons.fiber_manual_record,
-                            color: Color(0xFFFF3B30),
-                            size: 14,
-                          ),
-                          const SizedBox(width: 6),
-                        ],
-                        Text(
-                          _recording ? 'Gravando ${_elapsed()}' : _notice!,
-                          style: const TextStyle(
-                            color: Color(0xFFFFFFFF),
-                            fontSize: 12,
-                            decoration: TextDecoration.none,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ),
+        if (_recording || _notice != null) _noticeChip(),
       ],
     );
   }
+
+  /// O aviso de gravação (com o tempo) ou a última nota, no canto de baixo.
+  Widget _noticeChip() => Positioned(
+    left: 8,
+    bottom: 8,
+    child: IgnorePointer(
+      child: Directionality(
+        textDirection: TextDirection.ltr,
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            color: const Color(0xCC000000),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (_recording) ...[
+                  const Icon(
+                    Icons.fiber_manual_record,
+                    color: Color(0xFFFF3B30),
+                    size: 14,
+                  ),
+                  const SizedBox(width: 6),
+                ],
+                Text(
+                  _recording ? 'Gravando ${_elapsed()}' : _notice!,
+                  style: const TextStyle(
+                    color: Color(0xFFFFFFFF),
+                    fontSize: 12,
+                    decoration: TextDecoration.none,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
 }

@@ -4,6 +4,18 @@ import 'note_name.dart' show Pitch, kHighestPianoMidi, kLowestPianoMidi;
 import 'note_names.dart'
     show NoteNaming, kFlatSign, kSharpSign, noteLabel, pitchFromMidi;
 
+/// A faixa (em MIDI) da música original: a nota mais grave e a mais aguda.
+typedef TranspositionRange = ({int lowest, int highest});
+
+/// O teclado (em MIDI): a nota mais grave e a mais aguda que ele alcança.
+typedef KeyboardRange = ({int keyLow, int keyHigh});
+
+/// O teclado de piano padrão.
+const KeyboardRange kPianoKeyboardRange = (
+  keyLow: kLowestPianoMidi,
+  keyHigh: kHighestPianoMidi,
+);
+
 /// Transpor a música para ler sem acidentes (fase Q, docs/plano/Q00): que
 /// intervalo o Verovio usa, quanto vale no TRANSPOSE do teclado e como dizer
 /// isso à pessoa. Só conta — não guarda, não renderiza, não toca em nada.
@@ -34,11 +46,13 @@ class Transposition {
   static Transposition? toFifths(
     int from,
     int to, {
-    required int lowest,
-    required int highest,
-    int keyLow = kLowestPianoMidi,
-    int keyHigh = kHighestPianoMidi,
+    required TranspositionRange range,
+    KeyboardRange keyboard = kPianoKeyboardRange,
   }) {
+    final lowest = range.lowest;
+    final highest = range.highest;
+    final keyLow = keyboard.keyLow;
+    final keyHigh = keyboard.keyHigh;
     final delta = to - from;
     if (delta == 0) return null;
     final residue = (7 * delta) % 12; // 0..11, o k para cima
@@ -65,18 +79,9 @@ class Transposition {
   /// `toFifths(fifths, 0)`. `null` quando já não tem acidentes.
   static Transposition? toNoAccidentals(
     int fifths, {
-    required int lowest,
-    required int highest,
-    int keyLow = kLowestPianoMidi,
-    int keyHigh = kHighestPianoMidi,
-  }) => toFifths(
-    fifths,
-    0,
-    lowest: lowest,
-    highest: highest,
-    keyLow: keyLow,
-    keyHigh: keyHigh,
-  );
+    required TranspositionRange range,
+    KeyboardRange keyboard = kPianoKeyboardRange,
+  }) => toFifths(fifths, 0, range: range, keyboard: keyboard);
 
   /// Lê o intervalo guardado, na sintaxe do Verovio (`-m3`, `P4`, `-A4`,
   /// `d5`, `A1`; `+` e minúsculas também valem). `null` se não é um intervalo

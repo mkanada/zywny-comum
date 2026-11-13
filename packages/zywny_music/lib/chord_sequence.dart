@@ -5,6 +5,15 @@ import 'chord_degree.dart';
 /// Como as fundamentais andam (EX00, seção Ciclos).
 enum RootSequence { random, cycle5, cycle4, chromatic, wholeTone, diatonic }
 
+/// O que a sequência de raízes pode precisar além da contagem: a armadura (para
+/// a sequência diatônica) e o sorteio (para a aleatória).
+class RootSequenceExtras {
+  const RootSequenceExtras({this.key, this.rng});
+
+  final KeySpec? key;
+  final Random? rng;
+}
+
 /// [count] fundamentais (classes de altura) a partir de [from] (Dó = 0).
 ///
 /// * `random`: sorteadas, sem repetir a nota em seguida ([rng]).
@@ -20,10 +29,10 @@ List<int> rootSequence(
   RootSequence seq, {
   int from = 0,
   required int count,
-  KeySpec? key,
-  Random? rng,
+  RootSequenceExtras extras = const RootSequenceExtras(),
 }) {
-  final random = rng ?? Random();
+  final key = extras.key;
+  final random = extras.rng ?? Random();
   return switch (seq) {
     RootSequence.random => _random(from, count, random),
     RootSequence.cycle5 => [

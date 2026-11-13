@@ -8,6 +8,7 @@ import 'auth_store.dart';
 import 'auth_user.dart';
 import 'loopback_oauth.dart';
 import 'session_freshness.dart';
+import 'renew_failure.dart';
 import 'session_storage.dart';
 
 /// O login no desktop (Linux e Windows), onde o SDK do Firebase não tem
@@ -146,25 +147,7 @@ class FirebaseRestAuthStore extends AuthStoreBase implements AuthStore {
     } on Object catch (e) {
       // A rede falhou: a sessão guardada continua valendo enquanto estiver
       // fresca (D-NEG-OFFLINE).
-      final now = _clock();
-      if (!SessionFreshness.isFresh(user.lastServerCheckAt, now)) {
-        setState(
-          AuthState.offlineExpired(
-            user: user,
-            errorMessage: SessionFreshness.messageFor(
-              lastVerified: user.lastServerCheckAt,
-              now: now,
-            ),
-          ),
-        );
-      } else {
-        setState(
-          AuthState.authenticated(
-            user,
-            errorMessage: 'Não consegui falar com o servidor agora: $e',
-          ),
-        );
-      }
+      setState(renewFailureState(user, e, _clock()));
     }
   }
 

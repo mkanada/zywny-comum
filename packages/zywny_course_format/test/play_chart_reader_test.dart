@@ -29,9 +29,12 @@ String _messages(CourseReadResult result) =>
     [for (final issue in result.issues) issue.toString()].join('\n');
 
 void main() {
-  group('play-chart: leitura', () {
-    test('grade de texto com um padrão da biblioteca', () async {
-      final result = await _read('''
+  _parte9();
+}
+
+void _parte1() {
+  test('grade de texto com um padrão da biblioteca', () async {
+    final result = await _read('''
 ```zywny-exercise
 id: n2-oom-pah-c
 type: play-chart
@@ -43,29 +46,29 @@ bpm: 80
 pass: {accuracy: 85}
 ```
 ''');
-      expect(_messages(result), isEmpty);
-      final spec =
-          result.course!.lessons.single.exercises.single as PlayChartSpec;
-      expect(spec.type, ExerciseType.playChart);
-      expect(spec.chartText, '|: C | Am | F | G :|');
-      expect(spec.progression, isNull);
-      expect(spec.key, 'C');
-      expect(spec.time, '4/4');
-      expect(spec.pattern.name, 'oom-pah');
-      expect(spec.pattern.grid, 4);
-      expect(spec.bpm, 80);
-      expect(spec.choruses, 1);
-      expect(spec.swing, isNull);
-      expect(spec.strict, isTrue, reason: 'D-EXE-ACORDE: strict por padrão');
-      expect(spec.strictRhythm, isFalse);
-      expect(spec.metronome, isTrue);
-      expect(spec.show, ChartShow.chords);
-    });
+    expect(_messages(result), isEmpty);
+    final spec =
+        result.course!.lessons.single.exercises.single as PlayChartSpec;
+    expect(spec.type, ExerciseType.playChart);
+    expect(spec.chartText, '|: C | Am | F | G :|');
+    expect(spec.progression, isNull);
+    expect(spec.key, 'C');
+    expect(spec.time, '4/4');
+    expect(spec.pattern.name, 'oom-pah');
+    expect(spec.pattern.grid, 4);
+    expect(spec.bpm, 80);
+    expect(spec.choruses, 1);
+    expect(spec.swing, isNull);
+    expect(spec.strict, isTrue, reason: 'D-EXE-ACORDE: strict por padrão');
+    expect(spec.strictRhythm, isFalse);
+    expect(spec.metronome, isTrue);
+    expect(spec.show, ChartShow.chords);
+  });
+}
 
-    test(
-      'progressão da biblioteca, molde escrito, swing e medidores',
-      () async {
-        final result = await _read('''
+void _parte2() {
+  test('progressão da biblioteca, molde escrito, swing e medidores', () async {
+    final result = await _read('''
 ```zywny-exercise
 id: n3-blues-boogie
 type: play-chart
@@ -79,28 +82,25 @@ keys: [G, C, F]
 pass: {accuracy: 80, steadiness: 50, choruses: 2}
 ```
 ''');
-        expect(_messages(result), isEmpty);
-        final spec =
-            result.course!.lessons.single.exercises.single as PlayChartSpec;
-        expect(spec.progression, 'blues-12');
-        expect(spec.chartText, isNull);
-        expect(spec.key, 'G');
-        expect(spec.pattern.name, 'molde');
-        expect(
-          spec.pattern.time,
-          isNull,
-          reason: 'o molde escrito vale em todo',
-        );
-        expect(spec.pattern.leftBars.single.first.degrees, ['1']);
-        expect(spec.swing, 67);
-        expect(spec.choruses, 2);
-        expect(spec.keys, isA<FixedKeys>());
-        expect(spec.pass.steadiness, 50);
-      },
-    );
+    expect(_messages(result), isEmpty);
+    final spec =
+        result.course!.lessons.single.exercises.single as PlayChartSpec;
+    expect(spec.progression, 'blues-12');
+    expect(spec.chartText, isNull);
+    expect(spec.key, 'G');
+    expect(spec.pattern.name, 'molde');
+    expect(spec.pattern.time, isNull, reason: 'o molde escrito vale em todo');
+    expect(spec.pattern.leftBars.single.first.degrees, ['1']);
+    expect(spec.swing, 67);
+    expect(spec.choruses, 2);
+    expect(spec.keys, isA<FixedKeys>());
+    expect(spec.pass.steadiness, 50);
+  });
+}
 
-    test('o molde de dois compassos e a progressão com bars', () async {
-      final result = await _read('''
+void _parte3() {
+  test('o molde de dois compassos e a progressão com bars', () async {
+    final result = await _read('''
 ```zywny-exercise
 id: n4-montuno
 type: play-chart
@@ -112,15 +112,14 @@ bpm: 100
 pass: {accuracy: 80}
 ```
 ''');
-      expect(_messages(result), isEmpty);
-      final spec =
-          result.course!.lessons.single.exercises.single as PlayChartSpec;
-      expect(spec.progressionBars, 4);
-      expect(spec.pattern.bars, 2);
-    });
-
-    test('o padrão de valsa numa grade de 3/4 é aceito', () async {
-      final result = await _read('''
+    expect(_messages(result), isEmpty);
+    final spec =
+        result.course!.lessons.single.exercises.single as PlayChartSpec;
+    expect(spec.progressionBars, 4);
+    expect(spec.pattern.bars, 2);
+  });
+  test('o padrão de valsa numa grade de 3/4 é aceito', () async {
+    final result = await _read('''
 ```zywny-exercise
 id: n2-valsa
 type: play-chart
@@ -132,13 +131,13 @@ bpm: 120
 pass: {accuracy: 80}
 ```
 ''');
-      expect(_messages(result), isEmpty);
-    });
+    expect(_messages(result), isEmpty);
   });
+}
 
-  group('play-chart: erros', () {
-    test('padrão que não existe, com sugestão', () async {
-      final result = await _read('''
+void _parte4() {
+  test('padrão que não existe, com sugestão', () async {
+    final result = await _read('''
 ```zywny-exercise
 id: n2-x
 type: play-chart
@@ -149,12 +148,11 @@ bpm: 80
 pass: {accuracy: 80}
 ```
 ''');
-      expect(_messages(result), contains('não há o padrão `oom-pa`'));
-      expect(_messages(result), contains('você quis dizer `oom-pah`'));
-    });
-
-    test('molde de 3/4 numa grade de 4/4', () async {
-      final result = await _read('''
+    expect(_messages(result), contains('não há o padrão `oom-pa`'));
+    expect(_messages(result), contains('você quis dizer `oom-pah`'));
+  });
+  test('molde de 3/4 numa grade de 4/4', () async {
+    final result = await _read('''
 ```zywny-exercise
 id: n2-x
 type: play-chart
@@ -165,14 +163,16 @@ bpm: 80
 pass: {accuracy: 80}
 ```
 ''');
-      expect(
-        _messages(result),
-        contains('o molde `oom-pah-pah` é de 3/4, e a grade é de 4/4'),
-      );
-    });
+    expect(
+      _messages(result),
+      contains('o molde `oom-pah-pah` é de 3/4, e a grade é de 4/4'),
+    );
+  });
+}
 
-    test('linha do molde com número de símbolos diferente de grid', () async {
-      final result = await _read('''
+void _parte5() {
+  test('linha do molde com número de símbolos diferente de grid', () async {
+    final result = await _read('''
 ```zywny-exercise
 id: n2-x
 type: play-chart
@@ -183,14 +183,13 @@ bpm: 80
 pass: {accuracy: 80}
 ```
 ''');
-      expect(
-        _messages(result),
-        contains('um compasso do molde tem 5 símbolos, e `grid` pede 8'),
-      );
-    });
-
-    test('swing sem colcheias no molde', () async {
-      final result = await _read('''
+    expect(
+      _messages(result),
+      contains('um compasso do molde tem 5 símbolos, e `grid` pede 8'),
+    );
+  });
+  test('swing sem colcheias no molde', () async {
+    final result = await _read('''
 ```zywny-exercise
 id: n2-x
 type: play-chart
@@ -202,11 +201,13 @@ bpm: 80
 pass: {accuracy: 80}
 ```
 ''');
-      expect(_messages(result), contains('`swing` pede colcheias no molde'));
-    });
+    expect(_messages(result), contains('`swing` pede colcheias no molde'));
+  });
+}
 
-    test('progressão que não está na biblioteca', () async {
-      final result = await _read('''
+void _parte6() {
+  test('progressão que não está na biblioteca', () async {
+    final result = await _read('''
 ```zywny-exercise
 id: n2-x
 type: play-chart
@@ -217,11 +218,10 @@ bpm: 80
 pass: {accuracy: 80}
 ```
 ''');
-      expect(_messages(result), contains('não há a progressão `nope`'));
-    });
-
-    test('`key` fora do mapa quando a grade vem da biblioteca', () async {
-      final result = await _read('''
+    expect(_messages(result), contains('não há a progressão `nope`'));
+  });
+  test('`key` fora do mapa quando a grade vem da biblioteca', () async {
+    final result = await _read('''
 ```zywny-exercise
 id: n2-x
 type: play-chart
@@ -233,16 +233,16 @@ bpm: 80
 pass: {accuracy: 80}
 ```
 ''');
-      expect(
-        _messages(result),
-        contains(
-          '`key` fica dentro de `chart` quando a grade vem da biblioteca',
-        ),
-      );
-    });
+    expect(
+      _messages(result),
+      contains('`key` fica dentro de `chart` quando a grade vem da biblioteca'),
+    );
+  });
+}
 
-    test('a grade de texto com acorde que não existe', () async {
-      final result = await _read('''
+void _parte7() {
+  test('a grade de texto com acorde que não existe', () async {
+    final result = await _read('''
 ```zywny-exercise
 id: n2-x
 type: play-chart
@@ -253,13 +253,12 @@ bpm: 80
 pass: {accuracy: 80}
 ```
 ''');
-      expect(_messages(result), contains('na grade (coluna'));
-    });
-
-    test(
-      'a mão esquerda e a direita com número de compassos diferente',
-      () async {
-        final result = await _read('''
+    expect(_messages(result), contains('na grade (coluna'));
+  });
+  test(
+    'a mão esquerda e a direita com número de compassos diferente',
+    () async {
+      final result = await _read('''
 ```zywny-exercise
 id: n4-x
 type: play-chart
@@ -270,12 +269,14 @@ bpm: 80
 pass: {accuracy: 80}
 ```
 ''');
-        expect(_messages(result), contains('as duas mãos têm de ter o mesmo'));
-      },
-    );
+      expect(_messages(result), contains('as duas mãos têm de ter o mesmo'));
+    },
+  );
+}
 
-    test('o andamento do modo espera não vale no play-chart', () async {
-      final result = await _read('''
+void _parte8() {
+  test('o andamento do modo espera não vale no play-chart', () async {
+    final result = await _read('''
 ```zywny-exercise
 id: n2-x
 type: play-chart
@@ -286,10 +287,24 @@ bpm: 80
 pass: {accuracy: 80, speed: 90}
 ```
 ''');
-      expect(_messages(result), contains('`speed` não vale em `play-chart`'));
-    });
+    expect(_messages(result), contains('`speed` não vale em `play-chart`'));
   });
+}
 
+// Testes: play-chart: leitura · play-chart: erros
+void _parte9() {
+  group('play-chart: leitura', () {
+    _parte1();
+    _parte2();
+    _parte3();
+  });
+  group('play-chart: erros', () {
+    _parte4();
+    _parte5();
+    _parte6();
+    _parte7();
+    _parte8();
+  });
   test('o nome do padrão da biblioteca é o que o validador conhece', () {
     for (final name in compingPatternNames) {
       expect(compingPatternNamed(name), isNotNull, reason: name);

@@ -15,14 +15,16 @@ import 'measure_text.dart';
 import 'practice_report.dart';
 import 'review_button.dart';
 
+/// O que a escolha do trecho sabe antes de abrir: quantos compassos há, o que
+/// está tocando e o trecho já escolhido (se há).
+typedef LoopChoice = ({int total, int current, ({int a, int b})? initial});
+
 /// Escolha do trecho: dois compassos (índices 0-based em ordem de execução —
 /// com repetição, cada volta é uma ocorrência própria). Devolve `(a, b)` ou
-/// `null` se cancelou; [clear] pede para desligar o loop.
+/// `null` se cancelou; [onClear] pede para desligar o loop.
 Future<({int a, int b})?> showLoopSheet(
-  BuildContext context, {
-  required int total,
-  required int current,
-  ({int a, int b})? initial,
+  BuildContext context,
+  LoopChoice choice, {
   required VoidCallback onClear,
   bool sidePanel = false,
 }) {
@@ -30,70 +32,95 @@ Future<({int a, int b})?> showLoopSheet(
     context,
     sidePanel: sidePanel,
     title: 'Repetir um trecho',
-    builder: (context) {
-      var a = initial?.a ?? current;
-      var b = initial?.b ?? (current + 1 < total ? current + 1 : current);
-      return StatefulBuilder(
-        builder: (context, setSheetState) {
-          void setA(int v) => setSheetState(() {
-            a = v.clamp(0, total - 1);
-            if (b < a) b = a;
-          });
-          void setB(int v) => setSheetState(() {
-            b = v.clamp(0, total - 1);
-            if (a > b) a = b;
-          });
-          return sheetBody(
-            sidePanel: sidePanel,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Text(
-                  a == b
-                      ? 'Repetir o compasso ${a + 1}'
-                      : 'Repetir do compasso ${a + 1} ao ${b + 1}',
-                  style: const TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                if (total > 1) ...[
-                  _LoopSlider(
-                    label: 'Início',
-                    value: a,
-                    total: total,
-                    onChanged: setA,
-                    onCurrent: () => setA(current),
-                  ),
-                  _LoopSlider(
-                    label: 'Fim',
-                    value: b,
-                    total: total,
-                    onChanged: setB,
-                    onCurrent: () => setB(current),
-                  ),
-                ],
-                const SizedBox(height: 8),
-                FilledButton(
-                  onPressed: () => Navigator.pop(context, (a: a, b: b)),
-                  child: const Text('Repetir este trecho'),
-                ),
-                if (initial != null)
-                  TextButton(
-                    onPressed: () {
-                      onClear();
-                      Navigator.pop(context);
-                    },
-                    child: const Text('Desligar o loop'),
-                  ),
-              ],
-            ),
-          );
-        },
-      );
-    },
+    builder: (context) =>
+        _LoopSheet(choice: choice, onClear: onClear, sidePanel: sidePanel),
   );
+}
+
+/// A folha de [showLoopSheet]: o início e o fim do trecho, e os botões.
+class _LoopSheet extends StatefulWidget {
+  const _LoopSheet({
+    required this.choice,
+    required this.onClear,
+    required this.sidePanel,
+  });
+
+  final LoopChoice choice;
+  final VoidCallback onClear;
+  final bool sidePanel;
+
+  @override
+  State<_LoopSheet> createState() => _LoopSheetState();
+}
+
+class _LoopSheetState extends State<_LoopSheet> {
+  late int _a = widget.choice.initial?.a ?? widget.choice.current;
+  late int _b =
+      widget.choice.initial?.b ??
+      (widget.choice.current + 1 < widget.choice.total
+          ? widget.choice.current + 1
+          : widget.choice.current);
+
+  int get _last => widget.choice.total - 1;
+
+  void _setA(int v) => setState(() {
+    _a = v.clamp(0, _last);
+    if (_b < _a) _b = _a;
+  });
+
+  void _setB(int v) => setState(() {
+    _b = v.clamp(0, _last);
+    if (_a > _b) _a = _b;
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final choice = widget.choice;
+    return sheetBody(
+      sidePanel: widget.sidePanel,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            _a == _b
+                ? 'Repetir o compasso ${_a + 1}'
+                : 'Repetir do compasso ${_a + 1} ao ${_b + 1}',
+            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+          ),
+          if (choice.total > 1) ...[
+            _LoopSlider(
+              label: 'Início',
+              value: _a,
+              total: choice.total,
+              onChanged: _setA,
+              onCurrent: () => _setA(choice.current),
+            ),
+            _LoopSlider(
+              label: 'Fim',
+              value: _b,
+              total: choice.total,
+              onChanged: _setB,
+              onCurrent: () => _setB(choice.current),
+            ),
+          ],
+          const SizedBox(height: 8),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, (a: _a, b: _b)),
+            child: const Text('Repetir este trecho'),
+          ),
+          if (choice.initial != null)
+            TextButton(
+              onPressed: () {
+                widget.onClear();
+                Navigator.pop(context);
+              },
+              child: const Text('Desligar o loop'),
+            ),
+        ],
+      ),
+    );
+  }
 }
 
 class _LoopSlider extends StatelessWidget {
@@ -255,124 +282,165 @@ class _CalibrationDialogState extends State<_CalibrationDialog> {
   }
 }
 
-/// Resumo do treino em tempo real (T03). [onRepeatWorst] recebe os compassos
-/// (ocorrências) com mais erros; `null` desabilita o botão. Fala português
-/// (U12): a precisão, as contagens, uma frase sobre o tempo e os compassos
-/// que deram mais trabalho; os números (milissegundos, uma linha por compasso)
-/// ficam atrás de "Detalhes".
+/// As opções do resumo do treino (ver [showPracticeSummary]).
+class PracticeSummaryOptions {
+  const PracticeSummaryOptions({
+    this.onRepeatWorst,
+    this.wrongCount = 0,
+    this.reviewHasSides = false,
+    this.onReview,
+    this.legend,
+    this.sidePanel = false,
+  });
+
+  /// Repetir os compassos com mais erros; sem ele, o botão não aparece.
+  final void Function(List<MeasureStats> worst)? onRepeatWorst;
+
+  /// Notas erradas do treino e o que fazer para vê-las na partitura; `null`
+  /// esconde o botão.
+  final int wrongCount;
+  final bool reviewHasSides;
+  final VoidCallback? onReview;
+
+  /// A legenda da partitura, se há uma.
+  final Widget? legend;
+
+  /// No celular o resumo entra pela lateral (ver [showSheetOrSidePanel]).
+  final bool sidePanel;
+}
+
+/// O resumo de um treino: a precisão, as contagens, o tempo e, com "Detalhes",
+/// a média de atraso e os compassos que deram mais trabalho.
 Future<void> showPracticeSummary(
   BuildContext context,
   PracticeReport report, {
-  void Function(List<MeasureStats> worst)? onRepeatWorst,
-
-  // Notas erradas do treino e o que fazer para vê-las na partitura; `null`
-  // esconde o botão.
-  int wrongCount = 0,
-  bool reviewHasSides = false,
-  VoidCallback? onReview,
-  Widget? legend,
-  bool sidePanel = false,
+  PracticeSummaryOptions options = const PracticeSummaryOptions(),
 }) {
-  final worst = report.worstMeasures();
-  String signed(double ms) {
-    if (ms.abs() < 1) return 'no tempo';
-    return '${ms.abs().round()} ms ${ms < 0 ? 'adiantado' : 'atrasado'}';
-  }
-
   return showSheetOrSidePanel<void>(
     context,
-    sidePanel: sidePanel,
+    sidePanel: options.sidePanel,
     title: 'Resumo do treino',
-    builder: (context) {
-      var details = false;
-      return StatefulBuilder(
-        builder: (context, setState) => sheetBody(
-          sidePanel: sidePanel,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text(
-                report.isEmpty
-                    ? 'Nenhuma nota avaliada'
-                    : 'Precisão ${(report.accuracy * 100).round()}%',
-                style: serifDisplay(fontSize: 22),
-              ),
-              if (!report.isEmpty) ...[
-                const SizedBox(height: 8),
-                Wrap(
-                  spacing: 16,
-                  runSpacing: 4,
-                  children: [
-                    _Stat('${report.correct}', 'certas', kGoodColor),
-                    _Stat(
-                      '${report.early + report.late}',
-                      'fora do tempo',
-                      kOkColor,
-                    ),
-                    _Stat('${report.wrong}', 'erradas', kBadColor),
-                    _Stat('${report.missed}', 'perdidas', kLowScoreColor),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Text(practiceTimingPhrase(report)),
-                if (worst.isNotEmpty) ...[
-                  const SizedBox(height: 4),
-                  Text(
-                    'Deram mais trabalho: compassos '
-                    '${joinMeasureNumbers([for (final m in worst) m.index + 1], ranges: false)}.',
-                  ),
-                ],
-              ],
-              if (legend != null) ...[const SizedBox(height: 12), legend],
-              const SizedBox(height: 12),
-              if (worst.isNotEmpty && onRepeatWorst != null)
-                FilledButton(
-                  onPressed: () {
-                    Navigator.pop(context);
-                    onRepeatWorst(worst);
-                  },
-                  child: const Text('Repetir os compassos com mais erros'),
-                ),
-              if (onReview != null && wrongCount > 0)
-                ...reviewButton(
-                  hasSides: reviewHasSides,
-                  onPressed: () {
-                    Navigator.pop(context);
-                    onReview();
-                  },
-                ),
-              if (!report.isEmpty)
-                TextButton(
-                  onPressed: () => setState(() => details = !details),
-                  child: Text(details ? 'Esconder detalhes' : 'Detalhes'),
-                ),
-              if (details && !report.isEmpty) ...[
-                Text(
-                  'Em média ${signed(report.meanDeltaMs)} '
-                  '(desvio ${report.meanAbsDeltaMs.round()} ms'
-                  '${report.stdDevMs > 0 ? ', regularidade ±${report.stdDevMs.round()} ms' : ''})',
-                  style: const TextStyle(color: kInkCaption),
-                ),
-                for (final m in worst)
-                  Text(
-                    'Compasso ${m.index + 1}'
-                    '${m.pass > 1 ? ' (${m.pass}ª vez)' : ''}: '
-                    '${m.wrong} erradas, ${m.missed} perdidas, '
-                    '${m.imprecise} fora do tempo',
-                  ),
-                const SizedBox(height: 8),
-              ],
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('Fechar'),
-              ),
-            ],
-          ),
-        ),
-      );
-    },
+    builder: (context) =>
+        _PracticeSummarySheet(report: report, options: options),
   );
+}
+
+/// A folha de [showPracticeSummary]: o botão de detalhes é o único estado.
+class _PracticeSummarySheet extends StatefulWidget {
+  const _PracticeSummarySheet({required this.report, required this.options});
+
+  final PracticeReport report;
+  final PracticeSummaryOptions options;
+
+  @override
+  State<_PracticeSummarySheet> createState() => _PracticeSummarySheetState();
+}
+
+class _PracticeSummarySheetState extends State<_PracticeSummarySheet> {
+  bool _details = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final report = widget.report;
+    final options = widget.options;
+    final worst = report.worstMeasures();
+    return sheetBody(
+      sidePanel: options.sidePanel,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            report.isEmpty
+                ? 'Nenhuma nota avaliada'
+                : 'Precisão ${(report.accuracy * 100).round()}%',
+            style: serifDisplay(fontSize: 22),
+          ),
+          if (!report.isEmpty) ..._counts(report, worst),
+          if (options.legend != null) ...[
+            const SizedBox(height: 12),
+            options.legend!,
+          ],
+          const SizedBox(height: 12),
+          if (worst.isNotEmpty && options.onRepeatWorst != null)
+            FilledButton(
+              onPressed: () {
+                Navigator.pop(context);
+                options.onRepeatWorst!(worst);
+              },
+              child: const Text('Repetir os compassos com mais erros'),
+            ),
+          if (options.onReview != null && options.wrongCount > 0)
+            ...reviewButton(
+              hasSides: options.reviewHasSides,
+              onPressed: () {
+                Navigator.pop(context);
+                options.onReview!();
+              },
+            ),
+          if (!report.isEmpty)
+            TextButton(
+              onPressed: () => setState(() => _details = !_details),
+              child: Text(_details ? 'Esconder detalhes' : 'Detalhes'),
+            ),
+          if (_details && !report.isEmpty) ..._detailRows(report, worst),
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Fechar'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// As contagens (certas, fora do tempo, erradas, perdidas), o tempo e os
+  /// compassos que deram mais trabalho.
+  List<Widget> _counts(PracticeReport report, List<MeasureStats> worst) => [
+    const SizedBox(height: 8),
+    Wrap(
+      spacing: 16,
+      runSpacing: 4,
+      children: [
+        _Stat('${report.correct}', 'certas', kGoodColor),
+        _Stat('${report.early + report.late}', 'fora do tempo', kOkColor),
+        _Stat('${report.wrong}', 'erradas', kBadColor),
+        _Stat('${report.missed}', 'perdidas', kLowScoreColor),
+      ],
+    ),
+    const SizedBox(height: 8),
+    Text(practiceTimingPhrase(report)),
+    if (worst.isNotEmpty) ...[
+      const SizedBox(height: 4),
+      Text(
+        'Deram mais trabalho: compassos '
+        '${joinMeasureNumbers([for (final m in worst) m.index + 1], ranges: false)}.',
+      ),
+    ],
+  ];
+
+  /// Os detalhes: a média e o desvio do atraso, e os compassos com erro.
+  List<Widget> _detailRows(PracticeReport report, List<MeasureStats> worst) => [
+    Text(
+      'Em média ${_signedMs(report.meanDeltaMs)} '
+      '(desvio ${report.meanAbsDeltaMs.round()} ms'
+      '${report.stdDevMs > 0 ? ', regularidade ±${report.stdDevMs.round()} ms' : ''})',
+      style: const TextStyle(color: kInkCaption),
+    ),
+    for (final m in worst)
+      Text(
+        'Compasso ${m.index + 1}'
+        '${m.pass > 1 ? ' (${m.pass}ª vez)' : ''}: '
+        '${m.wrong} erradas, ${m.missed} perdidas, '
+        '${m.imprecise} fora do tempo',
+      ),
+    const SizedBox(height: 8),
+  ];
+}
+
+/// O atraso (ou adiantamento) em ms, em português.
+String _signedMs(double ms) {
+  if (ms.abs() < 1) return 'no tempo';
+  return '${ms.abs().round()} ms ${ms < 0 ? 'adiantado' : 'atrasado'}';
 }
 
 class _Stat extends StatelessWidget {

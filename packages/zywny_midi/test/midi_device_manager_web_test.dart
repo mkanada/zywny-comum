@@ -42,80 +42,83 @@ class _WebFakeMidi implements MidiCommand {
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
+late _WebFakeMidi _midi;
+
+MidiDeviceManager create({bool supported = true, bool granted = false}) =>
+    manager = MidiDeviceManager(
+      midi: _midi,
+      prefs: SharedPreferencesAsync(),
+      isWeb: true,
+      webSupported: () => supported,
+      webGranted: () async => granted,
+    );
+
+MidiDeviceManager? manager;
+
 void main() {
-  late _WebFakeMidi midi;
-  MidiDeviceManager? manager;
+  _parte1();
+  _parte2();
+}
 
-  MidiDeviceManager create({bool supported = true, bool granted = false}) =>
-      manager = MidiDeviceManager(
-        midi: midi,
-        prefs: SharedPreferencesAsync(),
-        isWeb: true,
-        webSupported: () => supported,
-        webGranted: () async => granted,
-      );
-
+void _parte1() {
   setUp(() {
     SharedPreferencesAsyncPlatform.instance =
         InMemorySharedPreferencesAsync.empty();
-    midi = _WebFakeMidi();
+    _midi = _WebFakeMidi();
   });
-
   tearDown(() {
     manager?.dispose();
-    unawaited(midi.setup.close());
+    unawaited(_midi.setup.close());
   });
-
   test('sem permissão ainda: não toca no plugin e espera o clique', () async {
     final m = create();
     await pumpEventQueue();
     expect(m.unavailable.value, MidiUnavailable.notAsked);
-    expect(midi.deviceReads, 0);
-    expect(midi.setupListens, 0);
+    expect(_midi.deviceReads, 0);
+    expect(_midi.setupListens, 0);
 
-    midi.list = [MidiDevice('a', 'Piano', MidiDeviceType.serial, false)];
+    _midi.list = [MidiDevice('a', 'Piano', MidiDeviceType.serial, false)];
     await m.refresh();
     expect(m.unavailable.value, isNull);
     expect(m.devices.value, hasLength(1));
     expect(m.connected.value?.id, 'a');
-    expect(midi.setupListens, 1);
+    expect(_midi.setupListens, 1);
   });
-
   test('permissão já dada: lista na abertura, sem esperar clique', () async {
-    midi.list = [MidiDevice('a', 'Piano', MidiDeviceType.serial, false)];
+    _midi.list = [MidiDevice('a', 'Piano', MidiDeviceType.serial, false)];
     final m = create(granted: true);
     await pumpEventQueue();
     expect(m.unavailable.value, isNull);
     expect(m.connected.value?.id, 'a');
   });
+}
 
+void _parte2() {
   test('navegador sem Web MIDI: avisa e nunca toca no plugin', () async {
     final m = create(supported: false);
     await pumpEventQueue();
     expect(m.unavailable.value, MidiUnavailable.unsupported);
-    expect(midi.deviceReads, 0);
+    expect(_midi.deviceReads, 0);
   });
-
   test('UnsupportedError do plugin vira "sem suporte"', () async {
     final m = create();
     await pumpEventQueue();
-    midi.failWith = UnsupportedError('Web MIDI API is unavailable');
+    _midi.failWith = UnsupportedError('Web MIDI API is unavailable');
     await m.refresh();
     expect(m.unavailable.value, MidiUnavailable.unsupported);
   });
-
   test(
     'acesso recusado vira "negado" e o clique seguinte tenta de novo',
     () async {
       final m = create();
       await pumpEventQueue();
-      midi.failWith = StateError('SecurityError');
+      _midi.failWith = StateError('SecurityError');
       await m.refresh();
       expect(m.unavailable.value, MidiUnavailable.denied);
       expect(m.devices.value, isEmpty);
 
-      midi.failWith = null;
-      midi.list = [MidiDevice('a', 'Piano', MidiDeviceType.serial, false)];
+      _midi.failWith = null;
+      _midi.list = [MidiDevice('a', 'Piano', MidiDeviceType.serial, false)];
       await m.refresh();
       expect(m.unavailable.value, isNull);
       expect(m.devices.value, hasLength(1));

@@ -168,15 +168,28 @@ const String kShiftReminderMessage =
 /// transposta, a anterior era, há teclado e ele **não** transpõe a saída
 /// (`false` ou não conferido): com `true` o detector vê o deslocamento de
 /// verdade e o app não avisa por suposição.
-bool shouldRemindTransposeReset({
-  required bool previousWasTransposed,
-  required bool nowTransposed,
-  required bool hasKeyboard,
-  required bool? keyboardShiftsOut,
-  required bool appIsSound,
-}) =>
-    previousWasTransposed &&
-    !nowTransposed &&
-    hasKeyboard &&
-    keyboardShiftsOut != true &&
-    !appIsSound;
+bool shouldRemindTransposeReset({required ResetReminderState state}) =>
+    state.previousWasTransposed &&
+    !state.nowTransposed &&
+    state.hasKeyboard &&
+    state.keyboardShiftsOut != true &&
+    !state.appIsSound;
+
+/// Os dados que o lembrete de voltar a 0 usa (ver [shouldRemindTransposeReset]).
+class ResetReminderState {
+  const ResetReminderState({
+    required this.previousWasTransposed,
+    required this.nowTransposed,
+    required this.hasKeyboard,
+    required this.keyboardShiftsOut,
+    required this.appIsSound,
+  });
+
+  final bool previousWasTransposed;
+  final bool nowTransposed;
+  final bool hasKeyboard;
+
+  /// `null` quando o teclado ainda não foi conferido.
+  final bool? keyboardShiftsOut;
+  final bool appIsSound;
+}

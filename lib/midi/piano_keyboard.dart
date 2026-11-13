@@ -10,6 +10,17 @@ import 'package:zywny_music/note_names.dart'
 /// [lowest]/[highest] são números MIDI (A0=21 .. C8=108). [marked] pinta as
 /// teclas com [markedColor] (por baixo de [held]/[wrong]); com [names], as
 /// teclas brancas marcadas ganham o nome ([noteLabel], sem oitava).
+/// As posições das teclas numa faixa: a menor e a maior ([lo], [hi]), as
+/// brancas em ordem ([whites]), a largura de cada uma e o índice de cada
+/// branca ([whiteIndexOf]).
+typedef _KeyLayout = ({
+  int lo,
+  int hi,
+  List<int> whites,
+  double whiteWidth,
+  Map<int, int> whiteIndexOf,
+});
+
 class PianoKeyboardPainter extends CustomPainter {
   const PianoKeyboardPainter({
     required this.held,
@@ -65,10 +76,22 @@ class PianoKeyboardPainter extends CustomPainter {
     ];
     if (whiteNotes.isEmpty) return;
     final whiteWidth = size.width / whiteNotes.length;
-    final whiteIndexOf = <int, int>{
-      for (var i = 0; i < whiteNotes.length; i++) whiteNotes[i]: i,
-    };
+    final layout = (
+      lo: lo,
+      hi: hi,
+      whites: whiteNotes,
+      whiteWidth: whiteWidth,
+      whiteIndexOf: <int, int>{
+        for (var i = 0; i < whiteNotes.length; i++) whiteNotes[i]: i,
+      },
+    );
+    _paintWhites(canvas, size, layout);
+    _paintBlacks(canvas, size, layout);
+    if (names) _paintNames(canvas, size, layout);
+  }
 
+  /// As teclas brancas: cor de apertada, de errada, de marcada ou branca.
+  void _paintWhites(Canvas canvas, Size size, _KeyLayout layout) {
     final whitePaint = Paint()..color = Colors.white;
     final markedWhitePaint = Paint()..color = markedColor;
     final heldWhitePaint = Paint()..color = heldColor;
@@ -78,11 +101,11 @@ class PianoKeyboardPainter extends CustomPainter {
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1;
 
-    for (final n in whiteNotes) {
+    for (final n in layout.whites) {
       final rect = Rect.fromLTWH(
-        whiteIndexOf[n]! * whiteWidth,
+        layout.whiteIndexOf[n]! * layout.whiteWidth,
         0,
-        whiteWidth,
+        layout.whiteWidth,
         size.height,
       );
       final paint = wrong.contains(n)
@@ -93,20 +116,22 @@ class PianoKeyboardPainter extends CustomPainter {
       canvas.drawRect(rect, paint);
       canvas.drawRect(rect, borderPaint);
     }
+  }
 
-    // Pretas por cima, centradas na fronteira com a branca à esquerda — a
-    // classe escolhida acima garante que essa vizinha é sempre branca.
-    final blackWidth = whiteWidth * 0.6;
+  /// As teclas pretas, por cima, centradas na fronteira com a branca à esquerda
+  /// — a classe escolhida acima garante que essa vizinha é sempre branca.
+  void _paintBlacks(Canvas canvas, Size size, _KeyLayout layout) {
+    final blackWidth = layout.whiteWidth * 0.6;
     final blackHeight = size.height * 0.62;
     final blackPaint = Paint()..color = Colors.black87;
     final markedBlackPaint = Paint()..color = markedColor;
     final heldBlackPaint = Paint()..color = heldColor;
     final wrongBlackPaint = Paint()..color = wrongColor;
-    for (var n = lo; n <= hi; n++) {
+    for (var n = layout.lo; n <= layout.hi; n++) {
       if (!_isBlack(n)) continue;
-      final leftWhiteIndex = whiteIndexOf[n - 1];
+      final leftWhiteIndex = layout.whiteIndexOf[n - 1];
       if (leftWhiteIndex == null) continue;
-      final centerX = (leftWhiteIndex + 1) * whiteWidth;
+      final centerX = (leftWhiteIndex + 1) * layout.whiteWidth;
       final rect = Rect.fromLTWH(
         centerX - blackWidth / 2,
         0,
@@ -120,34 +145,36 @@ class PianoKeyboardPainter extends CustomPainter {
                 : (marked.contains(n) ? markedBlackPaint : blackPaint));
       canvas.drawRect(rect, paint);
     }
+  }
 
-    if (names) {
-      for (final n in whiteNotes) {
-        if (!marked.contains(n)) continue;
-        final label = noteLabel(pitchFromMidi(n), naming);
-        final span = TextSpan(
-          text: label,
-          style: TextStyle(
-            // Branca marcada: texto escuro sobre a cor de marca clara o
-            // bastante; com marca escura (padrão), branco para ler.
-            color: _onMark(markedColor),
-            fontSize: (whiteWidth * 0.32).clamp(8.0, 16.0),
-            fontWeight: FontWeight.w600,
-          ),
-        );
-        final painter = TextPainter(
-          text: span,
-          textAlign: TextAlign.center,
-          textDirection: TextDirection.ltr,
-        )..layout(maxWidth: whiteWidth);
-        painter.paint(
-          canvas,
-          Offset(
-            whiteIndexOf[n]! * whiteWidth + (whiteWidth - painter.width) / 2,
-            size.height - painter.height - 4,
-          ),
-        );
-      }
+  /// O nome (na nota da sua escrita) das teclas brancas marcadas, embaixo.
+  void _paintNames(Canvas canvas, Size size, _KeyLayout layout) {
+    for (final n in layout.whites) {
+      if (!marked.contains(n)) continue;
+      final label = noteLabel(pitchFromMidi(n), naming);
+      final span = TextSpan(
+        text: label,
+        style: TextStyle(
+          // Branca marcada: texto escuro sobre a cor de marca clara o
+          // bastante; com marca escura (padrão), branco para ler.
+          color: _onMark(markedColor),
+          fontSize: (layout.whiteWidth * 0.32).clamp(8.0, 16.0),
+          fontWeight: FontWeight.w600,
+        ),
+      );
+      final painter = TextPainter(
+        text: span,
+        textAlign: TextAlign.center,
+        textDirection: TextDirection.ltr,
+      )..layout(maxWidth: layout.whiteWidth);
+      painter.paint(
+        canvas,
+        Offset(
+          layout.whiteIndexOf[n]! * layout.whiteWidth +
+              (layout.whiteWidth - painter.width) / 2,
+          size.height - painter.height - 4,
+        ),
+      );
     }
   }
 

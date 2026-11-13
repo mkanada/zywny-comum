@@ -45,7 +45,87 @@ Future<void> _expectRejected(Future<Object?> f, Matcher message) => expectLater(
   ),
 );
 
+final real = File('../../dist/hinos.zywny');
+final publicFile = File('../../keys/biblioteca.public.b64');
+
+late ({Uint8List seed, Uint8List pub}) k;
+
+late Uint8List sealed;
+
 void main() {
+  _parte3();
+  _parte4();
+}
+
+void _parte1() {
+  setUp(() async {
+    k = await _keys();
+    sealed = await LibraryEnvelope.seal(
+      _zip(),
+      keys: (privateSeed: k.seed, publicKey: k.pub),
+    );
+  });
+  test('assinado por outra chave', () async {
+    final other = await _keys();
+    await _expectRejected(
+      LibraryEnvelope.open(sealed, other.pub),
+      contains('não foi assinada pela chave deste app'),
+    );
+  });
+  test('pacote assinado por outra chave privada, mesmo com a pública certa a cifrar', () async {
+    final other = await _keys();
+    // Quem não tem a privada não consegue forjar: assina com a sua.
+    final forged = await LibraryEnvelope.seal(
+      _zip(),
+      keys: (privateSeed: other.seed, publicKey: k.pub),
+    );
+    await _expectRejected(
+      LibraryEnvelope.open(forged, k.pub),
+      contains('não foi assinada'),
+    );
+  });
+  test('um byte alterado na cifra', () async {
+    final bad = Uint8List.fromList(sealed)..[60] ^= 0x01;
+    await _expectRejected(
+      LibraryEnvelope.open(bad, k.pub),
+      contains('não foi assinada'),
+    );
+  });
+}
+
+void _parte2() {
+  test('cabeçalho alterado', () async {
+    final bad = Uint8List.fromList(sealed)..[10] ^= 0x01;
+    await _expectRejected(
+      LibraryEnvelope.open(bad, k.pub),
+      contains('não foi assinada'),
+    );
+  });
+  test('truncado', () async {
+    await _expectRejected(
+      LibraryEnvelope.open(Uint8List.sublistView(sealed, 0, 40), k.pub),
+      contains('não é uma biblioteca do zywny'),
+    );
+  });
+  test('um zip sem cifra', () async {
+    final zip = _zip();
+    expect(LibraryEnvelope.looksSealed(zip), isFalse);
+    await _expectRejected(
+      LibraryEnvelope.open(zip, k.pub),
+      contains('não é uma biblioteca do zywny'),
+    );
+  });
+  test('versão do envelope mais nova', () async {
+    final bad = Uint8List.fromList(sealed)..[4] = 2;
+    await _expectRejected(
+      LibraryEnvelope.open(bad, k.pub),
+      contains('versão mais nova do zywny'),
+    );
+  });
+}
+
+// Testes: rejeita
+void _parte3() {
   test(
     'seal e open: o zip volta igual e o conteúdo não aparece no envelope',
     () async {
@@ -53,8 +133,7 @@ void main() {
       final zip = _zip();
       final sealed = await LibraryEnvelope.seal(
         zip,
-        privateSeed: k.seed,
-        publicKey: k.pub,
+        keys: (privateSeed: k.seed, publicKey: k.pub),
       );
       expect(LibraryEnvelope.looksSealed(sealed), isTrue);
       expect(String.fromCharCodes(sealed), isNot(contains('manifest.json')));
@@ -63,101 +142,25 @@ void main() {
       expect(pkg.manifest.id, 'teste');
     },
   );
-
   test('sal e nonce aleatórios: dois envelopes do mesmo zip diferem', () async {
     final k = await _keys();
     final a = await LibraryEnvelope.seal(
       _zip(),
-      privateSeed: k.seed,
-      publicKey: k.pub,
+      keys: (privateSeed: k.seed, publicKey: k.pub),
     );
     final b = await LibraryEnvelope.seal(
       _zip(),
-      privateSeed: k.seed,
-      publicKey: k.pub,
+      keys: (privateSeed: k.seed, publicKey: k.pub),
     );
     expect(a, isNot(b));
   });
-
   group('rejeita', () {
-    late ({Uint8List seed, Uint8List pub}) k;
-    late Uint8List sealed;
-    setUp(() async {
-      k = await _keys();
-      sealed = await LibraryEnvelope.seal(
-        _zip(),
-        privateSeed: k.seed,
-        publicKey: k.pub,
-      );
-    });
-
-    test('assinado por outra chave', () async {
-      final other = await _keys();
-      await _expectRejected(
-        LibraryEnvelope.open(sealed, other.pub),
-        contains('não foi assinada pela chave deste app'),
-      );
-    });
-
-    test('pacote assinado por outra chave privada, mesmo com a pública certa a cifrar', () async {
-      final other = await _keys();
-      // Quem não tem a privada não consegue forjar: assina com a sua.
-      final forged = await LibraryEnvelope.seal(
-        _zip(),
-        privateSeed: other.seed,
-        publicKey: k.pub,
-      );
-      await _expectRejected(
-        LibraryEnvelope.open(forged, k.pub),
-        contains('não foi assinada'),
-      );
-    });
-
-    test('um byte alterado na cifra', () async {
-      final bad = Uint8List.fromList(sealed)..[60] ^= 0x01;
-      await _expectRejected(
-        LibraryEnvelope.open(bad, k.pub),
-        contains('não foi assinada'),
-      );
-    });
-
-    test('cabeçalho alterado', () async {
-      final bad = Uint8List.fromList(sealed)..[10] ^= 0x01;
-      await _expectRejected(
-        LibraryEnvelope.open(bad, k.pub),
-        contains('não foi assinada'),
-      );
-    });
-
-    test('truncado', () async {
-      await _expectRejected(
-        LibraryEnvelope.open(Uint8List.sublistView(sealed, 0, 40), k.pub),
-        contains('não é uma biblioteca do zywny'),
-      );
-    });
-
-    test('um zip sem cifra', () async {
-      final zip = _zip();
-      expect(LibraryEnvelope.looksSealed(zip), isFalse);
-      await _expectRejected(
-        LibraryEnvelope.open(zip, k.pub),
-        contains('não é uma biblioteca do zywny'),
-      );
-    });
-
-    test('versão do envelope mais nova', () async {
-      final bad = Uint8List.fromList(sealed)..[4] = 2;
-      await _expectRejected(
-        LibraryEnvelope.open(bad, k.pub),
-        contains('versão mais nova do zywny'),
-      );
-    });
+    _parte1();
+    _parte2();
   });
+}
 
-  // O pacote real do gerador Python (`just pacote-hinos`) com o par de
-  // `keys/` (não versionado): prova que Python e Dart falam o mesmo envelope.
-  final real = File('../../dist/hinos.zywny');
-  final publicFile = File('../../keys/biblioteca.public.b64');
+void _parte4() {
   test(
     'dist/hinos.zywny do gerador Python abre no Dart',
     () async {

@@ -9,6 +9,7 @@ import 'auth_store.dart';
 import 'auth_user.dart';
 import 'id_token.dart';
 import 'session_freshness.dart';
+import 'renew_failure.dart';
 import 'session_storage.dart';
 
 /// O login com o SDK do Firebase: Android e Web (D01). O Linux e o Windows não
@@ -114,7 +115,18 @@ class FirebaseSdkAuthStore extends AuthStoreBase implements AuthStore {
       await _ensureInitialized();
       final firebaseUser = _auth.currentUser;
       if (firebaseUser == null) {
-        throw const AuthException('A sessão do Firebase não está mais aqui.');
+        // A sessão guardada (preferências) não tem par no Firebase: os dados
+        // do app foram limpos, ou um backup do sistema as devolveu. Renovar
+        // nunca vai dar certo; apaga a sessão e pede o login de novo, em vez
+        // de a tela de reconexão repetir a mesma mensagem.
+        await _storage.clear();
+        setState(
+          const AuthState.unauthenticated(
+            errorMessage:
+                'Sua sessão não está mais neste aparelho. Entre de novo.',
+          ),
+        );
+        return;
       }
       final idToken = await firebaseUser.getIdToken(true);
       if (idToken == null || idToken.isEmpty) {
@@ -132,25 +144,7 @@ class FirebaseSdkAuthStore extends AuthStoreBase implements AuthStore {
     } on Object catch (e) {
       // A rede falhou: a sessão guardada continua valendo enquanto estiver
       // fresca (D-NEG-OFFLINE).
-      final now = _clock();
-      if (!SessionFreshness.isFresh(user.lastServerCheckAt, now)) {
-        setState(
-          AuthState.offlineExpired(
-            user: user,
-            errorMessage: SessionFreshness.messageFor(
-              lastVerified: user.lastServerCheckAt,
-              now: now,
-            ),
-          ),
-        );
-      } else {
-        setState(
-          AuthState.authenticated(
-            user,
-            errorMessage: 'Não consegui falar com o servidor agora: $e',
-          ),
-        );
-      }
+      setState(renewFailureState(user, e, _clock()));
     }
   }
 

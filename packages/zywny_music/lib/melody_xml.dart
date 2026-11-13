@@ -138,82 +138,66 @@ MelodyScore? readMelodyXml(String xml, {void Function(String message)? error}) {
     return null;
   }
 
+  final reader = _MelodyReader();
+  for (final measure in part.childrenNamed('measure')) {
+    reader.readMeasure(measure);
+  }
+  if (reader.notes.isEmpty) {
+    error?.call('a parte não tem nenhuma nota de melodia (voz 1)');
+    return null;
+  }
+  return MelodyScore(
+    notes: reader.notes,
+    measures: reader.measures,
+    changes: reader.changes,
+    fifths: reader.fifths,
+    minor: reader.minor,
+    harmonies: reader.harmonies,
+  );
+}
+
+/// Onde a leitura está dentro de um compasso: a posição (em semínimas), até
+/// onde o compasso chegou e onde começou a última nota de voz 1.
+class _MeasureCursor {
+  double pos = 0;
+  double reached = 0;
+  double? lastStart;
+}
+
+/// O que a leitura de uma parte acumula: os atributos que valem para os
+/// compassos seguintes e as notas, os compassos, as cifras e as mudanças.
+class _MelodyReader {
   final notes = <MelodyNote>[];
   final measures = <MelodyMeasure>[];
   final changes = <double>[];
+  final harmonies = <MelodyHarmony>[];
   int? fifths;
   var minor = false;
   var divisions = 1.0;
   var beats = 4;
   var beatType = 4;
   var measureStart = 0.0;
-  final harmonies = <MelodyHarmony>[];
 
-  for (final measure in part.childrenNamed('measure')) {
+  /// Lê um compasso: as notas, as cifras e as mudanças nele.
+  void readMeasure(_Node measure) {
     final nominal = beats * 4 / beatType;
-    var pos = 0.0; // em semínimas, dentro do compasso
-    var reached = 0.0;
-    // Onde começou a última nota de voz 1, para o acorde na melodia.
-    double? lastStart;
+    final cursor = _MeasureCursor();
     for (final node in measure.children) {
       switch (node.name) {
         case 'attributes':
-          final d = node.child('divisions');
-          if (d != null) divisions = _num(d.text, divisions);
-          final time = node.child('time');
-          if (time != null) {
-            beats = int.tryParse(time.child('beats')?.text ?? '') ?? beats;
-            beatType =
-                int.tryParse(time.child('beat-type')?.text ?? '') ?? beatType;
-          }
-          final key = node.child('key');
-          if (key != null) {
-            fifths = int.tryParse(key.child('fifths')?.text ?? '') ?? fifths;
-            minor = key.child('mode')?.text == 'minor';
-          }
+          _attributes(node);
         case 'harmony':
-          // A cifra vale do ponto em que está (antes da nota que ela acompanha).
-          harmonies.add(
-            MelodyHarmony(
-              start: measureStart + pos,
-              symbol: _symbolOf(node),
-              kind: node.child('kind')?.text ?? '',
-            ),
-          );
+          _harmony(node, cursor.pos);
         case 'direction':
-          for (final words in node.descendants('words')) {
-            if (words.text.toLowerCase() == 'chg') {
-              changes.add(measureStart + pos);
-            }
-          }
+          _direction(node, cursor.pos);
         case 'backup':
-          pos -= _num(node.child('duration')?.text ?? '0', 0) / divisions;
-        case 'forward':
-          pos += _num(node.child('duration')?.text ?? '0', 0) / divisions;
-        case 'note':
-          final grace = node.child('grace') != null;
-          if (grace) break;
-          final chord = node.child('chord') != null;
-          final duration =
+          cursor.pos -=
               _num(node.child('duration')?.text ?? '0', 0) / divisions;
-          final start = chord && lastStart != null ? lastStart : pos;
-          final voice = node.child('voice')?.text ?? '1';
-          final pitch = _pitchOf(node.child('pitch'));
-          if (pitch != null && voice == '1') {
-            _addNote(
-              notes,
-              pitch: pitch,
-              start: measureStart + start,
-              beats: duration,
-              node: node,
-              chord: chord,
-            );
-            lastStart = start;
-          }
-          if (!chord) {
-            pos += duration;
-            if (pos > reached) reached = pos;
-          }
+        case 'forward':
+          cursor.pos +=
+              _num(node.child('duration')?.text ?? '0', 0) / divisions;
+        case 'note':
+          _note(node, cursor);
         default:
           break;
       }
@@ -227,21 +211,70 @@ MelodyScore? readMelodyXml(String xml, {void Function(String message)? error}) {
     );
     // Um compasso de anacruse (`implicit="yes"`) é só o que tem nota.
     final implicit = measure.attrs['implicit'] == 'yes';
-    measureStart += implicit ? reached : nominal;
+    measureStart += implicit ? cursor.reached : nominal;
   }
 
-  if (notes.isEmpty) {
-    error?.call('a parte não tem nenhuma nota de melodia (voz 1)');
-    return null;
+  /// As divisões, o compasso e a armadura, que valem daqui em diante.
+  void _attributes(_Node node) {
+    final d = node.child('divisions');
+    if (d != null) divisions = _num(d.text, divisions);
+    final time = node.child('time');
+    if (time != null) {
+      beats = int.tryParse(time.child('beats')?.text ?? '') ?? beats;
+      beatType = int.tryParse(time.child('beat-type')?.text ?? '') ?? beatType;
+    }
+    final key = node.child('key');
+    if (key != null) {
+      fifths = int.tryParse(key.child('fifths')?.text ?? '') ?? fifths;
+      minor = key.child('mode')?.text == 'minor';
+    }
   }
-  return MelodyScore(
-    notes: notes,
-    measures: measures,
-    changes: changes,
-    fifths: fifths,
-    minor: minor,
-    harmonies: harmonies,
-  );
+
+  /// A cifra vale do ponto em que está (antes da nota que ela acompanha).
+  void _harmony(_Node node, double pos) {
+    harmonies.add(
+      MelodyHarmony(
+        start: measureStart + pos,
+        symbol: _symbolOf(node),
+        kind: node.child('kind')?.text ?? '',
+      ),
+    );
+  }
+
+  /// As marcas `chg` (mudanças de cifra) dentro de uma direção.
+  void _direction(_Node node, double pos) {
+    for (final words in node.descendants('words')) {
+      if (words.text.toLowerCase() == 'chg') {
+        changes.add(measureStart + pos);
+      }
+    }
+  }
+
+  /// Uma nota: a da voz 1 vira melodia (uma nota de acorde, na mesma posição
+  /// da anterior, só troca de altura se for mais aguda); a de enfeite não conta.
+  void _note(_Node node, _MeasureCursor cursor) {
+    final grace = node.child('grace') != null;
+    if (grace) return;
+    final chord = node.child('chord') != null;
+    final duration = _num(node.child('duration')?.text ?? '0', 0) / divisions;
+    final lastStart = cursor.lastStart;
+    final start = chord && lastStart != null ? lastStart : cursor.pos;
+    final voice = node.child('voice')?.text ?? '1';
+    final pitch = _pitchOf(node.child('pitch'));
+    if (pitch != null && voice == '1') {
+      _addNote(
+        notes,
+        note: (pitch: pitch, start: measureStart + start, beats: duration),
+        node: node,
+        chord: chord,
+      );
+      cursor.lastStart = start;
+    }
+    if (!chord) {
+      cursor.pos += duration;
+      if (cursor.pos > cursor.reached) cursor.reached = cursor.pos;
+    }
+  }
 }
 
 /// O sufixo da cifra de cada tipo de acorde do MusicXML, na grafia da EX01. Os
@@ -306,12 +339,13 @@ String _alterText(String? alter) {
 /// melodia: fica a mais aguda).
 void _addNote(
   List<MelodyNote> notes, {
-  required int pitch,
-  required double start,
-  required double beats,
+  required ({int pitch, double start, double beats}) note,
   required _Node node,
   required bool chord,
 }) {
+  final pitch = note.pitch;
+  final start = note.start;
+  final beats = note.beats;
   final id = node.attrs['xml:id'] ?? node.attrs['id'];
   if (chord && notes.isNotEmpty && (notes.last.start - start).abs() < 1e-9) {
     final last = notes.last;

@@ -36,6 +36,10 @@ const _hkdfInfo = 'zywny-library-v1';
 ///   `HKDF-SHA256(chave pública, sal)`. Quem tem só o arquivo não lê as
 ///   partituras; quem tem a chave pública (o app, e você) lê. A chave pública
 ///   fica fora do git e é embutida no build.
+/// As chaves de quem sela um envelope: a semente privada (que assina) e a
+/// chave pública que o aparelho confere.
+typedef LibrarySealKeys = ({Uint8List privateSeed, Uint8List publicKey});
+
 class LibraryEnvelope {
   const LibraryEnvelope._();
 
@@ -106,11 +110,12 @@ class LibraryEnvelope {
   /// Em Dart só os testes precisam; [salt] e [nonce] existem para eles.
   static Future<Uint8List> seal(
     Uint8List zip, {
-    required Uint8List privateSeed,
-    required Uint8List publicKey,
+    required LibrarySealKeys keys,
     Uint8List? salt,
     Uint8List? nonce,
   }) async {
+    final privateSeed = keys.privateSeed;
+    final publicKey = keys.publicKey;
     final s =
         salt ??
         Uint8List.fromList(SecretKeyData.random(length: _saltLength).bytes);

@@ -21,6 +21,12 @@ void _resolve(String texto, String tom, String esperada) {
 }
 
 void main() {
+  _parte1();
+  _parte2();
+}
+
+// Testes: tons · graus no tom
+void _parte1() {
   group('tons', () {
     test('lê a tônica, a grafia e o menor', () {
       final bbm = _key('Bbm');
@@ -37,7 +43,6 @@ void main() {
       expect(erro, contains('`H`'));
     });
   });
-
   group('graus no tom', () {
     _resolve('ii7', 'F', 'Gm7');
     _resolve('V7/vi', 'C', 'E7');
@@ -58,23 +63,22 @@ void main() {
     _resolve('iv7/bIII', 'C', 'Abm7');
     _resolve('I7', 'Bb', 'Bb7');
   });
-
   test('a alteração do grau é a do texto (b e #), nunca a da tabela', () {
     expect(ChordDegree.parse('bIII')!.inKey(_key('C')).rootSpelling, 'Eb');
     expect(ChordDegree.parse('#iv')!.inKey(_key('C')).rootSpelling, 'F#');
   });
+}
 
+// Testes: função (casa ou tensão)
+void _parte2() {
   test('um grau que não existe é recusado, com mensagem', () {
     String? erro;
     expect(ChordDegree.parse('hello', error: (m) => erro = m), isNull);
     expect(erro, contains('`hello`'));
   });
-
   test('o texto canônico é o grau lido, sem as pontas', () {
     expect(ChordDegree.parse('  V7/vi ')!.label, 'V7/vi');
   });
-
-  // EX04: a função de casa ou tensão. Só os graus que a pergunta usa têm uma.
   group('função (casa ou tensão)', () {
     DegreeFunction? funcaoDe(String texto) =>
         ChordDegree.parse(texto)!.harmonicFunction;

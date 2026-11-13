@@ -299,7 +299,7 @@ void main() {
         path,
         _houseTrack(),
         n: 3,
-        includeFinal: true,
+        options: TrailPlanOptions(includeFinal: true),
       );
       List<String> ids(TrailStage s) =>
           trailStageMeasureIds(path, s, timeline.measures);

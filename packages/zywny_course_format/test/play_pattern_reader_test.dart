@@ -30,9 +30,12 @@ List<String> _messages(CourseReadResult result) => [
 ];
 
 void main() {
-  group('play-pattern: leitura', () {
-    test('escala de dó em duas oitavas, com os padrões do formato', () async {
-      final result = await _read('''
+  _parte10();
+}
+
+void _parte1() {
+  test('escala de dó em duas oitavas, com os padrões do formato', () async {
+    final result = await _read('''
 ```zywny-exercise
 id: n2-escala
 type: play-pattern
@@ -48,26 +51,28 @@ articulation: legato
 pass: {accuracy: 90, rounds: 5}
 ```
 ''');
-      expect(_messages(result), isEmpty);
-      final spec =
-          result.course!.lessons.single.exercises.single as PlayPatternSpec;
-      expect(spec.type, ExerciseType.playPattern);
-      expect(spec.pattern, PatternKind.scale);
-      expect(spec.scale, ScaleKind.major);
-      expect(spec.keys, isA<FixedKeys>());
-      expect((spec.keys as FixedKeys).keys, ['C', 'G', 'D', 'A', 'E']);
-      expect(spec.octaves, 2);
-      expect(spec.hand, PatternHand.right);
-      expect(spec.mode, PlayMode.realtime);
-      expect(spec.bpm, 72);
-      // `grouping: 4` é número no YAML e vale como a palavra '4'.
-      expect(spec.grouping, PatternGrouping.four);
-      expect(spec.articulation, PatternArticulation.legato);
-      expect(spec.pass.rounds, 5);
-    });
+    expect(_messages(result), isEmpty);
+    final spec =
+        result.course!.lessons.single.exercises.single as PlayPatternSpec;
+    expect(spec.type, ExerciseType.playPattern);
+    expect(spec.pattern, PatternKind.scale);
+    expect(spec.scale, ScaleKind.major);
+    expect(spec.keys, isA<FixedKeys>());
+    expect((spec.keys as FixedKeys).keys, ['C', 'G', 'D', 'A', 'E']);
+    expect(spec.octaves, 2);
+    expect(spec.hand, PatternHand.right);
+    expect(spec.mode, PlayMode.realtime);
+    expect(spec.bpm, 72);
+    // `grouping: 4` é número no YAML e vale como a palavra '4'.
+    expect(spec.grouping, PatternGrouping.four);
+    expect(spec.articulation, PatternArticulation.legato);
+    expect(spec.pass.rounds, 5);
+  });
+}
 
-    test('padrões de três notas e sequência, com os valores padrão', () async {
-      final result = await _read('''
+void _parte2() {
+  test('padrões de três notas e sequência, com os valores padrão', () async {
+    final result = await _read('''
 ```zywny-exercise
 id: n4-tres-notas
 type: play-pattern
@@ -87,25 +92,27 @@ motif: [1, 2, 3, 1]
 key: F
 ```
 ''');
-      expect(_messages(result), isEmpty);
-      final exercises = result.course!.lessons.single.exercises.toList();
-      final three = exercises[0] as PlayPatternSpec;
-      expect(three.order, PatternOrder.order132);
-      expect(three.source, PatternSource.scale);
-      expect(three.keys, isA<AllKeys>());
-      final sequence = exercises[1] as PlayPatternSpec;
-      expect(sequence.motif, [1, 2, 3, 1]);
-      expect(sequence.key, 'F');
-      // Sem as chaves, o padrão é o da tabela do EX06.
-      expect(sequence.hand, PatternHand.right);
-      expect(sequence.direction, PatternDirection.upDown);
-      expect(sequence.fingering, isTrue);
-      expect(sequence.grouping, PatternGrouping.two);
-      expect(sequence.mode, PlayMode.wait);
-    });
+    expect(_messages(result), isEmpty);
+    final exercises = result.course!.lessons.single.exercises.toList();
+    final three = exercises[0] as PlayPatternSpec;
+    expect(three.order, PatternOrder.order132);
+    expect(three.source, PatternSource.scale);
+    expect(three.keys, isA<AllKeys>());
+    final sequence = exercises[1] as PlayPatternSpec;
+    expect(sequence.motif, [1, 2, 3, 1]);
+    expect(sequence.key, 'F');
+    // Sem as chaves, o padrão é o da tabela do EX06.
+    expect(sequence.hand, PatternHand.right);
+    expect(sequence.direction, PatternDirection.upDown);
+    expect(sequence.fingering, isTrue);
+    expect(sequence.grouping, PatternGrouping.two);
+    expect(sequence.mode, PlayMode.wait);
+  });
+}
 
-    test('ciclo e início pelo dia, como no play-score', () async {
-      final result = await _read('''
+void _parte3() {
+  test('ciclo e início pelo dia, como no play-score', () async {
+    final result = await _read('''
 ```zywny-exercise
 id: n5-ciclo
 type: play-pattern
@@ -116,16 +123,15 @@ cycle: 5ths
 key-start: rotate
 ```
 ''');
-      expect(_messages(result), isEmpty);
-      final spec =
-          result.course!.lessons.single.exercises.single as PlayPatternSpec;
-      expect(spec.chord, 'm');
-      expect(spec.cycle, KeyCycle.fifths);
-      expect(spec.keyStart, KeyStart.rotate);
-    });
-
-    test('dedilhado em escala de tom com tabela: sem aviso', () async {
-      final result = await _read('''
+    expect(_messages(result), isEmpty);
+    final spec =
+        result.course!.lessons.single.exercises.single as PlayPatternSpec;
+    expect(spec.chord, 'm');
+    expect(spec.cycle, KeyCycle.fifths);
+    expect(spec.keyStart, KeyStart.rotate);
+  });
+  test('dedilhado em escala de tom com tabela: sem aviso', () async {
+    final result = await _read('''
 ```zywny-exercise
 id: n2-dedilhado
 type: play-pattern
@@ -135,13 +141,13 @@ key: G
 fingering: true
 ```
 ''');
-      expect(_messages(result), isEmpty);
-    });
+    expect(_messages(result), isEmpty);
   });
+}
 
-  group('play-pattern: erros e avisos', () {
-    test('sequência sem motivo é erro', () async {
-      final result = await _read('''
+void _parte4() {
+  test('sequência sem motivo é erro', () async {
+    final result = await _read('''
 ```zywny-exercise
 id: n5-sem-motivo
 type: play-pattern
@@ -149,14 +155,13 @@ title: Sem motivo
 pattern: sequence
 ```
 ''');
-      expect(
-        _messages(result).join('\n'),
-        contains('`pattern: sequence` pede `motif`'),
-      );
-    });
-
-    test('grau de motivo fora de 1 a 7 é erro', () async {
-      final result = await _read('''
+    expect(
+      _messages(result).join('\n'),
+      contains('`pattern: sequence` pede `motif`'),
+    );
+  });
+  test('grau de motivo fora de 1 a 7 é erro', () async {
+    final result = await _read('''
 ```zywny-exercise
 id: n5-grau
 type: play-pattern
@@ -165,11 +170,13 @@ pattern: sequence
 motif: [1, 9]
 ```
 ''');
-      expect(_messages(result).join('\n'), contains('graus de 1 a 7'));
-    });
+    expect(_messages(result).join('\n'), contains('graus de 1 a 7'));
+  });
+}
 
-    test('`figure` com um padrão que não o usa é erro', () async {
-      final result = await _read('''
+void _parte5() {
+  test('`figure` com um padrão que não o usa é erro', () async {
+    final result = await _read('''
 ```zywny-exercise
 id: n2-figura
 type: play-pattern
@@ -178,14 +185,13 @@ pattern: scale
 figure: alberti
 ```
 ''');
-      expect(
-        _messages(result).join('\n'),
-        contains('`figure` só vale com `pattern: broken-chord`'),
-      );
-    });
-
-    test('`key` com `keys` é erro', () async {
-      final result = await _read('''
+    expect(
+      _messages(result).join('\n'),
+      contains('`figure` só vale com `pattern: broken-chord`'),
+    );
+  });
+  test('`key` com `keys` é erro', () async {
+    final result = await _read('''
 ```zywny-exercise
 id: n2-dois-tons
 type: play-pattern
@@ -195,14 +201,13 @@ key: C
 keys: [G, D]
 ```
 ''');
-      expect(
-        _messages(result).join('\n'),
-        contains('`key` não vale com `keys`'),
-      );
-    });
+    expect(_messages(result).join('\n'), contains('`key` não vale com `keys`'));
+  });
+}
 
-    test('`key` com `cycle` é o ponto de partida do ciclo, e vale', () async {
-      final result = await _read('''
+void _parte6() {
+  test('`key` com `cycle` é o ponto de partida do ciclo, e vale', () async {
+    final result = await _read('''
 ```zywny-exercise
 id: n2-ciclo-em-sol
 type: play-pattern
@@ -212,11 +217,10 @@ key: G
 cycle: 5ths
 ```
 ''');
-      expect(_messages(result), isEmpty);
-    });
-
-    test('`keys` e `cycle` juntos continuam sendo erro (EX05)', () async {
-      final result = await _read('''
+    expect(_messages(result), isEmpty);
+  });
+  test('`keys` e `cycle` juntos continuam sendo erro (EX05)', () async {
+    final result = await _read('''
 ```zywny-exercise
 id: n2-keys-cycle
 type: play-pattern
@@ -226,11 +230,13 @@ keys: [G]
 cycle: 4ths
 ```
 ''');
-      expect(_messages(result), isNotEmpty);
-    });
+    expect(_messages(result), isNotEmpty);
+  });
+}
 
-    test('dedilhado pedido num padrão sem tabela só avisa', () async {
-      final result = await _read('''
+void _parte7() {
+  test('dedilhado pedido num padrão sem tabela só avisa', () async {
+    final result = await _read('''
 ```zywny-exercise
 id: n4-sem-tabela
 type: play-pattern
@@ -239,16 +245,15 @@ pattern: three-note
 fingering: true
 ```
 ''');
-      final issues = result.issues.toList();
-      expect(issues, hasLength(1));
-      expect(issues.single.severity, IssueSeverity.warning);
-      expect(issues.single.message, contains('sem dedilhado'));
-    });
-
-    test(
-      'arpejo de sétima pedindo dedilhado só avisa (o livro não traz)',
-      () async {
-        final result = await _read('''
+    final issues = result.issues.toList();
+    expect(issues, hasLength(1));
+    expect(issues.single.severity, IssueSeverity.warning);
+    expect(issues.single.message, contains('sem dedilhado'));
+  });
+  test(
+    'arpejo de sétima pedindo dedilhado só avisa (o livro não traz)',
+    () async {
+      final result = await _read('''
 ```zywny-exercise
 id: n4-arpejo-sete
 type: play-pattern
@@ -259,12 +264,14 @@ key: C
 fingering: true
 ```
 ''');
-        expect(result.issues.single.severity, IssueSeverity.warning);
-      },
-    );
+      expect(result.issues.single.severity, IssueSeverity.warning);
+    },
+  );
+}
 
-    test('o jazz 3-5-7-9 só vai até uma oitava', () async {
-      final result = await _read('''
+void _parte8() {
+  test('o jazz 3-5-7-9 só vai até uma oitava', () async {
+    final result = await _read('''
 ```zywny-exercise
 id: n5-jazz-duas
 type: play-pattern
@@ -274,14 +281,13 @@ chord: 3-5-7-9
 octaves: 2
 ```
 ''');
-      expect(
-        _messages(result).join('\n'),
-        contains('`chord: 3-5-7-9` vai só até uma oitava'),
-      );
-    });
-
-    test('dedilhado pedido na mão contrária só avisa', () async {
-      final result = await _read('''
+    expect(
+      _messages(result).join('\n'),
+      contains('`chord: 3-5-7-9` vai só até uma oitava'),
+    );
+  });
+  test('dedilhado pedido na mão contrária só avisa', () async {
+    final result = await _read('''
 ```zywny-exercise
 id: n4-contrario
 type: play-pattern
@@ -292,14 +298,14 @@ hand: contrary
 fingering: true
 ```
 ''');
-      expect(result.issues.single.severity, IssueSeverity.warning);
-      expect(result.issues.single.message, contains('mão contrária'));
-    });
+    expect(result.issues.single.severity, IssueSeverity.warning);
+    expect(result.issues.single.message, contains('mão contrária'));
+  });
+}
 
-    test(
-      'o padrão de dedilhado não avisa quando o autor não o pediu',
-      () async {
-        final result = await _read('''
+void _parte9() {
+  test('o padrão de dedilhado não avisa quando o autor não o pediu', () async {
+    final result = await _read('''
 ```zywny-exercise
 id: n4-padrao
 type: play-pattern
@@ -307,8 +313,23 @@ title: Padrão
 pattern: three-note
 ```
 ''');
-        expect(_messages(result), isEmpty);
-      },
-    );
+    expect(_messages(result), isEmpty);
+  });
+}
+
+// Testes: play-pattern: leitura · play-pattern: erros e avisos
+void _parte10() {
+  group('play-pattern: leitura', () {
+    _parte1();
+    _parte2();
+    _parte3();
+  });
+  group('play-pattern: erros e avisos', () {
+    _parte4();
+    _parte5();
+    _parte6();
+    _parte7();
+    _parte8();
+    _parte9();
   });
 }

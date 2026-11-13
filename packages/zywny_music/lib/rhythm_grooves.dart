@@ -91,6 +91,19 @@ List<List<RhythmSymbol>>? parseRhythmMolde(
     error?.call('o compasso `$time` não é do ritmo (use 4/4, 3/4, 2/4 ou 6/8)');
     return null;
   }
+  final bars = _parseBars(line, error);
+  if (bars == null) return null;
+  if (units == null) return bars;
+  return _figuresFit(bars, units, error) ? bars : null;
+}
+
+/// Os compassos do molde (`|` entre eles), cada um com os seus símbolos. Erro
+/// (com [error]) se um compasso está vazio, se um símbolo não se lê, se um `-`
+/// não tem ataque antes ou se os compassos não têm o mesmo número de símbolos.
+List<List<RhythmSymbol>>? _parseBars(
+  String line,
+  void Function(String message)? error,
+) {
   final bars = <List<RhythmSymbol>>[];
   for (final bar in line.split('|')) {
     final text = bar.trim();
@@ -123,15 +136,23 @@ List<List<RhythmSymbol>>? parseRhythmMolde(
     }
     bars.add(symbols);
   }
-  if (units == null) return bars;
+  return bars;
+}
 
+/// Confere a grade (os símbolos dividem o compasso de [units] em partes iguais)
+/// e as figuras (cada evento tem que se escrever). Erro com [error] se não.
+bool _figuresFit(
+  List<List<RhythmSymbol>> bars,
+  int units,
+  void Function(String message)? error,
+) {
   final count = bars.first.length;
   if (units % count != 0) {
     error?.call(
       '$count símbolos por compasso não dividem $units unidades em partes '
       'iguais',
     );
-    return null;
+    return false;
   }
   final step = units ~/ count;
   for (var b = 0; b < bars.length; b++) {
@@ -156,14 +177,14 @@ List<List<RhythmSymbol>>? parseRhythmMolde(
           '$length unidades (uma semínima tem $kRhythmUnitsPerQuarter), e essa '
           'duração não se escreve: ponha um ataque onde ela se divide',
         );
-        return null;
+        return false;
       }
       start = i;
       slots = symbol == null ? 0 : 1;
       resting = symbol == RhythmSymbol.rest;
     }
   }
-  return bars;
+  return true;
 }
 
 /// Um groove do `rhythm` com duas mãos (EX13): o compasso, quantas mãos tocam,

@@ -294,32 +294,9 @@ class _NicknameStepState extends State<_NicknameStep> {
               ?.copyWith(color: kInkCaption),
         ),
         const SizedBox(height: 18),
-        TextField(
-          controller: _controller,
-          autofocus: false,
-          textInputAction: TextInputAction.done,
-          onChanged: (_) => setState(() {}),
-          onSubmitted: (_) {
-            if (_canContinue) unawaited(_continue());
-          },
-          decoration: const InputDecoration(
-            labelText: 'Apelido',
-            hintText: 'Como te chamamos?',
-            border: OutlineInputBorder(),
-          ),
-        ),
+        _nicknameField(),
         const SizedBox(height: 12),
-        CheckboxListTile(
-          value: _accepted,
-          onChanged: (v) => setState(() => _accepted = v ?? false),
-          controlAffinity: ListTileControlAffinity.leading,
-          contentPadding: EdgeInsets.zero,
-          title: const Text(
-            'Li a política de privacidade e aceito o uso dos meus dados de '
-            'estudo (o tutor vê o que eu pratico).',
-            style: TextStyle(fontSize: 13, height: 1.35),
-          ),
-        ),
+        ..._acceptance(),
         const SizedBox(height: 8),
         const Text(
           'Menor de 12 anos? O aceite do responsável é dado no formulário da '
@@ -331,14 +308,48 @@ class _NicknameStepState extends State<_NicknameStep> {
           AuthMessage(text: error),
           const SizedBox(height: 14),
         ],
-        FilledButton(
-          onPressed: _canContinue ? _continue : null,
-          style: FilledButton.styleFrom(
-            padding: const EdgeInsets.symmetric(vertical: 14),
-          ),
-          child: const Text('Continuar'),
-        ),
+        _continueButton(),
       ],
     );
   }
+
+  /// O campo do apelido: continua pelo teclado, se o apelido vale.
+  Widget _nicknameField() => TextField(
+    controller: _controller,
+    autofocus: false,
+    textInputAction: TextInputAction.done,
+    onChanged: (_) => setState(() {}),
+    onSubmitted: (_) {
+      if (_canContinue) unawaited(_continue());
+    },
+    decoration: const InputDecoration(
+      labelText: 'Apelido',
+      hintText: 'Como te chamamos?',
+      border: OutlineInputBorder(),
+    ),
+  );
+
+  /// O aceite da política de privacidade (o uso dos dados de estudo).
+  List<Widget> _acceptance() => [
+    CheckboxListTile(
+      value: _accepted,
+      onChanged: (v) => setState(() => _accepted = v ?? false),
+      controlAffinity: ListTileControlAffinity.leading,
+      contentPadding: EdgeInsets.zero,
+      title: const Text(
+        'Li a política de privacidade e aceito o uso dos meus dados de '
+        'estudo (o tutor vê o que eu pratico).',
+        style: TextStyle(fontSize: 13, height: 1.35),
+      ),
+    ),
+  ];
+
+  /// O botão de continuar, desligado até o apelido e o aceite estarem prontos.
+  Widget _continueButton() => FilledButton(
+    onPressed: _canContinue ? _continue : null,
+    style: FilledButton.styleFrom(
+      padding: const EdgeInsets.symmetric(vertical: 14),
+    ),
+    child: const Text('Continuar'),
+  );
 }

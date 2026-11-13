@@ -46,49 +46,69 @@ List<Beat> metronomeBeats(ScoreTimeline timeline) {
     while (e < entries.length && entries[e].tstamp < info.startMs) {
       e++;
     }
-    // Pontos (tstamp, qstamp) do compasso, incluindo a entrada que abre o
-    // seguinte (tstamp == endMs) quando houver: é a âncora do fim.
-    final pts = <(double, double)>[];
-    double? tempo;
-    for (
-      var i = e;
-      i < entries.length && entries[i].tstamp <= info.endMs;
-      i++
-    ) {
-      final q = entries[i].qstamp;
-      if (q == null) continue;
-      if (pts.isNotEmpty && entries[i].tstamp == pts.last.$1) continue;
-      pts.add((entries[i].tstamp, q));
-      tempo ??= entries[i].tempo;
+    final anchors = _anchorsOf(entries, e, info.endMs);
+    if (anchors.pts.isEmpty) continue;
+    beats.addAll(_beatsInMeasure(anchors.pts, anchors.tempo, info, m));
+  }
+  return beats;
+}
+
+/// Os pontos (tstamp, qstamp) de um compasso que vai até [endMs], a partir da
+/// entrada [from], incluindo a que abre o seguinte (tstamp == endMs) quando
+/// houver: é a âncora do fim. Devolve também o primeiro tempo que aparece.
+({List<(double, double)> pts, double? tempo}) _anchorsOf(
+  List<TimemapEntry> entries,
+  int from,
+  num endMs,
+) {
+  final pts = <(double, double)>[];
+  double? tempo;
+  for (var i = from; i < entries.length && entries[i].tstamp <= endMs; i++) {
+    final q = entries[i].qstamp;
+    if (q == null) continue;
+    if (pts.isNotEmpty && entries[i].tstamp == pts.last.$1) continue;
+    pts.add((entries[i].tstamp, q));
+    tempo ??= entries[i].tempo;
+  }
+  return (pts: pts, tempo: tempo);
+}
+
+/// As batidas de um compasso a partir das âncoras [pts]: a primeira no começo
+/// do compasso e, depois, uma a cada quarto (pelo tempo de cada trecho entre
+/// âncoras; o [tempo] escrito, se só há uma).
+List<Beat> _beatsInMeasure(
+  List<(double, double)> pts,
+  double? tempo,
+  MeasureInfo info,
+  int m,
+) {
+  final beats = <Beat>[];
+  final q0 = pts.first.$2;
+  final t0 = pts.first.$1;
+  var msPerQ = 60000.0 / (tempo ?? 120.0);
+  if (pts.length >= 2) {
+    final (ta, qa) = pts[pts.length - 2];
+    final (tb, qb) = pts.last;
+    if (qb > qa) msPerQ = (tb - ta) / (qb - qa);
+  }
+  var seg = 0;
+  for (var k = 0; ; k++) {
+    final q = q0 + k;
+    while (seg + 1 < pts.length && pts[seg + 1].$2 <= q) {
+      seg++;
     }
-    if (pts.isEmpty) continue;
-    final q0 = pts.first.$2;
-    final t0 = pts.first.$1;
-    var msPerQ = 60000.0 / (tempo ?? 120.0);
-    if (pts.length >= 2) {
-      final (ta, qa) = pts[pts.length - 2];
-      final (tb, qb) = pts.last;
-      if (qb > qa) msPerQ = (tb - ta) / (qb - qa);
+    double ms;
+    if (seg + 1 < pts.length) {
+      final (ta, qa) = pts[seg];
+      final (tb, qb) = pts[seg + 1];
+      ms = ta + (q - qa) * (tb - ta) / (qb - qa);
+    } else {
+      final (ta, qa) = pts[seg];
+      ms = ta + (q - qa) * msPerQ;
     }
-    var seg = 0;
-    for (var k = 0; ; k++) {
-      final q = q0 + k;
-      while (seg + 1 < pts.length && pts[seg + 1].$2 <= q) {
-        seg++;
-      }
-      double ms;
-      if (seg + 1 < pts.length) {
-        final (ta, qa) = pts[seg];
-        final (tb, qb) = pts[seg + 1];
-        ms = ta + (q - qa) * (tb - ta) / (qb - qa);
-      } else {
-        final (ta, qa) = pts[seg];
-        ms = ta + (q - qa) * msPerQ;
-      }
-      if (k == 0) ms = t0;
-      if (ms >= info.endMs - 0.5) break;
-      beats.add(Beat(ms, accent: k == 0, measure: m));
-    }
+    if (k == 0) ms = t0;
+    if (ms >= info.endMs - 0.5) break;
+    beats.add(Beat(ms, accent: k == 0, measure: m));
   }
   return beats;
 }

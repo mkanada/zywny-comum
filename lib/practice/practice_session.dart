@@ -486,6 +486,53 @@ class RealtimeSession {
   /// veredito (D-TREINO: não cobrados na 1.0).
   void noteOn(int pitch, double musicalMs, {int velocity = 0}) {
     if (adaptiveWindow) _expire(musicalMs, pitch: pitch);
+    final found = _candidates(pitch, musicalMs);
+    final best = found.best;
+    if (best != null) {
+      final inner = _inner[best];
+      if (inner != null) _skipBefore(best, inner);
+      _pending.remove(best);
+      final delta = found.bestDelta!;
+      final kind = inner != null || delta.abs() <= _okFor(best)
+          ? PracticeVerdictKind.correct
+          : (delta < 0 ? PracticeVerdictKind.early : PracticeVerdictKind.late);
+      _verdicts.add(
+        NoteVerdict(
+          eventId: best.id,
+          pitch: pitch,
+          kind: kind,
+          deltaMs: delta,
+          velocity: velocity,
+        ),
+      );
+      return;
+    }
+
+    final ornament = found.ornament;
+    if (ornament != null) {
+      _pending.remove(ornament);
+      return;
+    }
+
+    if (forgiveSounding && _sounding(pitch, musicalMs)) return;
+
+    _verdicts.add(
+      NoteVerdict(
+        pitch: pitch,
+        kind: PracticeVerdictKind.wrong,
+        deltaMs: 0,
+        velocity: velocity,
+      ),
+    );
+  }
+
+  /// O que a nota tocada em [pitch] casa entre os pendentes: a nota de melhor
+  /// alinhamento ([best], com o [bestDelta]) e, se nenhuma serve, o ornamento
+  /// mais próximo ([ornament]).
+  ({SoundEvent? best, double? bestDelta, SoundEvent? ornament}) _candidates(
+    int pitch,
+    double musicalMs,
+  ) {
     SoundEvent? best;
     double? bestDelta;
     SoundEvent? bestOrnament;
@@ -521,42 +568,7 @@ class RealtimeSession {
         bestDelta = delta;
       }
     }
-
-    if (best != null) {
-      final inner = _inner[best];
-      if (inner != null) _skipBefore(best, inner);
-      _pending.remove(best);
-      final delta = bestDelta!;
-      final kind = inner != null || delta.abs() <= _okFor(best)
-          ? PracticeVerdictKind.correct
-          : (delta < 0 ? PracticeVerdictKind.early : PracticeVerdictKind.late);
-      _verdicts.add(
-        NoteVerdict(
-          eventId: best.id,
-          pitch: pitch,
-          kind: kind,
-          deltaMs: delta,
-          velocity: velocity,
-        ),
-      );
-      return;
-    }
-
-    if (bestOrnament != null) {
-      _pending.remove(bestOrnament);
-      return;
-    }
-
-    if (forgiveSounding && _sounding(pitch, musicalMs)) return;
-
-    _verdicts.add(
-      NoteVerdict(
-        pitch: pitch,
-        kind: PracticeVerdictKind.wrong,
-        deltaMs: 0,
-        velocity: velocity,
-      ),
-    );
+    return (best: best, bestDelta: bestDelta, ornament: bestOrnament);
   }
 
   /// [hit] foi a nota de dentro do grupo [group] que a tecla casou: as de dentro

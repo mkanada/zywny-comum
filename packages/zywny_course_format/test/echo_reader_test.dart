@@ -32,9 +32,12 @@ EchoSpec _spec(CourseReadResult result) =>
     result.course!.lessons.single.exercises.single as EchoSpec;
 
 void main() {
-  group('echo: leitura', () {
-    test('lê a escala, a faixa e as frases do autor', () async {
-      final result = await _read('''
+  _parte8();
+}
+
+void _parte1() {
+  test('lê a escala, a faixa e as frases do autor', () async {
+    final result = await _read('''
 ```zywny-exercise
 id: n2-eco-cinco-notas
 type: echo
@@ -53,31 +56,33 @@ rhythm: strict
 pass: {accuracy: 70}
 ```
 ''');
-      expect(_messages(result), isEmpty);
-      final spec = _spec(result);
-      expect(spec.type, ExerciseType.echo);
-      final source = spec.source as EchoScaleSource;
-      expect(source.scale, ScaleKind.major);
-      expect(source.key, 'G');
-      expect(spec.range.from.midi, 55);
-      expect(spec.range.to.midi, 79);
-      expect(spec.notes, 3);
-      expect(spec.figures, [Figure.quarter, Figure.half]);
-      expect(spec.measures, 2);
-      expect(spec.leaps, 4);
-      expect(spec.start, EchoStart.chordTone);
-      expect(spec.bpm, 70);
-      expect(spec.swing, 67);
-      expect(spec.count, 6);
-      expect(spec.octave, EchoOctave.exact);
-      expect(spec.rhythm, EchoRhythm.strict);
-      expect(spec.pass.accuracy, 70);
-    });
+    expect(_messages(result), isEmpty);
+    final spec = _spec(result);
+    expect(spec.type, ExerciseType.echo);
+    final source = spec.source as EchoScaleSource;
+    expect(source.scale, ScaleKind.major);
+    expect(source.key, 'G');
+    expect(spec.range.from.midi, 55);
+    expect(spec.range.to.midi, 79);
+    expect(spec.notes, 3);
+    expect(spec.figures, [Figure.quarter, Figure.half]);
+    expect(spec.measures, 2);
+    expect(spec.leaps, 4);
+    expect(spec.start, EchoStart.chordTone);
+    expect(spec.bpm, 70);
+    expect(spec.swing, 67);
+    expect(spec.count, 6);
+    expect(spec.octave, EchoOctave.exact);
+    expect(spec.rhythm, EchoRhythm.strict);
+    expect(spec.pass.accuracy, 70);
+  });
+}
 
-    test(
-      'os padrões: 4 notas, uma semínima, C4-C6, o echo ouve qualquer oitava',
-      () async {
-        final result = await _read('''
+void _parte2() {
+  test(
+    'os padrões: 4 notas, uma semínima, C4-C6, o echo ouve qualquer oitava',
+    () async {
+      final result = await _read('''
 ```zywny-exercise
 id: n2-eco
 type: echo
@@ -86,29 +91,31 @@ source: {scale: blues, key: G}
 pass: {accuracy: 70}
 ```
 ''');
-        expect(_messages(result), isEmpty);
-        final spec = _spec(result);
-        expect(spec.notes, 4);
-        expect(spec.figures, [Figure.quarter]);
-        expect(spec.measures, 1);
-        expect(spec.leaps, 3);
-        expect(spec.start, EchoStart.tonic);
-        expect(spec.bpm, 80);
-        expect(spec.swing, 50);
-        expect(spec.count, 8);
-        expect(spec.octave, EchoOctave.any);
-        expect(spec.transpose, EchoTranspose.none);
-        expect(spec.rhythm, EchoRhythm.loose);
-        expect(spec.split.midi, 60);
-        expect(spec.hand, HandChoice.right);
-        expect(spec.backing, isNull);
-        expect(spec.range.from.midi, 60);
-        expect(spec.range.to.midi, 84);
-      },
-    );
+      expect(_messages(result), isEmpty);
+      final spec = _spec(result);
+      expect(spec.notes, 4);
+      expect(spec.figures, [Figure.quarter]);
+      expect(spec.measures, 1);
+      expect(spec.leaps, 3);
+      expect(spec.start, EchoStart.tonic);
+      expect(spec.bpm, 80);
+      expect(spec.swing, 50);
+      expect(spec.count, 8);
+      expect(spec.octave, EchoOctave.any);
+      expect(spec.transpose, EchoTranspose.none);
+      expect(spec.rhythm, EchoRhythm.loose);
+      expect(spec.split.midi, 60);
+      expect(spec.hand, HandChoice.right);
+      expect(spec.backing, isNull);
+      expect(spec.range.from.midi, 60);
+      expect(spec.range.to.midi, 84);
+    },
+  );
+}
 
-    test('chord-tones lê a grade escrita; a mão e o transpose', () async {
-      final result = await _read('''
+void _parte3() {
+  test('chord-tones lê a grade escrita; a mão e o transpose', () async {
+    final result = await _read('''
 ```zywny-exercise
 id: n4-eco-acordes
 type: echo
@@ -121,18 +128,20 @@ backing: {style: shuffle, bass: walking}
 pass: {accuracy: 60}
 ```
 ''');
-      expect(_messages(result), isEmpty);
-      final spec = _spec(result);
-      expect(spec.source, isA<EchoChordSource>());
-      expect(spec.chartText, '| C | G7 | C | G7 |');
-      expect(spec.transpose, EchoTranspose.cycle5);
-      expect(spec.hand, HandChoice.left);
-      expect(spec.backing!.style.name, 'shuffle');
-      expect(spec.backing!.drums, isTrue);
-    });
+    expect(_messages(result), isEmpty);
+    final spec = _spec(result);
+    expect(spec.source, isA<EchoChordSource>());
+    expect(spec.chartText, '| C | G7 | C | G7 |');
+    expect(spec.transpose, EchoTranspose.cycle5);
+    expect(spec.hand, HandChoice.left);
+    expect(spec.backing!.style.name, 'shuffle');
+    expect(spec.backing!.drums, isTrue);
+  });
+}
 
-    test('licks lê a biblioteca, sem notas nem figuras', () async {
-      final result = await _read('''
+void _parte4() {
+  test('licks lê a biblioteca, sem notas nem figuras', () async {
+    final result = await _read('''
 ```zywny-exercise
 id: n5-eco-licks
 type: echo
@@ -144,15 +153,14 @@ count: 12
 pass: {accuracy: 75}
 ```
 ''');
-      expect(_messages(result), isEmpty);
-      final spec = _spec(result);
-      expect((spec.source as EchoLickSource).library, 'ii-v-major');
-      expect(spec.transpose, EchoTranspose.cycle5);
-      expect(spec.count, 12);
-    });
-
-    test('backing: drums é a bateria só, sem baixo', () async {
-      final result = await _read('''
+    expect(_messages(result), isEmpty);
+    final spec = _spec(result);
+    expect((spec.source as EchoLickSource).library, 'ii-v-major');
+    expect(spec.transpose, EchoTranspose.cycle5);
+    expect(spec.count, 12);
+  });
+  test('backing: drums é a bateria só, sem baixo', () async {
+    final result = await _read('''
 ```zywny-exercise
 id: n3-eco-bateria
 type: echo
@@ -162,16 +170,16 @@ backing: drums
 pass: {accuracy: 70}
 ```
 ''');
-      expect(_messages(result), isEmpty);
-      final backing = _spec(result).backing!;
-      expect(backing.drums, isTrue);
-      expect(backing.bass, BackingBass.none);
-    });
+    expect(_messages(result), isEmpty);
+    final backing = _spec(result).backing!;
+    expect(backing.drums, isTrue);
+    expect(backing.bass, BackingBass.none);
   });
+}
 
-  group('echo: erros', () {
-    test('sem source é erro do campo obrigatório', () async {
-      final result = await _read('''
+void _parte5() {
+  test('sem source é erro do campo obrigatório', () async {
+    final result = await _read('''
 ```zywny-exercise
 id: n2-eco
 type: echo
@@ -179,11 +187,10 @@ title: Sem fonte
 pass: {accuracy: 70}
 ```
 ''');
-      expect(_messages(result), contains('source'));
-    });
-
-    test('duas formas de source juntas são erro', () async {
-      final result = await _read('''
+    expect(_messages(result), contains('source'));
+  });
+  test('duas formas de source juntas são erro', () async {
+    final result = await _read('''
 ```zywny-exercise
 id: n2-eco
 type: echo
@@ -192,11 +199,10 @@ source: {scale: major, key: C, licks: blues-basic}
 pass: {accuracy: 70}
 ```
 ''');
-      expect(_messages(result), contains('pede uma das três formas'));
-    });
-
-    test('chord-tones sem grade é erro', () async {
-      final result = await _read('''
+    expect(_messages(result), contains('pede uma das três formas'));
+  });
+  test('chord-tones sem grade é erro', () async {
+    final result = await _read('''
 ```zywny-exercise
 id: n4-eco
 type: echo
@@ -205,11 +211,13 @@ source: {chord-tones: true}
 pass: {accuracy: 70}
 ```
 ''');
-      expect(_messages(result), contains('pede a grade'));
-    });
+    expect(_messages(result), contains('pede a grade'));
+  });
+}
 
-    test('notes não vale com licks', () async {
-      final result = await _read('''
+void _parte6() {
+  test('notes não vale com licks', () async {
+    final result = await _read('''
 ```zywny-exercise
 id: n5-eco
 type: echo
@@ -219,11 +227,10 @@ notes: 3
 pass: {accuracy: 70}
 ```
 ''');
-      expect(_messages(result), contains('não vale com `licks`'));
-    });
-
-    test('key não vale com licks: o tom é o da grade, ou dó', () async {
-      final result = await _read('''
+    expect(_messages(result), contains('não vale com `licks`'));
+  });
+  test('key não vale com licks: o tom é o da grade, ou dó', () async {
+    final result = await _read('''
 ```zywny-exercise
 id: n5-eco
 type: echo
@@ -232,11 +239,10 @@ source: {licks: blues-basic, key: G}
 pass: {accuracy: 70}
 ```
 ''');
-      expect(_messages(result), contains('`key` só vale com `scale`'));
-    });
-
-    test('biblioteca desconhecida é erro, com sugestão', () async {
-      final result = await _read('''
+    expect(_messages(result), contains('`key` só vale com `scale`'));
+  });
+  test('biblioteca desconhecida é erro, com sugestão', () async {
+    final result = await _read('''
 ```zywny-exercise
 id: n5-eco
 type: echo
@@ -245,11 +251,13 @@ source: {licks: blues-basik}
 pass: {accuracy: 70}
 ```
 ''');
-      expect(_messages(result), contains('blues-basic'));
-    });
+    expect(_messages(result), contains('blues-basic'));
+  });
+}
 
-    test('faixa mal escrita é erro', () async {
-      final result = await _read('''
+void _parte7() {
+  test('faixa mal escrita é erro', () async {
+    final result = await _read('''
 ```zywny-exercise
 id: n2-eco
 type: echo
@@ -258,11 +266,10 @@ source: {scale: major, key: C, range: G5-C4}
 pass: {accuracy: 70}
 ```
 ''');
-      expect(_messages(result), contains('não é uma faixa de notas'));
-    });
-
-    test('hand: both não existe no echo', () async {
-      final result = await _read('''
+    expect(_messages(result), contains('não é uma faixa de notas'));
+  });
+  test('hand: both não existe no echo', () async {
+    final result = await _read('''
 ```zywny-exercise
 id: n2-eco
 type: echo
@@ -272,11 +279,10 @@ hand: both
 pass: {accuracy: 70}
 ```
 ''');
-      expect(_messages(result), isNot(isEmpty));
-    });
-
-    test('medidores não valem no echo', () async {
-      final result = await _read('''
+    expect(_messages(result), isNot(isEmpty));
+  });
+  test('medidores não valem no echo', () async {
+    final result = await _read('''
 ```zywny-exercise
 id: n2-eco
 type: echo
@@ -285,7 +291,21 @@ source: {scale: major, key: C}
 pass: {accuracy: 70, legato: 80}
 ```
 ''');
-      expect(_messages(result), isNot(isEmpty));
-    });
+    expect(_messages(result), isNot(isEmpty));
+  });
+}
+
+// Testes: echo: leitura · echo: erros
+void _parte8() {
+  group('echo: leitura', () {
+    _parte1();
+    _parte2();
+    _parte3();
+    _parte4();
+  });
+  group('echo: erros', () {
+    _parte5();
+    _parte6();
+    _parte7();
   });
 }

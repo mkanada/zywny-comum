@@ -587,12 +587,7 @@ class PracticeController {
       return false;
     }
     final cursor = _watchMeasure;
-    int? back;
-    for (final m in _rewindBook.errorMeasures) {
-      if ((cursor == null || m < cursor) && (back == null || m < back)) {
-        back = m;
-      }
-    }
+    final back = _firstErrorMeasure(cursor);
     if (back != null) {
       _rewindTo(back);
       return true;
@@ -607,12 +602,7 @@ class PracticeController {
       _rewindTo(cursor);
       return true;
     }
-    var next = cursor;
-    while (next != null &&
-        !_rewindBook.hasError(next) &&
-        !rt.hasPendingIn(_measureStartMs(next), _measureEndMs(next))) {
-      next = _measureAfter(next, _measureEndMs(next));
-    }
+    final next = _firstUnclear(cursor, rt);
     if (next != cursor) {
       DiagLog.log(
         'portao',
@@ -623,6 +613,30 @@ class PracticeController {
     _watchMeasure = next;
     scheduler.setGate(next == null ? null : _gateOf(next));
     return false;
+  }
+
+  /// O compasso com erro mais antigo entre os que valem: antes de [cursor], se
+  /// há um; `null` se nenhum.
+  int? _firstErrorMeasure(int? cursor) {
+    int? back;
+    for (final m in _rewindBook.errorMeasures) {
+      if ((cursor == null || m < cursor) && (back == null || m < back)) {
+        back = m;
+      }
+    }
+    return back;
+  }
+
+  /// O primeiro compasso, a partir de [cursor], que ainda não está limpo (com
+  /// nota do aluno por tocar, ou com erro); `null` depois do último.
+  int? _firstUnclear(int? cursor, RealtimeSession rt) {
+    var next = cursor;
+    while (next != null &&
+        !_rewindBook.hasError(next) &&
+        !rt.hasPendingIn(_measureStartMs(next), _measureEndMs(next))) {
+      next = _measureAfter(next, _measureEndMs(next));
+    }
+    return next;
   }
 
   /// O portão do compasso [measure]: a fronteira do fim dele, menos a
@@ -950,71 +964,87 @@ class PracticeController {
     if (verdict.kind == PracticeVerdictKind.wrong) _tally?.wrong();
     switch (verdict.kind) {
       case PracticeVerdictKind.correct:
-        _unwatchShift(verdict);
-        _correctCount.value++;
-        if (_wait != null) {
-          _closeHit(verdict.pitch);
-        } else if (verdict.eventId != null) {
-          controller.highlightAll(
-            _chainOf(verdict.eventId!),
-            color: correctColor,
-            release: timedHitRelease,
-            curve: timedHitCurve,
-          );
-        }
+        _onCorrectVerdict(verdict);
       case PracticeVerdictKind.wrong:
-        _wrongCount.value++;
-        _wrongPitches.value = Set.of(_wrongPitches.value)..add(verdict.pitch);
-        final mark = _markWrong(verdict.pitch);
-        ghosts?.press(
-          verdict.pitch,
-          targetIds: mark == null || _wait != null ? null : mark.targetIds,
-          side: mark?.side ?? 0,
-        );
-        // Modo espera com fantasma: a errada aparece só nela, enquanto a
-        // tecla estiver apertada; as esperadas ficam como estão (pintar a
-        // mais próxima de vermelho parecia dizer que ela é que está errada).
-        _watchShift(verdict.pitch);
-        final nearestId = _wait != null
-            ? (ghosts == null ? _nearestExpectedId(verdict.pitch) : null)
-            : _nearestEventId(verdict.pitch, _lastPlayedMusicalMs);
-        if (nearestId != null) {
-          controller.highlightAll(
-            _chainOf(nearestId),
-            color: wrongColor,
-            attack: kPracticeWrongAttack,
-            hold: kPracticeWrongHold,
-            release: kPracticeWrongRelease,
-          );
-        }
+        _onWrongVerdict(verdict);
       case PracticeVerdictKind.early:
       case PracticeVerdictKind.late:
-        _unwatchShift(verdict);
-        _correctCount.value++;
-        if (verdict.eventId != null) {
-          final mark = _markOffBeat(verdict);
-          ghosts?.press(
-            verdict.pitch,
-            targetIds: mark.targetIds,
-            side: mark.side,
-          );
-          controller.highlightAll(
-            _chainOf(verdict.eventId!),
-            color: kPracticeOffBeatColor,
-            release: timedHitRelease,
-            curve: timedHitCurve,
-          );
-        }
+        _onOffBeatVerdict(verdict);
       case PracticeVerdictKind.missed:
-        if (verdict.eventId != null) {
-          controller.highlightAll(
-            _chainOf(verdict.eventId!),
-            color: kPracticeMissedColor,
-            attack: kPracticeWrongAttack,
-            hold: kPracticeMissedHold,
-            release: kPracticeWrongRelease,
-          );
-        }
+        _onMissedVerdict(verdict);
+    }
+  }
+
+  /// Acertou: conta e acende a nota (ou o acorde) na cor de certa.
+  void _onCorrectVerdict(NoteVerdict verdict) {
+    _unwatchShift(verdict);
+    _correctCount.value++;
+    if (_wait != null) {
+      _closeHit(verdict.pitch);
+    } else if (verdict.eventId != null) {
+      controller.highlightAll(
+        _chainOf(verdict.eventId!),
+        color: correctColor,
+        release: timedHitRelease,
+        curve: timedHitCurve,
+      );
+    }
+  }
+
+  /// Errou a tecla: conta, marca a tecla e pisca na nota esperada mais próxima.
+  void _onWrongVerdict(NoteVerdict verdict) {
+    _wrongCount.value++;
+    _wrongPitches.value = Set.of(_wrongPitches.value)..add(verdict.pitch);
+    final mark = _markWrong(verdict.pitch);
+    ghosts?.press(
+      verdict.pitch,
+      targetIds: mark == null || _wait != null ? null : mark.targetIds,
+      side: mark?.side ?? 0,
+    );
+    // Modo espera com fantasma: a errada aparece só nela, enquanto a
+    // tecla estiver apertada; as esperadas ficam como estão (pintar a
+    // mais próxima de vermelho parecia dizer que ela é que está errada).
+    _watchShift(verdict.pitch);
+    final nearestId = _wait != null
+        ? (ghosts == null ? _nearestExpectedId(verdict.pitch) : null)
+        : _nearestEventId(verdict.pitch, _lastPlayedMusicalMs);
+    if (nearestId != null) {
+      controller.highlightAll(
+        _chainOf(nearestId),
+        color: wrongColor,
+        attack: kPracticeWrongAttack,
+        hold: kPracticeWrongHold,
+        release: kPracticeWrongRelease,
+      );
+    }
+  }
+
+  /// Fora do tempo (antes ou depois): conta como certa, com a cor própria.
+  void _onOffBeatVerdict(NoteVerdict verdict) {
+    _unwatchShift(verdict);
+    _correctCount.value++;
+    if (verdict.eventId != null) {
+      final mark = _markOffBeat(verdict);
+      ghosts?.press(verdict.pitch, targetIds: mark.targetIds, side: mark.side);
+      controller.highlightAll(
+        _chainOf(verdict.eventId!),
+        color: kPracticeOffBeatColor,
+        release: timedHitRelease,
+        curve: timedHitCurve,
+      );
+    }
+  }
+
+  /// Perdida: a nota que não foi tocada, marcada na cor de perdida.
+  void _onMissedVerdict(NoteVerdict verdict) {
+    if (verdict.eventId != null) {
+      controller.highlightAll(
+        _chainOf(verdict.eventId!),
+        color: kPracticeMissedColor,
+        attack: kPracticeWrongAttack,
+        hold: kPracticeMissedHold,
+        release: kPracticeWrongRelease,
+      );
     }
   }
 

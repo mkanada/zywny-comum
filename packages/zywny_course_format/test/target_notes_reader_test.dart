@@ -32,9 +32,12 @@ TargetNotesSpec _only(CourseReadResult result) =>
     result.course!.lessons.single.exercises.single as TargetNotesSpec;
 
 void main() {
-  group('target-notes: leitura', () {
-    test('a terça no tempo 1, com a esquerda e a base (exemplo n4)', () async {
-      final result = await _read('''
+  _parte10();
+}
+
+void _parte1() {
+  test('a terça no tempo 1, com a esquerda e a base (exemplo n4)', () async {
+    final result = await _read('''
 ```zywny-exercise
 id: n4-terca-no-um
 type: target-notes
@@ -48,27 +51,29 @@ bpm: 80
 pass: {accuracy: 80}
 ```
 ''');
-      expect(_messages(result), isEmpty);
-      final spec = _only(result);
-      expect(spec.type, ExerciseType.targetNotes);
-      expect(spec.progression, 'ii-V-I');
-      expect(spec.progressionBars, 8);
-      expect(spec.chartText, isNull);
-      expect(spec.key, 'C');
-      expect(spec.target, TargetNote.three);
-      expect(spec.when, TargetWhen.change, reason: 'o padrão');
-      expect(spec.between, TargetBetween.rest);
-      expect(spec.left, 'shell-17');
-      expect(spec.backing?.style.name, 'swing');
-      expect(spec.bpm, 80);
-      expect(spec.pass.accuracy, 80);
-      expect(spec.pass.source, isNull);
-      expect(spec.registerFrom.midi, 60, reason: 'C4, o padrão');
-      expect(spec.registerTo.midi, 84, reason: 'C6, o padrão');
-    });
+    expect(_messages(result), isEmpty);
+    final spec = _only(result);
+    expect(spec.type, ExerciseType.targetNotes);
+    expect(spec.progression, 'ii-V-I');
+    expect(spec.progressionBars, 8);
+    expect(spec.chartText, isNull);
+    expect(spec.key, 'C');
+    expect(spec.target, TargetNote.three);
+    expect(spec.when, TargetWhen.change, reason: 'o padrão');
+    expect(spec.between, TargetBetween.rest);
+    expect(spec.left, 'shell-17');
+    expect(spec.backing?.style.name, 'swing');
+    expect(spec.bpm, 80);
+    expect(spec.pass.accuracy, 80);
+    expect(spec.pass.source, isNull);
+    expect(spec.registerFrom.midi, 60, reason: 'C4, o padrão');
+    expect(spec.registerTo.midi, 84, reason: 'C6, o padrão');
+  });
+}
 
-    test('guide-tones com a fonte por acorde e o passe (exemplo n5)', () async {
-      final result = await _read('''
+void _parte2() {
+  test('guide-tones com a fonte por acorde e o passe (exemplo n5)', () async {
+    final result = await _read('''
 ```zywny-exercise
 id: n5-guide-tones
 type: target-notes
@@ -81,17 +86,19 @@ bpm: 100
 pass: {accuracy: 75, source: 80}
 ```
 ''');
-      expect(_messages(result), isEmpty);
-      final spec = _only(result);
-      expect(spec.target, TargetNote.guideTone);
-      expect(spec.between, TargetBetween.free);
-      expect(spec.source, TargetSource.byChord);
-      expect(spec.left, 'none');
-      expect(spec.pass.source, 80);
-    });
+    expect(_messages(result), isEmpty);
+    final spec = _only(result);
+    expect(spec.target, TargetNote.guideTone);
+    expect(spec.between, TargetBetween.free);
+    expect(spec.source, TargetSource.byChord);
+    expect(spec.left, 'none');
+    expect(spec.pass.source, 80);
+  });
+}
 
-    test('grade de texto, com o alvo e os tempos por padrão', () async {
-      final result = await _read('''
+void _parte3() {
+  test('grade de texto, com o alvo e os tempos por padrão', () async {
+    final result = await _read('''
 ```zywny-exercise
 id: t-texto
 type: target-notes
@@ -101,19 +108,21 @@ key: C
 bpm: 60
 ```
 ''');
-      expect(_messages(result), isEmpty);
-      final spec = _only(result);
-      expect(spec.chartText, '| Dm7 | G7 | C |');
-      expect(spec.progression, isNull);
-      expect(spec.target, TargetNote.three);
-      expect(spec.when, TargetWhen.change);
-      expect(spec.between, TargetBetween.free);
-      expect(spec.source, TargetSource.keyScale);
-      expect(spec.backing, isNull);
-    });
+    expect(_messages(result), isEmpty);
+    final spec = _only(result);
+    expect(spec.chartText, '| Dm7 | G7 | C |');
+    expect(spec.progression, isNull);
+    expect(spec.target, TargetNote.three);
+    expect(spec.when, TargetWhen.change);
+    expect(spec.between, TargetBetween.free);
+    expect(spec.source, TargetSource.keyScale);
+    expect(spec.backing, isNull);
+  });
+}
 
-    test('as escolhas de cada chave (alvo, quando, entre, fonte)', () async {
-      final result = await _read('''
+void _parte4() {
+  test('as escolhas de cada chave (alvo, quando, entre, fonte)', () async {
+    final result = await _read('''
 ```zywny-exercise
 id: t-tudo
 type: target-notes
@@ -128,18 +137,20 @@ split: C4
 pass: {accuracy: 70}
 ```
 ''');
-      expect(_messages(result), isEmpty);
-      final spec = _only(result);
-      expect(spec.target, TargetNote.seven);
-      expect(spec.when, TargetWhen.halfBar);
-      expect(spec.between, TargetBetween.enclosure);
-      expect(spec.left, 'root');
-      expect(spec.registerFrom.midi, 64);
-      expect(spec.registerTo.midi, 79);
-    });
+    expect(_messages(result), isEmpty);
+    final spec = _only(result);
+    expect(spec.target, TargetNote.seven);
+    expect(spec.when, TargetWhen.halfBar);
+    expect(spec.between, TargetBetween.enclosure);
+    expect(spec.left, 'root');
+    expect(spec.registerFrom.midi, 64);
+    expect(spec.registerTo.midi, 79);
+  });
+}
 
-    test('`between: arpeggio-3579` e `target: chord-tone`', () async {
-      final result = await _read('''
+void _parte5() {
+  test('`between: arpeggio-3579` e `target: chord-tone`', () async {
+    final result = await _read('''
 ```zywny-exercise
 id: t-arpejo
 type: target-notes
@@ -151,14 +162,13 @@ between: arpeggio-3579
 bpm: 90
 ```
 ''');
-      expect(_messages(result), isEmpty);
-      final spec = _only(result);
-      expect(spec.target, TargetNote.chordTone);
-      expect(spec.between, TargetBetween.arpeggio3579);
-    });
-
-    test('`source` no `pass` com `between: rest` é erro', () async {
-      final result = await _read('''
+    expect(_messages(result), isEmpty);
+    final spec = _only(result);
+    expect(spec.target, TargetNote.chordTone);
+    expect(spec.between, TargetBetween.arpeggio3579);
+  });
+  test('`source` no `pass` com `between: rest` é erro', () async {
+    final result = await _read('''
 ```zywny-exercise
 id: t-erro-passe
 type: target-notes
@@ -169,11 +179,13 @@ between: rest
 pass: {source: 80}
 ```
 ''');
-      expect(_messages(result), contains('`source` no `pass`'));
-    });
+    expect(_messages(result), contains('`source` no `pass`'));
+  });
+}
 
-    test('`source` da chave com `between: rest` é erro', () async {
-      final result = await _read('''
+void _parte6() {
+  test('`source` da chave com `between: rest` é erro', () async {
+    final result = await _read('''
 ```zywny-exercise
 id: t-erro-fonte
 type: target-notes
@@ -184,11 +196,10 @@ between: rest
 source: blues
 ```
 ''');
-      expect(_messages(result), contains('`source` só vale com'));
-    });
-
-    test('`half-bar` em 3/4 é erro', () async {
-      final result = await _read('''
+    expect(_messages(result), contains('`source` só vale com'));
+  });
+  test('`half-bar` em 3/4 é erro', () async {
+    final result = await _read('''
 ```zywny-exercise
 id: t-meio
 type: target-notes
@@ -199,11 +210,13 @@ time: 3/4
 when: half-bar
 ```
 ''');
-      expect(_messages(result), contains('`when: half-bar` pede'));
-    });
+    expect(_messages(result), contains('`when: half-bar` pede'));
+  });
+}
 
-    test('`register` que começa abaixo do `split` é erro', () async {
-      final result = await _read('''
+void _parte7() {
+  test('`register` que começa abaixo do `split` é erro', () async {
+    final result = await _read('''
 ```zywny-exercise
 id: t-faixa
 type: target-notes
@@ -214,14 +227,10 @@ register: C3-C6
 split: C4
 ```
 ''');
-      expect(
-        _messages(result),
-        contains('`register` começa abaixo do `split`'),
-      );
-    });
-
-    test('`register` invertida é erro', () async {
-      final result = await _read('''
+    expect(_messages(result), contains('`register` começa abaixo do `split`'));
+  });
+  test('`register` invertida é erro', () async {
+    final result = await _read('''
 ```zywny-exercise
 id: t-faixa-invertida
 type: target-notes
@@ -231,13 +240,13 @@ key: C
 register: C6-C4
 ```
 ''');
-      expect(_messages(result), contains('`register` é uma faixa'));
-    });
+    expect(_messages(result), contains('`register` é uma faixa'));
+  });
+}
 
-    test(
-      'um alvo, uma esquerda ou um tempo que não existem são erro',
-      () async {
-        final result = await _read('''
+void _parte8() {
+  test('um alvo, uma esquerda ou um tempo que não existem são erro', () async {
+    final result = await _read('''
 ```zywny-exercise
 id: t-nomes
 type: target-notes
@@ -249,15 +258,13 @@ left: voicing-que-nao-existe
 between: livre
 ```
 ''');
-        final text = _messages(result);
-        expect(text, contains('target'));
-        expect(text, contains('left'));
-        expect(text, contains('between'));
-      },
-    );
-
-    test('o estilo da base tem de ser da fórmula da grade', () async {
-      final result = await _read('''
+    final text = _messages(result);
+    expect(text, contains('target'));
+    expect(text, contains('left'));
+    expect(text, contains('between'));
+  });
+  test('o estilo da base tem de ser da fórmula da grade', () async {
+    final result = await _read('''
 ```zywny-exercise
 id: t-base
 type: target-notes
@@ -268,11 +275,13 @@ time: 3/4
 backing: drums
 ```
 ''');
-      expect(_messages(result), contains('é de 4/4, e a grade é de 3/4'));
-    });
+    expect(_messages(result), contains('é de 4/4, e a grade é de 3/4'));
+  });
+}
 
-    test('`source` no `pass` não vale no `play-chart`', () async {
-      final result = await _read('''
+void _parte9() {
+  test('`source` no `pass` não vale no `play-chart`', () async {
+    final result = await _read('''
 ```zywny-exercise
 id: t-outro-tipo
 type: play-chart
@@ -283,7 +292,21 @@ pattern: block
 pass: {source: 80}
 ```
 ''');
-      expect(_messages(result), contains('source'));
-    });
+    expect(_messages(result), contains('source'));
+  });
+}
+
+// Testes: target-notes: leitura
+void _parte10() {
+  group('target-notes: leitura', () {
+    _parte1();
+    _parte2();
+    _parte3();
+    _parte4();
+    _parte5();
+    _parte6();
+    _parte7();
+    _parte8();
+    _parte9();
   });
 }

@@ -13,6 +13,78 @@ KeySpec _key(String texto) {
 }
 
 void main() {
+  _parte3();
+  _parte4();
+  _parte5();
+}
+
+void _parte1() {
+  test('lá menor harmônica, mão direita: 1 2 3 1 2 3 4 5', () {
+    expect(
+      scaleFingering(
+        ScaleKind.harmonicMinor,
+        _key('Am'),
+        right: true,
+        octaves: 1,
+      ),
+      [1, 2, 3, 1, 2, 3, 4, 5],
+    );
+  });
+  test('lá menor harmônica, mão esquerda: 5 4 3 2 1 3 2 1', () {
+    expect(
+      scaleFingering(
+        ScaleKind.harmonicMinor,
+        _key('Am'),
+        right: false,
+        octaves: 1,
+      ),
+      [5, 4, 3, 2, 1, 3, 2, 1],
+    );
+  });
+  test('ré menor harmônica tem a mesma tabela', () {
+    expect(
+      scaleFingering(
+        ScaleKind.harmonicMinor,
+        _key('Dm'),
+        right: true,
+        octaves: 1,
+      ),
+      [1, 2, 3, 1, 2, 3, 4, 5],
+    );
+  });
+}
+
+void _parte2() {
+  test('a família é só lá e ré: as outras são null', () {
+    expect(
+      scaleFingering(
+        ScaleKind.harmonicMinor,
+        _key('Em'),
+        right: true,
+        octaves: 1,
+      ),
+      isNull,
+    );
+  });
+  test('a escala natural e as outras não têm dedilhado', () {
+    expect(
+      scaleFingering(
+        ScaleKind.naturalMinor,
+        _key('Am'),
+        right: true,
+        octaves: 1,
+      ),
+      isNull,
+    );
+    expect(
+      scaleFingering(ScaleKind.blues, _key('C'), right: true, octaves: 1),
+      isNull,
+    );
+  });
+}
+
+// Testes: escala maior, mão direita (Pike, exemplo 121)
+void _parte3() {
   group('escala maior, mão direita (Pike, exemplo 121)', () {
     test('dó maior, uma oitava: 1 2 3 1 2 3 4 5', () {
       expect(
@@ -48,7 +120,10 @@ void main() {
       }
     });
   });
+}
 
+// Testes: escala maior, mão esquerda (Pike, exemplo 121) · escala menor harmônica (Pike, exemplos 124 e 125)
+void _parte4() {
   group('escala maior, mão esquerda (Pike, exemplo 121)', () {
     test('dó maior, uma oitava: 5 4 3 2 1 3 2 1', () {
       expect(
@@ -64,73 +139,14 @@ void main() {
       );
     });
   });
-
   group('escala menor harmônica (Pike, exemplos 124 e 125)', () {
-    test('lá menor harmônica, mão direita: 1 2 3 1 2 3 4 5', () {
-      expect(
-        scaleFingering(
-          ScaleKind.harmonicMinor,
-          _key('Am'),
-          right: true,
-          octaves: 1,
-        ),
-        [1, 2, 3, 1, 2, 3, 4, 5],
-      );
-    });
-
-    test('lá menor harmônica, mão esquerda: 5 4 3 2 1 3 2 1', () {
-      expect(
-        scaleFingering(
-          ScaleKind.harmonicMinor,
-          _key('Am'),
-          right: false,
-          octaves: 1,
-        ),
-        [5, 4, 3, 2, 1, 3, 2, 1],
-      );
-    });
-
-    test('ré menor harmônica tem a mesma tabela', () {
-      expect(
-        scaleFingering(
-          ScaleKind.harmonicMinor,
-          _key('Dm'),
-          right: true,
-          octaves: 1,
-        ),
-        [1, 2, 3, 1, 2, 3, 4, 5],
-      );
-    });
-
-    test('a família é só lá e ré: as outras são null', () {
-      expect(
-        scaleFingering(
-          ScaleKind.harmonicMinor,
-          _key('Em'),
-          right: true,
-          octaves: 1,
-        ),
-        isNull,
-      );
-    });
-
-    test('a escala natural e as outras não têm dedilhado', () {
-      expect(
-        scaleFingering(
-          ScaleKind.naturalMinor,
-          _key('Am'),
-          right: true,
-          octaves: 1,
-        ),
-        isNull,
-      );
-      expect(
-        scaleFingering(ScaleKind.blues, _key('C'), right: true, octaves: 1),
-        isNull,
-      );
-    });
+    _parte1();
+    _parte2();
   });
+}
 
+// Testes: arpejo de tríade (Pike, exemplo 126)
+void _parte5() {
   group('arpejo de tríade (Pike, exemplo 126)', () {
     test('dó maior, mão direita: 1 2 3 5 numa oitava', () {
       expect(arpeggioFingering(_key('C'), right: true, octaves: 1), [

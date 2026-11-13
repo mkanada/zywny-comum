@@ -3,6 +3,7 @@ import 'dart:math' show min;
 import 'package:meta/meta.dart';
 
 import 'chord.dart';
+import 'transposition.dart' show TranspositionRange;
 
 /// Nota mais grave em que uma 3ª pode começar sem embolar: Dó3 (Rawlins,
 /// cap. 7). Ver [hasMuddyLowThird].
@@ -51,6 +52,16 @@ class VoicingReading {
   final int centre;
 }
 
+/// A faixa em que um acorde cabe (a mais grave e a mais aguda, em MIDI) e,
+/// se há, o acorde anterior, para escolher o voicing mais perto dele.
+class VoicingBounds {
+  const VoicingBounds({required this.lowest, required this.highest, this.near});
+
+  final int lowest;
+  final int highest;
+  final List<int>? near;
+}
+
 /// Constrói alturas MIDI concretas para o acorde, de [lowest] a [highest].
 ///
 /// O molde diz quais notas entram, e [inversion] qual fica embaixo. O
@@ -66,10 +77,11 @@ List<int> buildVoicing(
   ChordSymbol chord, {
   VoicingShape shape = VoicingShape.close,
   Inversion inversion = Inversion.root,
-  required int lowest,
-  required int highest,
-  List<int>? near,
+  required VoicingBounds bounds,
 }) {
+  final lowest = bounds.lowest;
+  final highest = bounds.highest;
+  final near = bounds.near;
   final offsets = _shapeOffsets(chord, shape);
   if (offsets == null) {
     throw ArgumentError(
@@ -77,14 +89,11 @@ List<int> buildVoicing(
       'não tem a nota que o molde pede.',
     );
   }
-  final voicings = _placements(
-    chord,
-    offsets,
+  final voicings = _placements(chord, offsets, (
     shape: shape,
     inversion: inversion,
-    lowest: lowest,
-    highest: highest,
-  );
+    range: (lowest: lowest, highest: highest),
+  ));
   if (voicings.isEmpty) {
     if (shape == VoicingShape.tenth) {
       return buildVoicing(
@@ -93,9 +102,7 @@ List<int> buildVoicing(
             ? VoicingShape.close
             : VoicingShape.shell17,
         inversion: inversion,
-        lowest: lowest,
-        highest: highest,
-        near: near,
+        bounds: bounds,
       );
     }
     throw ArgumentError(
@@ -302,12 +309,13 @@ List<int>? _splitExt(ChordSymbol chord) {
 /// cima.
 List<List<int>> _placements(
   ChordSymbol chord,
-  List<int> offsets, {
-  required VoicingShape shape,
-  required Inversion inversion,
-  required int lowest,
-  required int highest,
-}) {
+  List<int> offsets,
+  ({VoicingShape shape, Inversion inversion, TranspositionRange range}) spec,
+) {
+  final shape = spec.shape;
+  final inversion = spec.inversion;
+  final lowest = spec.range.lowest;
+  final highest = spec.range.highest;
   var voices = [...offsets]..sort();
   final bass = chord.bass;
   final bassRel = bass == null ? null : _mod12(bass - chord.root);

@@ -31,43 +31,16 @@ Future<CourseReadResult> readCourse(CourseFiles files) async {
   }
 
   final head = await _readCourseHead(files, existing, issues);
-
-  final lessonFiles = [
-    for (final path in existing)
-      if (RegExp(r'^lessons/[^/]+\.md$').hasMatch(path)) path,
-  ]..sort();
-  final lessons = <String, _ParsedLesson>{};
-  var unreadable = 0;
-  for (final path in lessonFiles) {
-    final lesson = await _readLesson(files, path, existing, issues);
-    if (lesson == null) {
-      unreadable++;
-      continue;
-    }
-    final other = lessons[lesson.lesson.id];
-    if (other != null) {
-      FileIssues(lesson.file, issues).error(
-        lesson.idLine,
-        'id de lição repetido `${lesson.lesson.id}` '
-        '(também em ${other.file}:${other.idLine}).',
-      );
-      FileIssues(other.file, issues).error(
-        other.idLine,
-        'id de lição repetido `${lesson.lesson.id}` '
-        '(também em ${lesson.file}:${lesson.idLine}).',
-      );
-      continue;
-    }
-    lessons[lesson.lesson.id] = lesson;
+  final read = await _readLessons(files, existing, issues);
+  if (head != null) {
+    _LessonListCheck(head, read.lessons, read.unreadable, issues).run();
   }
-
-  if (head != null) _checkLessonList(head, lessons, unreadable, issues);
-  _checkExerciseIds(lessons.values, issues);
+  _checkExerciseIds(read.lessons.values, issues);
 
   issues.sort();
   final hasErrors = issues.any((i) => i.isError);
   if (hasErrors || head == null) return CourseReadResult(null, issues);
-  final ordered = [for (final id in head.lessonIds) lessons[id]!.lesson];
+  final ordered = [for (final id in head.lessonIds) read.lessons[id]!.lesson];
   return CourseReadResult(
     Course(
       format: head.format,
@@ -80,6 +53,52 @@ Future<CourseReadResult> readCourse(CourseFiles files) async {
       chordNotation: head.chordNotation,
     ),
     issues,
+  );
+}
+
+/// As lições de `lessons/`, na ordem dos nomes, e quantas não se leram.
+Future<({Map<String, _ParsedLesson> lessons, int unreadable})> _readLessons(
+  CourseFiles files,
+  Set<String> existing,
+  List<CourseIssue> issues,
+) async {
+  final lessonFiles = [
+    for (final path in existing)
+      if (RegExp(r'^lessons/[^/]+\.md$').hasMatch(path)) path,
+  ]..sort();
+  final lessons = <String, _ParsedLesson>{};
+  var unreadable = 0;
+  for (final path in lessonFiles) {
+    final lesson = await _readLesson(files, path, existing, issues);
+    if (lesson == null) {
+      unreadable++;
+    } else {
+      _addLesson(lessons, lesson, issues);
+    }
+  }
+  return (lessons: lessons, unreadable: unreadable);
+}
+
+/// Põe [lesson] em [lessons]; se o `id` já existe, o erro vai nas duas.
+void _addLesson(
+  Map<String, _ParsedLesson> lessons,
+  _ParsedLesson lesson,
+  List<CourseIssue> sink,
+) {
+  final other = lessons[lesson.lesson.id];
+  if (other == null) {
+    lessons[lesson.lesson.id] = lesson;
+    return;
+  }
+  FileIssues(lesson.file, sink).error(
+    lesson.idLine,
+    'id de lição repetido `${lesson.lesson.id}` '
+    '(também em ${other.file}:${other.idLine}).',
+  );
+  FileIssues(other.file, sink).error(
+    other.idLine,
+    'id de lição repetido `${lesson.lesson.id}` '
+    '(também em ${lesson.file}:${lesson.idLine}).',
   );
 }
 
@@ -160,9 +179,11 @@ Future<_CourseHead?> _readCourseHead(
   final fields = reader.read(
     map,
     kCourseKeys,
-    firstLine: front.firstLine,
-    blockLine: 1,
-    where: 'no front matter do curso',
+    FieldBlock(
+      firstLine: front.firstLine,
+      blockLine: 1,
+      where: 'no front matter do curso',
+    ),
   );
 
   final format = fields.get<int>('format');
@@ -175,9 +196,30 @@ Future<_CourseHead?> _readCourseHead(
   }
   if (fields.failed) return null;
 
-  // O corpo de `course.md` é só a apresentação: texto, sem marcas.
+  final intro = _introOf(scanned.segments, existing, issues);
+
+  return _CourseHead(
+    format: format!,
+    id: fields.get<String>('id')!,
+    title: fields.get<String>('title')!,
+    author: fields.get<String>('author')!,
+    version: fields.get<String>('version')!,
+    intro: intro,
+    lessonIds: fields.get<List<Object>>('lessons')!.cast<String>(),
+    lessonLines: fields.itemLines['lessons']!,
+    lessonsLine: fields.lineOf('lessons'),
+    chordNotation: _notationOf(fields.get<String>('chord-notation')),
+  );
+}
+
+/// O corpo de `course.md` é só a apresentação: texto, sem marcas.
+String _introOf(
+  List<Segment> segments,
+  Set<String> existing,
+  FileIssues issues,
+) {
   final intro = StringBuffer();
-  for (final segment in scanned.segments) {
+  for (final segment in segments) {
     switch (segment) {
       case TextSegment():
         checkMarkdownText(segment, issues, existing);
@@ -190,19 +232,7 @@ Future<_CourseHead?> _readCourseHead(
         );
     }
   }
-
-  return _CourseHead(
-    format: format!,
-    id: fields.get<String>('id')!,
-    title: fields.get<String>('title')!,
-    author: fields.get<String>('author')!,
-    version: fields.get<String>('version')!,
-    intro: intro.toString(),
-    lessonIds: fields.get<List<Object>>('lessons')!.cast<String>(),
-    lessonLines: fields.itemLines['lessons']!,
-    lessonsLine: fields.lineOf('lessons'),
-    chordNotation: _notationOf(fields.get<String>('chord-notation')),
-  );
+  return intro.toString();
 }
 
 /// A grafia de `chord-notation:` (já conferida pelo vocabulário); `null` se o
@@ -229,9 +259,11 @@ Future<_ParsedLesson?> _readLesson(
   final fields = reader.read(
     map,
     kLessonKeys,
-    firstLine: front.firstLine,
-    blockLine: 1,
-    where: 'no front matter da lição',
+    FieldBlock(
+      firstLine: front.firstLine,
+      blockLine: 1,
+      where: 'no front matter da lição',
+    ),
   );
 
   final blocks = <LessonBlock>[];
@@ -262,113 +294,147 @@ Future<_ParsedLesson?> _readLesson(
   );
 }
 
-/// `lessons` de `course.md` × arquivos de `lessons/`, e o `requires` de cada
-/// lição: ids que existem, sem ciclo, só lições anteriores.
-void _checkLessonList(
-  _CourseHead head,
-  Map<String, _ParsedLesson> lessons,
-  int unreadable,
-  List<CourseIssue> sink,
-) {
-  final course = FileIssues(_courseFile, sink);
-  final order = <String, int>{};
-  for (var i = 0; i < head.lessonIds.length; i++) {
-    final id = head.lessonIds[i];
-    final line = head.lessonLines[i];
-    if (order.containsKey(id)) {
-      course.error(line, 'a lição `$id` aparece duas vezes em `lessons`.');
-      continue;
-    }
-    order[id] = i;
-    // Com um arquivo ilegível, o erro dele já explica a falta.
-    if (!lessons.containsKey(id) && unreadable == 0) {
-      course.error(
-        line,
-        'a lição `$id` não tem arquivo em `lessons/` (o `id` do front '
-        'matter precisa ser `$id`).',
-      );
-    }
-  }
-  for (final entry in lessons.entries) {
-    if (!order.containsKey(entry.key)) {
-      FileIssues(entry.value.file, sink).warning(
-        entry.value.idLine,
-        'a lição `${entry.key}` não está em `lessons` de `course.md` e não '
-        'entra no curso.',
-      );
-    }
+/// As conferências de `course.md` × `lessons/` e do `requires` de cada lição
+/// (existência, ciclo, ordem). Elas dividem a posição de cada id em `lessons`,
+/// as arestas do `requires` e o que já está num ciclo.
+class _LessonListCheck {
+  _LessonListCheck(this.head, this.lessons, this.unreadable, this.sink);
+
+  final _CourseHead head;
+  final Map<String, _ParsedLesson> lessons;
+
+  /// Arquivos de `lessons/` que não se leram: o erro deles já explica a falta.
+  final int unreadable;
+  final List<CourseIssue> sink;
+
+  /// Posição de cada id em `lessons` de `course.md`.
+  final _order = <String, int>{};
+
+  /// Os `requires` que existem de cada lição: (id citado, linha).
+  final _edges = <String, List<(String, int)>>{};
+
+  /// Pares `de>para` de um ciclo: a ordem deles já deu o seu erro.
+  final _inCycle = <String>{};
+  final _state = <String, int>{};
+  final _stack = <String>[];
+
+  void run() {
+    _checkLessonList();
+    _readRequires();
+    _findCycles();
+    _checkRequiresOrder();
   }
 
-  // requires: existência, ciclos, ordem.
-  final edges = <String, List<(String, int)>>{};
-  for (final entry in lessons.entries) {
-    final parsed = entry.value;
-    final file = FileIssues(parsed.file, sink);
-    final list = <(String, int)>[];
-    for (var i = 0; i < parsed.lesson.requires.length; i++) {
-      final target = parsed.lesson.requires[i];
-      final line = i < parsed.requiresLines.length
-          ? parsed.requiresLines[i]
-          : parsed.requiresLine;
-      if (!lessons.containsKey(target)) {
-        file.error(
-          line,
-          '`requires` cita a lição `$target`, que não existe no curso.',
-        );
+  /// `lessons` de `course.md` × os arquivos lidos.
+  void _checkLessonList() {
+    final course = FileIssues(_courseFile, sink);
+    for (var i = 0; i < head.lessonIds.length; i++) {
+      final id = head.lessonIds[i];
+      final line = head.lessonLines[i];
+      if (_order.containsKey(id)) {
+        course.error(line, 'a lição `$id` aparece duas vezes em `lessons`.');
         continue;
       }
-      list.add((target, line));
+      _order[id] = i;
+      // Com um arquivo ilegível, o erro dele já explica a falta.
+      if (!lessons.containsKey(id) && unreadable == 0) {
+        course.error(
+          line,
+          'a lição `$id` não tem arquivo em `lessons/` (o `id` do front '
+          'matter precisa ser `$id`).',
+        );
+      }
     }
-    edges[entry.key] = list;
+    for (final entry in lessons.entries) {
+      if (!_order.containsKey(entry.key)) {
+        FileIssues(entry.value.file, sink).warning(
+          entry.value.idLine,
+          'a lição `${entry.key}` não está em `lessons` de `course.md` e não '
+          'entra no curso.',
+        );
+      }
+    }
   }
 
-  final inCycle = <String>{};
-  final state = <String, int>{};
-  final stack = <String>[];
-
-  void visit(String id) {
-    state[id] = 1;
-    stack.add(id);
-    for (final (target, line) in edges[id] ?? const <(String, int)>[]) {
-      if (state[target] == 1) {
-        final cycle = [...stack.sublist(stack.indexOf(target)), target];
-        FileIssues(
-          lessons[id]!.file,
-          sink,
-        ).error(line, '`requires` forma um ciclo: ${cycle.join(' → ')}.');
-        for (var i = 0; i < cycle.length - 1; i++) {
-          inCycle.add('${cycle[i]}>${cycle[i + 1]}');
+  /// O `requires` de cada lição: o que cita uma lição inexistente dá erro; o
+  /// resto vira aresta.
+  void _readRequires() {
+    for (final entry in lessons.entries) {
+      final parsed = entry.value;
+      final file = FileIssues(parsed.file, sink);
+      final list = <(String, int)>[];
+      for (var i = 0; i < parsed.lesson.requires.length; i++) {
+        final target = parsed.lesson.requires[i];
+        final line = i < parsed.requiresLines.length
+            ? parsed.requiresLines[i]
+            : parsed.requiresLine;
+        if (!lessons.containsKey(target)) {
+          file.error(
+            line,
+            '`requires` cita a lição `$target`, que não existe no curso.',
+          );
+          continue;
         }
-      } else if (state[target] == null) {
-        visit(target);
+        list.add((target, line));
+      }
+      _edges[entry.key] = list;
+    }
+  }
+
+  /// Ciclos no `requires`, por busca em profundidade.
+  void _findCycles() {
+    for (final id in [
+      ...head.lessonIds.where(lessons.containsKey),
+      ...lessons.keys,
+    ]) {
+      if (_state[id] == null) _visit(id);
+    }
+  }
+
+  void _visit(String id) {
+    _state[id] = 1;
+    _stack.add(id);
+    for (final (target, line) in _edges[id] ?? const <(String, int)>[]) {
+      if (_state[target] == 1) {
+        _reportCycle(id, target, line);
+      } else if (_state[target] == null) {
+        _visit(target);
       }
     }
-    stack.removeLast();
-    state[id] = 2;
+    _stack.removeLast();
+    _state[id] = 2;
   }
 
-  for (final id in [
-    ...head.lessonIds.where(lessons.containsKey),
-    ...lessons.keys,
-  ]) {
-    if (state[id] == null) visit(id);
+  void _reportCycle(String id, String target, int line) {
+    final cycle = [..._stack.sublist(_stack.indexOf(target)), target];
+    FileIssues(
+      lessons[id]!.file,
+      sink,
+    ).error(line, '`requires` forma um ciclo: ${cycle.join(' → ')}.');
+    for (var i = 0; i < cycle.length - 1; i++) {
+      _inCycle.add('${cycle[i]}>${cycle[i + 1]}');
+    }
   }
 
-  for (final entry in edges.entries) {
-    final from = order[entry.key];
-    for (final (target, line) in entry.value) {
-      final to = order[target];
-      if (from == null ||
-          to == null ||
-          inCycle.contains('${entry.key}>$target')) {
-        continue;
-      }
-      if (to >= from) {
-        FileIssues(lessons[entry.key]!.file, sink).error(
-          line,
-          '`requires` cita a lição `$target`, que vem depois na ordem de '
-          '`lessons`: só valem lições anteriores.',
-        );
+  /// Só valem lições anteriores na ordem de `lessons`; as arestas de ciclo
+  /// ficam de fora.
+  void _checkRequiresOrder() {
+    for (final entry in _edges.entries) {
+      final from = _order[entry.key];
+      for (final (target, line) in entry.value) {
+        final to = _order[target];
+        if (from == null ||
+            to == null ||
+            _inCycle.contains('${entry.key}>$target')) {
+          continue;
+        }
+        if (to >= from) {
+          FileIssues(lessons[entry.key]!.file, sink).error(
+            line,
+            '`requires` cita a lição `$target`, que vem depois na ordem de '
+            '`lessons`: só valem lições anteriores.',
+          );
+        }
       }
     }
   }

@@ -32,9 +32,12 @@ List<String> _messages(CourseReadResult result) => [
 ];
 
 void main() {
-  group('play-chord: leitura', () {
-    test('lista fixa e sorteio, com os padrões', () async {
-      final result = await _read('''
+  _parte11();
+}
+
+void _parte1() {
+  test('lista fixa e sorteio, com os padrões', () async {
+    final result = await _read('''
 ```zywny-exercise
 id: n2-triades
 type: play-chord
@@ -50,37 +53,39 @@ title: Maiores e menores
 chords: {qualities: [M, m], roots: random, count: 10}
 ```
 ''');
-      expect(_messages(result), isEmpty);
-      final specs = result.course!.lessons.single.exercises.toList();
+    expect(_messages(result), isEmpty);
+    final specs = result.course!.lessons.single.exercises.toList();
 
-      final fixed = specs[0] as PlayChordSpec;
-      expect(fixed.type, ExerciseType.playChord);
-      expect(fixed.chords, isA<FixedChords>());
-      expect((fixed.chords as FixedChords).symbols, ['C', 'Am', 'F', 'G7']);
-      expect(fixed.inversions, [ChordInversionChoice.any]);
-      expect(fixed.voicing, isNull);
-      expect(fixed.hand, ChordHand.any);
-      expect(fixed.split.midi, Pitch.parse('C4').midi);
-      expect(fixed.range, isNull);
-      expect(fixed.strict, isTrue);
-      expect(fixed.omit5, isTrue);
-      expect(fixed.prompt, ChordPrompt.symbol);
-      expect(fixed.voiceLeading, isNull);
-      expect(fixed.pass.accuracy, 80);
+    final fixed = specs[0] as PlayChordSpec;
+    expect(fixed.type, ExerciseType.playChord);
+    expect(fixed.chords, isA<FixedChords>());
+    expect((fixed.chords as FixedChords).symbols, ['C', 'Am', 'F', 'G7']);
+    expect(fixed.inversions, [ChordInversionChoice.any]);
+    expect(fixed.voicing, isNull);
+    expect(fixed.hand, ChordHand.any);
+    expect(fixed.split.midi, Pitch.parse('C4').midi);
+    expect(fixed.range, isNull);
+    expect(fixed.strict, isTrue);
+    expect(fixed.omit5, isTrue);
+    expect(fixed.prompt, ChordPrompt.symbol);
+    expect(fixed.voiceLeading, isNull);
+    expect(fixed.pass.accuracy, 80);
 
-      final random = specs[1] as PlayChordSpec;
-      expect(random.chords, isA<RandomChords>());
-      final chords = random.chords as RandomChords;
-      expect(chords.qualities, ['M', 'm']);
-      expect(chords.roots, isNull);
-      expect(chords.whiteOnly, isFalse);
-      expect(chords.count, 10);
-      expect(chords.sequence, 'random');
-      expect(chords.key, 'C');
-    });
+    final random = specs[1] as PlayChordSpec;
+    expect(random.chords, isA<RandomChords>());
+    final chords = random.chords as RandomChords;
+    expect(chords.qualities, ['M', 'm']);
+    expect(chords.roots, isNull);
+    expect(chords.whiteOnly, isFalse);
+    expect(chords.count, 10);
+    expect(chords.sequence, 'random');
+    expect(chords.key, 'C');
+  });
+}
 
-    test('sorteio de graus, com tom e sequência', () async {
-      final result = await _read('''
+void _parte2() {
+  test('sorteio de graus, com tom e sequência', () async {
+    final result = await _read('''
 ```zywny-exercise
 id: n5-ii-v-i
 type: play-chord
@@ -92,26 +97,28 @@ voice-leading: 4
 show: degree
 ```
 ''');
-      expect(_messages(result), isEmpty);
-      final spec =
-          result.course!.lessons.single.exercises.single as PlayChordSpec;
-      final chords = spec.chords as DegreeChords;
-      expect(chords.degrees, ['ii7', 'V7', 'Imaj7']);
-      expect(chords.key, 'Bb');
-      expect(chords.sequence, 'cycle-5');
-      expect(chords.count, 2);
-      expect(spec.inversions, [
-        ChordInversionChoice.root,
-        ChordInversionChoice.first,
-      ]);
-      expect(spec.voicing, isNull);
-      expect(spec.hand, ChordHand.left);
-      expect(spec.voiceLeading, 4);
-      expect(spec.prompt, ChordPrompt.degree);
-    });
+    expect(_messages(result), isEmpty);
+    final spec =
+        result.course!.lessons.single.exercises.single as PlayChordSpec;
+    final chords = spec.chords as DegreeChords;
+    expect(chords.degrees, ['ii7', 'V7', 'Imaj7']);
+    expect(chords.key, 'Bb');
+    expect(chords.sequence, 'cycle-5');
+    expect(chords.count, 2);
+    expect(spec.inversions, [
+      ChordInversionChoice.root,
+      ChordInversionChoice.first,
+    ]);
+    expect(spec.voicing, isNull);
+    expect(spec.hand, ChordHand.left);
+    expect(spec.voiceLeading, 4);
+    expect(spec.prompt, ChordPrompt.degree);
+  });
+}
 
-    test('roots: white e uma lista de raízes; faixa', () async {
-      final result = await _read('''
+void _parte3() {
+  test('roots: white e uma lista de raízes; faixa', () async {
+    final result = await _read('''
 ```zywny-exercise
 id: a
 type: play-chord
@@ -127,22 +134,21 @@ title: Duas raízes
 chords: {qualities: [m7], roots: [C, F#]}
 ```
 ''');
-      expect(_messages(result), isEmpty);
-      final specs = result.course!.lessons.single.exercises.toList();
-      expect((specs[0] as PlayChordSpec).range!.from.midi, 48);
-      expect((specs[0] as PlayChordSpec).chords, isA<RandomChords>());
-      expect(
-        ((specs[0] as PlayChordSpec).chords as RandomChords).whiteOnly,
-        isTrue,
-      );
-      expect(((specs[1] as PlayChordSpec).chords as RandomChords).roots, [
-        'C',
-        'F#',
-      ]);
-    });
-
-    test('cifra que não existe, com a linha do item', () async {
-      final result = await _read('''
+    expect(_messages(result), isEmpty);
+    final specs = result.course!.lessons.single.exercises.toList();
+    expect((specs[0] as PlayChordSpec).range!.from.midi, 48);
+    expect((specs[0] as PlayChordSpec).chords, isA<RandomChords>());
+    expect(
+      ((specs[0] as PlayChordSpec).chords as RandomChords).whiteOnly,
+      isTrue,
+    );
+    expect(((specs[1] as PlayChordSpec).chords as RandomChords).roots, [
+      'C',
+      'F#',
+    ]);
+  });
+  test('cifra que não existe, com a linha do item', () async {
+    final result = await _read('''
 ```zywny-exercise
 id: x
 type: play-chord
@@ -150,11 +156,13 @@ title: X
 chords: [C, Cxyz]
 ```
 ''');
-      expect(_messages(result).single, contains('`Cxyz` não é uma cifra'));
-    });
+    expect(_messages(result).single, contains('`Cxyz` não é uma cifra'));
+  });
+}
 
-    test('qualities e degrees juntos, e nenhum dos dois', () async {
-      final ambos = await _read('''
+void _parte4() {
+  test('qualities e degrees juntos, e nenhum dos dois', () async {
+    final ambos = await _read('''
 ```zywny-exercise
 id: x
 type: play-chord
@@ -162,12 +170,12 @@ title: X
 chords: {qualities: [M], degrees: [I]}
 ```
 ''');
-      expect(
-        _messages(ambos).single,
-        contains('use `qualities` **ou** `degrees`'),
-      );
+    expect(
+      _messages(ambos).single,
+      contains('use `qualities` **ou** `degrees`'),
+    );
 
-      final nenhum = await _read('''
+    final nenhum = await _read('''
 ```zywny-exercise
 id: x
 type: play-chord
@@ -175,14 +183,16 @@ title: X
 chords: {count: 3}
 ```
 ''');
-      expect(
-        _messages(nenhum).single,
-        contains('falta `qualities` ou `degrees`'),
-      );
-    });
+    expect(
+      _messages(nenhum).single,
+      contains('falta `qualities` ou `degrees`'),
+    );
+  });
+}
 
-    test('qualidade e grau desconhecidos', () async {
-      final result = await _read('''
+void _parte5() {
+  test('qualidade e grau desconhecidos', () async {
+    final result = await _read('''
 ```zywny-exercise
 id: x
 type: play-chord
@@ -197,13 +207,12 @@ title: Y
 chords: {degrees: [ii7, IX]}
 ```
 ''');
-      final messages = _messages(result);
-      expect(messages[0], contains('qualidade `mm` desconhecida'));
-      expect(messages[1], contains('`IX` não é um grau'));
-    });
-
-    test('terceira inversão só com cifra de sétima', () async {
-      final result = await _read('''
+    final messages = _messages(result);
+    expect(messages[0], contains('qualidade `mm` desconhecida'));
+    expect(messages[1], contains('`IX` não é um grau'));
+  });
+  test('terceira inversão só com cifra de sétima', () async {
+    final result = await _read('''
 ```zywny-exercise
 id: x
 type: play-chord
@@ -212,11 +221,13 @@ chords: [C, G]
 inversion: third
 ```
 ''');
-      expect(_messages(result).single, contains('tríade não tem 3ª inversão'));
-    });
+    expect(_messages(result).single, contains('tríade não tem 3ª inversão'));
+  });
+}
 
-    test('molde com inversão pedida; molde que não cabe na cifra', () async {
-      final comInversao = await _read('''
+void _parte6() {
+  test('molde com inversão pedida; molde que não cabe na cifra', () async {
+    final comInversao = await _read('''
 ```zywny-exercise
 id: x
 type: play-chord
@@ -226,12 +237,12 @@ voicing: 7-3
 inversion: root
 ```
 ''');
-      expect(
-        _messages(comInversao).single,
-        contains('o molde já decide a ordem das notas'),
-      );
+    expect(
+      _messages(comInversao).single,
+      contains('o molde já decide a ordem das notas'),
+    );
 
-      final naoCabe = await _read('''
+    final naoCabe = await _read('''
 ```zywny-exercise
 id: y
 type: play-chord
@@ -240,11 +251,10 @@ chords: [C, G]
 voicing: 7-3
 ```
 ''');
-      expect(_messages(naoCabe).single, contains('`7-3` não cabe em `C`'));
-    });
-
-    test('molde com as duas mãos, na mão esquerda, é só aviso', () async {
-      final result = await _read('''
+    expect(_messages(naoCabe).single, contains('`7-3` não cabe em `C`'));
+  });
+  test('molde com as duas mãos, na mão esquerda, é só aviso', () async {
+    final result = await _read('''
 ```zywny-exercise
 id: x
 type: play-chord
@@ -254,12 +264,14 @@ voicing: block
 hand: left
 ```
 ''');
-      expect(result.issues.single.severity, IssueSeverity.warning);
-      expect(_messages(result).single, contains('pede as duas mãos'));
-    });
+    expect(result.issues.single.severity, IssueSeverity.warning);
+    expect(_messages(result).single, contains('pede as duas mãos'));
+  });
+}
 
-    test('faixa invertida ou mal escrita', () async {
-      final result = await _read('''
+void _parte7() {
+  test('faixa invertida ou mal escrita', () async {
+    final result = await _read('''
 ```zywny-exercise
 id: x
 type: play-chord
@@ -268,11 +280,10 @@ chords: [C]
 range: C6-C3
 ```
 ''');
-      expect(_messages(result).single, contains('não é uma faixa de notas'));
-    });
-
-    test('split, strict e omit5 valem como escritos', () async {
-      final result = await _read('''
+    expect(_messages(result).single, contains('não é uma faixa de notas'));
+  });
+  test('split, strict e omit5 valem como escritos', () async {
+    final result = await _read('''
 ```zywny-exercise
 id: x
 type: play-chord
@@ -285,26 +296,27 @@ omit5: false
 show: name
 ```
 ''');
-      expect(_messages(result), isEmpty);
-      final spec =
-          result.course!.lessons.single.exercises.single as PlayChordSpec;
-      expect(spec.split.midi, Pitch.parse('E4').midi);
-      expect(spec.hand, ChordHand.right);
-      expect(spec.strict, isFalse);
-      expect(spec.omit5, isFalse);
-      expect(spec.prompt, ChordPrompt.chordName);
-    });
+    expect(_messages(result), isEmpty);
+    final spec =
+        result.course!.lessons.single.exercises.single as PlayChordSpec;
+    expect(spec.split.midi, Pitch.parse('E4').midi);
+    expect(spec.hand, ChordHand.right);
+    expect(spec.strict, isFalse);
+    expect(spec.omit5, isFalse);
+    expect(spec.prompt, ChordPrompt.chordName);
+  });
+}
 
-    test('todos os moldes do EX00 existem no zywny_music', () {
-      expect(
-        kVoicingShapes.values.toSet(),
-        VoicingShape.values.toSet(),
-        reason: 'um molde novo no zywny_music precisa do nome no formato',
-      );
-    });
-
-    test('bpm e beats: o modo com tempo, beats padrão 4', () async {
-      final result = await _read('''
+void _parte8() {
+  test('todos os moldes do EX00 existem no zywny_music', () {
+    expect(
+      kVoicingShapes.values.toSet(),
+      VoicingShape.values.toSet(),
+      reason: 'um molde novo no zywny_music precisa do nome no formato',
+    );
+  });
+  test('bpm e beats: o modo com tempo, beats padrão 4', () async {
+    final result = await _read('''
 ```zywny-exercise
 id: n2-com-tempo
 type: play-chord
@@ -330,17 +342,19 @@ title: Sem tempo
 chords: [G7, C]
 ```
 ''');
-      expect(_messages(result), isEmpty);
-      final specs = result.course!.lessons.single.exercises.toList();
-      expect((specs[0] as PlayChordSpec).bpm, 60);
-      expect((specs[0] as PlayChordSpec).beats, 4);
-      expect((specs[1] as PlayChordSpec).bpm, 72);
-      expect((specs[1] as PlayChordSpec).beats, 2);
-      expect((specs[2] as PlayChordSpec).bpm, isNull);
-    });
+    expect(_messages(result), isEmpty);
+    final specs = result.course!.lessons.single.exercises.toList();
+    expect((specs[0] as PlayChordSpec).bpm, 60);
+    expect((specs[0] as PlayChordSpec).beats, 4);
+    expect((specs[1] as PlayChordSpec).bpm, 72);
+    expect((specs[1] as PlayChordSpec).beats, 2);
+    expect((specs[2] as PlayChordSpec).bpm, isNull);
+  });
+}
 
-    test('beats sem bpm, e bpm com time-limit, são erros', () async {
-      final result = await _read('''
+void _parte9() {
+  test('beats sem bpm, e bpm com time-limit, são erros', () async {
+    final result = await _read('''
 ```zywny-exercise
 id: n2-beats-solto
 type: play-chord
@@ -358,54 +372,65 @@ bpm: 60
 pass: {time-limit: 10}
 ```
 ''');
-      final messages = _messages(result);
-      expect(
-        messages.any((m) => m.contains('`beats` só vale com `bpm`')),
-        isTrue,
-        reason: messages.join('\n'),
-      );
-      expect(
-        messages.any(
-          (m) => m.contains('`bpm` e `time-limit` não valem juntos'),
-        ),
-        isTrue,
-        reason: messages.join('\n'),
-      );
-      expect(result.course, isNull);
-    });
-
-    test(
-      'chord-notation do curso: fixa a grafia; sem a chave, é null',
-      () async {
-        final fixed = await readCourse(
-          MemoryCourseFiles({
-            'course.md': _course.replaceFirst(
-              'lessons: [um]',
-              'chord-notation: brazilian\nlessons: [um]',
-            ),
-            'lessons/01-um.md': _lesson('Oi.'),
-          }),
-        );
-        expect(_messages(fixed), isEmpty);
-        expect(fixed.course!.chordNotation, ChordNotation.brazilian);
-
-        final free = await _read('Oi.');
-        expect(free.course!.chordNotation, isNull);
-      },
+    final messages = _messages(result);
+    expect(
+      messages.any((m) => m.contains('`beats` só vale com `bpm`')),
+      isTrue,
+      reason: messages.join('\n'),
     );
+    expect(
+      messages.any((m) => m.contains('`bpm` e `time-limit` não valem juntos')),
+      isTrue,
+      reason: messages.join('\n'),
+    );
+    expect(result.course, isNull);
+  });
+}
 
-    test('chord-notation com um valor que não existe é erro', () async {
-      final result = await readCourse(
-        MemoryCourseFiles({
-          'course.md': _course.replaceFirst(
-            'lessons: [um]',
-            'chord-notation: alema\nlessons: [um]',
-          ),
-          'lessons/01-um.md': _lesson('Oi.'),
-        }),
-      );
-      expect(result.course, isNull);
-      expect(_messages(result), isNotEmpty);
-    });
+void _parte10() {
+  test('chord-notation do curso: fixa a grafia; sem a chave, é null', () async {
+    final fixed = await readCourse(
+      MemoryCourseFiles({
+        'course.md': _course.replaceFirst(
+          'lessons: [um]',
+          'chord-notation: brazilian\nlessons: [um]',
+        ),
+        'lessons/01-um.md': _lesson('Oi.'),
+      }),
+    );
+    expect(_messages(fixed), isEmpty);
+    expect(fixed.course!.chordNotation, ChordNotation.brazilian);
+
+    final free = await _read('Oi.');
+    expect(free.course!.chordNotation, isNull);
+  });
+  test('chord-notation com um valor que não existe é erro', () async {
+    final result = await readCourse(
+      MemoryCourseFiles({
+        'course.md': _course.replaceFirst(
+          'lessons: [um]',
+          'chord-notation: alema\nlessons: [um]',
+        ),
+        'lessons/01-um.md': _lesson('Oi.'),
+      }),
+    );
+    expect(result.course, isNull);
+    expect(_messages(result), isNotEmpty);
+  });
+}
+
+// Testes: play-chord: leitura
+void _parte11() {
+  group('play-chord: leitura', () {
+    _parte1();
+    _parte2();
+    _parte3();
+    _parte4();
+    _parte5();
+    _parte6();
+    _parte7();
+    _parte8();
+    _parte9();
+    _parte10();
   });
 }

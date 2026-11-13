@@ -38,10 +38,19 @@ String _messages(CourseReadResult result) =>
 PlayLeadSheetSpec _spec(CourseReadResult result) =>
     result.course!.lessons.single.exercises.single as PlayLeadSheetSpec;
 
+Future<String> errorsOf(String body) async {
+  final result = await _read(body);
+  expect(result.course, isNull, reason: 'o exercício não entra');
+  return _messages(result);
+}
+
 void main() {
-  group('play-lead-sheet: leitura', () {
-    test('o exemplo do molde: file, block, melodia conferida', () async {
-      final result = await _read('''
+  _parte8();
+}
+
+void _parte1() {
+  test('o exemplo do molde: file, block, melodia conferida', () async {
+    final result = await _read('''
 ```zywny-exercise
 id: n2-lead-sheet-1
 type: play-lead-sheet
@@ -52,24 +61,26 @@ bpm: 70
 pass: {accuracy: 80}
 ```
 ''');
-      expect(
-        result.issues.where((i) => i.isError),
-        isEmpty,
-        reason: _messages(result),
-      );
-      final spec = _spec(result);
-      expect(spec.type, ExerciseType.playLeadSheet);
-      expect(spec.file, 'media/canção.musicxml');
-      expect(spec.pattern, 'block');
-      expect(spec.style, isNull);
-      expect(spec.melody, LeadMelody.check);
-      expect(spec.bpm, 70);
-      expect(spec.swing, isNull);
-      expect(spec.split.midi, 60, reason: 'o padrão é C4');
-    });
+    expect(
+      result.issues.where((i) => i.isError),
+      isEmpty,
+      reason: _messages(result),
+    );
+    final spec = _spec(result);
+    expect(spec.type, ExerciseType.playLeadSheet);
+    expect(spec.file, 'media/canção.musicxml');
+    expect(spec.pattern, 'block');
+    expect(spec.style, isNull);
+    expect(spec.melody, LeadMelody.check);
+    expect(spec.bpm, 70);
+    expect(spec.swing, isNull);
+    expect(spec.split.midi, 60, reason: 'o padrão é C4');
+  });
+}
 
-    test('o estilo 7-3 com swing e melody: free', () async {
-      final result = await _read('''
+void _parte2() {
+  test('o estilo 7-3 com swing e melody: free', () async {
+    final result = await _read('''
 ```zywny-exercise
 id: n5-sete-tres-embaixo
 type: play-lead-sheet
@@ -82,30 +93,31 @@ swing: 62
 pass: {accuracy: 80}
 ```
 ''');
-      expect(
-        result.issues.where((i) => i.isError),
-        isEmpty,
-        reason: _messages(result),
-      );
-      final spec = _spec(result);
-      expect(spec.style, LeadStyle.sevenThreeUnderMelody);
-      expect(spec.melody, LeadMelody.free);
-      expect(spec.swing, 62);
-      expect(spec.bpm, 80);
+    expect(
+      result.issues.where((i) => i.isError),
+      isEmpty,
+      reason: _messages(result),
+    );
+    final spec = _spec(result);
+    expect(spec.style, LeadStyle.sevenThreeUnderMelody);
+    expect(spec.melody, LeadMelody.free);
+    expect(spec.swing, 62);
+    expect(spec.bpm, 80);
+  });
+  test('os estilos que rodam são os de LeadStyle.implemented', () {
+    expect(LeadStyle.implemented, {
+      LeadStyle.sevenThreeUnderMelody,
+      LeadStyle.blockUnderMelody,
+      LeadStyle.offBeatFill,
+      LeadStyle.ballad,
+      LeadStyle.stride,
     });
+  });
+}
 
-    test('os estilos que rodam são os de LeadStyle.implemented', () {
-      expect(LeadStyle.implemented, {
-        LeadStyle.sevenThreeUnderMelody,
-        LeadStyle.blockUnderMelody,
-        LeadStyle.offBeatFill,
-        LeadStyle.ballad,
-        LeadStyle.stride,
-      });
-    });
-
-    test('a mão de `split` é a do exercício', () async {
-      final result = await _read('''
+void _parte3() {
+  test('a mão de `split` é a do exercício', () async {
+    final result = await _read('''
 ```zywny-exercise
 id: n2-lead-sheet-split
 type: play-lead-sheet
@@ -115,24 +127,18 @@ split: G3
 pass: {accuracy: 80}
 ```
 ''');
-      expect(
-        result.issues.where((i) => i.isError),
-        isEmpty,
-        reason: _messages(result),
-      );
-      expect(_spec(result).split.midi, 55);
-    });
+    expect(
+      result.issues.where((i) => i.isError),
+      isEmpty,
+      reason: _messages(result),
+    );
+    expect(_spec(result).split.midi, 55);
   });
+}
 
-  group('play-lead-sheet: erros', () {
-    Future<String> errorsOf(String body) async {
-      final result = await _read(body);
-      expect(result.course, isNull, reason: 'o exercício não entra');
-      return _messages(result);
-    }
-
-    test('sem file nem abc', () async {
-      final text = await errorsOf('''
+void _parte4() {
+  test('sem file nem abc', () async {
+    final text = await errorsOf('''
 ```zywny-exercise
 id: n2-sem-arquivo
 type: play-lead-sheet
@@ -140,11 +146,10 @@ title: Sem arquivo
 pass: {accuracy: 80}
 ```
 ''');
-      expect(text, contains('precisa de `file`'));
-    });
-
-    test('abc ainda não roda', () async {
-      final text = await errorsOf('''
+    expect(text, contains('precisa de `file`'));
+  });
+  test('abc ainda não roda', () async {
+    final text = await errorsOf('''
 ```zywny-exercise
 id: n2-abc
 type: play-lead-sheet
@@ -153,17 +158,19 @@ abc: "\\"C\\" C E G c"
 pass: {accuracy: 80}
 ```
 ''');
-      expect(text, contains('`abc` ainda não roda'));
-    });
+    expect(text, contains('`abc` ainda não roda'));
+  });
+}
 
-    test('keys, cycle, key-start e backing ainda não rodam', () async {
-      for (final key in [
-        'keys: [C, G]',
-        'cycle: 5ths',
-        'key-start: rotate',
-        'backing: drums',
-      ]) {
-        final text = await errorsOf('''
+void _parte5() {
+  test('keys, cycle, key-start e backing ainda não rodam', () async {
+    for (final key in [
+      'keys: [C, G]',
+      'cycle: 5ths',
+      'key-start: rotate',
+      'backing: drums',
+    ]) {
+      final text = await errorsOf('''
 ```zywny-exercise
 id: n2-tom
 type: play-lead-sheet
@@ -173,12 +180,11 @@ $key
 pass: {accuracy: 80}
 ```
 ''');
-        expect(text, contains('ainda não roda'), reason: key);
-      }
-    });
-
-    test('um estilo que ainda não roda diz isso', () async {
-      final text = await errorsOf('''
+      expect(text, contains('ainda não roda'), reason: key);
+    }
+  });
+  test('um estilo que ainda não roda diz isso', () async {
+    final text = await errorsOf('''
 ```zywny-exercise
 id: n2-estilo
 type: play-lead-sheet
@@ -188,11 +194,13 @@ style: locked-hands
 pass: {accuracy: 80}
 ```
 ''');
-      expect(text, contains('`style: locked-hands` ainda não roda'));
-    });
+    expect(text, contains('`style: locked-hands` ainda não roda'));
+  });
+}
 
-    test('pattern com style', () async {
-      final text = await errorsOf('''
+void _parte6() {
+  test('pattern com style', () async {
+    final text = await errorsOf('''
 ```zywny-exercise
 id: n2-dois
 type: play-lead-sheet
@@ -203,11 +211,10 @@ pattern: block
 pass: {accuracy: 80}
 ```
 ''');
-      expect(text, contains('`pattern` não vale com `style`'));
-    });
-
-    test('um molde que não existe, com sugestão', () async {
-      final text = await errorsOf('''
+    expect(text, contains('`pattern` não vale com `style`'));
+  });
+  test('um molde que não existe, com sugestão', () async {
+    final text = await errorsOf('''
 ```zywny-exercise
 id: n2-molde
 type: play-lead-sheet
@@ -217,12 +224,14 @@ pattern: oom-pahh
 pass: {accuracy: 80}
 ```
 ''');
-      expect(text, contains('não há o molde `oom-pahh`'));
-      expect(text, contains('oom-pah'));
-    });
+    expect(text, contains('não há o molde `oom-pahh`'));
+    expect(text, contains('oom-pah'));
+  });
+}
 
-    test('melody com valor desconhecido', () async {
-      final text = await errorsOf('''
+void _parte7() {
+  test('melody com valor desconhecido', () async {
+    final text = await errorsOf('''
 ```zywny-exercise
 id: n2-melody
 type: play-lead-sheet
@@ -232,7 +241,21 @@ melody: sometimes
 pass: {accuracy: 80}
 ```
 ''');
-      expect(text, contains('sometimes'));
-    });
+    expect(text, contains('sometimes'));
+  });
+}
+
+// Testes: play-lead-sheet: leitura · play-lead-sheet: erros
+void _parte8() {
+  group('play-lead-sheet: leitura', () {
+    _parte1();
+    _parte2();
+    _parte3();
+  });
+  group('play-lead-sheet: erros', () {
+    _parte4();
+    _parte5();
+    _parte6();
+    _parte7();
   });
 }

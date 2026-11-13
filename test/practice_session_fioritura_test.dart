@@ -158,9 +158,7 @@ void main() {
   group('PerformanceTrack.withOrnaments(groups)', () {
     test('põe o groupId nos eventos pelo id', () {
       final track = PerformanceTrack.fromEvents(_eleven(group: null));
-      final out = track.withOrnaments(
-        groups: {for (var i = 0; i < 11; i++) 'n$i': 7},
-      );
+      final out = track.withOrnaments(plan: OrnamentPlan(groups: {for (var i = 0; i < 11; i++) 'n$i': 7}));
       expect(out.events.every((e) => e.groupId == 7), isTrue);
       expect(track.events.every((e) => e.groupId == null), isTrue);
     });

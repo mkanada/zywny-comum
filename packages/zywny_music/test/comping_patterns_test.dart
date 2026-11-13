@@ -6,69 +6,77 @@ import 'package:test/test.dart';
 import 'package:zywny_music/comping_patterns.dart';
 
 void main() {
-  group('a biblioteca', () {
-    test('todo molde tem grid símbolos por compasso, nas duas mãos', () {
-      for (final pattern in kCompingPatterns) {
-        final left = parseCompingLine(
-          pattern.left,
-          grid: pattern.grid,
-          error: (m) => fail('${pattern.name} (esquerda): $m'),
-        );
-        final right = parseCompingLine(
-          pattern.right,
-          grid: pattern.grid,
-          error: (m) => fail('${pattern.name} (direita): $m'),
-        );
-        expect(left, isNotNull, reason: pattern.name);
-        expect(right, isNotNull, reason: pattern.name);
-        expect(left!.length, right!.length, reason: pattern.name);
-        expect(pattern.bars, left.length, reason: pattern.name);
-      }
-    });
+  _parte3();
+  _parte4();
+}
 
-    test('os nomes são únicos e a tabela tem os 32 padrões', () {
-      final names = compingPatternNames;
-      expect(names.toSet().length, names.length);
-      expect(names, hasLength(32));
-    });
-
-    test('o padrão de 3/4 tem grid de valsa, e o de 6/8 é de seis', () {
-      expect(compingPatternNamed('oom-pah-pah')!.time, '3/4');
-      expect(compingPatternNamed('oom-pah-pah')!.grid, 3);
-      expect(compingPatternNamed('six-eight-split')!.time, '6/8');
-      expect(compingPatternNamed('six-eight-split')!.grid, 6);
-    });
-
-    test('só os padrões de colcheias nascem com swing', () {
-      final swinging = [
-        for (final p in kCompingPatterns)
-          if (p.swingDefault) p,
-      ];
-      expect(swinging.map((p) => p.name), [
-        'boogie',
-        'boogie-walking',
-        'charleston',
-        'jazz-in-2',
-      ]);
-      for (final p in swinging) {
-        expect(p.grid, 8, reason: p.name);
-      }
-    });
-
-    test('só o montuno tem dois compassos; os outros, um', () {
-      final two = [
-        for (final p in kCompingPatterns)
-          if (p.bars == 2) p.name,
-      ];
-      expect(two, ['montuno']);
-      expect(compingPatternNamed('montuno')!.leftBars, hasLength(2));
-    });
-
-    test('um nome que não existe não acha nada', () {
-      expect(compingPatternNamed('oom-pa'), isNull);
-    });
+void _parte1() {
+  test('todo molde tem grid símbolos por compasso, nas duas mãos', () {
+    for (final pattern in kCompingPatterns) {
+      final left = parseCompingLine(
+        pattern.left,
+        grid: pattern.grid,
+        error: (m) => fail('${pattern.name} (esquerda): $m'),
+      );
+      final right = parseCompingLine(
+        pattern.right,
+        grid: pattern.grid,
+        error: (m) => fail('${pattern.name} (direita): $m'),
+      );
+      expect(left, isNotNull, reason: pattern.name);
+      expect(right, isNotNull, reason: pattern.name);
+      expect(left!.length, right!.length, reason: pattern.name);
+      expect(pattern.bars, left.length, reason: pattern.name);
+    }
   });
+  test('os nomes são únicos e a tabela tem os 32 padrões', () {
+    final names = compingPatternNames;
+    expect(names.toSet().length, names.length);
+    expect(names, hasLength(32));
+  });
+  test('o padrão de 3/4 tem grid de valsa, e o de 6/8 é de seis', () {
+    expect(compingPatternNamed('oom-pah-pah')!.time, '3/4');
+    expect(compingPatternNamed('oom-pah-pah')!.grid, 3);
+    expect(compingPatternNamed('six-eight-split')!.time, '6/8');
+    expect(compingPatternNamed('six-eight-split')!.grid, 6);
+  });
+}
 
+void _parte2() {
+  test('só os padrões de colcheias nascem com swing', () {
+    final swinging = [
+      for (final p in kCompingPatterns)
+        if (p.swingDefault) p,
+    ];
+    expect(swinging.map((p) => p.name), [
+      'boogie',
+      'boogie-walking',
+      'charleston',
+      'jazz-in-2',
+    ]);
+    for (final p in swinging) {
+      expect(p.grid, 8, reason: p.name);
+    }
+  });
+  test('só o montuno tem dois compassos; os outros, um', () {
+    final two = [
+      for (final p in kCompingPatterns)
+        if (p.bars == 2) p.name,
+    ];
+    expect(two, ['montuno']);
+    expect(compingPatternNamed('montuno')!.leftBars, hasLength(2));
+  });
+  test('um nome que não existe não acha nada', () {
+    expect(compingPatternNamed('oom-pa'), isNull);
+  });
+}
+
+// Testes: a biblioteca · os símbolos
+void _parte3() {
+  group('a biblioteca', () {
+    _parte1();
+    _parte2();
+  });
   group('os símbolos', () {
     test('o baixo é o grau 1, e o grau acima de 9 cai uma oitava', () {
       expect(
@@ -104,7 +112,10 @@ void main() {
       expect(compingSymbolOf('c'), isNull);
     });
   });
+}
 
+// Testes: a leitura da linha
+void _parte4() {
   group('a leitura da linha', () {
     test('um molde de dois compassos, separado por |', () {
       final bars = parseCompingLine('1 . . . | 5 . . .', grid: 4);

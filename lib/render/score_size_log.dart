@@ -49,13 +49,10 @@ class _ScoreSizeLogState extends State<ScoreSizeLog> {
             (!identical(doc, _loggedDoc) || box != _loggedBox)) {
           _loggedDoc = doc;
           _loggedBox = box;
-          final line = scoreSizeLine(
-            widget.label,
-            doc,
-            box,
-            MediaQuery.devicePixelRatioOf(context),
-            continuous: widget.continuous,
-          );
+          final line = scoreSizeLine(widget.label, doc, (
+            box: box,
+            dpr: MediaQuery.devicePixelRatioOf(context),
+          ), continuous: widget.continuous);
           debugPrint(line);
           DiagLog.log('tamanho', line);
         }
@@ -71,10 +68,11 @@ class _ScoreSizeLogState extends State<ScoreSizeLog> {
 String scoreSizeLine(
   String label,
   VsbDocument doc,
-  Size box,
-  double dpr, {
+  ({Size box, double dpr}) view, {
   bool continuous = false,
 }) {
+  final box = view.box;
+  final dpr = view.dpr;
   final page = doc.pages.first;
   final s = continuous
       ? box.width / page.widthPx

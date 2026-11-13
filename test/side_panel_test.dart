@@ -45,10 +45,12 @@ void main() {
       tester,
       (context) => showStageSummary(
         context,
-        stageRef: 'Trecho 1/3',
-        result: const StageResult(hits: 6, total: 10, badMeasures: {}),
-        badLogical: const [2, 3],
-        isLast: false,
+        StageSummaryInfo(
+          stageRef: 'Trecho 1/3',
+          result: const StageResult(hits: 6, total: 10, badMeasures: {}),
+          badLogical: const [2, 3],
+          isLast: false,
+        ),
         sidePanel: true,
       ),
     );
@@ -146,10 +148,12 @@ void main() {
       tester,
       (context) => showStageSummary(
         context,
-        stageRef: 'Trecho 1/3',
-        result: const StageResult(hits: 6, total: 10, badMeasures: {}),
-        badLogical: const [],
-        isLast: false,
+        StageSummaryInfo(
+          stageRef: 'Trecho 1/3',
+          result: const StageResult(hits: 6, total: 10, badMeasures: {}),
+          badLogical: const [],
+          isLast: false,
+        ),
       ),
     );
     expect(find.byType(BottomSheet), findsOneWidget);

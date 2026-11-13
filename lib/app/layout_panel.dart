@@ -54,8 +54,6 @@ class LayoutPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final term = LibraryTermScope.of(context);
-    final theme = Theme.of(context);
     return Card(
       margin: EdgeInsets.zero,
       elevation: 6,
@@ -63,90 +61,98 @@ class LayoutPanel extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 4, 4, 0),
-            child: Row(
+          _header(context),
+          const Divider(height: 1),
+          Expanded(child: _body(context)),
+        ],
+      ),
+    );
+  }
+
+  /// O título, o que os ajustes valem (para todos os hinos ou para a
+  /// biblioteca) e os botões: copiar, restaurar e fechar.
+  Widget _header(BuildContext context) {
+    final term = LibraryTermScope.of(context);
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 4, 4, 0),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Ajustes da partitura',
-                        style: theme.textTheme.titleSmall,
-                      ),
-                      Text(
-                        'valem para ${term.todos} ${term.os} ${term.plural}',
-                        style: theme.textTheme.bodySmall,
-                      ),
-                    ],
-                  ),
-                ),
-                IconButton(
-                  tooltip: 'Copiar opções (JSON)',
-                  onPressed: onCopy,
-                  icon: const Icon(Icons.copy_all, size: 20),
-                ),
-                IconButton(
-                  tooltip: 'Restaurar o layout padrão',
-                  onPressed: onReset,
-                  icon: const Icon(Icons.restart_alt, size: 20),
-                ),
-                IconButton(
-                  tooltip: 'Fechar',
-                  onPressed: onClose,
-                  icon: const Icon(Icons.close, size: 20),
+                Text('Ajustes da partitura', style: theme.textTheme.titleSmall),
+                Text(
+                  'valem para ${term.todos} ${term.os} ${term.plural}',
+                  style: theme.textTheme.bodySmall,
                 ),
               ],
             ),
           ),
-          const Divider(height: 1),
-          Expanded(
-            child: ListView(
-              children: [
-                if (zoomSection case final zoom?) ...[
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-                    child: Text('Zoom', style: theme.textTheme.labelLarge),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 4),
-                    child: zoom,
-                  ),
-                ],
-                SwitchListTile(
-                  dense: true,
-                  title: const Text('Página acompanha a área'),
-                  subtitle: Text(_fitSubtitle()),
-                  value: pageFitsBox,
-                  onChanged: onFitChanged,
-                ),
-                for (final group in kLayoutGroups)
-                  ExpansionTile(
-                    key: PageStorageKey<String>(group.title),
-                    initiallyExpanded: group == kLayoutGroups.first,
-                    shape: const Border(),
-                    collapsedShape: const Border(),
-                    dense: true,
-                    title: Text(group.title, style: theme.textTheme.labelLarge),
-                    children: [
-                      for (final option in group.options)
-                        _OptionRow(
-                          option: option,
-                          value: _shownValue(option),
-                          enabled:
-                              !(pageFitsBox &&
-                                  kPageSizeKeys.contains(option.key)),
-                          onChanged: onChanged,
-                          onCommit: onCommit,
-                        ),
-                    ],
-                  ),
-              ],
-            ),
+          IconButton(
+            tooltip: 'Copiar opções (JSON)',
+            onPressed: onCopy,
+            icon: const Icon(Icons.copy_all, size: 20),
+          ),
+          IconButton(
+            tooltip: 'Restaurar o layout padrão',
+            onPressed: onReset,
+            icon: const Icon(Icons.restart_alt, size: 20),
+          ),
+          IconButton(
+            tooltip: 'Fechar',
+            onPressed: onClose,
+            icon: const Icon(Icons.close, size: 20),
           ),
         ],
       ),
+    );
+  }
+
+  /// A lista rolável: o zoom (se há), a página, e um grupo de opções por
+  /// seção.
+  Widget _body(BuildContext context) {
+    final theme = Theme.of(context);
+    return ListView(
+      children: [
+        if (zoomSection case final zoom?) ...[
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+            child: Text('Zoom', style: theme.textTheme.labelLarge),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4),
+            child: zoom,
+          ),
+        ],
+        SwitchListTile(
+          dense: true,
+          title: const Text('Página acompanha a área'),
+          subtitle: Text(_fitSubtitle()),
+          value: pageFitsBox,
+          onChanged: onFitChanged,
+        ),
+        for (final group in kLayoutGroups)
+          ExpansionTile(
+            key: PageStorageKey<String>(group.title),
+            initiallyExpanded: group == kLayoutGroups.first,
+            shape: const Border(),
+            collapsedShape: const Border(),
+            dense: true,
+            title: Text(group.title, style: theme.textTheme.labelLarge),
+            children: [
+              for (final option in group.options)
+                _OptionRow(
+                  option: option,
+                  value: _shownValue(option),
+                  enabled: !(pageFitsBox && kPageSizeKeys.contains(option.key)),
+                  onChanged: onChanged,
+                  onCommit: onCommit,
+                ),
+            ],
+          ),
+      ],
     );
   }
 
@@ -193,93 +199,103 @@ class _OptionRow extends StatelessWidget {
       color: modified ? theme.colorScheme.primary : null,
       fontWeight: modified ? FontWeight.w600 : null,
     );
-
-    Widget label(Widget trailing) {
-      Widget text = Text(option.label, style: style);
-      if (option.tooltip != null) {
-        text = Tooltip(message: option.tooltip!, child: text);
-      }
-      return Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        child: Row(
-          children: [
-            Expanded(child: text),
-            trailing,
-          ],
-        ),
-      );
-    }
-
     switch (option.kind) {
       case LayoutOptionKind.toggle:
-        return SwitchListTile(
-          dense: true,
-          visualDensity: VisualDensity.compact,
-          title: Text(option.label, style: style),
-          value: value as bool,
-          onChanged: (v) {
-            onChanged(option.key, v);
-            onCommit();
-          },
-        );
+        return _toggle(style);
       case LayoutOptionKind.choice:
-        return label(
-          DropdownButton<String>(
-            isDense: true,
-            value: value as String,
-            style: style.copyWith(color: theme.colorScheme.onSurface),
-            items: [
-              for (final c in option.choices)
-                DropdownMenuItem(value: c, child: Text(c)),
-            ],
-            onChanged: (v) {
-              if (v == null) return;
-              onChanged(option.key, v);
-              onCommit();
-            },
-          ),
-        );
+        return _labelRow(_choice(theme, style), style);
       case LayoutOptionKind.integer:
       case LayoutOptionKind.decimal:
-        final isInt = option.kind == LayoutOptionKind.integer;
-        // Decimals: hundredths for the 0–1 style ranges, tenths otherwise.
-        final decimals = isInt ? 0 : (option.max - option.min <= 1.5 ? 2 : 1);
-        final step = isInt ? 1.0 : (decimals == 2 ? 0.01 : 0.1);
-        final lo = option.min.toDouble();
-        final hi = (option.softMax ?? option.max).toDouble();
-        final steps = ((hi - lo) / step).round();
-        final number = (value as num).toDouble();
-        return Column(
-          children: [
-            label(
-              Text(
-                isInt ? '${number.round()}' : number.toStringAsFixed(decimals),
-                style: style,
-              ),
-            ),
-            SliderTheme(
-              data: SliderTheme.of(context).copyWith(
-                trackHeight: 2,
-                overlayShape: const RoundSliderOverlayShape(overlayRadius: 12),
-              ),
-              child: Slider(
-                value: number.clamp(lo, hi),
-                min: lo,
-                max: hi,
-                divisions: steps <= 1000 ? steps : null,
-                onChanged: enabled
-                    ? (v) => onChanged(
-                        option.key,
-                        isInt
-                            ? v.round()
-                            : double.parse(v.toStringAsFixed(decimals)),
-                      )
-                    : null,
-                onChangeEnd: enabled ? (_) => onCommit() : null,
-              ),
-            ),
-          ],
-        );
+        return _number(context, style);
     }
+  }
+
+  /// Um interruptor, com o rótulo na própria linha.
+  Widget _toggle(TextStyle style) => SwitchListTile(
+    dense: true,
+    visualDensity: VisualDensity.compact,
+    title: Text(option.label, style: style),
+    value: value as bool,
+    onChanged: (v) {
+      onChanged(option.key, v);
+      onCommit();
+    },
+  );
+
+  /// A escolha entre as opções da lista (o menu suspenso).
+  Widget _choice(ThemeData theme, TextStyle style) => DropdownButton<String>(
+    isDense: true,
+    value: value as String,
+    style: style.copyWith(color: theme.colorScheme.onSurface),
+    items: [
+      for (final c in option.choices)
+        DropdownMenuItem(value: c, child: Text(c)),
+    ],
+    onChanged: (v) {
+      if (v == null) return;
+      onChanged(option.key, v);
+      onCommit();
+    },
+  );
+
+  /// O rótulo da opção, com [trailing] (o menu, ou o valor) à direita.
+  Widget _labelRow(Widget trailing, TextStyle style) {
+    Widget text = Text(option.label, style: style);
+    if (option.tooltip != null) {
+      text = Tooltip(message: option.tooltip!, child: text);
+    }
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Row(
+        children: [
+          Expanded(child: text),
+          trailing,
+        ],
+      ),
+    );
+  }
+
+  /// Um número (inteiro, ou decimal) com o valor escrito e um deslizador.
+  Widget _number(BuildContext context, TextStyle style) {
+    final isInt = option.kind == LayoutOptionKind.integer;
+    // Decimals: hundredths for the 0–1 style ranges, tenths otherwise.
+    final decimals = isInt ? 0 : (option.max - option.min <= 1.5 ? 2 : 1);
+    final step = isInt ? 1.0 : (decimals == 2 ? 0.01 : 0.1);
+    final lo = option.min.toDouble();
+    final hi = (option.softMax ?? option.max).toDouble();
+    final steps = ((hi - lo) / step).round();
+    final number = (value as num).toDouble();
+    return Column(
+      children: [
+        _labelRow(
+          Text(
+            isInt ? '${number.round()}' : number.toStringAsFixed(decimals),
+            style: style,
+          ),
+          style,
+        ),
+        SliderTheme(
+          data: SliderTheme.of(context).copyWith(
+            trackHeight: 2,
+            overlayShape: const RoundSliderOverlayShape(overlayRadius: 12),
+          ),
+          child: Slider(
+            value: number.clamp(lo, hi),
+            min: lo,
+            max: hi,
+            divisions: steps <= 1000 ? steps : null,
+            onChanged: enabled
+                ? (v) => onChanged(
+                    option.key,
+                    isInt
+                        ? v.round()
+                        : double.parse(v.toStringAsFixed(decimals)),
+                  )
+                : null,
+            onChangeEnd: enabled ? (_) => onCommit() : null,
+          ),
+        ),
+      ],
+    );
   }
 }

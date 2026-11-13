@@ -59,11 +59,13 @@ void main() {
       bool appIsSound = false,
       bool alreadyAsked = false,
     }) => shouldAutoCheckTranspose(
-      transposition: transposition,
-      deviceName: deviceName,
-      behavior: behavior,
-      appIsSound: appIsSound,
-      alreadyAsked: alreadyAsked,
+      state: AutoCheckState(
+        transposition: transposition,
+        deviceName: deviceName,
+        behavior: behavior,
+        appIsSound: appIsSound,
+        alreadyAsked: alreadyAsked,
+      ),
     );
 
     test('transposta, teclado conectado e não conferido: abre', () {
@@ -120,19 +122,21 @@ void main() {
               onPressed: () async {
                 result = await showTransposeCheck(
                   context,
-                  transposition: minorThird,
-                  deviceName: 'Yamaha',
-                  input: input,
-                  previous: previous,
-                  keyTimeout: keyTimeout,
-                  inputGap: const Duration(milliseconds: 100),
-                  playOwnSound: (pitch) async {
-                    ownSounds.add(pitch);
-                    return ownSound;
-                  },
-                  playOnKeyboard: keyboardOutput
-                      ? (pitch) async => keyboardSounds.add(pitch)
-                      : null,
+                  request: TransposeCheckRequest(
+                    transposition: minorThird,
+                    deviceName: 'Yamaha',
+                    input: input,
+                    previous: previous,
+                    keyTimeout: keyTimeout,
+                    inputGap: const Duration(milliseconds: 100),
+                    playOwnSound: (pitch) async {
+                      ownSounds.add(pitch);
+                      return ownSound;
+                    },
+                    playOnKeyboard: keyboardOutput
+                        ? (pitch) async => keyboardSounds.add(pitch)
+                        : null,
+                  ),
                 );
                 closed = true;
               },
@@ -405,11 +409,13 @@ void main() {
       // E a conferência não reabre sozinha para quem já foi conferido.
       expect(
         shouldAutoCheckTranspose(
-          transposition: Transposition.parse('-m3'),
-          deviceName: 'Yamaha',
-          behavior: settings.keyboardTransposeOf('Yamaha'),
-          appIsSound: false,
-          alreadyAsked: false,
+          state: AutoCheckState(
+            transposition: Transposition.parse('-m3'),
+            deviceName: 'Yamaha',
+            behavior: settings.keyboardTransposeOf('Yamaha'),
+            appIsSound: false,
+            alreadyAsked: false,
+          ),
         ),
         isFalse,
       );

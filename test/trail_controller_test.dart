@@ -50,7 +50,7 @@ TrailPlan _plan() => TrailPlan.build(
     _ev(2, 4200),
   ]),
   n: 5,
-  includeFinal: false,
+  options: TrailPlanOptions(includeFinal: false),
 );
 
 StageResult _pct(int hits, int total) =>

@@ -111,10 +111,12 @@ void main() {
       await open(tester, (context) {
         showStageSummary(
           context,
-          stageRef: 'Trecho 1/3',
-          result: const StageResult(hits: 6, total: 10, badMeasures: {}),
-          badLogical: const [1, 2, 3, 6],
-          isLast: false,
+          StageSummaryInfo(
+            stageRef: 'Trecho 1/3',
+            result: const StageResult(hits: 6, total: 10, badMeasures: {}),
+            badLogical: const [1, 2, 3, 6],
+            isLast: false,
+          ),
         );
         return const SizedBox();
       });
@@ -128,10 +130,12 @@ void main() {
       await open(tester, (context) {
         showStageSummary(
           context,
-          stageRef: 'Trecho 1/3',
-          result: const StageResult(hits: 10, total: 10, badMeasures: {}),
-          badLogical: const [],
-          isLast: false,
+          StageSummaryInfo(
+            stageRef: 'Trecho 1/3',
+            result: const StageResult(hits: 10, total: 10, badMeasures: {}),
+            badLogical: const [],
+            isLast: false,
+          ),
         );
         return const SizedBox();
       });

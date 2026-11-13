@@ -32,14 +32,7 @@ class PhoneSidePanel extends StatelessWidget {
     final width = MediaQuery.sizeOf(context).width;
     return Stack(
       children: [
-        if (scrim)
-          Positioned.fill(
-            child: GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTap: onClose,
-              child: const ColoredBox(color: kScrim),
-            ),
-          ),
+        if (scrim) _scrim(),
         Positioned(
           right: 0,
           top: 0,
@@ -57,30 +50,7 @@ class PhoneSidePanel extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Expanded(
-                          child: Text(
-                            title,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w600,
-                              color: kInk,
-                            ),
-                          ),
-                        ),
-                        IconButton(
-                          tooltip: 'Fechar',
-                          onPressed: onClose,
-                          iconSize: 20,
-                          color: kIconQuiet,
-                          icon: const Icon(Icons.close),
-                        ),
-                      ],
-                    ),
+                    _header(),
                     Expanded(child: child),
                   ],
                 ),
@@ -91,6 +61,41 @@ class PhoneSidePanel extends StatelessWidget {
       ],
     );
   }
+
+  /// O véu que fecha o painel ao toque (só quando há [scrim]).
+  Widget _scrim() => Positioned.fill(
+    child: GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onClose,
+      child: const ColoredBox(color: kScrim),
+    ),
+  );
+
+  /// O título do painel e o botão de fechar.
+  Widget _header() => Row(
+    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+    children: [
+      Expanded(
+        child: Text(
+          title,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w600,
+            color: kInk,
+          ),
+        ),
+      ),
+      IconButton(
+        tooltip: 'Fechar',
+        onPressed: onClose,
+        iconSize: 20,
+        color: kIconQuiet,
+        icon: const Icon(Icons.close),
+      ),
+    ],
+  );
 }
 
 /// Um painel lateral como rota modal: devolve o que o corpo [builder] der em

@@ -34,82 +34,25 @@ Future<InstalledLibrary?> installLibraryFromFile(
 }) async {
   final messenger = ScaffoldMessenger.of(context);
   final navigator = Navigator.of(context, rootNavigator: true);
-
-  Future<T> whileBusy<T>(String message, Future<T> Function() work) async {
-    unawaited(
-      showDialog<void>(
-        context: navigator.context,
-        barrierDismissible: false,
-        builder: (_) => _BusyDialog(message),
-      ),
-    );
-    try {
-      return await work();
-    } finally {
-      navigator.pop();
-    }
-  }
-
-  Future<void> showError(String message) => showDialog<void>(
-    context: navigator.context,
-    builder: (context) => AlertDialog(
-      title: const Text('Não deu para instalar'),
-      content: Text(message),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text('OK'),
-        ),
-      ],
-    ),
-  );
-
   try {
     final Uint8List? bytes;
     try {
       bytes = await pick();
     } on Object catch (e) {
-      await showError('Não consegui abrir o seletor de arquivos: $e');
+      await _showInstallError(
+        navigator,
+        'Não consegui abrir o seletor de arquivos: $e',
+      );
       return null;
     }
     if (bytes == null) return null;
 
-    final LibraryPackage package;
-    try {
-      package = await whileBusy(
-        'Lendo a biblioteca…',
-        () => store.inspect(bytes!),
-      );
-    } on LibraryFormatException catch (e) {
-      await showError(e.message);
-      return null;
-    }
+    final package = await _inspectOrReport(navigator, store, bytes);
+    if (package == null) return null;
+    if (!await _confirmReplace(navigator, store, package)) return null;
 
-    final installed = store[package.manifest.id];
-    if (installed != null) {
-      if (!navigator.mounted) return null;
-      final replace = await showDialog<bool>(
-        context: navigator.context,
-        builder: (context) =>
-            _ReplaceDialog(installed: installed, incoming: package),
-      );
-      if (replace != true) return null;
-    }
-
-    final InstalledLibrary library;
-    try {
-      library = await whileBusy(
-        'Instalando…',
-        () => store.install(bytes!, inspected: package),
-      );
-    } on Object catch (e) {
-      await showError(
-        e is LibraryFormatException
-            ? e.message
-            : 'Não consegui guardar a biblioteca: $e',
-      );
-      return null;
-    }
+    final library = await _installOrReport(navigator, store, bytes, package);
+    if (library == null) return null;
     final count = library.pieceCount;
     messenger.showSnackBar(
       SnackBar(
@@ -125,6 +68,104 @@ Future<InstalledLibrary?> installLibraryFromFile(
     return null;
   }
 }
+
+/// Lê a biblioteca escolhida, com o aviso de "Lendo…". Se ela não é uma
+/// biblioteca, explica e devolve `null`.
+Future<LibraryPackage?> _inspectOrReport(
+  NavigatorState navigator,
+  LibraryStore store,
+  Uint8List bytes,
+) async {
+  try {
+    return await _whileBusy(
+      navigator,
+      'Lendo a biblioteca…',
+      () => store.inspect(bytes),
+    );
+  } on LibraryFormatException catch (e) {
+    await _showInstallError(navigator, e.message);
+    return null;
+  }
+}
+
+/// Se a biblioteca já está instalada, pergunta se a substitui. `false` se não
+/// substitui (ou se a tela já saiu).
+Future<bool> _confirmReplace(
+  NavigatorState navigator,
+  LibraryStore store,
+  LibraryPackage package,
+) async {
+  final installed = store[package.manifest.id];
+  if (installed == null) return true;
+  if (!navigator.mounted) return false;
+  final replace = await showDialog<bool>(
+    context: navigator.context,
+    builder: (context) =>
+        _ReplaceDialog(installed: installed, incoming: package),
+  );
+  return replace == true;
+}
+
+/// Grava a biblioteca, com o aviso de "Instalando…". Se não grava, explica e
+/// devolve `null`.
+Future<InstalledLibrary?> _installOrReport(
+  NavigatorState navigator,
+  LibraryStore store,
+  Uint8List bytes,
+  LibraryPackage package,
+) async {
+  try {
+    return await _whileBusy(
+      navigator,
+      'Instalando…',
+      () => store.install(bytes, inspected: package),
+    );
+  } on Object catch (e) {
+    await _showInstallError(
+      navigator,
+      e is LibraryFormatException
+          ? e.message
+          : 'Não consegui guardar a biblioteca: $e',
+    );
+    return null;
+  }
+}
+
+/// Roda [work] com a janela de espera aberta por cima da tela.
+Future<T> _whileBusy<T>(
+  NavigatorState navigator,
+  String message,
+  Future<T> Function() work,
+) async {
+  unawaited(
+    showDialog<void>(
+      context: navigator.context,
+      barrierDismissible: false,
+      builder: (_) => _BusyDialog(message),
+    ),
+  );
+  try {
+    return await work();
+  } finally {
+    navigator.pop();
+  }
+}
+
+/// O aviso de que a instalação não deu certo, com a explicação [message].
+Future<void> _showInstallError(NavigatorState navigator, String message) =>
+    showDialog<void>(
+      context: navigator.context,
+      builder: (context) => AlertDialog(
+        title: const Text('Não deu para instalar'),
+        content: Text(message),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
 
 class _BusyDialog extends StatelessWidget {
   const _BusyDialog(this.message);

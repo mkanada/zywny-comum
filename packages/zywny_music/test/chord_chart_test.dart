@@ -22,55 +22,116 @@ String _name(ChartSlot slot) =>
     slot.chord?.label(ChordNotation.american) ?? '-';
 
 void main() {
-  group('repetições', () {
-    test('|: C | Am | F G | C :| expande em 8 compassos', () {
-      final chart = _grade('|: C | Am | F G | C :|');
-      final played = chart.expand();
-      expect(played, hasLength(8));
-      expect(played.map((p) => p.writtenBar), [0, 1, 2, 3, 0, 1, 2, 3]);
-      expect(played.map((p) => p.chorus), [1, 1, 1, 1, 2, 2, 2, 2]);
-    });
+  _parte5();
+  _parte6();
+  _parte7();
+  _parte8();
+}
 
-    test('F e G de 2 tempos cada, nas duas voltas', () {
-      final slots = _grade('|: C | Am | F G | C :|').slots();
-      expect(slots, hasLength(10));
-      final fg = slots.where((s) => _name(s) == 'F' || _name(s) == 'G');
-      expect(fg, hasLength(4));
-      for (final slot in fg) {
-        expect(slot.beats, 2);
-      }
-      // Cada compasso de 4/4 tem 4 tempos: a 8ª ocorrência começa no 28.
-      expect(slots.last.startBeat, 28);
-      expect(slots.last.barOccurrence, 7);
-    });
-
-    test(':| x3 toca a repetição três vezes', () {
-      final played = _grade('|: C | G :| x3').expand();
-      expect(played.map((p) => p.writtenBar), [0, 1, 0, 1, 0, 1]);
-      expect(played.map((p) => p.chorus), [1, 1, 2, 2, 3, 3]);
-    });
-
-    test('sem |:, a repetição começa no primeiro compasso', () {
-      final played = _grade('C | Am :|').expand();
-      expect(played.map((p) => p.writtenBar), [0, 1, 0, 1]);
-    });
-
-    test('a 1ª e a 2ª casa: a 1ª na primeira volta, a 2ª na última', () {
-      // A casa vai até o `]`; sem ele, a 2ª casa engole o compasso seguinte.
-      final chart = _grade('|: C | Am [1 F :| [2 G ] | C |');
-      final played = chart.expand();
-      expect(played, [
-        const PlayedBar(writtenBar: 0, chorus: 1),
-        const PlayedBar(writtenBar: 1, chorus: 1),
-        const PlayedBar(writtenBar: 2, chorus: 1),
-        const PlayedBar(writtenBar: 0, chorus: 2),
-        const PlayedBar(writtenBar: 1, chorus: 2),
-        const PlayedBar(writtenBar: 3, chorus: 2),
-        const PlayedBar(writtenBar: 4, chorus: 1),
-      ]);
-    });
+void _parte1() {
+  test('|: C | Am | F G | C :| expande em 8 compassos', () {
+    final chart = _grade('|: C | Am | F G | C :|');
+    final played = chart.expand();
+    expect(played, hasLength(8));
+    expect(played.map((p) => p.writtenBar), [0, 1, 2, 3, 0, 1, 2, 3]);
+    expect(played.map((p) => p.chorus), [1, 1, 1, 1, 2, 2, 2, 2]);
   });
+  test('F e G de 2 tempos cada, nas duas voltas', () {
+    final slots = _grade('|: C | Am | F G | C :|').slots();
+    expect(slots, hasLength(10));
+    final fg = slots.where((s) => _name(s) == 'F' || _name(s) == 'G');
+    expect(fg, hasLength(4));
+    for (final slot in fg) {
+      expect(slot.beats, 2);
+    }
+    // Cada compasso de 4/4 tem 4 tempos: a 8ª ocorrência começa no 28.
+    expect(slots.last.startBeat, 28);
+    expect(slots.last.barOccurrence, 7);
+  });
+  test(':| x3 toca a repetição três vezes', () {
+    final played = _grade('|: C | G :| x3').expand();
+    expect(played.map((p) => p.writtenBar), [0, 1, 0, 1, 0, 1]);
+    expect(played.map((p) => p.chorus), [1, 1, 2, 2, 3, 3]);
+  });
+  test('sem |:, a repetição começa no primeiro compasso', () {
+    final played = _grade('C | Am :|').expand();
+    expect(played.map((p) => p.writtenBar), [0, 1, 0, 1]);
+  });
+}
 
+void _parte2() {
+  test('a 1ª e a 2ª casa: a 1ª na primeira volta, a 2ª na última', () {
+    // A casa vai até o `]`; sem ele, a 2ª casa engole o compasso seguinte.
+    final chart = _grade('|: C | Am [1 F :| [2 G ] | C |');
+    final played = chart.expand();
+    expect(played, [
+      const PlayedBar(writtenBar: 0, chorus: 1),
+      const PlayedBar(writtenBar: 1, chorus: 1),
+      const PlayedBar(writtenBar: 2, chorus: 1),
+      const PlayedBar(writtenBar: 0, chorus: 2),
+      const PlayedBar(writtenBar: 1, chorus: 2),
+      const PlayedBar(writtenBar: 3, chorus: 2),
+      const PlayedBar(writtenBar: 4, chorus: 1),
+    ]);
+  });
+}
+
+void _parte3() {
+  test('uma cifra inválida dá a coluna e não devolve a grade', () {
+    final errors = <(String, int)>[];
+    final chart = ChordChart.parse(
+      '| C | Hm |',
+      key: KeySpec.parse('C')!,
+      error: (message, col) => errors.add((message, col)),
+    );
+    expect(chart, isNull);
+    expect(errors, hasLength(1));
+    expect(errors.single.$1, contains('`Hm` não é uma cifra'));
+    expect(errors.single.$2, 7);
+  });
+  test('|: sem :| que a feche é erro', () {
+    final errors = <(String, int)>[];
+    final chart = ChordChart.parse(
+      '|: C | G',
+      key: KeySpec.parse('C')!,
+      error: (message, col) => errors.add((message, col)),
+    );
+    expect(chart, isNull);
+    expect(errors.single.$1, contains('sem um `:|`'));
+    expect(errors.single.$2, 1);
+  });
+  test('um compasso de tempo desconhecido é recusado', () {
+    final errors = <String>[];
+    final chart = ChordChart.parse(
+      '| C |',
+      key: KeySpec.parse('C')!,
+      time: '5/16',
+      error: (message, col) => errors.add(message),
+    );
+    expect(chart, isNull);
+    expect(errors.single, contains('5/16'));
+  });
+}
+
+void _parte4() {
+  test('uma grade sem compassos é recusada', () {
+    final errors = <String>[];
+    final chart = ChordChart.parse(
+      '   \n',
+      key: KeySpec.parse('C')!,
+      error: (message, col) => errors.add(message),
+    );
+    expect(chart, isNull);
+    expect(errors, ['a grade não tem compassos']);
+  });
+}
+
+// Testes: repetições · tempo e acordes
+void _parte5() {
+  group('repetições', () {
+    _parte1();
+    _parte2();
+  });
   group('tempo e acordes', () {
     test('| F . G . | dá F F G G, um tempo cada', () {
       final slots = _grade('| F . G . |').slots();
@@ -102,7 +163,10 @@ void main() {
       expect(slot.degree, 'N.C.');
     });
   });
+}
 
+// Testes: graus
+void _parte6() {
   group('graus', () {
     test('em F, ii7 V7 I resolve em Gm7 C7 F', () {
       final chart = _grade('| ii7 V7 | I |', key: 'F');
@@ -120,7 +184,10 @@ void main() {
       expect(slots.map((s) => s.degree), ['V7', 'vi', 'IV']);
     });
   });
+}
 
+// Testes: biblioteca (fromProgression) · seções
+void _parte7() {
   group('biblioteca (fromProgression)', () {
     test('blues-12 em G, com bars: 24, repete a progressão duas vezes', () {
       final chart = ChordChart.fromProgression(
@@ -153,7 +220,6 @@ void main() {
       );
     });
   });
-
   group('seções', () {
     test('A: e B: começam seções nos compassos certos', () {
       final chart = _grade('A: | C | Am |\nB: | F | G |');
@@ -163,7 +229,10 @@ void main() {
       ]);
     });
   });
+}
 
+// Testes: transposição · erros
+void _parte8() {
   group('transposição', () {
     test('C para E♭ escreve A♭ (e não G♯), e G♯ vira B', () {
       final chart = _grade('| F | G# |').transposedTo(KeySpec.parse('Eb')!);
@@ -189,54 +258,8 @@ void main() {
       expect(chord.bassSpelling, 'C');
     });
   });
-
   group('erros', () {
-    test('uma cifra inválida dá a coluna e não devolve a grade', () {
-      final errors = <(String, int)>[];
-      final chart = ChordChart.parse(
-        '| C | Hm |',
-        key: KeySpec.parse('C')!,
-        error: (message, col) => errors.add((message, col)),
-      );
-      expect(chart, isNull);
-      expect(errors, hasLength(1));
-      expect(errors.single.$1, contains('`Hm` não é uma cifra'));
-      expect(errors.single.$2, 7);
-    });
-
-    test('|: sem :| que a feche é erro', () {
-      final errors = <(String, int)>[];
-      final chart = ChordChart.parse(
-        '|: C | G',
-        key: KeySpec.parse('C')!,
-        error: (message, col) => errors.add((message, col)),
-      );
-      expect(chart, isNull);
-      expect(errors.single.$1, contains('sem um `:|`'));
-      expect(errors.single.$2, 1);
-    });
-
-    test('um compasso de tempo desconhecido é recusado', () {
-      final errors = <String>[];
-      final chart = ChordChart.parse(
-        '| C |',
-        key: KeySpec.parse('C')!,
-        time: '5/16',
-        error: (message, col) => errors.add(message),
-      );
-      expect(chart, isNull);
-      expect(errors.single, contains('5/16'));
-    });
-
-    test('uma grade sem compassos é recusada', () {
-      final errors = <String>[];
-      final chart = ChordChart.parse(
-        '   \n',
-        key: KeySpec.parse('C')!,
-        error: (message, col) => errors.add(message),
-      );
-      expect(chart, isNull);
-      expect(errors, ['a grade não tem compassos']);
-    });
+    _parte3();
+    _parte4();
   });
 }

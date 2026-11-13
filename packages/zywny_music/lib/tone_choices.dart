@@ -85,8 +85,7 @@ List<ToneChoice> toneChoices(
         transposition: Transposition.toFifths(
           fifths,
           target,
-          lowest: lowest,
-          highest: highest,
+          range: (lowest: lowest, highest: highest),
         ),
       ),
   ];

@@ -12,6 +12,11 @@ List<int> _slotsOf(BackingStyle style, String letter) {
 }
 
 void main() {
+  _parte1();
+  _parte2();
+}
+
+void _parte1() {
   test(
     'todo molde de bateria cabe em grid × bars e só usa peças conhecidas',
     () {
@@ -24,7 +29,6 @@ void main() {
       }
     },
   );
-
   test('todo molde de baixo cabe em grid × bars e fica no grau certo', () {
     for (final style in kBackingStyles) {
       if (style.bass == null) continue;
@@ -33,7 +37,6 @@ void main() {
       expect(symbols!.length, style.grid * style.bars, reason: style.name);
     }
   });
-
   test('os nomes dos estilos são únicos e a tabela os acha', () {
     expect(backingStyleNames.toSet().length, backingStyleNames.length);
     for (final name in backingStyleNames) {
@@ -41,14 +44,15 @@ void main() {
     }
     expect(backingStyleNamed('nao-existe'), isNull);
   });
-
   test('straight: bumbo 1 e 3, caixa 2 e 4, chimbal em colcheias', () {
     final style = backingStyleNamed('straight')!;
     expect(_slotsOf(style, 'k'), [0, 4]);
     expect(_slotsOf(style, 's'), [2, 6]);
     expect(_slotsOf(style, 'h'), [0, 1, 2, 3, 4, 5, 6, 7]);
   });
+}
 
+void _parte2() {
   test('salsa-3-2 e salsa-2-3: as claves nas posições do son (colcheias, 2 compassos)', () {
     // O son 3-2 tem três toques no primeiro compasso e dois no segundo; o 2-3
     // é o contrário. Em colcheias, com o compasso 2 começando na 8ª:
@@ -57,7 +61,6 @@ void main() {
     expect(_slotsOf(backingStyleNamed('salsa-3-2')!, 'l'), [0, 3, 6, 10, 12]);
     expect(_slotsOf(backingStyleNamed('salsa-2-3')!, 'l'), [2, 4, 8, 11, 14]);
   });
-
   test('o estilo do molde de comping: valsa, seis-oito e shuffle', () {
     expect(backingStyleFor(compingPatternNamed('oom-pah-pah')!).name, 'waltz');
     expect(
@@ -69,7 +72,6 @@ void main() {
     expect(backingStyleFor(compingPatternNamed('oom-pah')!).name, 'straight');
     expect(backingStyleFor(kAnyCompingPattern).name, 'straight');
   });
-
   test('parseDrumLine recusa molde do tamanho errado ou peça desconhecida', () {
     expect(parseDrumLine('k . s', slots: 4), isNull);
     expect(parseDrumLine('k . s Q', slots: 3), isNull);

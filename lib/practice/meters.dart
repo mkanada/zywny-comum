@@ -150,8 +150,7 @@ MeterResult meterLegato(MeterInput input, {double? target}) {
     '${holes > 0 ? '; $holes com buraco' : ''}'
     '${blurs > 0 ? '; $blurs borradas' : ''}'
     '${_atMeasures(list)}.',
-    target: target,
-    measures: list,
+    _Goal(target: target, measures: list),
   );
 }
 
@@ -181,8 +180,7 @@ MeterResult meterStaccato(MeterInput input, {double? target}) {
     short * 100 / total,
     '$short de $total staccatos soaram curtos'
     '${long > 0 ? '; $long soaram longos' : ''}${_atMeasures(list)}.',
-    target: target,
-    measures: list,
+    _Goal(target: target, measures: list),
   );
 }
 
@@ -195,9 +193,29 @@ MeterResult meterDynamics(MeterInput input, {double? target}) {
   const id = 'dynamics';
   if (input.matches.isEmpty) return _nothing(id);
   if (_keyboardSilent(input)) return _silentKeyboard(id);
+  final levels = _levelChecks(input);
+  final wedges = _wedgeChecks(input);
+  final checked = levels.checked + wedges.checked;
+  if (checked == 0) return _nothing(id);
+  final right = levels.right + wedges.right;
+  final list = _sorted({...levels.measures, ...wedges.measures});
+  return _judged(
+    id,
+    right * 100 / checked,
+    '$right de $checked trechos de dinâmica certos${_atMeasures(list)}.',
+    _Goal(target: target, measures: list),
+  );
+}
+
+/// As contas de um critério de dinâmica: quantas verificações, quantas certas
+/// e em que compassos a errada caiu.
+typedef _Tally = ({int checked, int right, Set<int> measures});
+
+/// Dinâmica por nível: entre dois trechos de marca diferente (fora das
+/// cunhas), a ordem tem de seguir a das marcas e a diferença ter pelo menos 12.
+_Tally _levelChecks(MeterInput input) {
   var checked = 0, right = 0;
   final measures = <int>{};
-
   final marks = [...input.marks.dynamics]
     ..sort((a, b) => a.atMs.compareTo(b.atMs));
   final wedges = input.marks.wedges;
@@ -228,8 +246,15 @@ MeterResult meterDynamics(MeterInput input, {double? target}) {
     }
     previous = (median: median, level: level);
   }
+  return (checked: checked, right: right, measures: measures);
+}
 
-  for (final wedge in wedges) {
+/// Dinâmica nas cunhas: no crescendo e no diminuendo, a inclinação da velocity
+/// no trecho tem de ter o sinal certo.
+_Tally _wedgeChecks(MeterInput input) {
+  var checked = 0, right = 0;
+  final measures = <int>{};
+  for (final wedge in input.marks.wedges) {
     final points = [
       for (final m in input.matches)
         if (m.written.onMs >= wedge.startMs && m.written.onMs < wedge.endMs) m,
@@ -244,16 +269,7 @@ MeterResult meterDynamics(MeterInput input, {double? target}) {
       measures.add(_measureOf(input, wedge.startMs));
     }
   }
-
-  if (checked == 0) return _nothing(id);
-  final list = _sorted(measures);
-  return _judged(
-    id,
-    right * 100 / checked,
-    '$right de $checked trechos de dinâmica certos${_atMeasures(list)}.',
-    target: target,
-    measures: list,
-  );
+  return (checked: checked, right: right, measures: measures);
 }
 
 /// Equilíbrio: a velocity mediana da melodia menos a do acompanhamento, em cada
@@ -292,8 +308,7 @@ MeterResult meterBalance(MeterInput input, {double? target}) {
     value,
     '$sentence${target == null ? '' : ' (alvo ${target.round()})'}'
     '${_atMeasures(list)}.',
-    target: target,
-    measures: list,
+    _Goal(target: target, measures: list),
   );
 }
 
@@ -344,8 +359,7 @@ MeterResult meterPedal(MeterInput input, {double? target}) {
     '${total - smears - gaps} de $total trocas de pedal limpas'
     '${smears > 0 ? '; $smears borradas' : ''}'
     '${gaps > 0 ? '; $gaps com buraco' : ''}${_atMeasures(list)}.',
-    target: target,
-    measures: list,
+    _Goal(target: target, measures: list),
   );
 }
 
@@ -370,8 +384,7 @@ MeterResult meterSteadiness(MeterInput input, {double? target}) {
     id,
     sd,
     'desvio de ${sd.round()} ms; $lean.',
-    target: target,
-    lowerIsBetter: true,
+    _Goal(target: target, lowerIsBetter: true),
   );
 }
 
@@ -446,8 +459,7 @@ MeterResult meterAccents(MeterInput input, {double? target}) {
     value,
     '$sentence${target == null ? '' : ' (alvo ${target.round()})'}'
     '${_atMeasures(list)}.',
-    target: target,
-    measures: list,
+    _Goal(target: target, measures: list),
   );
 }
 
@@ -484,8 +496,7 @@ MeterResult meterChoruses(MeterInput input, {double? target}) {
     best.toDouble(),
     '$best ${best == 1 ? 'volta seguida' : 'voltas seguidas'} sem erro, '
     'de $complete completas${_atMeasures(list)}.',
-    target: target,
-    measures: list,
+    _Goal(target: target, measures: list),
   );
 }
 
@@ -524,17 +535,25 @@ bool _keyboardSilent(MeterInput input) {
   return notes.length >= 2 && notes.map((n) => n.velocity).toSet().length == 1;
 }
 
-MeterResult _judged(
-  String id,
-  double value,
-  String sentence, {
-  double? target,
-  bool lowerIsBetter = false,
-  List<int> measures = const [],
-}) {
+/// A meta de uma medida: o alvo (se há), se menor é melhor e os compassos que
+/// a medida acusa (para a legenda).
+class _Goal {
+  const _Goal({
+    this.target,
+    this.lowerIsBetter = false,
+    this.measures = const [],
+  });
+
+  final double? target;
+  final bool lowerIsBetter;
+  final List<int> measures;
+}
+
+MeterResult _judged(String id, double value, String sentence, _Goal goal) {
+  final target = goal.target;
   final passed = target == null
       ? null
-      : lowerIsBetter
+      : goal.lowerIsBetter
       ? value <= target
       : value >= target;
   return MeterResult(
@@ -543,7 +562,7 @@ MeterResult _judged(
     target: target,
     passed: passed,
     sentence: sentence,
-    measures: measures,
+    measures: goal.measures,
   );
 }
 

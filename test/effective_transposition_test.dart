@@ -36,19 +36,12 @@ void main() {
     int? lowest,
     int? highest,
   }) {
-    final t = lowest == null
-        ? effectiveTransposition(
-            _piece(fifths: fifths),
-            PieceSettings(transpose: choice),
-            general(byDefault: byDefault),
-          )
-        : effectiveTransposition(
-            _piece(fifths: fifths),
-            PieceSettings(transpose: choice),
-            general(byDefault: byDefault),
-            lowest: lowest,
-            highest: highest!,
-          );
+    final t = effectiveTransposition(
+      _piece(fifths: fifths),
+      PieceSettings(transpose: choice),
+      general(byDefault: byDefault),
+      range: lowest == null ? null : (lowest: lowest, highest: highest!),
+    );
     return t?.interval;
   }
 
@@ -132,8 +125,7 @@ void main() {
         _piece(fifths: 6),
         const PieceSettings(),
         general(byDefault: true),
-        lowest: 26,
-        highest: 80,
+        range: (lowest: 26, highest: 80),
       )!;
       expect(low.semitones, 6);
       expect(low.fifthsDelta, -6);
@@ -144,8 +136,7 @@ void main() {
         _piece(fifths: 1),
         const PieceSettings(),
         general(byDefault: true),
-        lowest: 40,
-        highest: 105,
+        range: (lowest: 40, highest: 105),
       )!;
       expect(high.semitones, -7);
       expect(high.fifthsDelta, -1);

@@ -125,12 +125,8 @@ class LibraryManifest {
     this.language,
   });
 
-  factory LibraryManifest.fromJson(Object? json) {
-    if (json is! Map<String, dynamic>) {
-      throw const LibraryFormatException(
-        'O "manifest.json" da biblioteca não é um objeto JSON.',
-      );
-    }
+  /// O formato da biblioteca (um inteiro de 1 até o que este zywny entende).
+  static int _formatOf(Map<String, dynamic> json) {
     final format = json['formato'];
     if (format is! int) {
       throw const LibraryFormatException(
@@ -145,6 +141,16 @@ class LibraryManifest {
     if (format < 1) {
       throw LibraryFormatException('Formato de biblioteca inválido: $format.');
     }
+    return format;
+  }
+
+  factory LibraryManifest.fromJson(Object? json) {
+    if (json is! Map<String, dynamic>) {
+      throw const LibraryFormatException(
+        'O "manifest.json" da biblioteca não é um objeto JSON.',
+      );
+    }
+    final format = _formatOf(json);
     final id = json['id'];
     if (id is! String || !_libraryIdPattern.hasMatch(id)) {
       throw LibraryFormatException(
@@ -206,19 +212,7 @@ class LibraryPackage {
   /// Valida o pacote inteiro; qualquer problema vira uma
   /// [LibraryFormatException] e nada é devolvido pela metade.
   factory LibraryPackage.parse(Uint8List bytes) {
-    final Archive archive;
-    try {
-      // O decodificador do `archive` aceita lixo e devolve um zip vazio;
-      // a assinatura "PK" é o que separa um zip de um arquivo qualquer.
-      if (bytes.length < 4 || bytes[0] != 0x50 || bytes[1] != 0x4B) {
-        throw const FormatException('sem assinatura de zip');
-      }
-      archive = ZipDecoder().decodeBytes(bytes);
-    } catch (_) {
-      throw const LibraryFormatException(
-        'Este arquivo não é uma biblioteca do zywny (não é um .zip válido).',
-      );
-    }
+    final archive = _decodeZip(bytes);
     final files = <String, ArchiveFile>{
       for (final f in archive)
         if (f.isFile) f.name: f,
@@ -232,59 +226,62 @@ class LibraryPackage {
         'O "indice.json" da biblioteca deveria ser uma lista de músicas.',
       );
     }
+    final index = _readIndex(manifest, files, indexJson);
+    return LibraryPackage._(
+      manifest,
+      List.unmodifiable(index.pieces),
+      index.scores,
+      index.simplified,
+    );
+  }
 
+  /// O zip da biblioteca. Um arquivo que não tem a assinatura "PK" não é zip,
+  /// e o decodificador do `archive` aceita lixo e devolve um zip vazio, por
+  /// isso a assinatura é conferida antes.
+  static Archive _decodeZip(Uint8List bytes) {
+    try {
+      if (bytes.length < 4 || bytes[0] != 0x50 || bytes[1] != 0x4B) {
+        throw const FormatException('sem assinatura de zip');
+      }
+      return ZipDecoder().decodeBytes(bytes);
+    } catch (_) {
+      throw const LibraryFormatException(
+        'Este arquivo não é uma biblioteca do zywny (não é um .zip válido).',
+      );
+    }
+  }
+
+  /// O índice, entrada a entrada: as músicas, as partituras (e as simplificadas)
+  /// e, numa biblioteca numerada, os números.
+  static ({
+    List<Piece> pieces,
+    Map<String, ArchiveFile> scores,
+    Map<String, ArchiveFile> simplified,
+  })
+  _readIndex(
+    LibraryManifest manifest,
+    Map<String, ArchiveFile> files,
+    List<Object?> indexJson,
+  ) {
     final pieces = <Piece>[];
     final scores = <String, ArchiveFile>{};
     final simplified = <String, ArchiveFile>{};
     final seenNumbers = <int>{};
     for (var i = 0; i < indexJson.length; i++) {
-      final entry = indexJson[i];
       final where = 'Música ${i + 1} do índice';
+      final entry = indexJson[i];
       if (entry is! Map<String, dynamic>) {
         throw LibraryFormatException('$where não é um objeto JSON.');
       }
-      final id = entry['id'];
-      if (id is! String || !_pieceIdPattern.hasMatch(id)) {
-        throw LibraryFormatException(
-          '$where tem "id" inválido: ${id is String ? '"$id"' : 'ausente'}.',
-        );
-      }
+      final id = _idOf(entry, where);
       if (scores.containsKey(id)) {
         throw LibraryFormatException('O id "$id" aparece mais de uma vez.');
       }
-      final file = files['partituras/$id.musicxml.gz'];
-      if (file == null) {
-        throw LibraryFormatException(
-          'A música "$id" está no índice mas não tem partitura em '
-          '"partituras/$id.musicxml.gz".',
-        );
-      }
-      scores[id] = file;
+      scores[id] = _scoreFile(files, id, 'partituras/$id.musicxml.gz');
       if (entry['s'] == true) {
-        final simple = files['partituras/$id.simples.musicxml.gz'];
-        if (simple == null) {
-          throw LibraryFormatException(
-            'A música "$id" tem versão simplificada no índice, mas não tem '
-            'partitura em "partituras/$id.simples.musicxml.gz".',
-          );
-        }
-        simplified[id] = simple;
+        simplified[id] = _simplifiedFile(files, id);
       }
-
-      Object? n;
-      if (manifest.numbered) {
-        n = entry['n'];
-        if (n is! int) {
-          throw LibraryFormatException(
-            'A biblioteca é numerada, mas a música "$id" não tem número ("n").',
-          );
-        }
-        if (!seenNumbers.add(n)) {
-          throw LibraryFormatException(
-            'O número $n aparece em mais de uma música.',
-          );
-        }
-      }
+      final n = manifest.numbered ? _numberOf(entry, id, seenNumbers) : null;
       for (final field in const ['t', 'c', 'k', 'ck', 'q']) {
         if (entry[field] is! String) {
           throw LibraryFormatException(
@@ -296,12 +293,65 @@ class LibraryPackage {
       // biblioteca sem número usa a posição no índice como número provisório.
       pieces.add(Piece.fromJson({...entry, 'n': n ?? i + 1}));
     }
-    return LibraryPackage._(
-      manifest,
-      List.unmodifiable(pieces),
-      scores,
-      simplified,
-    );
+    return (pieces: pieces, scores: scores, simplified: simplified);
+  }
+
+  /// O id de uma entrada do índice, que tem que ser um nome de arquivo simples.
+  static String _idOf(Map<String, dynamic> entry, String where) {
+    final id = entry['id'];
+    if (id is! String || !_pieceIdPattern.hasMatch(id)) {
+      throw LibraryFormatException(
+        '$where tem "id" inválido: ${id is String ? '"$id"' : 'ausente'}.',
+      );
+    }
+    return id;
+  }
+
+  /// A partitura de [id], que tem que estar no pacote em [path].
+  static ArchiveFile _scoreFile(
+    Map<String, ArchiveFile> files,
+    String id,
+    String path,
+  ) {
+    final file = files[path];
+    if (file == null) {
+      throw LibraryFormatException(
+        'A música "$id" está no índice mas não tem partitura em "$path".',
+      );
+    }
+    return file;
+  }
+
+  /// A versão simplificada de [id] (a entrada diz que ela existe).
+  static ArchiveFile _simplifiedFile(
+    Map<String, ArchiveFile> files,
+    String id,
+  ) {
+    final path = 'partituras/$id.simples.musicxml.gz';
+    final simple = files[path];
+    if (simple == null) {
+      throw LibraryFormatException(
+        'A música "$id" tem versão simplificada no índice, mas não tem '
+        'partitura em "$path".',
+      );
+    }
+    return simple;
+  }
+
+  /// O número de uma música numerada: obrigatório e sem repetir.
+  static int _numberOf(Map<String, dynamic> entry, String id, Set<int> seen) {
+    final n = entry['n'];
+    if (n is! int) {
+      throw LibraryFormatException(
+        'A biblioteca é numerada, mas a música "$id" não tem número ("n").',
+      );
+    }
+    if (!seen.add(n)) {
+      throw LibraryFormatException(
+        'O número $n aparece em mais de uma música.',
+      );
+    }
+    return n;
   }
 
   static Object? _json(

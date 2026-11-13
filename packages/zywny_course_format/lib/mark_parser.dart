@@ -51,9 +51,7 @@ LessonBlock? parseMark(
   final fields = reader.read(
     map,
     kContentMarkKeys[mark.name]!,
-    firstLine: mark.bodyLine,
-    blockLine: mark.line,
-    where: where,
+    FieldBlock(firstLine: mark.bodyLine, blockLine: mark.line, where: where),
   );
   if (fields.failed) return null;
   final before = issues.errorCount;
@@ -135,55 +133,81 @@ bool _keyRules(Fields f, FileIssues issues) {
 /// `transpose` e o `student` (a parte do aluno). Devolve `false` se algo não
 /// vale; o erro já foi dado em [issues].
 bool _playScoreT18Rules(Fields f, ScoreSource source, FileIssues issues) {
-  var ok = true;
-  final file = f.get<String>('file');
   final cumulative = f.has('practice');
   final sequence = f.get<String>('hand') == 'sequence';
-  if (file != null && file.toLowerCase().endsWith('.mxl')) {
-    if (f.has('keys') || f.has('cycle') || cumulative) {
-      issues.error(
-        f.lineOf('file'),
-        'um `.mxl` não vale com `keys`, `cycle` nem `practice: cumulative`: '
-        'use o `.musicxml` descompactado.',
-      );
-      ok = false;
-    }
-  }
-  if (f.has('transpose') && (f.has('keys') || f.has('cycle'))) {
+  // Cada regra confere o que lhe cabe, sem parar na primeira.
+  final mxl = _mxlRules(f, cumulative, issues);
+  final transpose = _transposeRules(f, issues);
+  final student =
+      !f.has('student') ||
+      _studentRules(f, source, issues, cumulative || sequence);
+  return mxl && transpose && student;
+}
+
+/// Um `.mxl` não vale com `keys`, `cycle` nem `practice: cumulative`.
+bool _mxlRules(Fields f, bool cumulative, FileIssues issues) {
+  final file = f.get<String>('file');
+  if (file == null || !file.toLowerCase().endsWith('.mxl')) return true;
+  if (!f.has('keys') && !f.has('cycle') && !cumulative) return true;
+  issues.error(
+    f.lineOf('file'),
+    'um `.mxl` não vale com `keys`, `cycle` nem `practice: cumulative`: '
+    'use o `.musicxml` descompactado.',
+  );
+  return false;
+}
+
+/// `transpose` não vale junto com `keys` nem `cycle`.
+bool _transposeRules(Fields f, FileIssues issues) {
+  if (!f.has('transpose') || (!f.has('keys') && !f.has('cycle'))) return true;
+  issues.error(
+    f.lineOf('transpose'),
+    '`transpose` não vale junto com `keys` nem `cycle`: escolha um jeito de '
+    'mudar o tom.',
+  );
+  return false;
+}
+
+/// `student` (a parte do aluno): só com `file`, sem `practice: cumulative` nem
+/// `hand: sequence` ([practiceOrSequence]), e sem id repetido.
+bool _studentRules(
+  Fields f,
+  ScoreSource source,
+  FileIssues issues,
+  bool practiceOrSequence,
+) {
+  var ok = true;
+  if (source is! FileSource) {
     issues.error(
-      f.lineOf('transpose'),
-      '`transpose` não vale junto com `keys` nem `cycle`: escolha um jeito de '
-      'mudar o tom.',
+      f.lineOf('student'),
+      '`student` só vale com `file`: os ids das notas vêm do arquivo '
+      'MusicXML.',
     );
     ok = false;
   }
-  if (f.has('student')) {
-    if (source is! FileSource) {
-      issues.error(
-        f.lineOf('student'),
-        '`student` só vale com `file`: os ids das notas vêm do arquivo '
-        'MusicXML.',
-      );
-      ok = false;
-    }
-    if (cumulative || sequence) {
-      issues.error(
-        f.lineOf('student'),
-        '`student` não vale com `practice: cumulative` nem `hand: sequence`.',
-      );
-      ok = false;
-    }
-    final seen = <String>{};
-    for (final item in f.get<List<Object>>('student') ?? const <Object>[]) {
-      final ids = '$item'.split(RegExp(r'\s+')).where((id) => id.isNotEmpty);
-      for (final id in ids) {
-        if (!seen.add(id)) {
-          issues.error(
-            f.lineOf('student'),
-            'o id `$id` aparece duas vezes em `student`.',
-          );
-          ok = false;
-        }
+  if (practiceOrSequence) {
+    issues.error(
+      f.lineOf('student'),
+      '`student` não vale com `practice: cumulative` nem `hand: sequence`.',
+    );
+    ok = false;
+  }
+  final unique = _studentIdsUnique(f, issues);
+  return ok && unique;
+}
+
+bool _studentIdsUnique(Fields f, FileIssues issues) {
+  var ok = true;
+  final seen = <String>{};
+  for (final item in f.get<List<Object>>('student') ?? const <Object>[]) {
+    final ids = '$item'.split(RegExp(r'\s+')).where((id) => id.isNotEmpty);
+    for (final id in ids) {
+      if (!seen.add(id)) {
+        issues.error(
+          f.lineOf('student'),
+          'o id `$id` aparece duas vezes em `student`.',
+        );
+        ok = false;
       }
     }
   }
@@ -306,26 +330,37 @@ ChartMark? _chart(Fields f, MarkSegment mark, FileIssues issues) {
 /// Confere a grade da marca: o nome da progressão, ou o texto lido pelo leitor
 /// do EX09 (cada erro sai com a coluna). Falso se há erro.
 bool _gradeReads(Fields f, FileIssues issues) => _gradeOf(
-  text: f.get<String>('chart'),
-  progression: f.get<String>('progression'),
-  key: f.get<String>('key') ?? 'C',
-  time: f.get<String>('time') ?? '4/4',
-  textLine: f.lineOf('chart'),
-  progressionLine: f.lineOf('progression'),
   issues: issues,
+  reading: (
+    text: f.get<String>('chart'),
+    progression: f.get<String>('progression'),
+    key: f.get<String>('key') ?? 'C',
+    time: f.get<String>('time') ?? '4/4',
+    textLine: f.lineOf('chart'),
+    progressionLine: f.lineOf('progression'),
+  ),
 );
 
 /// A grade de uma marca ou de um exercício: o nome da progressão da biblioteca,
 /// ou o texto lido pelo leitor do EX09 (cada erro sai com a coluna).
 bool _gradeOf({
-  required String? text,
-  required String? progression,
-  required String key,
-  required String time,
-  required int textLine,
-  required int progressionLine,
+  required ({
+    String? text,
+    String? progression,
+    String key,
+    String time,
+    int textLine,
+    int progressionLine,
+  })
+  reading,
   required FileIssues issues,
 }) {
+  final text = reading.text;
+  final progression = reading.progression;
+  final key = reading.key;
+  final time = reading.time;
+  final textLine = reading.textLine;
+  final progressionLine = reading.progressionLine;
   if (progression != null) {
     if (progressionNamed(progression) != null) return true;
     final hint = suggestFor(progression, [
@@ -357,40 +392,16 @@ ExerciseSpec? _parseExercise(
   FieldReader reader,
   FileIssues issues,
 ) {
-  final typeNode = map.nodes['type'];
-  final wires = ExerciseType.values.map((t) => t.wire).toList();
-  final typeName = typeNode?.value;
-  final type = typeName is String
-      ? ExerciseType.values.where((t) => t.wire == typeName).firstOrNull
-      : null;
-  if (type == null) {
-    final line = typeNode == null
-        ? mark.line
-        : mark.bodyLine + typeNode.span.start.line;
-    if (typeNode == null) {
-      issues.error(
-        line,
-        'falta a chave obrigatória `type` na marca `zywny-exercise` '
-        '(tipos: ${wires.join(', ')}).',
-      );
-    } else {
-      final hint = typeName is String ? suggestFor(typeName, wires) : null;
-      issues.error(
-        line,
-        'tipo de exercício desconhecido `$typeName`'
-        '${hint != null ? ' — você quis dizer `$hint`?' : ''} '
-        '(tipos: ${wires.join(', ')}).',
-      );
-    }
-    return null;
-  }
-
+  final type = _exerciseTypeOf(map, mark, issues);
+  if (type == null) return null;
   final f = reader.read(
     map,
     exerciseKeys(type),
-    firstLine: mark.bodyLine,
-    blockLine: mark.line,
-    where: 'no exercício `${type.wire}`',
+    FieldBlock(
+      firstLine: mark.bodyLine,
+      blockLine: mark.line,
+      where: 'no exercício `${type.wire}`',
+    ),
   );
   final before = issues.errorCount;
   // `pass` é conferido mesmo se outra chave falhou: o autor vê tudo de uma vez.
@@ -398,17 +409,56 @@ ExerciseSpec? _parseExercise(
     type,
     f.get<Fields>('pass'),
     issues,
-    realtime:
-        type == ExerciseType.rhythm ||
-        type == ExerciseType.playChart ||
-        type == ExerciseType.playLeadSheet ||
-        ((type == ExerciseType.playScore || type == ExerciseType.playPattern) &&
-            f.get<String>('mode') == 'realtime'),
+    realtime: _isRealtime(type, f),
   );
   if (f.failed) return null;
   final spec = _buildExercise(type, f, mark, issues);
   return issues.errorCount > before ? null : spec;
 }
+
+/// O tipo do exercício (a chave `type`); `null` se falta ou não existe, com o
+/// erro já dado.
+ExerciseType? _exerciseTypeOf(
+  YamlMap map,
+  MarkSegment mark,
+  FileIssues issues,
+) {
+  final typeNode = map.nodes['type'];
+  final wires = ExerciseType.values.map((t) => t.wire).toList();
+  final typeName = typeNode?.value;
+  final type = typeName is String
+      ? ExerciseType.values.where((t) => t.wire == typeName).firstOrNull
+      : null;
+  if (type != null) return type;
+  final line = typeNode == null
+      ? mark.line
+      : mark.bodyLine + typeNode.span.start.line;
+  if (typeNode == null) {
+    issues.error(
+      line,
+      'falta a chave obrigatória `type` na marca `zywny-exercise` '
+      '(tipos: ${wires.join(', ')}).',
+    );
+  } else {
+    final hint = typeName is String ? suggestFor(typeName, wires) : null;
+    issues.error(
+      line,
+      'tipo de exercício desconhecido `$typeName`'
+      '${hint != null ? ' — você quis dizer `$hint`?' : ''} '
+      '(tipos: ${wires.join(', ')}).',
+    );
+  }
+  return null;
+}
+
+/// Os tipos que são sempre em tempo real, e o `play-score`/`play-pattern` com
+/// `mode: realtime`: o `pass` deles aceita `realtime`.
+bool _isRealtime(ExerciseType type, Fields f) =>
+    type == ExerciseType.rhythm ||
+    type == ExerciseType.playChart ||
+    type == ExerciseType.playLeadSheet ||
+    ((type == ExerciseType.playScore || type == ExerciseType.playPattern) &&
+        f.get<String>('mode') == 'realtime');
 
 PassCriteria _pass(Fields? pass) => PassCriteria(
   accuracy: pass?.get<int>('accuracy') ?? 90,
@@ -500,57 +550,80 @@ List<Pitch> _pool(NoteRange range, OnlyOn? only) => [
     if (only == null || (only == OnlyOn.lines) == pitch.onLine) pitch,
 ];
 
+/// As regras da leitura de notas de um exercício: quantas notas vêm por padrão,
+/// se só valem as naturais (com as [letters] escolhidas) e de qual chave lê.
+class _NotesRule {
+  const _NotesRule({
+    required this.defaultCount,
+    this.naturalsOnly = false,
+    this.letters,
+    this.key = 'notes',
+  });
+
+  final int defaultCount;
+  final bool naturalsOnly;
+  final List<String>? letters;
+  final String key;
+}
+
 /// `notes` como [NotesSpec]; confere faixa, `only` e quantidade. [letters]
 /// e [naturalsOnly] valem para o `name-note`. [key] lê outra chave com a
 /// mesma sintaxe (o `roots` do `listen-chord`).
-NotesSpec? _notes(
-  Fields f,
-  FileIssues issues, {
-  required int defaultCount,
-  bool naturalsOnly = false,
-  List<String>? letters,
-  String key = 'notes',
-}) {
-  final raw = f.values[key];
-  final line = f.lineOf(key);
+NotesSpec? _notes(Fields f, FileIssues issues, _NotesRule rule) {
+  final raw = f.values[rule.key];
+  final line = f.lineOf(rule.key);
   if (raw is List) {
-    final notes = raw.cast<Pitch>();
-    for (final pitch in notes) {
-      if (naturalsOnly && !pitch.isNatural) {
-        issues.error(
-          line,
-          '`$pitch` tem sustenido ou bemol: neste tipo só '
-          'valem as notas naturais.',
-        );
-        return null;
-      }
-      if (letters != null && !letters.contains(pitch.step)) {
-        issues.error(
-          line,
-          '`$pitch` não tem botão em `choices` '
-          '(${letters.join(', ')}): a pergunta ficaria sem resposta.',
-        );
-        return null;
-      }
-    }
-    return FixedNotes(notes);
+    return _fixedNotes(raw.cast<Pitch>(), line, rule, issues);
   }
   final random = raw as Fields;
   if (random.failed) return null;
-  final range = NoteRange.tryParse(random.get<String>('random')!);
-  final rangeLine = random.lineOf('random');
-  if (range == null) {
-    issues.error(
-      rangeLine,
-      '`${random.get<String>('random')}` não é uma faixa de notas: escreva '
-      'da mais grave para a mais aguda, como C4-G5.',
-    );
-    return null;
+  return _randomNotes(random, line, rule, issues);
+}
+
+/// Notas escritas: cada uma tem de caber no tipo (`naturalsOnly`, `letters`).
+NotesSpec? _fixedNotes(
+  List<Pitch> notes,
+  int line,
+  _NotesRule rule,
+  FileIssues issues,
+) {
+  final letters = rule.letters;
+  for (final pitch in notes) {
+    if (rule.naturalsOnly && !pitch.isNatural) {
+      issues.error(
+        line,
+        '`$pitch` tem sustenido ou bemol: neste tipo só '
+        'valem as notas naturais.',
+      );
+      return null;
+    }
+    if (letters != null && !letters.contains(pitch.step)) {
+      issues.error(
+        line,
+        '`$pitch` não tem botão em `choices` '
+        '(${letters.join(', ')}): a pergunta ficaria sem resposta.',
+      );
+      return null;
+    }
   }
+  return FixedNotes(notes);
+}
+
+/// O sorteio (`random`, `only`, `count`): a faixa precisa de duas notas, e
+/// com `only` ter pelo menos duas; as notas sorteadas têm de caber em
+/// `letters`. [line] é a linha de `notes`.
+NotesSpec? _randomNotes(
+  Fields random,
+  int line,
+  _NotesRule rule,
+  FileIssues issues,
+) {
+  final range = _randomRange(random, issues);
+  if (range == null) return null;
   final only = _enumOf(OnlyOn.values, random.get<String>('only'));
   if (range.to.midi == range.from.midi) {
     issues.error(
-      rangeLine,
+      random.lineOf('random'),
       'a faixa $range tem uma nota só: o sorteio '
       'precisa de pelo menos duas.',
     );
@@ -566,6 +639,7 @@ NotesSpec? _notes(
     );
     return null;
   }
+  final letters = rule.letters;
   if (letters != null) {
     final missing = {for (final p in pool) p.step}
         .where((l) => !letters.contains(l));
@@ -581,9 +655,22 @@ NotesSpec? _notes(
   }
   return RandomNotes(
     range: range,
-    count: random.get<int>('count') ?? defaultCount,
+    count: random.get<int>('count') ?? rule.defaultCount,
     only: only,
   );
+}
+
+/// A faixa do sorteio (`random: C4-G5`): `null`, com o erro, se não é uma faixa.
+NoteRange? _randomRange(Fields random, FileIssues issues) {
+  final text = random.get<String>('random')!;
+  final range = NoteRange.tryParse(text);
+  if (range != null) return range;
+  issues.error(
+    random.lineOf('random'),
+    '`$text` não é uma faixa de notas: escreva da mais grave para a mais '
+    'aguda, como C4-G5.',
+  );
+  return null;
 }
 
 /// Cada figura precisa caber em um compasso de [time].
@@ -617,319 +704,360 @@ bool _figuresFit(
   return true;
 }
 
+/// O cabeçalho de um exercício: o id, o título, a linha, e o bloco `pass:`.
+typedef _Head = ({String id, String title, int line, Fields? pass});
+
 ExerciseSpec? _buildExercise(
   ExerciseType type,
   Fields f,
   MarkSegment mark,
   FileIssues issues,
 ) {
-  final pass = f.get<Fields>('pass');
-  final id = f.get<String>('id')!;
-  final title = f.get<String>('title')!;
-  final line = mark.line;
+  final head = (
+    id: f.get<String>('id')!,
+    title: f.get<String>('title')!,
+    line: mark.line,
+    pass: f.get<Fields>('pass'),
+  );
+  return switch (type) {
+    ExerciseType.findKey => _findKeySpec(f, head, issues),
+    ExerciseType.playNotes => _playNotesSpec(f, head, issues),
+    ExerciseType.nameNote => _nameNoteSpec(f, head, issues),
+    ExerciseType.rhythm => _rhythm(f, head, issues),
+    ExerciseType.countBeats => _countBeatsSpec(f, head, issues),
+    ExerciseType.playScore => _playScoreSpec(f, head, issues),
+    ExerciseType.choice => _choiceSpec(f, head, issues),
+    ExerciseType.listenNote => _listenNoteSpec(f, head, issues),
+    ExerciseType.listenInterval => _listenIntervalSpec(f, head, issues),
+    ExerciseType.listenScore => _listenScoreSpec(f, head, issues),
+    ExerciseType.playChord => _playChord(f, head, issues),
+    ExerciseType.playPattern => _playPattern(f, head, issues),
+    ExerciseType.playChart => _playChart(f, head, issues),
+    ExerciseType.listenChord => _listenChord(f, head, issues),
+    ExerciseType.listenGroove => _listenGroove(f, head, issues),
+    ExerciseType.echo => _echo(f, head, issues),
+    ExerciseType.listenProgression => _listenProgression(f, head, issues),
+    ExerciseType.harmonize => _harmonize(f, head, issues),
+    ExerciseType.playLeadSheet => _playLeadSheet(f, head, issues),
+    ExerciseType.targetNotes => _targetNotes(f, head, issues),
+    ExerciseType.followForm => _followForm(f, head, issues),
+    ExerciseType.theoryQuiz => _theoryQuiz(f, head, issues),
+  };
+}
 
-  switch (type) {
-    case ExerciseType.findKey:
-      final notes = _notes(f, issues, defaultCount: 10);
-      if (notes == null) return null;
-      return FindKeySpec(
-        id: id,
-        title: title,
-        pass: _pass(pass),
-        line: line,
-        notes: notes,
-        octave:
-            _enumOf(OctaveRule.values, f.get<String>('octave')) ??
-            OctaveRule.any,
-      );
-    case ExerciseType.playNotes:
-      final notes = _notes(f, issues, defaultCount: 12);
-      if (notes == null) return null;
-      final accidentals =
-          _enumOf(Accidentals.values, f.get<String>('accidentals')) ??
-          Accidentals.none;
-      if (f.has('accidentals') && notes is FixedNotes) {
-        issues.error(
-          f.lineOf('accidentals'),
-          '`accidentals` só vale com sorteio (`notes: {random: …}`); numa '
-          'lista fixa escreva a nota com # ou b, como F#4.',
-        );
-        return null;
-      }
-      return PlayNotesSpec(
-        id: id,
-        title: title,
-        pass: _pass(pass),
-        line: line,
-        clef: _enumOf(Clef.values, f.get<String>('clef')) ?? Clef.treble,
-        key: f.get<String>('key'),
-        notes: notes,
-        accidentals: accidentals,
-      );
-    case ExerciseType.nameNote:
-      final choices =
-          f.get<List<Object>>('choices')?.cast<String>() ??
-          const ['C', 'D', 'E', 'F', 'G', 'A', 'B'];
-      final notes = _notes(
-        f,
-        issues,
-        defaultCount: 12,
-        naturalsOnly: true,
-        letters: choices,
-      );
-      if (notes == null) return null;
-      return NameNoteSpec(
-        id: id,
-        title: title,
-        pass: _pass(pass),
-        line: line,
-        clef: _enumOf(Clef.values, f.get<String>('clef')) ?? Clef.treble,
-        key: f.get<String>('key'),
-        notes: notes,
-        choices: choices,
-      );
-    case ExerciseType.rhythm:
-      return _rhythm(f, id, title, line, pass, issues);
-    case ExerciseType.countBeats:
-      final time = f.get<String>('time') ?? '4/4';
-      final figures = f.get<List<Object>>('figures')!.cast<Figure>();
-      if (!_figuresFit(figures, time, f, issues)) return null;
-      return CountBeatsSpec(
-        id: id,
-        title: title,
-        pass: _pass(pass),
-        line: line,
-        time: time,
-        figures: figures,
-        count: f.get<int>('count') ?? 8,
-      );
-    case ExerciseType.playScore:
-      final mode =
-          _enumOf(PlayMode.values, f.get<String>('mode')) ?? PlayMode.wait;
-      final source = _scoreSource(f, issues);
-      if (source == null) return null;
-      final keys = _keyChoice(f);
-      final cycle = _enumOf(KeyCycle.values, f.get<String>('cycle'));
-      if (!_keyRules(f, issues)) return null;
-      if (!_playScoreT18Rules(f, source, issues)) return null;
-      final curtain = f.get<bool>('curtain') ?? false;
-      if (curtain && mode != PlayMode.realtime) {
-        issues.error(
-          f.lineOf('curtain'),
-          '`curtain: true` só vale com `mode: realtime` (no modo espera a '
-          'partitura não anda sozinha).',
-        );
-        return null;
-      }
-      return PlayScoreSpec(
-        id: id,
-        title: title,
-        pass: _pass(pass),
-        line: line,
-        source: source,
-        hand:
-            _enumOf(HandChoice.values, f.get<String>('hand')) ??
-            HandChoice.both,
-        mode: mode,
-        bpm: f.get<int>('bpm'),
-        measures: f.get<MeasureRange>('measures'),
-        keys: keys,
-        cycle: cycle,
-        keyStart:
-            _enumOf(KeyStart.values, f.get<String>('key-start')) ??
-            KeyStart.written,
-        practice: _enumOf(PracticeChoice.values, f.get<String>('practice')),
-        curtain: curtain,
-        transpose: f.get<int>('transpose') ?? 0,
-        student: [
-          for (final item in f.get<List<Object>>('student') ?? const <Object>[])
-            [
-              for (final id in '$item'.split(RegExp(r'\s+')))
-                if (id.isNotEmpty) id,
-            ],
-        ],
-      );
-    case ExerciseType.choice:
-      final options = f.get<List<Object>>('options')!.cast<String>();
-      final answer = f.get<String>('answer')!;
-      var ok = true;
-      if (options.toSet().length != options.length) {
-        issues.error(f.lineOf('options'), '`options` repete uma opção.');
-        ok = false;
-      }
-      final index = options.indexOf(answer);
-      if (index < 0) {
-        issues.error(
-          f.lineOf('answer'),
-          '`answer` (`$answer`) precisa ser igual a uma das `options`: '
-          '${options.map((o) => '`$o`').join(', ')}.',
-        );
-        ok = false;
-      }
-      if (f.has('image') && f.has('abc')) {
-        issues.error(f.lineOf('abc'), 'use só um: `image` ou `abc`.');
-        ok = false;
-      }
-      if (!ok) return null;
-      return ChoiceSpec(
-        id: id,
-        title: title,
-        pass: _pass(pass),
-        line: line,
-        question: f.get<String>('question')!,
-        options: options,
-        answer: index,
-        image: f.get<String>('image'),
-        abc: f.get<String>('abc'),
-      );
-    case ExerciseType.listenNote:
-      final input =
-          _enumOf(AnswerInput.values, f.get<String>('input')) ??
-          AnswerInput.keyboard;
-      final buttons = input == AnswerInput.buttons;
-      var ok = true;
-      for (final k in buttons ? ['octave', 'key'] : ['choices']) {
-        if (f.has(k)) {
-          issues.error(
-            f.lineOf(k),
-            '`$k` só vale com `input: ${buttons ? 'keyboard' : 'buttons'}`.',
-          );
-          ok = false;
-        }
-      }
-      if (!ok) return null;
-      final choices =
-          f.get<List<Object>>('choices')?.cast<String>() ??
-          const ['C', 'D', 'E', 'F', 'G', 'A', 'B'];
-      final notes = buttons
-          ? _notes(
-              f,
-              issues,
-              defaultCount: 10,
-              naturalsOnly: true,
-              letters: choices,
-            )
-          : _notes(f, issues, defaultCount: 10);
-      if (notes == null) return null;
-      return ListenNoteSpec(
-        id: id,
-        title: title,
-        pass: _pass(pass),
-        line: line,
-        notes: notes,
-        reference: f.get<Pitch>('reference'),
-        input: input,
-        octave:
-            _enumOf(OctaveRule.values, f.get<String>('octave')) ??
-            OctaveRule.any,
-        choices: choices,
-        key: f.get<String>('key'),
-      );
-    case ExerciseType.listenInterval:
-      final notes = _notes(f, issues, defaultCount: 10);
-      if (notes == null) return null;
-      final intervals = <IntervalName>[];
-      for (final text in f.get<List<Object>>('intervals')!.cast<String>()) {
-        final interval = IntervalName.values
-            .where((i) => i.wire == text)
-            .firstOrNull;
-        if (interval == null) {
-          issues.error(
-            f.lineOf('intervals'),
-            '`$text` não é um intervalo; use: '
-            '${IntervalName.values.map((i) => i.wire).join(', ')}.',
-          );
-          return null;
-        }
-        if (intervals.contains(interval)) {
-          issues.error(
-            f.lineOf('intervals'),
-            '`intervals` repete um intervalo.',
-          );
-          return null;
-        }
-        intervals.add(interval);
-      }
-      return ListenIntervalSpec(
-        id: id,
-        title: title,
-        pass: _pass(pass),
-        line: line,
-        notes: notes,
-        intervals: intervals,
-        direction:
-            _enumOf(IntervalDirection.values, f.get<String>('direction')) ??
-            IntervalDirection.up,
-        play:
-            _enumOf(IntervalPlay.values, f.get<String>('play')) ??
-            IntervalPlay.melodic,
-      );
-    case ExerciseType.listenScore:
-      final step = f.get<String>('step')!;
-      final match = _stepPattern.firstMatch(step);
-      if (match == null) {
-        issues.error(
-          f.lineOf('step'),
-          '`$step` não é um passo do treino de leitura: use de `1a` a `100d`.',
-        );
-        return null;
-      }
-      final answer =
-          _enumOf(ScoreAnswer.values, f.get<String>('answer')) ??
-          ScoreAnswer.measure;
-      if (answer == ScoreAnswer.dictation && f.has('change')) {
-        issues.error(
-          f.lineOf('change'),
-          '`change` não vale com `answer: dictation`: a frase soa como está escrita.',
-        );
-        return null;
-      }
-      final change =
-          _enumOf(ScoreChange.values, f.get<String>('change')) ??
-          ScoreChange.pitch;
-      if (change == ScoreChange.accidental && int.parse(match.group(1)!) < 11) {
-        issues.error(
-          f.lineOf('change'),
-          '`change: accidental` pede um passo com armadura, do `11a` em diante.',
-        );
-        return null;
-      }
-      return ListenScoreSpec(
-        id: id,
-        title: title,
-        pass: _pass(pass),
-        line: line,
-        step: step,
-        change: change,
-        answer: answer,
-        count: f.get<int>('count') ?? 5,
-        bpm: f.get<int>('bpm'),
-      );
-    case ExerciseType.playChord:
-      return _playChord(f, id, title, line, pass, issues);
-    case ExerciseType.playPattern:
-      return _playPattern(f, id, title, line, pass, issues);
-    case ExerciseType.playChart:
-      return _playChart(f, id, title, line, pass, issues);
-    case ExerciseType.listenChord:
-      return _listenChord(f, id, title, line, pass, issues);
-    case ExerciseType.listenGroove:
-      return _listenGroove(f, id, title, line, pass, issues);
-    case ExerciseType.echo:
-      return _echo(f, id, title, line, pass, issues);
-    case ExerciseType.listenProgression:
-      return _listenProgression(f, id, title, line, pass, issues);
-    case ExerciseType.harmonize:
-      return _harmonize(f, id, title, line, pass, issues);
-    case ExerciseType.playLeadSheet:
-      return _playLeadSheet(f, id, title, line, pass, issues);
-    case ExerciseType.targetNotes:
-      return _targetNotes(f, id, title, line, pass, issues);
-    case ExerciseType.followForm:
-      return _followForm(f, id, title, line, pass, issues);
-    case ExerciseType.theoryQuiz:
-      return _theoryQuiz(f, id, title, line, pass, issues);
+ExerciseSpec? _findKeySpec(Fields f, _Head head, FileIssues issues) {
+  final id = head.id;
+  final title = head.title;
+  final line = head.line;
+  final pass = head.pass;
+  final notes = _notes(f, issues, _NotesRule(defaultCount: 10));
+  if (notes == null) return null;
+  return FindKeySpec(
+    id: id,
+    title: title,
+    pass: _pass(pass),
+    line: line,
+    notes: notes,
+    octave:
+        _enumOf(OctaveRule.values, f.get<String>('octave')) ?? OctaveRule.any,
+  );
+}
+
+ExerciseSpec? _playNotesSpec(Fields f, _Head head, FileIssues issues) {
+  final id = head.id;
+  final title = head.title;
+  final line = head.line;
+  final pass = head.pass;
+  final notes = _notes(f, issues, _NotesRule(defaultCount: 12));
+  if (notes == null) return null;
+  final accidentals =
+      _enumOf(Accidentals.values, f.get<String>('accidentals')) ??
+      Accidentals.none;
+  if (f.has('accidentals') && notes is FixedNotes) {
+    issues.error(
+      f.lineOf('accidentals'),
+      '`accidentals` só vale com sorteio (`notes: {random: …}`); numa '
+      'lista fixa escreva a nota com # ou b, como F#4.',
+    );
+    return null;
   }
+  return PlayNotesSpec(
+    id: id,
+    title: title,
+    pass: _pass(pass),
+    line: line,
+    clef: _enumOf(Clef.values, f.get<String>('clef')) ?? Clef.treble,
+    key: f.get<String>('key'),
+    notes: notes,
+    accidentals: accidentals,
+  );
+}
+
+ExerciseSpec? _nameNoteSpec(Fields f, _Head head, FileIssues issues) {
+  final id = head.id;
+  final title = head.title;
+  final line = head.line;
+  final pass = head.pass;
+  final choices =
+      f.get<List<Object>>('choices')?.cast<String>() ??
+      const ['C', 'D', 'E', 'F', 'G', 'A', 'B'];
+  final notes = _notes(
+    f,
+    issues,
+    _NotesRule(defaultCount: 12, naturalsOnly: true, letters: choices),
+  );
+  if (notes == null) return null;
+  return NameNoteSpec(
+    id: id,
+    title: title,
+    pass: _pass(pass),
+    line: line,
+    clef: _enumOf(Clef.values, f.get<String>('clef')) ?? Clef.treble,
+    key: f.get<String>('key'),
+    notes: notes,
+    choices: choices,
+  );
+}
+
+ExerciseSpec? _countBeatsSpec(Fields f, _Head head, FileIssues issues) {
+  final id = head.id;
+  final title = head.title;
+  final line = head.line;
+  final pass = head.pass;
+  final time = f.get<String>('time') ?? '4/4';
+  final figures = f.get<List<Object>>('figures')!.cast<Figure>();
+  if (!_figuresFit(figures, time, f, issues)) return null;
+  return CountBeatsSpec(
+    id: id,
+    title: title,
+    pass: _pass(pass),
+    line: line,
+    time: time,
+    figures: figures,
+    count: f.get<int>('count') ?? 8,
+  );
+}
+
+ExerciseSpec? _playScoreSpec(Fields f, _Head head, FileIssues issues) {
+  final id = head.id;
+  final title = head.title;
+  final line = head.line;
+  final pass = head.pass;
+  final mode = _enumOf(PlayMode.values, f.get<String>('mode')) ?? PlayMode.wait;
+  final source = _scoreSource(f, issues);
+  if (source == null) return null;
+  final keys = _keyChoice(f);
+  final cycle = _enumOf(KeyCycle.values, f.get<String>('cycle'));
+  if (!_keyRules(f, issues)) return null;
+  if (!_playScoreT18Rules(f, source, issues)) return null;
+  final curtain = f.get<bool>('curtain') ?? false;
+  if (curtain && mode != PlayMode.realtime) {
+    issues.error(
+      f.lineOf('curtain'),
+      '`curtain: true` só vale com `mode: realtime` (no modo espera a '
+      'partitura não anda sozinha).',
+    );
+    return null;
+  }
+  return PlayScoreSpec(
+    id: id,
+    title: title,
+    pass: _pass(pass),
+    line: line,
+    source: source,
+    hand: _enumOf(HandChoice.values, f.get<String>('hand')) ?? HandChoice.both,
+    mode: mode,
+    bpm: f.get<int>('bpm'),
+    measures: f.get<MeasureRange>('measures'),
+    keys: keys,
+    cycle: cycle,
+    keyStart:
+        _enumOf(KeyStart.values, f.get<String>('key-start')) ??
+        KeyStart.written,
+    practice: _enumOf(PracticeChoice.values, f.get<String>('practice')),
+    curtain: curtain,
+    transpose: f.get<int>('transpose') ?? 0,
+    student: [
+      for (final item in f.get<List<Object>>('student') ?? const <Object>[])
+        [
+          for (final id in '$item'.split(RegExp(r'\s+')))
+            if (id.isNotEmpty) id,
+        ],
+    ],
+  );
+}
+
+ExerciseSpec? _choiceSpec(Fields f, _Head head, FileIssues issues) {
+  final id = head.id;
+  final title = head.title;
+  final line = head.line;
+  final pass = head.pass;
+  final options = f.get<List<Object>>('options')!.cast<String>();
+  final answer = f.get<String>('answer')!;
+  var ok = true;
+  if (options.toSet().length != options.length) {
+    issues.error(f.lineOf('options'), '`options` repete uma opção.');
+    ok = false;
+  }
+  final index = options.indexOf(answer);
+  if (index < 0) {
+    issues.error(
+      f.lineOf('answer'),
+      '`answer` (`$answer`) precisa ser igual a uma das `options`: '
+      '${options.map((o) => '`$o`').join(', ')}.',
+    );
+    ok = false;
+  }
+  if (f.has('image') && f.has('abc')) {
+    issues.error(f.lineOf('abc'), 'use só um: `image` ou `abc`.');
+    ok = false;
+  }
+  if (!ok) return null;
+  return ChoiceSpec(
+    id: id,
+    title: title,
+    pass: _pass(pass),
+    line: line,
+    question: f.get<String>('question')!,
+    options: options,
+    answer: index,
+    image: f.get<String>('image'),
+    abc: f.get<String>('abc'),
+  );
+}
+
+ExerciseSpec? _listenNoteSpec(Fields f, _Head head, FileIssues issues) {
+  final id = head.id;
+  final title = head.title;
+  final line = head.line;
+  final pass = head.pass;
+  final input =
+      _enumOf(AnswerInput.values, f.get<String>('input')) ??
+      AnswerInput.keyboard;
+  final buttons = input == AnswerInput.buttons;
+  var ok = true;
+  for (final k in buttons ? ['octave', 'key'] : ['choices']) {
+    if (f.has(k)) {
+      issues.error(
+        f.lineOf(k),
+        '`$k` só vale com `input: ${buttons ? 'keyboard' : 'buttons'}`.',
+      );
+      ok = false;
+    }
+  }
+  if (!ok) return null;
+  final choices =
+      f.get<List<Object>>('choices')?.cast<String>() ??
+      const ['C', 'D', 'E', 'F', 'G', 'A', 'B'];
+  final notes = buttons
+      ? _notes(
+          f,
+          issues,
+          _NotesRule(defaultCount: 10, naturalsOnly: true, letters: choices),
+        )
+      : _notes(f, issues, _NotesRule(defaultCount: 10));
+  if (notes == null) return null;
+  return ListenNoteSpec(
+    id: id,
+    title: title,
+    pass: _pass(pass),
+    line: line,
+    notes: notes,
+    reference: f.get<Pitch>('reference'),
+    input: input,
+    octave:
+        _enumOf(OctaveRule.values, f.get<String>('octave')) ?? OctaveRule.any,
+    choices: choices,
+    key: f.get<String>('key'),
+  );
+}
+
+ExerciseSpec? _listenIntervalSpec(Fields f, _Head head, FileIssues issues) {
+  final id = head.id;
+  final title = head.title;
+  final line = head.line;
+  final pass = head.pass;
+  final notes = _notes(f, issues, _NotesRule(defaultCount: 10));
+  if (notes == null) return null;
+  final intervals = <IntervalName>[];
+  for (final text in f.get<List<Object>>('intervals')!.cast<String>()) {
+    final interval = IntervalName.values
+        .where((i) => i.wire == text)
+        .firstOrNull;
+    if (interval == null) {
+      issues.error(
+        f.lineOf('intervals'),
+        '`$text` não é um intervalo; use: '
+        '${IntervalName.values.map((i) => i.wire).join(', ')}.',
+      );
+      return null;
+    }
+    if (intervals.contains(interval)) {
+      issues.error(f.lineOf('intervals'), '`intervals` repete um intervalo.');
+      return null;
+    }
+    intervals.add(interval);
+  }
+  return ListenIntervalSpec(
+    id: id,
+    title: title,
+    pass: _pass(pass),
+    line: line,
+    notes: notes,
+    intervals: intervals,
+    direction:
+        _enumOf(IntervalDirection.values, f.get<String>('direction')) ??
+        IntervalDirection.up,
+    play:
+        _enumOf(IntervalPlay.values, f.get<String>('play')) ??
+        IntervalPlay.melodic,
+  );
+}
+
+ExerciseSpec? _listenScoreSpec(Fields f, _Head head, FileIssues issues) {
+  final id = head.id;
+  final title = head.title;
+  final line = head.line;
+  final pass = head.pass;
+  final step = f.get<String>('step')!;
+  final match = _stepPattern.firstMatch(step);
+  if (match == null) {
+    issues.error(
+      f.lineOf('step'),
+      '`$step` não é um passo do treino de leitura: use de `1a` a `100d`.',
+    );
+    return null;
+  }
+  final answer =
+      _enumOf(ScoreAnswer.values, f.get<String>('answer')) ??
+      ScoreAnswer.measure;
+  if (answer == ScoreAnswer.dictation && f.has('change')) {
+    issues.error(
+      f.lineOf('change'),
+      '`change` não vale com `answer: dictation`: a frase soa como está escrita.',
+    );
+    return null;
+  }
+  final change =
+      _enumOf(ScoreChange.values, f.get<String>('change')) ?? ScoreChange.pitch;
+  if (change == ScoreChange.accidental && int.parse(match.group(1)!) < 11) {
+    issues.error(
+      f.lineOf('change'),
+      '`change: accidental` pede um passo com armadura, do `11a` em diante.',
+    );
+    return null;
+  }
+  return ListenScoreSpec(
+    id: id,
+    title: title,
+    pass: _pass(pass),
+    line: line,
+    step: step,
+    change: change,
+    answer: answer,
+    count: f.get<int>('count') ?? 5,
+    bpm: f.get<int>('bpm'),
+  );
 }
 
 /// `play-chord` (EX02): as cifras, a inversão, o molde, a mão e a faixa. Os
@@ -938,15 +1066,94 @@ ExerciseSpec? _buildExercise(
 /// `play-pattern` (EX06): o padrão, o tom (`key:`, ou `keys:` e `cycle:` como
 /// no `play-score`), a mão e as variações. Chave que só vale com outro padrão é
 /// erro; `fingering: true` num padrão sem dedilhado só avisa.
-PlayPatternSpec? _playPattern(
-  Fields f,
-  String id,
-  String title,
-  int line,
-  Fields? pass,
-  FileIssues issues,
-) {
+PlayPatternSpec? _playPattern(Fields f, _Head head, FileIssues issues) {
   final pattern = _enumOf(PatternKind.values, f.get<String>('pattern'))!;
+  var ok = _patternRules(f, pattern, issues);
+  final motif = _motifOf(f, issues);
+  if (!motif.ok) ok = false;
+  if (!_chordRange(f, issues)) ok = false;
+  if (!ok) return null;
+
+  _warnFingering(f, issues, pattern);
+  return _playPatternSpec(f, head, pattern, motif.motif);
+}
+
+/// O `play-pattern` já lido e sem erro: o padrão, a escala e os tons, a mão,
+/// as variações e o andamento (os valores vêm de [f]; as regras já passaram).
+PlayPatternSpec _playPatternSpec(
+  Fields f,
+  _Head head,
+  PatternKind pattern,
+  List<int> motif,
+) {
+  return PlayPatternSpec(
+    id: head.id,
+    title: head.title,
+    pass: _pass(head.pass),
+    line: head.line,
+    pattern: pattern,
+    scale: _scaleOf(f.get<String>('scale')),
+    chord: f.get<String>('chord') ?? 'M',
+    chords: _choice(f, 'chords', PatternChords.values, PatternChords.triads),
+    style: _choice(f, 'style', PatternStyle.values, PatternStyle.block),
+    figure: _choice(
+      f,
+      'figure',
+      PatternFigure.values,
+      PatternFigure.figure1353,
+    ),
+    order: _choice(f, 'order', PatternOrder.values, PatternOrder.order123),
+    source: _choice(f, 'source', PatternSource.values, PatternSource.scale),
+    motif: motif,
+    key: f.get<String>('key') ?? 'C',
+    keys: _keyChoice(f),
+    cycle: _enumOf(KeyCycle.values, f.get<String>('cycle')),
+    keyStart: _choice(f, 'key-start', KeyStart.values, KeyStart.written),
+    octaves: f.get<int>('octaves') ?? 1,
+    direction: _choice(
+      f,
+      'direction',
+      PatternDirection.values,
+      PatternDirection.upDown,
+    ),
+    hand: _patternHandOf(f),
+    handSequence: f.get<String>('hand') == 'sequence',
+    fingering: f.get<bool>('fingering') ?? true,
+    articulation: _choice(
+      f,
+      'articulation',
+      PatternArticulation.values,
+      PatternArticulation.legato,
+    ),
+    grouping: _choice(
+      f,
+      'grouping',
+      PatternGrouping.values,
+      PatternGrouping.two,
+    ),
+    mode: _choice(f, 'mode', PlayMode.values, PlayMode.wait),
+    bpm: f.get<int>('bpm'),
+  );
+}
+
+/// A mão do molde. `sequence` (EX22) não é um PatternHand: a mão do molde é as
+/// duas, e a rodada troca a mão em cada passo.
+PatternHand _patternHandOf(Fields f) => f.get<String>('hand') == 'sequence'
+    ? PatternHand.both
+    : _choice(f, 'hand', PatternHand.values, PatternHand.right);
+
+/// O valor escrito em [key] (uma palavra de [values]), ou [fallback] se a
+/// chave não existe ou não casa.
+T _choice<T extends WireEnum>(
+  Fields f,
+  String key,
+  List<T> values,
+  T fallback,
+) => _enumOf(values, f.get<String>(key)) ?? fallback;
+
+/// As regras de tom e de chaves de um `play-pattern`: a chave `key` com
+/// `keys`, as que só valem com alguns padrões e o `motif` do `sequence`.
+bool _patternRules(Fields f, PatternKind pattern, FileIssues issues) {
   var ok = _keyRules(f, issues);
   // `key:` é o tom de um padrão só, e o ponto de partida do `cycle:` (EX05);
   // com `keys:`, a lista já traz os tons.
@@ -973,6 +1180,14 @@ PlayPatternSpec? _playPattern(
     );
     ok = false;
   }
+  return ok;
+}
+
+/// O `motif` (os graus) do `play-pattern`: `motif` (de 1 a 7). Erro se algum
+/// grau está fora disso; [ok] diz se todos presta.
+({List<int> motif, bool ok}) _motifOf(Fields f, FileIssues issues) {
+  var ok = true;
+
   final motif = <int>[];
   final wires =
       f.get<List<Object>>('motif')?.cast<String>() ?? const <String>[];
@@ -988,6 +1203,13 @@ PlayPatternSpec? _playPattern(
       motif.add(degree);
     }
   }
+  return (motif: motif, ok: ok);
+}
+
+/// `chord: 3-5-7-9` (o jazz) é de uma oitava só: a descida é 7 5 3 1. `false`
+/// (com o erro) se passa disso.
+bool _chordRange(Fields f, FileIssues issues) {
+  var ok = true;
   // O arpejo de 3-5-7-9 (o jazz) é de uma oitava só: a descida é 7 5 3 1.
   if (f.get<String>('chord') == '3-5-7-9' && (f.get<int>('octaves') ?? 1) > 1) {
     issues.error(
@@ -996,8 +1218,11 @@ PlayPatternSpec? _playPattern(
     );
     ok = false;
   }
-  if (!ok) return null;
+  return ok;
+}
 
+/// O aviso do dedilhado que o padrão não traz (ver `fingering:`).
+void _warnFingering(Fields f, FileIssues issues, PatternKind pattern) {
   final scale = _scaleOf(f.get<String>('scale'));
   final keys = _keyChoice(f);
   final cycle = _enumOf(KeyCycle.values, f.get<String>('cycle'));
@@ -1007,68 +1232,16 @@ PlayPatternSpec? _playPattern(
     final gap = f.get<String>('hand') == 'contrary'
         ? 'sem dedilhado na mão contrária: o livro não traz. '
               'Use `fingering: false` para calar o aviso.'
-        : _fingeringGap(
-            pattern,
-            scale,
-            f.get<String>('chord') ?? 'M',
-            key,
-            keys,
-            cycle,
-            octaves,
-          );
+        : _fingeringGap(pattern, (
+            scale: scale,
+            chord: f.get<String>('chord') ?? 'M',
+            key: key,
+            keys: keys,
+            cycle: cycle,
+            octaves: octaves,
+          ));
     if (gap != null) issues.warning(f.lineOf('fingering'), gap);
   }
-  return PlayPatternSpec(
-    id: id,
-    title: title,
-    pass: _pass(pass),
-    line: line,
-    pattern: pattern,
-    scale: scale,
-    chord: f.get<String>('chord') ?? 'M',
-    chords:
-        _enumOf(PatternChords.values, f.get<String>('chords')) ??
-        PatternChords.triads,
-    style:
-        _enumOf(PatternStyle.values, f.get<String>('style')) ??
-        PatternStyle.block,
-    figure:
-        _enumOf(PatternFigure.values, f.get<String>('figure')) ??
-        PatternFigure.figure1353,
-    order:
-        _enumOf(PatternOrder.values, f.get<String>('order')) ??
-        PatternOrder.order123,
-    source:
-        _enumOf(PatternSource.values, f.get<String>('source')) ??
-        PatternSource.scale,
-    motif: motif,
-    key: key,
-    keys: keys,
-    cycle: cycle,
-    keyStart:
-        _enumOf(KeyStart.values, f.get<String>('key-start')) ??
-        KeyStart.written,
-    octaves: octaves,
-    direction:
-        _enumOf(PatternDirection.values, f.get<String>('direction')) ??
-        PatternDirection.upDown,
-    // `sequence` (EX22) não é um PatternHand: a mão do molde é as duas, e a
-    // rodada troca a mão em cada passo.
-    hand: f.get<String>('hand') == 'sequence'
-        ? PatternHand.both
-        : _enumOf(PatternHand.values, f.get<String>('hand')) ??
-              PatternHand.right,
-    handSequence: f.get<String>('hand') == 'sequence',
-    fingering: f.get<bool>('fingering') ?? true,
-    articulation:
-        _enumOf(PatternArticulation.values, f.get<String>('articulation')) ??
-        PatternArticulation.legato,
-    grouping:
-        _enumOf(PatternGrouping.values, f.get<String>('grouping')) ??
-        PatternGrouping.two,
-    mode: _enumOf(PlayMode.values, f.get<String>('mode')) ?? PlayMode.wait,
-    bpm: f.get<int>('bpm'),
-  );
 }
 
 /// As chaves de `play-pattern` que só valem com alguns padrões (o erro diz
@@ -1089,18 +1262,27 @@ ScaleKind _scaleOf(String? wire) => ScaleKind.values.firstWhere(
   orElse: () => ScaleKind.major,
 );
 
-/// O aviso de `fingering: true` num padrão sem dedilhado, ou `null` quando o
-/// livro traz. Com vários tons (`keys:`, `cycle:`), basta um tom fora da tabela
-/// para avisar.
-String? _fingeringGap(
-  PatternKind pattern,
+/// O tom de um dedilhado: a escala, a fundamental do acorde, o tom, a
+/// escolha de tons (`keys:`), o ciclo e as oitavas.
+typedef _FingerKey = ({
   ScaleKind scale,
   String chord,
   String key,
   KeyChoice? keys,
   KeyCycle? cycle,
   int octaves,
-) {
+});
+
+/// O aviso de `fingering: true` num padrão sem dedilhado, ou `null` quando o
+/// livro traz. Com vários tons (`keys:`, `cycle:`), basta um tom fora da tabela
+/// para avisar.
+String? _fingeringGap(PatternKind pattern, _FingerKey key) {
+  final scale = key.scale;
+  final chord = key.chord;
+  final keyName = key.key;
+  final keys = key.keys;
+  final cycle = key.cycle;
+  final octaves = key.octaves;
   const none =
       'sem dedilhado para este padrão: o livro não traz. '
       'Use `fingering: false` para calar o aviso.';
@@ -1121,7 +1303,7 @@ String? _fingeringGap(
             names.every((name) => _hasTable(pattern, scale, name, octaves));
         return covered ? null : none;
       }
-      return _hasTable(pattern, scale, key, octaves) ? null : none;
+      return _hasTable(pattern, scale, keyName, octaves) ? null : none;
     default:
       return none;
   }
@@ -1138,114 +1320,29 @@ bool _hasTable(PatternKind pattern, ScaleKind scale, String name, int octaves) {
   return scaleFingering(scale, key, right: true, octaves: octaves) != null;
 }
 
-PlayChordSpec? _playChord(
-  Fields f,
-  String id,
-  String title,
-  int line,
-  Fields? pass,
-  FileIssues issues,
-) {
+PlayChordSpec? _playChord(Fields f, _Head head, FileIssues issues) {
   final chords = _chords(f, issues);
   if (chords == null) return null;
   final samples = chords.samples;
-  final rawInversion = f.values['inversion'];
-  final inversions = rawInversion is List
-      ? [
-          for (final wire in rawInversion.cast<String>())
-            _enumOf(ChordInversionChoice.values, wire)!,
-        ]
-      : [
-          _enumOf(
-            ChordInversionChoice.values,
-            (rawInversion as String?) ?? 'any',
-          )!,
-        ];
-  final voicing = f.get<String>('voicing');
-  final hand =
-      _enumOf(ChordHand.values, f.get<String>('hand')) ?? ChordHand.any;
-  var ok = true;
-  if (inversions.contains(ChordInversionChoice.third) &&
-      samples.any((sample) => sample.seventh == null)) {
-    issues.error(
-      f.lineOf('inversion'),
-      'tríade não tem 3ª inversão: `third` pede uma cifra de sétima.',
-    );
-    ok = false;
-  }
-  if (voicing != null) {
-    final shape = kVoicingShapes[voicing]!;
-    if (inversions.any((i) => i != ChordInversionChoice.any)) {
-      issues.error(
-        f.lineOf('voicing'),
-        'o molde já decide a ordem das notas; tire `inversion`.',
-      );
-      ok = false;
-    }
-    for (final sample in samples) {
-      try {
-        buildVoicing(sample, shape: shape, lowest: 36, highest: 96);
-      } on ArgumentError {
-        issues.error(
-          f.lineOf('voicing'),
-          '`$voicing` não cabe em `${sample.label(ChordNotation.american)}`.',
-        );
-        ok = false;
-        break;
-      }
-    }
-    if (hand == ChordHand.left &&
-        const {'so-what', 'upper-triad', 'block'}.contains(voicing)) {
-      issues.warning(
-        f.lineOf('hand'),
-        '`$voicing` pede as duas mãos; com `hand: left` o acorde inteiro '
-        'fica na esquerda.',
-      );
-    }
-  }
-  final rangeText = f.get<String>('range');
-  NoteRange? range;
-  if (rangeText != null) {
-    range = NoteRange.tryParse(rangeText);
-    if (range == null) {
-      issues.error(
-        f.lineOf('range'),
-        '`$rangeText` não é uma faixa de notas: escreva da mais grave para a '
-        'mais aguda, como C3-C6.',
-      );
-      ok = false;
-    }
-  }
-  // EX03: o modo com tempo. O `bpm` marca cada pergunta, então não vale junto
-  // com o `time-limit` (que também marca o fim de cada pergunta).
-  final bpm = f.get<int>('bpm');
-  if (bpm == null && f.has('beats')) {
-    issues.error(
-      f.lineOf('beats'),
-      '`beats` só vale com `bpm`: o tempo de cada acorde vem do andamento.',
-    );
-    ok = false;
-  }
-  if (bpm != null && pass?.get<int>('time-limit') != null) {
-    issues.error(
-      f.lineOf('bpm'),
-      '`bpm` e `time-limit` não valem juntos: o metrônomo já marca o fim de '
-      'cada pergunta.',
-    );
-    ok = false;
-  }
+  final inversions = _chordInversions(f);
+  var ok = _checkThirdInversion(f, issues, inversions, samples);
+  if (!_checkVoicing(f, issues, samples)) ok = false;
+  final range = _chordRangeOf(f, issues);
+  if (!range.ok) ok = false;
+  if (!_checkBeatsAndBpm(f, issues)) ok = false;
   if (!ok) return null;
+  final bpm = f.get<int>('bpm');
   return PlayChordSpec(
-    id: id,
-    title: title,
-    pass: _pass(pass),
-    line: line,
+    id: head.id,
+    title: head.title,
+    pass: _pass(head.pass),
+    line: head.line,
     chords: chords.spec,
     inversions: inversions,
-    voicing: voicing,
-    hand: hand,
+    voicing: f.get<String>('voicing'),
+    hand: _chordHand(f),
     split: f.get<Pitch>('split') ?? Pitch.parse('C4'),
-    range: range,
+    range: range.range,
     bpm: bpm,
     beats: f.get<int>('beats') ?? 4,
     strict: f.get<bool>('strict') ?? true,
@@ -1257,18 +1354,179 @@ PlayChordSpec? _playChord(
   );
 }
 
+/// As inversões que o exercício sorteia (`inversion:`, uma ou uma lista).
+List<ChordInversionChoice> _chordInversions(Fields f) {
+  final rawInversion = f.values['inversion'];
+  return rawInversion is List
+      ? [
+          for (final wire in rawInversion.cast<String>())
+            _enumOf(ChordInversionChoice.values, wire)!,
+        ]
+      : [
+          _enumOf(
+            ChordInversionChoice.values,
+            (rawInversion as String?) ?? 'any',
+          )!,
+        ];
+}
+
+/// A mão do acorde (`hand:`); sem ela, qualquer uma.
+ChordHand _chordHand(Fields f) =>
+    _enumOf(ChordHand.values, f.get<String>('hand')) ?? ChordHand.any;
+
+/// A 3ª inversão pede uma cifra de sétima. `false` (com o erro) se alguma
+/// cifra é tríade.
+bool _checkThirdInversion(
+  Fields f,
+  FileIssues issues,
+  List<ChordInversionChoice> inversions,
+  List<ChordSymbol> samples,
+) {
+  if (inversions.contains(ChordInversionChoice.third) &&
+      samples.any((sample) => sample.seventh == null)) {
+    issues.error(
+      f.lineOf('inversion'),
+      'tríade não tem 3ª inversão: `third` pede uma cifra de sétima.',
+    );
+    return false;
+  }
+  return true;
+}
+
+/// O molde (`voicing:`): não pode vir com `inversion:`, tem que caber em todas
+/// as cifras e, com `hand: left`, avisa o que não cabe na esquerda. `false`
+/// (com o erro) se algo não presta.
+bool _checkVoicing(Fields f, FileIssues issues, List<ChordSymbol> samples) {
+  final voicing = f.get<String>('voicing');
+  if (voicing == null) return true;
+  var ok = true;
+  final shape = kVoicingShapes[voicing]!;
+  final inversions = _chordInversions(f);
+  if (inversions.any((i) => i != ChordInversionChoice.any)) {
+    issues.error(
+      f.lineOf('voicing'),
+      'o molde já decide a ordem das notas; tire `inversion`.',
+    );
+    ok = false;
+  }
+  for (final sample in samples) {
+    try {
+      buildVoicing(
+        sample,
+        shape: shape,
+        bounds: VoicingBounds(lowest: 36, highest: 96),
+      );
+    } on ArgumentError {
+      issues.error(
+        f.lineOf('voicing'),
+        '`$voicing` não cabe em `${sample.label(ChordNotation.american)}`.',
+      );
+      ok = false;
+      break;
+    }
+  }
+  if (_chordHand(f) == ChordHand.left &&
+      const {'so-what', 'upper-triad', 'block'}.contains(voicing)) {
+    issues.warning(
+      f.lineOf('hand'),
+      '`$voicing` pede as duas mãos; com `hand: left` o acorde inteiro '
+      'fica na esquerda.',
+    );
+  }
+  return ok;
+}
+
+/// A faixa do exercício (`range:`, da mais grave para a mais aguda).
+({NoteRange? range, bool ok}) _chordRangeOf(Fields f, FileIssues issues) {
+  final rangeText = f.get<String>('range');
+  if (rangeText == null) return (range: null, ok: true);
+  final range = NoteRange.tryParse(rangeText);
+  if (range == null) {
+    issues.error(
+      f.lineOf('range'),
+      '`$rangeText` não é uma faixa de notas: escreva da mais grave para a '
+      'mais aguda, como C3-C6.',
+    );
+    return (range: null, ok: false);
+  }
+  return (range: range, ok: true);
+}
+
+/// EX03: o modo com tempo. O `bpm` marca cada pergunta, então não vale junto
+/// com o `time-limit` (que também marca o fim de cada pergunta). `false` (com
+/// o erro) se algo não presta.
+bool _checkBeatsAndBpm(Fields f, FileIssues issues) {
+  var ok = true;
+  final bpm = f.get<int>('bpm');
+  if (bpm == null && f.has('beats')) {
+    issues.error(
+      f.lineOf('beats'),
+      '`beats` só vale com `bpm`: o tempo de cada acorde vem do andamento.',
+    );
+    ok = false;
+  }
+  if (bpm != null && f.get<Fields>('pass')?.get<int>('time-limit') != null) {
+    issues.error(
+      f.lineOf('bpm'),
+      '`bpm` e `time-limit` não valem juntos: o metrônomo já marca o fim de '
+      'cada pergunta.',
+    );
+    ok = false;
+  }
+  return ok;
+}
+
 /// `play-chart` (EX11): a grade (texto, ou a progressão da biblioteca com
 /// `chart: {progression, key, bars}`), o molde (um nome da biblioteca, ou o
 /// mapa `pattern: {grid, left, right}`), o andamento e o juiz. Um molde de
 /// outro compasso que a grade é erro; `swing` pede colcheias no molde.
-PlayChartSpec? _playChart(
-  Fields f,
-  String id,
-  String title,
-  int line,
-  Fields? pass,
-  FileIssues issues,
-) {
+/// O que o `play-chart` já conferiu e o spec leva.
+typedef _ChartParts = ({
+  String? text,
+  String? progression,
+  int? bars,
+  String key,
+  String time,
+  CompingPattern pattern,
+  BackingSpec? backing,
+});
+
+PlayChartSpec? _playChart(Fields f, _Head head, FileIssues issues) {
+  final grade = _chartGrade(f, issues);
+  if (grade == null) return null;
+  var ok = grade.ok;
+  final pattern = _patternOf(f, issues);
+  if (pattern == null) ok = false;
+  if (!_chartRules(f, pattern, grade.time, issues)) ok = false;
+  final backing = pattern == null
+      ? null
+      : _backingOf(f, backingStyleFor(pattern), grade.time, issues);
+  if (f.has('backing') && backing == null) ok = false;
+  if (!ok || pattern == null) return null;
+  return _chartSpec(f, head, (
+    text: grade.text,
+    progression: grade.progression,
+    bars: grade.bars,
+    key: grade.key,
+    time: grade.time,
+    pattern: pattern,
+    backing: backing,
+  ));
+}
+
+/// A grade de `play-chart` e `target-notes`: o texto, ou a progressão da
+/// biblioteca (com o tom dentro de `chart`), e o compasso. [ok] é falso se algo
+/// não vale; `null` se não há `chart` (e nada mais se confere).
+typedef _ChartGrade = ({
+  bool ok,
+  String time,
+  String? text,
+  String? progression,
+  int? bars,
+  String key,
+});
+
+_ChartGrade? _chartGrade(Fields f, FileIssues issues) {
   var ok = _keyRules(f, issues);
   final time = f.get<String>('time') ?? '4/4';
   final chart = f.values['chart'];
@@ -1289,18 +1547,37 @@ PlayChartSpec? _playChart(
   final text = map == null ? chart as String : null;
   final progression = map?.get<String>('progression');
   if (!_gradeOf(
-    text: text,
-    progression: progression,
-    key: key,
-    time: time,
-    textLine: f.lineOf('chart'),
-    progressionLine: map?.lineOf('progression') ?? f.lineOf('chart'),
     issues: issues,
+    reading: (
+      text: text,
+      progression: progression,
+      key: key,
+      time: time,
+      textLine: f.lineOf('chart'),
+      progressionLine: map?.lineOf('progression') ?? f.lineOf('chart'),
+    ),
   )) {
     ok = false;
   }
-  final pattern = _patternOf(f, issues);
-  if (pattern == null) ok = false;
+  return (
+    ok: ok,
+    time: time,
+    text: text,
+    progression: progression,
+    bars: map?.get<int>('bars'),
+    key: key,
+  );
+}
+
+/// O compasso do molde (tem de ser o da grade), o `swing` (pede colcheias no
+/// molde) e o `beats` (não vale no `play-chart`).
+bool _chartRules(
+  Fields f,
+  CompingPattern? pattern,
+  String time,
+  FileIssues issues,
+) {
+  var ok = true;
   if (pattern?.time != null && pattern!.time != time) {
     issues.error(
       f.lineOf('pattern'),
@@ -1320,29 +1597,27 @@ PlayChartSpec? _playChart(
     );
     ok = false;
   }
-  final bpm = f.get<int>('bpm');
-  if (bpm == null && f.has('beats')) {
+  if (f.get<int>('bpm') == null && f.has('beats')) {
     issues.error(f.lineOf('beats'), '`beats` não vale no `play-chart`.');
     ok = false;
   }
-  final backing = pattern == null
-      ? null
-      : _backingOf(f, backingStyleFor(pattern), time, issues);
-  if (f.has('backing') && backing == null) ok = false;
-  if (!ok || pattern == null) return null;
+  return ok;
+}
+
+PlayChartSpec _chartSpec(Fields f, _Head head, _ChartParts p) {
   return PlayChartSpec(
-    id: id,
-    title: title,
-    pass: _pass(pass),
-    line: line,
-    chartText: text,
-    progression: progression,
-    progressionBars: map?.get<int>('bars'),
-    key: key,
-    time: time,
-    pattern: pattern,
-    bpm: bpm ?? 80,
-    swing: swing,
+    id: head.id,
+    title: head.title,
+    pass: _pass(head.pass),
+    line: head.line,
+    chartText: p.text,
+    progression: p.progression,
+    progressionBars: p.bars,
+    key: p.key,
+    time: p.time,
+    pattern: p.pattern,
+    bpm: f.get<int>('bpm') ?? 80,
+    swing: f.get<int>('swing'),
     choruses: f.get<int>('choruses') ?? 1,
     voicing: f.get<String>('voicing'),
     split: f.get<Pitch>('split') ?? Pitch.parse('C4'),
@@ -1350,14 +1625,12 @@ PlayChartSpec? _playChart(
     omit5: f.get<bool>('omit5') ?? true,
     strictRhythm: f.get<bool>('strict-rhythm') ?? false,
     // Com a base, o metrônomo começa desligado (EX12).
-    metronome: f.get<bool>('metronome') ?? backing == null,
-    show: _enumOf(ChartShow.values, f.get<String>('show')) ?? ChartShow.chords,
+    metronome: f.get<bool>('metronome') ?? p.backing == null,
+    show: _choice(f, 'show', ChartShow.values, ChartShow.chords),
     keys: _keyChoice(f),
     cycle: _enumOf(KeyCycle.values, f.get<String>('cycle')),
-    keyStart:
-        _enumOf(KeyStart.values, f.get<String>('key-start')) ??
-        KeyStart.written,
-    backing: backing,
+    keyStart: _choice(f, 'key-start', KeyStart.values, KeyStart.written),
+    backing: p.backing,
   );
 }
 
@@ -1366,48 +1639,72 @@ PlayChartSpec? _playChart(
 /// entre os alvos (`between`, e a fonte delas, `source`), a mão esquerda (`left`)
 /// e a faixa da direita (`register`). O que o juiz confere (se a nota é a 3ª do
 /// acorde, se o trecho cabe na fonte) é do app. `null` com erro (o erro já saiu).
-TargetNotesSpec? _targetNotes(
-  Fields f,
-  String id,
-  String title,
-  int line,
-  Fields? pass,
-  FileIssues issues,
-) {
-  var ok = _keyRules(f, issues);
-  final time = f.get<String>('time') ?? '4/4';
-  final chart = f.values['chart'];
-  final map = chart is Fields ? chart : null;
-  // Com a progressão, o tom vai dentro do `chart`; em texto, é o `key:`.
-  if (map != null && f.has('key')) {
-    issues.error(
-      f.lineOf('key'),
-      '`key` fica dentro de `chart` quando a grade vem da biblioteca: '
-      '`chart: {progression: …, key: …}`.',
-    );
-    ok = false;
-  }
-  final key = map != null
-      ? map.get<String>('key') ?? 'C'
-      : f.get<String>('key') ?? 'C';
-  if (chart == null) return null;
-  final text = map == null ? chart as String : null;
-  final progression = map?.get<String>('progression');
-  if (!_gradeOf(
-    text: text,
-    progression: progression,
-    key: key,
-    time: time,
-    textLine: f.lineOf('chart'),
-    progressionLine: map?.lineOf('progression') ?? f.lineOf('chart'),
-    issues: issues,
-  )) {
-    ok = false;
-  }
-  final between =
-      _enumOf(TargetBetween.values, f.get<String>('between')) ??
-      TargetBetween.free;
-  if (!_targetRules(f, pass, between, time, issues)) ok = false;
+TargetNotesSpec? _targetNotes(Fields f, _Head head, FileIssues issues) {
+  final grade = _chartGrade(f, issues);
+  if (grade == null) return null;
+  final between = _choice(
+    f,
+    'between',
+    TargetBetween.values,
+    TargetBetween.free,
+  );
+  final betweenOk = _targetRules(f, between, grade.time, issues);
+  final range = _registerRange(f, issues);
+  final backing = _backingOf(
+    f,
+    backingStyleNamed('swing')!,
+    grade.time,
+    issues,
+  );
+  final backingOk = !f.has('backing') || backing != null;
+  if (!grade.ok || !betweenOk || range == null || !backingOk) return null;
+  return _targetSpec(f, head, (
+    grade: grade,
+    between: between,
+    range: range,
+    backing: backing,
+  ));
+}
+
+/// O que `target-notes` já conferiu e o spec leva.
+typedef _TargetParts = ({
+  _ChartGrade grade,
+  TargetBetween between,
+  NoteRange range,
+  BackingSpec? backing,
+});
+
+TargetNotesSpec _targetSpec(Fields f, _Head head, _TargetParts p) {
+  return TargetNotesSpec(
+    id: head.id,
+    title: head.title,
+    pass: _pass(head.pass),
+    line: head.line,
+    chartText: p.grade.text,
+    progression: p.grade.progression,
+    progressionBars: p.grade.bars,
+    key: p.grade.key,
+    time: p.grade.time,
+    bpm: f.get<int>('bpm') ?? 80,
+    swing: f.get<int>('swing'),
+    target: _choice(f, 'target', TargetNote.values, TargetNote.three),
+    when: _choice(f, 'when', TargetWhen.values, TargetWhen.change),
+    between: p.between,
+    source: _choice(f, 'source', TargetSource.values, TargetSource.keyScale),
+    left: f.get<String>('left') ?? 'none',
+    registerFrom: p.range.from,
+    registerTo: p.range.to,
+    split: _splitOf(f),
+    keys: _keyChoice(f),
+    cycle: _enumOf(KeyCycle.values, f.get<String>('cycle')),
+    keyStart: _choice(f, 'key-start', KeyStart.values, KeyStart.written),
+    backing: p.backing,
+  );
+}
+
+/// A faixa da mão direita (`register`, da mais grave à mais aguda). Ela não
+/// pode começar abaixo do `split`. `null`, com o erro dado, se não vale.
+NoteRange? _registerRange(Fields f, FileIssues issues) {
   final range = NoteRange.tryParse(f.get<String>('register') ?? 'C4-C6');
   if (range == null) {
     issues.error(
@@ -1415,63 +1712,33 @@ TargetNotesSpec? _targetNotes(
       '`register` é uma faixa de notas, da mais grave para a mais aguda '
       '(como C4-C6).',
     );
-    ok = false;
+    return null;
   }
-  final split = f.get<Pitch>('split') ?? Pitch.parse('C4');
-  if (range != null && range.from.midi < split.midi) {
+  final split = _splitOf(f);
+  if (range.from.midi < split.midi) {
     issues.error(
       f.lineOf('register'),
       '`register` começa abaixo do `split` (${split.midi}): a mão direita '
       'começa nele, e a faixa da direita não pode descer até a esquerda.',
     );
-    ok = false;
+    return null;
   }
-  final backing = _backingOf(f, backingStyleNamed('swing')!, time, issues);
-  if (f.has('backing') && backing == null) ok = false;
-  if (!ok || range == null) return null;
-  return TargetNotesSpec(
-    id: id,
-    title: title,
-    pass: _pass(pass),
-    line: line,
-    chartText: text,
-    progression: progression,
-    progressionBars: map?.get<int>('bars'),
-    key: key,
-    time: time,
-    bpm: f.get<int>('bpm') ?? 80,
-    swing: f.get<int>('swing'),
-    target:
-        _enumOf(TargetNote.values, f.get<String>('target')) ?? TargetNote.three,
-    when:
-        _enumOf(TargetWhen.values, f.get<String>('when')) ?? TargetWhen.change,
-    between: between,
-    source:
-        _enumOf(TargetSource.values, f.get<String>('source')) ??
-        TargetSource.keyScale,
-    left: f.get<String>('left') ?? 'none',
-    registerFrom: range.from,
-    registerTo: range.to,
-    split: split,
-    keys: _keyChoice(f),
-    cycle: _enumOf(KeyCycle.values, f.get<String>('cycle')),
-    keyStart:
-        _enumOf(KeyStart.values, f.get<String>('key-start')) ??
-        KeyStart.written,
-    backing: backing,
-  );
+  return range;
 }
+
+/// O `split` (a nota que divide as mãos); padrão dó4.
+Pitch _splitOf(Fields f) => f.get<Pitch>('split') ?? Pitch.parse('C4');
 
 /// As regras de combinação do `target-notes` (EX18): o `source` (da chave e do
 /// `pass`) só com `between: source` ou `free`, e o `half-bar` só em compasso de
 /// tempo par (os tempos 1 e 3 são o meio do compasso). Falso se algo está errado.
 bool _targetRules(
   Fields f,
-  Fields? pass,
   TargetBetween between,
   String time,
   FileIssues issues,
 ) {
+  final pass = f.get<Fields>('pass');
   var ok = true;
   final fromFree =
       between == TargetBetween.source || between == TargetBetween.free;
@@ -1513,15 +1780,91 @@ int _beatsOfTime(String time) {
 /// cada modo. `intro-outro`, `break` e `trading` estão no formato, mas o leitor
 /// os recusa com "ainda não roda" (o passe deles vem depois). `null` com erro (o
 /// erro já saiu).
-FollowFormSpec? _followForm(
-  Fields f,
-  String id,
-  String title,
-  int line,
-  Fields? pass,
-  FileIssues issues,
-) {
+FollowFormSpec? _followForm(Fields f, _Head head, FileIssues issues) {
   var ok = _keyRules(f, issues);
+  final time = f.get<String>('time') ?? '4/4';
+  final chart = _followChartOf(f, issues);
+  if (chart == null) return null;
+  if (!chart.ok) ok = false;
+  final mode = _enumOf(FollowMode.values, f.get<String>('mode'));
+  if (mode == null) return null;
+  if (_unrunnableMode(f, mode, issues)) return null;
+  final grade = _gradeQuietly((
+    text: chart.text,
+    progression: chart.progression,
+    progressionBars: chart.bars,
+    key: chart.key,
+    time: time,
+  ));
+  if (!_followModeRules(f, mode, issues)) ok = false;
+  final enter = mode == FollowMode.enter
+      ? _followEnter(f, time, grade, issues)
+      : null;
+  final cues = mode == FollowMode.cues ? _followCues(f, grade, issues) : null;
+  final pattern = mode == FollowMode.cues
+      ? _cuesPattern(f, time, issues)
+      : null;
+  if (mode == FollowMode.enter && enter == null) ok = false;
+  if (mode == FollowMode.cues && (cues == null || pattern == null)) ok = false;
+  final backing = _backingOf(f, backingStyleNamed('swing')!, time, issues);
+  if (f.has('backing') && backing == null) ok = false;
+  if (!ok) return null;
+  return _followSpec(f, head, (
+    chart: chart,
+    mode: mode,
+    time: time,
+    enter: enter,
+    cues: cues,
+    pattern: pattern,
+    backing: backing,
+  ));
+}
+
+/// O que `follow-form` já conferiu e o spec leva.
+typedef _FollowParts = ({
+  ({String? text, String? progression, String key, int? bars, bool ok}) chart,
+  FollowMode mode,
+  String time,
+  FollowEnter? enter,
+  List<FormSignal>? cues,
+  CompingPattern? pattern,
+  BackingSpec? backing,
+});
+
+FollowFormSpec _followSpec(Fields f, _Head head, _FollowParts p) {
+  return FollowFormSpec(
+    id: head.id,
+    title: head.title,
+    pass: _pass(head.pass),
+    line: head.line,
+    mode: p.mode,
+    chartText: p.chart.text,
+    progression: p.chart.progression,
+    progressionBars: p.chart.bars,
+    key: p.chart.key,
+    time: p.time,
+    bpm: f.get<int>('bpm') ?? 80,
+    swing: f.get<int>('swing'),
+    choruses: f.get<int>('choruses') ?? 2,
+    split: _splitOf(f),
+    questions: f.get<int>('questions') ?? 6,
+    answerWindow: f.get<int>('answer-window') ?? 4,
+    cues: p.cues ?? const [],
+    enter: p.enter,
+    pattern: p.pattern,
+    keys: _keyChoice(f),
+    cycle: _enumOf(KeyCycle.values, f.get<String>('cycle')),
+    keyStart: _choice(f, 'key-start', KeyStart.values, KeyStart.written),
+    backing: p.backing,
+  );
+}
+
+/// A grade do `follow-form` (`chart:`, o texto ou a progressão da biblioteca):
+/// o tom (dentro do `chart`, com a progressão; em texto, é o `key:`) e os
+/// compassos. `null` se não há `chart:`; `ok` diz se ela se lê.
+({String? text, String? progression, String key, int? bars, bool ok})?
+_followChartOf(Fields f, FileIssues issues) {
+  var ok = true;
   final time = f.get<String>('time') ?? '4/4';
   final chart = f.values['chart'];
   final map = chart is Fields ? chart : null;
@@ -1541,86 +1884,60 @@ FollowFormSpec? _followForm(
   final text = map == null ? chart as String : null;
   final progression = map?.get<String>('progression');
   if (!_gradeOf(
-    text: text,
-    progression: progression,
-    key: key,
-    time: time,
-    textLine: f.lineOf('chart'),
-    progressionLine: map?.lineOf('progression') ?? f.lineOf('chart'),
     issues: issues,
+    reading: (
+      text: text,
+      progression: progression,
+      key: key,
+      time: time,
+      textLine: f.lineOf('chart'),
+      progressionLine: map?.lineOf('progression') ?? f.lineOf('chart'),
+    ),
   )) {
     ok = false;
   }
-  final mode = _enumOf(FollowMode.values, f.get<String>('mode'));
-  if (mode == null) return null;
-  if (mode == FollowMode.introOutro ||
-      mode == FollowMode.breakBars ||
-      mode == FollowMode.trading) {
-    issues.error(
-      f.lineOf('mode'),
-      '`mode: ${mode.wire}` ainda não roda: o `follow-form` roda `where`, '
-      '`enter` e `cues` (os outros modos estão no formato, sem o passe).',
-    );
-    return null;
-  }
-  final grade = _gradeQuietly(
+  return (
     text: text,
     progression: progression,
-    progressionBars: map?.get<int>('bars'),
     key: key,
-    time: time,
+    bars: map?.get<int>('bars'),
+    ok: ok,
   );
-  if (!_followModeRules(f, mode, issues)) ok = false;
-  final enter = mode == FollowMode.enter
-      ? _followEnter(f, time, grade, issues)
-      : null;
-  final cues = mode == FollowMode.cues ? _followCues(f, grade, issues) : null;
-  final pattern = mode == FollowMode.cues
-      ? _cuesPattern(f, time, issues)
-      : null;
-  if (mode == FollowMode.enter && enter == null) ok = false;
-  if (mode == FollowMode.cues && (cues == null || pattern == null)) ok = false;
-  final backing = _backingOf(f, backingStyleNamed('swing')!, time, issues);
-  if (f.has('backing') && backing == null) ok = false;
-  if (!ok) return null;
-  return FollowFormSpec(
-    id: id,
-    title: title,
-    pass: _pass(pass),
-    line: line,
-    mode: mode,
-    chartText: text,
-    progression: progression,
-    progressionBars: map?.get<int>('bars'),
-    key: key,
-    time: time,
-    bpm: f.get<int>('bpm') ?? 80,
-    swing: f.get<int>('swing'),
-    choruses: f.get<int>('choruses') ?? 2,
-    split: f.get<Pitch>('split') ?? Pitch.parse('C4'),
-    questions: f.get<int>('questions') ?? 6,
-    answerWindow: f.get<int>('answer-window') ?? 4,
-    cues: cues ?? const [],
-    enter: enter,
-    pattern: pattern,
-    keys: _keyChoice(f),
-    cycle: _enumOf(KeyCycle.values, f.get<String>('cycle')),
-    keyStart:
-        _enumOf(KeyStart.values, f.get<String>('key-start')) ??
-        KeyStart.written,
-    backing: backing,
+}
+
+/// Os modos do `follow-form` que estão no formato mas ainda não rodam (o passe
+/// deles vem depois): erro com o que roda, e `true`.
+bool _unrunnableMode(Fields f, FollowMode mode, FileIssues issues) {
+  if (mode != FollowMode.introOutro &&
+      mode != FollowMode.breakBars &&
+      mode != FollowMode.trading) {
+    return false;
+  }
+  issues.error(
+    f.lineOf('mode'),
+    '`mode: ${mode.wire}` ainda não roda: o `follow-form` roda `where`, '
+    '`enter` e `cues` (os outros modos estão no formato, sem o passe).',
   );
+  return true;
 }
 
 /// A grade de um `follow-form` sem erros de texto (para os limites dos modos):
 /// `null` se ela não se lê, o que já saiu como erro.
-ChordChart? _gradeQuietly({
-  required String? text,
-  required String? progression,
-  required int? progressionBars,
-  required String key,
-  required String time,
-}) {
+ChordChart? _gradeQuietly(
+  ({
+    String? text,
+    String? progression,
+    int? progressionBars,
+    String key,
+    String time,
+  })
+  reading,
+) {
+  final text = reading.text;
+  final progression = reading.progression;
+  final progressionBars = reading.progressionBars;
+  final key = reading.key;
+  final time = reading.time;
   final parsedKey = KeySpec.parse(key);
   if (parsedKey == null) return null;
   if (progression != null) {
@@ -1813,23 +2130,8 @@ BackingSpec? _backingOf(
   final raw = f.values['backing'];
   if (raw == null) return null;
   final map = raw is Fields ? raw : null;
-  final name = map?.get<String>('style');
-  final BackingStyle style;
-  if (name == null) {
-    style = defaultStyle;
-  } else {
-    final named = backingStyleNamed(name);
-    if (named == null) {
-      final hint = suggestFor(name, backingStyleNames);
-      issues.error(
-        map!.lineOf('style'),
-        'não há o estilo `$name` na tabela de estilos'
-        '${hint != null ? ' — você quis dizer `$hint`?' : ''}.',
-      );
-      return null;
-    }
-    style = named;
-  }
+  final style = _backingStyleOf(map, defaultStyle, issues);
+  if (style == null) return null;
   if (style.time != time) {
     issues.error(
       f.lineOf('backing'),
@@ -1858,6 +2160,26 @@ BackingSpec? _backingOf(
   );
 }
 
+/// O estilo da base: o `style:` do mapa (um nome da tabela), ou o padrão do
+/// compasso. `null`, com o erro dado, se o nome não está na tabela.
+BackingStyle? _backingStyleOf(
+  Fields? map,
+  BackingStyle defaultStyle,
+  FileIssues issues,
+) {
+  final name = map?.get<String>('style');
+  if (name == null) return defaultStyle;
+  final named = backingStyleNamed(name);
+  if (named != null) return named;
+  final hint = suggestFor(name, backingStyleNames);
+  issues.error(
+    map!.lineOf('style'),
+    'não há o estilo `$name` na tabela de estilos'
+    '${hint != null ? ' — você quis dizer `$hint`?' : ''}.',
+  );
+  return null;
+}
+
 /// O `pattern:` do `play-chart`: o nome de um padrão da biblioteca, ou o molde
 /// escrito. `null` se algo está errado (o erro já saiu).
 CompingPattern? _patternOf(Fields f, FileIssues issues) {
@@ -1876,6 +2198,12 @@ CompingPattern? _patternOf(Fields f, FileIssues issues) {
   }
   final map = raw as Fields?;
   if (map == null) return null;
+  return _writtenPattern(map, issues);
+}
+
+/// O molde escrito (`grid`, `left`, `right`): as duas mãos com o mesmo número
+/// de compassos.
+CompingPattern? _writtenPattern(Fields map, FileIssues issues) {
   final grid = map.get<int>('grid');
   if (grid == null) return null;
   if (!const {2, 3, 4, 6, 8, 12, 16}.contains(grid)) {
@@ -1893,7 +2221,6 @@ CompingPattern? _patternOf(Fields f, FileIssues issues) {
   final rests = List.filled(grid, '.').join(' ');
   final left = map.get<String>('left') ?? rests;
   final right = map.get<String>('right') ?? rests;
-  var ok = true;
   final leftBars = parseCompingLine(
     left,
     grid: grid,
@@ -1904,17 +2231,15 @@ CompingPattern? _patternOf(Fields f, FileIssues issues) {
     grid: grid,
     error: (m) => issues.error(map.lineOf('right'), '`right`: $m.'),
   );
-  if (leftBars == null || rightBars == null) {
-    ok = false;
-  } else if (leftBars.length != rightBars.length) {
+  if (leftBars == null || rightBars == null) return null;
+  if (leftBars.length != rightBars.length) {
     issues.error(
       map.lineOf('right'),
       '`left` tem ${leftBars.length} compasso(s) e `right` tem '
       '${rightBars.length}: as duas mãos têm de ter o mesmo.',
     );
-    ok = false;
+    return null;
   }
-  if (!ok) return null;
   return CompingPattern(
     name: 'molde',
     grid: grid,
@@ -1927,120 +2252,37 @@ CompingPattern? _patternOf(Fields f, FileIssues issues) {
 /// `listen-chord` (EX04): a qualidade (com `qualities`, `roots`, `inversion` e
 /// `play`) ou casa ou tensão (com `answer: function`, `key` e `degrees`). Cada
 /// chave que não vale na forma escolhida é erro, com a linha dela.
-ListenChordSpec? _listenChord(
-  Fields f,
-  String id,
-  String title,
-  int line,
-  Fields? pass,
-  FileIssues issues,
-) {
+ListenChordSpec? _listenChord(Fields f, _Head head, FileIssues issues) {
   final answer =
       _enumOf(ChordAnswerKind.values, f.get<String>('answer')) ??
       ChordAnswerKind.quality;
   final isFunction = answer == ChordAnswerKind.function;
-  var ok = true;
-  final notHere = isFunction
-      ? const ['qualities', 'roots', 'play', 'inversion']
-      : const ['key', 'degrees'];
-  for (final name in notHere) {
-    if (f.has(name)) {
-      issues.error(
-        f.lineOf(name),
-        '`$name` não vale com `answer: ${answer.wire}`.',
-      );
-      ok = false;
-    }
-  }
+  var ok = _checkNotHere(f, issues, answer, isFunction);
   final count = f.get<int>('count') ?? 10;
 
   var qualities = <String>[];
   NotesSpec? roots;
   if (!isFunction) {
-    if (f.has('qualities')) {
-      qualities = f.get<List<Object>>('qualities')!.cast<String>();
-      for (final (i, quality) in qualities.indexed) {
-        if (!kChordQualities.containsKey(quality)) {
-          final hint = suggestFor(quality, kChordQualities.keys);
-          issues.error(
-            _itemLine(f, 'qualities', i),
-            'qualidade `$quality` desconhecida'
-            '${hint != null ? ' — você quis dizer `$hint`?' : ''} '
-            '(use ${kChordQualities.keys.join(', ')}).',
-          );
-          ok = false;
-        }
-      }
-      if (qualities.toSet().length != qualities.length) {
-        issues.error(
-          f.lineOf('qualities'),
-          '`qualities` repete uma qualidade.',
-        );
-        ok = false;
-      }
-    } else {
-      issues.error(
-        line,
-        '`answer: quality` pede `qualities`: as qualidades que os botões mostram.',
-      );
-      ok = false;
-    }
-    if (f.has('roots')) {
-      final raw = f.values['roots'];
-      if (raw is Fields && raw.has('count')) {
-        issues.error(
-          raw.lineOf('count'),
-          '`count` do sorteio de `roots` não vale: use o `count` da lição.',
-        );
-        ok = false;
-      }
-      if (raw is List && f.has('count')) {
-        issues.error(
-          f.lineOf('count'),
-          '`count` não vale com `roots` em lista: uma pergunta por nota.',
-        );
-        ok = false;
-      }
-      roots = _notes(f, issues, defaultCount: count, key: 'roots');
-      if (roots == null) ok = false;
-    } else {
-      roots = RandomNotes(
-        range: NoteRange(Pitch.parse('C3'), Pitch.parse('G4')),
-        count: count,
-      );
-    }
+    final read = _qualitiesOf(f, issues, head.line);
+    qualities = read.qualities;
+    if (!read.ok) ok = false;
+    final rootRead = _rootsOf(f, issues, count);
+    roots = rootRead.roots;
+    if (!rootRead.ok) ok = false;
   }
 
   var degrees = <String>[];
   if (isFunction) {
-    degrees =
-        f.get<List<Object>>('degrees')?.cast<String>() ??
-        const ['I', 'IV', 'V', 'vi'];
-    for (final (i, text) in degrees.indexed) {
-      String? detail;
-      final degree = ChordDegree.parse(text, error: (m) => detail = m);
-      if (degree == null) {
-        issues.error(
-          _itemLine(f, 'degrees', i),
-          '`$text` não é um grau: ${detail ?? 'não entendi'}.',
-        );
-        ok = false;
-      } else if (degree.harmonicFunction == null) {
-        issues.error(
-          _itemLine(f, 'degrees', i),
-          '`$text` não é casa nem tensão: use I, ii, iii, IV ou vi (casa), '
-          'ou V, V7, vii° ou V7/x (tensão).',
-        );
-        ok = false;
-      }
-    }
+    final read = _degreesOf(f, issues);
+    degrees = read.degrees;
+    if (!read.ok) ok = false;
   }
   if (!ok) return null;
   return ListenChordSpec(
-    id: id,
-    title: title,
-    pass: _pass(pass),
-    line: line,
+    id: head.id,
+    title: head.title,
+    pass: _pass(head.pass),
+    line: head.line,
     answer: answer,
     count: count,
     play: _enumOf(ChordPlay.values, f.get<String>('play')) ?? ChordPlay.block,
@@ -2054,6 +2296,133 @@ ListenChordSpec? _listenChord(
   );
 }
 
+/// As chaves que não valem com a [answer]: as de uma resposta por função (grau)
+/// não valem com a de qualidade, e o contrário. `false` (com o erro) se alguma
+/// está escrita.
+bool _checkNotHere(
+  Fields f,
+  FileIssues issues,
+  ChordAnswerKind answer,
+  bool isFunction,
+) {
+  var ok = true;
+  final notHere = isFunction
+      ? const ['qualities', 'roots', 'play', 'inversion']
+      : const ['key', 'degrees'];
+  for (final name in notHere) {
+    if (f.has(name)) {
+      issues.error(
+        f.lineOf(name),
+        '`$name` não vale com `answer: ${answer.wire}`.',
+      );
+      ok = false;
+    }
+  }
+  return ok;
+}
+
+/// As qualidades que os botões mostram (`qualities:`): obrigatórias na resposta
+/// por qualidade, conhecidas e sem repetição. `ok` diz se presta.
+({List<String> qualities, bool ok}) _qualitiesOf(
+  Fields f,
+  FileIssues issues,
+  int line,
+) {
+  var ok = true;
+  var qualities = <String>[];
+  if (f.has('qualities')) {
+    qualities = f.get<List<Object>>('qualities')!.cast<String>();
+    for (final (i, quality) in qualities.indexed) {
+      if (!kChordQualities.containsKey(quality)) {
+        final hint = suggestFor(quality, kChordQualities.keys);
+        issues.error(
+          _itemLine(f, 'qualities', i),
+          'qualidade `$quality` desconhecida'
+          '${hint != null ? ' — você quis dizer `$hint`?' : ''} '
+          '(use ${kChordQualities.keys.join(', ')}).',
+        );
+        ok = false;
+      }
+    }
+    if (qualities.toSet().length != qualities.length) {
+      issues.error(f.lineOf('qualities'), '`qualities` repete uma qualidade.');
+      ok = false;
+    }
+  } else {
+    issues.error(
+      line,
+      '`answer: quality` pede `qualities`: as qualidades que os botões mostram.',
+    );
+    ok = false;
+  }
+  return (qualities: qualities, ok: ok);
+}
+
+/// As raízes (`roots:`): uma lista de notas, ou o sorteio (com o [count] da
+/// lição) quando não há `roots:`. `ok` diz se presta.
+({NotesSpec? roots, bool ok}) _rootsOf(Fields f, FileIssues issues, int count) {
+  if (!f.has('roots')) {
+    return (
+      roots: RandomNotes(
+        range: NoteRange(Pitch.parse('C3'), Pitch.parse('G4')),
+        count: count,
+      ),
+      ok: true,
+    );
+  }
+  var ok = true;
+  final raw = f.values['roots'];
+  if (raw is Fields && raw.has('count')) {
+    issues.error(
+      raw.lineOf('count'),
+      '`count` do sorteio de `roots` não vale: use o `count` da lição.',
+    );
+    ok = false;
+  }
+  if (raw is List && f.has('count')) {
+    issues.error(
+      f.lineOf('count'),
+      '`count` não vale com `roots` em lista: uma pergunta por nota.',
+    );
+    ok = false;
+  }
+  final roots = _notes(
+    f,
+    issues,
+    _NotesRule(defaultCount: count, key: 'roots'),
+  );
+  if (roots == null) ok = false;
+  return (roots: roots, ok: ok);
+}
+
+/// Os graus (`degrees:`) de uma resposta por função: cada um tem que ser um
+/// grau, e um grau de casa ou de tensão. `ok` diz se presta.
+({List<String> degrees, bool ok}) _degreesOf(Fields f, FileIssues issues) {
+  var ok = true;
+  final degrees =
+      f.get<List<Object>>('degrees')?.cast<String>() ??
+      const ['I', 'IV', 'V', 'vi'];
+  for (final (i, text) in degrees.indexed) {
+    String? detail;
+    final degree = ChordDegree.parse(text, error: (m) => detail = m);
+    if (degree == null) {
+      issues.error(
+        _itemLine(f, 'degrees', i),
+        '`$text` não é um grau: ${detail ?? 'não entendi'}.',
+      );
+      ok = false;
+    } else if (degree.harmonicFunction == null) {
+      issues.error(
+        _itemLine(f, 'degrees', i),
+        '`$text` não é casa nem tensão: use I, ii, iii, IV ou vi (casa), '
+        'ou V, V7, vii° ou V7/x (tensão).',
+      );
+      ok = false;
+    }
+  }
+  return (degrees: degrees, ok: ok);
+}
+
 /// As cifras de `chords:` já lidas e conferidas, com um [ChordSymbol] de
 /// amostra por cifra (a do sorteio tem a raiz em dó), para as regras de
 /// inversão e de molde.
@@ -2063,74 +2432,51 @@ typedef _Chords = ({ChordsSpec spec, List<ChordSymbol> samples});
 /// cifra, qualidade ou grau está errada (o erro já foi dado).
 _Chords? _chords(Fields f, FileIssues issues) {
   final raw = f.values['chords'];
-  if (raw is List) {
-    final symbols = raw.cast<String>();
-    final samples = <ChordSymbol>[];
-    var ok = true;
-    for (final (i, text) in symbols.indexed) {
-      String? detail;
-      final symbol = ChordSymbol.parse(text, error: (m) => detail = m);
-      if (symbol == null) {
-        issues.error(
-          _itemLine(f, 'chords', i),
-          '`$text` não é uma cifra: ${detail ?? 'não entendi'}.',
-        );
-        ok = false;
-      } else {
-        samples.add(symbol);
-      }
-    }
-    return ok ? (spec: FixedChords(symbols), samples: samples) : null;
-  }
+  if (raw is List) return _fixedChords(f, raw.cast<String>(), issues);
+  return _chordsMap(raw as Fields, issues);
+}
 
-  final map = raw as Fields;
+/// A lista fixa de cifras: cada uma tem de ler-se.
+_Chords? _fixedChords(Fields f, List<String> symbols, FileIssues issues) {
+  final samples = <ChordSymbol>[];
+  var ok = true;
+  for (final (i, text) in symbols.indexed) {
+    String? detail;
+    final symbol = ChordSymbol.parse(text, error: (m) => detail = m);
+    if (symbol == null) {
+      issues.error(
+        _itemLine(f, 'chords', i),
+        '`$text` não é uma cifra: ${detail ?? 'não entendi'}.',
+      );
+      ok = false;
+    } else {
+      samples.add(symbol);
+    }
+  }
+  return ok ? (spec: FixedChords(symbols), samples: samples) : null;
+}
+
+/// O sorteio de `chords`: `qualities` (com `roots`) ou `degrees`, e não os dois.
+_Chords? _chordsMap(Fields map, FileIssues issues) {
   final qualities = map.get<List<Object>>('qualities')?.cast<String>();
   final degrees = map.get<List<Object>>('degrees')?.cast<String>();
   if ((qualities == null) == (degrees == null)) {
     issues.error(
-      f.lineOf('chords'),
+      map.lineOf('chords'),
       qualities == null
           ? 'falta `qualities` ou `degrees` em `chords`.'
           : 'use `qualities` **ou** `degrees`, não os dois.',
     );
     return null;
   }
-  final samples = <ChordSymbol>[];
-  var ok = true;
-  if (qualities != null) {
-    for (final (i, quality) in qualities.indexed) {
-      final suffix = kChordQualities[quality];
-      if (suffix == null) {
-        final hint = suggestFor(quality, kChordQualities.keys);
-        issues.error(
-          _itemLine(map, 'qualities', i),
-          'qualidade `$quality` desconhecida'
-          '${hint != null ? ' — você quis dizer `$hint`?' : ''} '
-          '(use ${kChordQualities.keys.join(', ')}).',
-        );
-        ok = false;
-      } else {
-        samples.add(ChordSymbol.parse('C$suffix')!);
-      }
-    }
-  }
-  if (degrees != null) {
-    const dOfC = KeySpec(tonic: 0, minor: false, spelling: 'C');
-    for (final (i, text) in degrees.indexed) {
-      String? detail;
-      final degree = ChordDegree.parse(text, error: (m) => detail = m);
-      if (degree == null) {
-        issues.error(
-          _itemLine(map, 'degrees', i),
-          '`$text` não é um grau: ${detail ?? 'não entendi'}.',
-        );
-        ok = false;
-      } else {
-        samples.add(degree.inKey(dOfC));
-      }
-    }
-  }
-  if (!ok) return null;
+  final qualitySamples = qualities == null
+      ? const <ChordSymbol>[]
+      : _qualitySamples(map, qualities, issues);
+  final degreeSamples = degrees == null
+      ? const <ChordSymbol>[]
+      : _degreeSamples(map, degrees, issues);
+  if (qualitySamples == null || degreeSamples == null) return null;
+  final samples = [...qualitySamples, ...degreeSamples];
 
   final count = map.get<int>('count') ?? (qualities != null ? 10 : 1);
   final sequence = map.get<String>('sequence') ?? 'random';
@@ -2146,23 +2492,88 @@ _Chords? _chords(Fields f, FileIssues issues) {
       samples: samples,
     );
   }
+  return (
+    spec: _randomChords(map, qualities, (
+      count: count,
+      sequence: sequence,
+      key: key,
+    )),
+    samples: samples,
+  );
+}
+
+/// O sorteio por qualidades; `roots` diz as raízes (`random`, `white` ou uma
+/// lista de notas).
+RandomChords _randomChords(
+  Fields map,
+  List<String> qualities,
+  ({int count, String sequence, String key}) how,
+) {
   final rawRoots = map.values['roots'];
   final roots = switch (rawRoots) {
     List() => rawRoots.cast<String>(),
     String() when rawRoots != 'random' && rawRoots != 'white' => [rawRoots],
     _ => null,
   };
-  return (
-    spec: RandomChords(
-      qualities: qualities,
-      count: count,
-      sequence: sequence,
-      roots: roots,
-      whiteOnly: rawRoots == 'white',
-      key: key,
-    ),
-    samples: samples,
+  return RandomChords(
+    qualities: qualities,
+    count: how.count,
+    sequence: how.sequence,
+    roots: roots,
+    whiteOnly: rawRoots == 'white',
+    key: how.key,
   );
+}
+
+/// As cifras de exemplo das qualidades; `null` se alguma não existe.
+List<ChordSymbol>? _qualitySamples(
+  Fields map,
+  List<String> qualities,
+  FileIssues issues,
+) {
+  final samples = <ChordSymbol>[];
+  var ok = true;
+  for (final (i, quality) in qualities.indexed) {
+    final suffix = kChordQualities[quality];
+    if (suffix == null) {
+      final hint = suggestFor(quality, kChordQualities.keys);
+      issues.error(
+        _itemLine(map, 'qualities', i),
+        'qualidade `$quality` desconhecida'
+        '${hint != null ? ' — você quis dizer `$hint`?' : ''} '
+        '(use ${kChordQualities.keys.join(', ')}).',
+      );
+      ok = false;
+    } else {
+      samples.add(ChordSymbol.parse('C$suffix')!);
+    }
+  }
+  return ok ? samples : null;
+}
+
+/// Os graus de exemplo (na tonalidade de dó); `null` se algum não se lê.
+List<ChordSymbol>? _degreeSamples(
+  Fields map,
+  List<String> degrees,
+  FileIssues issues,
+) {
+  const dOfC = KeySpec(tonic: 0, minor: false, spelling: 'C');
+  final samples = <ChordSymbol>[];
+  var ok = true;
+  for (final (i, text) in degrees.indexed) {
+    String? detail;
+    final degree = ChordDegree.parse(text, error: (m) => detail = m);
+    if (degree == null) {
+      issues.error(
+        _itemLine(map, 'degrees', i),
+        '`$text` não é um grau: ${detail ?? 'não entendi'}.',
+      );
+      ok = false;
+    } else {
+      samples.add(degree.inKey(dOfC));
+    }
+  }
+  return ok ? samples : null;
 }
 
 /// A linha do item [i] da lista [key] de [f], ou a da própria chave.
@@ -2176,30 +2587,98 @@ final _stepPattern = RegExp(r'^(100|[1-9][0-9]?)([a-d])$');
 /// moldes escritos (`groove`, ou `right` com `left`), com uma mão ou duas
 /// (`hands`, e a nota que as separa, `split`). Os erros que cruzam chaves saem
 /// aqui, cada um com a linha da chave que está errada.
-RhythmSpec? _rhythm(
-  Fields f,
-  String id,
-  String title,
-  int line,
-  Fields? pass,
-  FileIssues issues,
-) {
-  final abc = f.get<String>('abc');
-  final time = f.get<String>('time');
-  final grooveName = f.get<String>('groove');
-  final groove = grooveName == null ? null : rhythmGrooveNamed(grooveName);
-  // Com um groove ou um molde escrito (`right`), o ritmo é o molde: não há
-  // sorteio nem ABC.
-  final molde = groove != null || f.has('right');
-  var ok = true;
-  if (f.has('groove') && (f.has('right') || f.has('left'))) {
-    issues.error(
-      f.lineOf('groove'),
-      '`groove` não vale com `right` e `left`: o groove já traz os moldes.',
-    );
-    ok = false;
+RhythmSpec? _rhythm(Fields f, _Head head, FileIssues issues) {
+  final r = _RhythmReader(f, issues);
+  r.checkSource();
+  r.checkGrooveTime();
+  final figures = r.figures;
+  if (r.abc == null &&
+      figures != null &&
+      !_figuresFit(figures, r.effective, f, issues)) {
+    r.ok = false;
   }
-  if (molde) {
+  final hands = r.checkHands();
+  r.checkSplit(hands);
+  r.checkMolds();
+  final measures = r.checkMeasures();
+  if (!r.ok) return null;
+  return RhythmSpec(
+    id: head.id,
+    title: head.title,
+    pass: _pass(head.pass),
+    line: head.line,
+    time: r.effective,
+    bpm: f.get<int>('bpm') ?? 80,
+    note: f.get<Pitch>('note') ?? Pitch.parse('C4'),
+    figures: figures,
+    measures: measures,
+    abc: r.abc,
+    hands: hands,
+    split: f.get<Pitch>('split') ?? Pitch.parse('C4'),
+    groove: r.groove,
+    right: r.right,
+    left: r.left,
+  );
+}
+
+/// A leitura de um exercício de ritmo, parte a parte: a fonte (o sorteio, o
+/// `abc` escrito, o groove ou o molde), o compasso, as mãos, os moldes e os
+/// compassos. Cada parte anota os erros (com a linha da chave) e marca [ok] se
+/// algo não presta.
+class _RhythmReader {
+  _RhythmReader(this.f, this.issues)
+    : abc = f.get<String>('abc'),
+      time = f.get<String>('time'),
+      groove = _grooveNamed(f) {
+    molde = groove != null || f.has('right');
+    effective = time ?? groove?.time ?? '4/4';
+    figures = molde ? null : f.get<List<Object>>('figures')?.cast<Figure>();
+  }
+
+  final Fields f;
+  final FileIssues issues;
+  final String? abc;
+  final String? time;
+  final RhythmGroove? groove;
+  late final bool molde;
+
+  /// O compasso do exercício: o do groove (que ele tem de repetir), ou 4/4.
+  late final String effective;
+  late final List<Figure>? figures;
+  var ok = true;
+  List<List<RhythmSymbol>>? right;
+  List<List<RhythmSymbol>>? left;
+
+  static RhythmGroove? _grooveNamed(Fields f) {
+    final grooveName = f.get<String>('groove');
+    return grooveName == null ? null : rhythmGrooveNamed(grooveName);
+  }
+
+  /// A fonte: o groove e o molde não valem com as chaves do sorteio nem com o
+  /// `abc`; o `abc` não vale com as do sorteio; e sem nenhuma fonte, é erro.
+  void checkSource() {
+    if (f.has('groove') && (f.has('right') || f.has('left'))) {
+      issues.error(
+        f.lineOf('groove'),
+        '`groove` não vale com `right` e `left`: o groove já traz os moldes.',
+      );
+      ok = false;
+    }
+    if (molde) {
+      _checkMoldeSource();
+    } else if (abc != null) {
+      _checkAbcSource();
+    } else if (!f.has('figures') && !f.has('left')) {
+      issues.error(
+        f.blockLine,
+        'informe `figures` (ritmo sorteado), `abc` (ritmo escrito), `groove` ou '
+        '`right` (molde).',
+      );
+      ok = false;
+    }
+  }
+
+  void _checkMoldeSource() {
     for (final key in ['figures', 'abc']) {
       if (f.has(key)) {
         issues.error(
@@ -2216,7 +2695,9 @@ RhythmSpec? _rhythm(
       );
       ok = false;
     }
-  } else if (abc != null) {
+  }
+
+  void _checkAbcSource() {
     for (final key in ['figures', 'measures', 'note']) {
       if (f.has(key)) {
         issues.error(
@@ -2226,59 +2707,50 @@ RhythmSpec? _rhythm(
         ok = false;
       }
     }
-    if (time != null && abcIsComplete(abc)) {
+    if (time != null && abcIsComplete(abc!)) {
       issues.error(
         f.lineOf('time'),
         'um `abc` com `X:` já traz o cabeçalho: tire `time`.',
       );
       ok = false;
     }
-  } else if (!f.has('figures') && !f.has('left')) {
-    issues.error(
-      f.blockLine,
-      'informe `figures` (ritmo sorteado), `abc` (ritmo escrito), `groove` ou '
-      '`right` (molde).',
-    );
-    ok = false;
-  }
-  // O compasso: o do groove (que o exercício tem de repetir), ou 4/4.
-  final effective = time ?? groove?.time ?? '4/4';
-  if (groove != null && time != null && time != groove.time) {
-    issues.error(
-      f.lineOf('time'),
-      'o groove `${groove.name}` é de ${groove.time}, e o exercício é de '
-      '$time.',
-    );
-    ok = false;
-  }
-  final figures = molde ? null : f.get<List<Object>>('figures')?.cast<Figure>();
-  if (abc == null &&
-      figures != null &&
-      !_figuresFit(figures, effective, f, issues)) {
-    ok = false;
   }
 
-  // `hands`: o groove diz as mãos que toca; sem groove, duas mãos são as que
-  // têm `left:`, e `hands: two` sem `left:` é erro.
-  final handsName = f.get<String>('hands');
-  var hands = 1;
-  if (groove != null) {
-    hands = groove.hands;
-    if (handsName == 'one' && groove.hands == 2) {
+  /// O compasso do groove tem que ser o que o exercício pede.
+  void checkGrooveTime() {
+    final groove = this.groove;
+    if (groove != null && time != null && time != groove.time) {
       issues.error(
-        f.lineOf('hands'),
-        'o groove `${groove.name}` toca as duas mãos: tire `hands:`.',
+        f.lineOf('time'),
+        'o groove `${groove.name}` é de ${groove.time}, e o exercício é de '
+        '$time.',
       );
       ok = false;
     }
-    if (handsName == 'two' && groove.hands == 1) {
-      issues.error(
-        f.lineOf('hands'),
-        'o groove `${groove.name}` toca só a mão direita: tire `hands: two`.',
-      );
-      ok = false;
+  }
+
+  /// As mãos: o groove diz as que toca; sem groove, duas mãos são as que têm
+  /// `left:`, e `hands: two` sem `left:` é erro. Devolve quantas são.
+  int checkHands() {
+    final handsName = f.get<String>('hands');
+    final groove = this.groove;
+    if (groove != null) {
+      if (handsName == 'one' && groove.hands == 2) {
+        issues.error(
+          f.lineOf('hands'),
+          'o groove `${groove.name}` toca as duas mãos: tire `hands:`.',
+        );
+        ok = false;
+      }
+      if (handsName == 'two' && groove.hands == 1) {
+        issues.error(
+          f.lineOf('hands'),
+          'o groove `${groove.name}` toca só a mão direita: tire `hands: two`.',
+        );
+        ok = false;
+      }
+      return groove.hands;
     }
-  } else {
     final twoHands = f.has('left');
     if (handsName == 'two' && !twoHands) {
       issues.error(
@@ -2291,84 +2763,79 @@ RhythmSpec? _rhythm(
       issues.error(f.lineOf('hands'), '`left:` não vale com `hands: one`.');
       ok = false;
     }
-    hands = twoHands ? 2 : 1;
-  }
-  if (f.has('split') && hands != 2) {
-    issues.error(
-      f.lineOf('split'),
-      '`split` só vale com duas mãos (`hands: two`, ou um `groove` de duas '
-      'mãos).',
-    );
-    ok = false;
+    return twoHands ? 2 : 1;
   }
 
-  // Os moldes: os do groove, ou os escritos (`right`, e `left` se tiver).
-  List<List<RhythmSymbol>>? right;
-  List<List<RhythmSymbol>>? left;
-  if (groove != null) {
-    right = groove.rightBars;
-    left = groove.left == null ? null : groove.leftBars;
-  } else if (f.has('right')) {
-    right = _moldeOf(f, 'right', effective, issues);
-    if (f.has('left')) left = _moldeOf(f, 'left', effective, issues);
-    if (right == null || (f.has('left') && left == null)) ok = false;
-  } else if (f.has('left')) {
-    issues.error(
-      f.lineOf('left'),
-      '`left` pede `right`: os dois moldes vêm juntos.',
-    );
-    ok = false;
-  }
-  if (right != null && left != null && right.length != left.length) {
-    issues.error(
-      f.lineOf('left'),
-      '`left` tem ${left.length} compasso(s) e `right` tem ${right.length}: as '
-      'duas mãos têm de ter o mesmo número de compassos.',
-    );
-    ok = false;
-  }
-
-  // `measures` conta os compassos do exercício (4 por padrão), e o molde se
-  // repete até fechá-los: tem de ser múltiplo dos compassos do molde.
-  var measures = figures == null ? null : (f.get<int>('measures') ?? 4);
-  if (right != null) {
-    final bars = right.length;
-    final given = f.get<int>('measures');
-    final count = given ?? 4;
-    measures = count;
-    if (count % bars != 0) {
+  /// `split` só vale com duas mãos.
+  void checkSplit(int hands) {
+    if (f.has('split') && hands != 2) {
       issues.error(
-        given != null
-            ? f.lineOf('measures')
-            : (groove != null ? f.lineOf('groove') : f.lineOf('right')),
-        given != null
-            ? '`measures` precisa ser múltiplo de $bars, o número de compassos '
-                  'do molde (recebi $count).'
-            : 'o molde tem $bars compasso(s), e `measures` (padrão 4) não é '
-                  'múltiplo disso: escreva `measures:`.',
+        f.lineOf('split'),
+        '`split` só vale com duas mãos (`hands: two`, ou um `groove` de duas '
+        'mãos).',
       );
       ok = false;
     }
   }
 
-  if (!ok) return null;
-  return RhythmSpec(
-    id: id,
-    title: title,
-    pass: _pass(pass),
-    line: line,
-    time: effective,
-    bpm: f.get<int>('bpm') ?? 80,
-    note: f.get<Pitch>('note') ?? Pitch.parse('C4'),
-    figures: figures,
-    measures: measures,
-    abc: abc,
-    hands: hands,
-    split: f.get<Pitch>('split') ?? Pitch.parse('C4'),
-    groove: groove,
-    right: right,
-    left: left,
-  );
+  /// Os moldes: os do groove, ou os escritos (`right`, e `left` se tiver).
+  void checkMolds() {
+    final groove = this.groove;
+    if (groove != null) {
+      right = groove.rightBars;
+      left = groove.left == null ? null : groove.leftBars;
+    } else if (f.has('right')) {
+      right = _moldeOf(f, 'right', effective, issues);
+      if (f.has('left')) left = _moldeOf(f, 'left', effective, issues);
+      if (right == null || (f.has('left') && left == null)) ok = false;
+    } else if (f.has('left')) {
+      issues.error(
+        f.lineOf('left'),
+        '`left` pede `right`: os dois moldes vêm juntos.',
+      );
+      ok = false;
+    }
+    final rightBars = right;
+    final leftBars = left;
+    if (rightBars != null &&
+        leftBars != null &&
+        rightBars.length != leftBars.length) {
+      issues.error(
+        f.lineOf('left'),
+        '`left` tem ${leftBars.length} compasso(s) e `right` tem '
+        '${rightBars.length}: as duas mãos têm de ter o mesmo número de '
+        'compassos.',
+      );
+      ok = false;
+    }
+  }
+
+  /// `measures` conta os compassos do exercício (4 por padrão), e o molde se
+  /// repete até fechá-los: tem de ser múltiplo dos compassos do molde.
+  int? checkMeasures() {
+    var measures = figures == null ? null : (f.get<int>('measures') ?? 4);
+    final right = this.right;
+    if (right != null) {
+      final bars = right.length;
+      final given = f.get<int>('measures');
+      final count = given ?? 4;
+      measures = count;
+      if (count % bars != 0) {
+        issues.error(
+          given != null
+              ? f.lineOf('measures')
+              : (groove != null ? f.lineOf('groove') : f.lineOf('right')),
+          given != null
+              ? '`measures` precisa ser múltiplo de $bars, o número de compassos '
+                    'do molde (recebi $count).'
+              : 'o molde tem $bars compasso(s), e `measures` (padrão 4) não é '
+                    'múltiplo disso: escreva `measures:`.',
+        );
+        ok = false;
+      }
+    }
+    return measures;
+  }
 }
 
 /// Lê o molde escrito na chave [key] (`right` ou `left`) no compasso [time].
@@ -2387,14 +2854,11 @@ List<List<RhythmSymbol>>? _moldeOf(
 /// `listen-groove` (EX13): os grooves que os botões mostram (dois ou mais, com
 /// os nomes do vocabulário; um nome que não existe tem sugestão) e as
 /// perguntas.
-ListenGrooveSpec? _listenGroove(
-  Fields f,
-  String id,
-  String title,
-  int line,
-  Fields? pass,
-  FileIssues issues,
-) {
+ListenGrooveSpec? _listenGroove(Fields f, _Head head, FileIssues issues) {
+  final id = head.id;
+  final title = head.title;
+  final line = head.line;
+  final pass = head.pass;
   final names = f.get<List<Object>>('grooves')!.cast<String>();
   final wires = [for (final groove in ListenGroove.values) groove.wire];
   var ok = true;
@@ -2435,109 +2899,202 @@ ListenGrooveSpec? _listenGroove(
 /// da grade dela, para o app ter só grades.
 ListenProgressionSpec? _listenProgression(
   Fields f,
-  String id,
-  String title,
-  int line,
-  Fields? pass,
+  _Head head,
   FileIssues issues,
 ) {
-  final answer =
-      _enumOf(ProgressionAnswer.values, f.get<String>('answer')) ??
-      ProgressionAnswer.choice;
+  final answer = _choice(
+    f,
+    'answer',
+    ProgressionAnswer.values,
+    ProgressionAnswer.choice,
+  );
   final given = f.get<List<Object>>('progressions')!.cast<String>();
-  var ok = true;
-  if (answer == ProgressionAnswer.choice && given.length < 2) {
-    issues.error(
-      f.lineOf('progressions'),
-      '`answer: choice` pede duas ou mais progressões: os botões escolhem entre elas.',
-    );
-    ok = false;
-  }
-  final charts = <String>[];
-  final spelled = <String>{};
-  for (final (i, text) in given.indexed) {
-    final chart = progressionNamed(text)?.chart ?? text;
-    String? detail;
-    final bars = parseProgression(chart, error: (m) => detail = m);
-    if (bars == null) {
-      final hint = suggestFor(text, [for (final p in kProgressions) p.name]);
-      issues.error(
-        _itemLine(f, 'progressions', i),
-        '`$text` não é uma progressão da biblioteca'
-        '${hint != null ? ' — você quis dizer `$hint`?' : ''}, nem uma grade '
-        'escrita${detail != null ? ' ($detail)' : ''}: escreva os graus '
-        'separados por espaço e os compassos por `|`, como `I | vi | ii V | I`.',
-      );
-      ok = false;
-      continue;
-    }
-    final chords = bars.fold<int>(0, (sum, bar) => sum + bar.length);
-    if (chords > 8) {
-      issues.error(
-        _itemLine(f, 'progressions', i),
-        '`$text` tem $chords acordes: o máximo é 8 (é longo demais para o ouvido).',
-      );
-      ok = false;
-      continue;
-    }
-    final degrees = [
-      for (final bar in bars)
-        for (final degree in bar) degree.label,
-    ].join(' ');
-    if (!spelled.add(degrees)) {
-      issues.error(
-        _itemLine(f, 'progressions', i),
-        '`$text` tem os mesmos graus de uma progressão anterior.',
-      );
-      ok = false;
-      continue;
-    }
-    charts.add(chart);
-  }
-  final styleName = f.get<String>('style') ?? 'block';
-  BackingStyle? style;
-  if (styleName != 'block') {
-    style = backingStyleNamed(styleName);
-    if (style != null && style.time != '4/4') {
-      issues.error(
-        f.lineOf('style'),
-        'o estilo `${style.name}` é de ${style.time}, e a progressão é em 4/4.',
-      );
-      ok = false;
-    }
-  }
-  if (!ok) return null;
-  return ListenProgressionSpec(
-    id: id,
-    title: title,
-    pass: _pass(pass),
-    line: line,
+  final countOk = _progressionCountOk(f, answer, given.length, issues);
+  final charts = _progressionCharts(f, given, issues);
+  final style = _progressionStyle(f, issues);
+  if (!countOk || charts == null || !style.ok) return null;
+  return _progressionSpec(f, head, (
     answer: answer,
-    progressions: charts,
+    charts: charts,
+    style: style.style,
+  ));
+}
+
+/// O que `listen-progression` já conferiu e o spec leva.
+typedef _ProgressionParts = ({
+  ProgressionAnswer answer,
+  List<String> charts,
+  BackingStyle? style,
+});
+
+ListenProgressionSpec _progressionSpec(
+  Fields f,
+  _Head head,
+  _ProgressionParts p,
+) {
+  return ListenProgressionSpec(
+    id: head.id,
+    title: head.title,
+    pass: _pass(head.pass),
+    line: head.line,
+    answer: p.answer,
+    progressions: p.charts,
     key: f.get<String>('key') ?? 'C',
-    style: style,
+    style: p.style,
     bpm: f.get<int>('bpm') ?? 90,
     count: f.get<int>('count') ?? 8,
   );
+}
+
+/// Com `answer: choice` são precisas duas ou mais progressões: os botões
+/// escolhem entre elas.
+bool _progressionCountOk(
+  Fields f,
+  ProgressionAnswer answer,
+  int count,
+  FileIssues issues,
+) {
+  if (answer != ProgressionAnswer.choice || count >= 2) return true;
+  issues.error(
+    f.lineOf('progressions'),
+    '`answer: choice` pede duas ou mais progressões: os botões escolhem entre '
+    'elas.',
+  );
+  return false;
+}
+
+/// As progressões escritas, na ordem; `null` se alguma não vale.
+List<String>? _progressionCharts(
+  Fields f,
+  List<String> given,
+  FileIssues issues,
+) {
+  final charts = <String>[];
+  final spelled = <String>{};
+  var ok = true;
+  for (final (i, text) in given.indexed) {
+    final chart = _progressionChart(
+      text,
+      _itemLine(f, 'progressions', i),
+      spelled,
+      issues,
+    );
+    if (chart == null) {
+      ok = false;
+    } else {
+      charts.add(chart);
+    }
+  }
+  return ok ? charts : null;
+}
+
+/// Uma progressão: a da biblioteca ou a grade escrita, com até 8 acordes e
+/// sem os graus de uma anterior ([spelled]). `null`, com o erro, se não vale.
+String? _progressionChart(
+  String text,
+  int line,
+  Set<String> spelled,
+  FileIssues issues,
+) {
+  final chart = progressionNamed(text)?.chart ?? text;
+  String? detail;
+  final bars = parseProgression(chart, error: (m) => detail = m);
+  if (bars == null) {
+    final hint = suggestFor(text, [for (final p in kProgressions) p.name]);
+    issues.error(
+      line,
+      '`$text` não é uma progressão da biblioteca'
+      '${hint != null ? ' — você quis dizer `$hint`?' : ''}, nem uma grade '
+      'escrita${detail != null ? ' ($detail)' : ''}: escreva os graus '
+      'separados por espaço e os compassos por `|`, como `I | vi | ii V | I`.',
+    );
+    return null;
+  }
+  final chords = bars.fold<int>(0, (sum, bar) => sum + bar.length);
+  if (chords > 8) {
+    issues.error(
+      line,
+      '`$text` tem $chords acordes: o máximo é 8 (é longo demais para o '
+      'ouvido).',
+    );
+    return null;
+  }
+  final degrees = [
+    for (final bar in bars)
+      for (final degree in bar) degree.label,
+  ].join(' ');
+  if (!spelled.add(degrees)) {
+    issues.error(
+      line,
+      '`$text` tem os mesmos graus de uma progressão anterior.',
+    );
+    return null;
+  }
+  return chart;
+}
+
+/// O estilo da base (`style`; `block` é só a melodia, sem base). Só vale em
+/// 4/4: [ok] é falso se o estilo é de outro compasso.
+({BackingStyle? style, bool ok}) _progressionStyle(
+  Fields f,
+  FileIssues issues,
+) {
+  final styleName = f.get<String>('style') ?? 'block';
+  if (styleName == 'block') return (style: null, ok: true);
+  final style = backingStyleNamed(styleName);
+  if (style != null && style.time != '4/4') {
+    issues.error(
+      f.lineOf('style'),
+      'o estilo `${style.name}` é de ${style.time}, e a progressão é em 4/4.',
+    );
+    return (style: style, ok: false);
+  }
+  return (style: style, ok: true);
 }
 
 /// `harmonize` (EX16): o modo, a melodia (`step` gerada ou `file` do autor), os
 /// graus que o acorde pode ser, onde ele troca e o molde. O que depende da nota
 /// (se um acorde cabe no compasso, a fórmula da melodia) é do app, que lê a
 /// melodia. `null` com erro (o erro já saiu).
-HarmonizeSpec? _harmonize(
-  Fields f,
-  String id,
-  String title,
-  int line,
-  Fields? pass,
-  FileIssues issues,
-) {
+HarmonizeSpec? _harmonize(Fields f, _Head head, FileIssues issues) {
+  final modeRead = _harmonizeMode(f, issues);
+  var ok = modeRead.ok;
+  final mode = modeRead.mode;
+  // Sem `melody:` a leitura da chave já disse o que falta.
+  final melodyRead = _harmonizeMelody(f, issues);
+  if (melodyRead == null) return null;
+  if (!melodyRead.ok) ok = false;
+  final melody = melodyRead.melody;
+  final chordRead = _harmonizeChords(f, issues);
+  if (!chordRead.ok) ok = false;
+  final changeRead = _harmonizeChange(f, issues, melody);
+  if (!changeRead.ok) ok = false;
+  final patternRead = _harmonizePatternOf(f, issues, mode);
+  if (!patternRead.ok) ok = false;
+  if (!ok) return null;
+  return HarmonizeSpec(
+    id: head.id,
+    title: head.title,
+    pass: _pass(head.pass),
+    line: head.line,
+    mode: mode,
+    melody: melody,
+    chords: chordRead.chords,
+    change: changeRead.change,
+    pattern: mode == HarmonizeMode.degrees ? null : patternRead.name,
+    bpm: f.get<int>('bpm') ?? 70,
+    split: f.get<Pitch>('split') ?? Pitch.parse('C4'),
+    count: f.get<int>('count') ?? 1,
+  );
+}
+
+/// O modo (`mode:`). A rearmonização (nível 6) está no formato, mas ainda não
+/// roda; e o `technique` só vale com ela.
+({HarmonizeMode mode, bool ok}) _harmonizeMode(Fields f, FileIssues issues) {
   var ok = true;
   final mode =
       _enumOf(HarmonizeMode.values, f.get<String>('mode')) ??
       HarmonizeMode.play;
-  // A rearmonização (nível 6) está no formato, mas ainda não roda.
   if (mode == HarmonizeMode.reharmonize) {
     issues.error(
       f.lineOf('mode'),
@@ -2553,8 +3110,16 @@ HarmonizeSpec? _harmonize(
     );
     ok = false;
   }
+  return (mode: mode, ok: ok);
+}
 
-  // Sem `melody:` a leitura da chave já disse o que falta.
+/// A melodia (`melody:`): um passo gerado (com a chave), ou um arquivo. `null`
+/// se não há `melody:` ou se ela tem as duas formas (ou nenhuma); `ok` diz se o
+/// resto presta.
+({MelodySource melody, bool ok})? _harmonizeMelody(
+  Fields f,
+  FileIssues issues,
+) {
   final map = f.values['melody'] as Fields?;
   if (map == null) return null;
   final step = map.get<String>('step');
@@ -2567,6 +3132,7 @@ HarmonizeSpec? _harmonize(
     );
     return null;
   }
+  var ok = true;
   final MelodySource melody;
   if (step != null) {
     if (!_stepPattern.hasMatch(step)) {
@@ -2594,7 +3160,12 @@ HarmonizeSpec? _harmonize(
     );
     ok = false;
   }
+  return (melody: melody, ok: ok);
+}
 
+/// As cifras (`chords:`, os graus romanos). `ok` diz se todas se leem.
+({List<String> chords, bool ok}) _harmonizeChords(Fields f, FileIssues issues) {
+  var ok = true;
   final chords =
       f.get<List<Object>>('chords')?.cast<String>() ?? const ['I', 'IV', 'V7'];
   for (final (i, text) in chords.indexed) {
@@ -2606,7 +3177,16 @@ HarmonizeSpec? _harmonize(
       ok = false;
     }
   }
+  return (chords: chords, ok: ok);
+}
 
+/// A troca de cifra (`change:`): a `marked` pede uma melodia do autor (com as
+/// marcas), e a gerada não as tem.
+({HarmonizeChange change, bool ok}) _harmonizeChange(
+  Fields f,
+  FileIssues issues,
+  MelodySource melody,
+) {
   final change =
       _enumOf(HarmonizeChange.values, f.get<String>('change')) ??
       HarmonizeChange.bar;
@@ -2616,11 +3196,20 @@ HarmonizeSpec? _harmonize(
       '`change: marked` pede uma melodia do autor (`file`): a melodia gerada '
       'não tem marcas de troca.',
     );
-    ok = false;
+    return (change: change, ok: false);
   }
+  return (change: change, ok: true);
+}
 
-  // O molde só vale com `play` e `by-ear`. `block` é o acorde na esquerda nos
-  // tempos 1 e 3 (a direita é a melodia; ver o EX16); os outros são os do EX11.
+/// O molde (`pattern:`): só vale com `play` e `by-ear` (com `degrees` não há).
+/// `block` é o acorde na esquerda nos tempos 1 e 3 (a direita é a melodia; ver
+/// o EX16); os outros são os do EX11.
+({String name, bool ok}) _harmonizePatternOf(
+  Fields f,
+  FileIssues issues,
+  HarmonizeMode mode,
+) {
+  var ok = true;
   final pattern = f.get<String>('pattern');
   if (mode == HarmonizeMode.degrees && pattern != null) {
     issues.error(
@@ -2639,22 +3228,7 @@ HarmonizeSpec? _harmonize(
     );
     ok = false;
   }
-
-  if (!ok) return null;
-  return HarmonizeSpec(
-    id: id,
-    title: title,
-    pass: _pass(pass),
-    line: line,
-    mode: mode,
-    melody: melody,
-    chords: chords,
-    change: change,
-    pattern: mode == HarmonizeMode.degrees ? null : name,
-    bpm: f.get<int>('bpm') ?? 70,
-    split: f.get<Pitch>('split') ?? Pitch.parse('C4'),
-    count: f.get<int>('count') ?? 1,
-  );
+  return (name: name, ok: ok);
 }
 
 /// Os moldes que o `harmonize` aceita: `block` (o dele), `any` e os do EX11.
@@ -2666,14 +3240,16 @@ bool _harmonizePattern(String name) =>
 /// depende da partitura (se as cifras se leem, se o estilo cabe nos compassos)
 /// é do app. Recusa o que ainda não roda: `abc`, o tom por rodada, a base e os
 /// estilos fora de [LeadStyle.implemented]. `null` com erro (o erro já saiu).
-PlayLeadSheetSpec? _playLeadSheet(
-  Fields f,
-  String id,
-  String title,
-  int line,
-  Fields? pass,
-  FileIssues issues,
-) {
+PlayLeadSheetSpec? _playLeadSheet(Fields f, _Head head, FileIssues issues) {
+  final sourceOk = _leadSourceRules(f, issues);
+  final styleOk = _leadStyleRules(f, issues);
+  if (!sourceOk || !styleOk) return null;
+  return _leadSheetSpec(f, head);
+}
+
+/// A fonte da cifra: o `play-lead-sheet` lê o `.musicxml` (`file`); o que ainda
+/// não roda (`abc`, `keys`, `cycle`, `key-start`, `backing`) dá erro.
+bool _leadSourceRules(Fields f, FileIssues issues) {
   var ok = true;
   if (!f.has('file') && !f.has('abc')) {
     issues.error(
@@ -2700,7 +3276,13 @@ PlayLeadSheetSpec? _playLeadSheet(
     );
     ok = false;
   }
+  return ok;
+}
 
+/// O estilo e o molde da mão esquerda: o estilo tem de rodar, e `pattern` não
+/// vale com ele.
+bool _leadStyleRules(Fields f, FileIssues issues) {
+  var ok = true;
   final styleName = f.get<String>('style');
   final style = _enumOf(LeadStyle.values, styleName);
   if (style != null && !LeadStyle.implemented.contains(style)) {
@@ -2729,39 +3311,78 @@ PlayLeadSheetSpec? _playLeadSheet(
     );
     ok = false;
   }
+  return ok;
+}
 
-  if (!ok) return null;
+PlayLeadSheetSpec _leadSheetSpec(Fields f, _Head head) {
   return PlayLeadSheetSpec(
-    id: id,
-    title: title,
-    pass: _pass(pass),
-    line: line,
+    id: head.id,
+    title: head.title,
+    pass: _pass(head.pass),
+    line: head.line,
     file: f.get<String>('file') ?? '',
-    pattern: name,
-    style: style,
-    melody:
-        _enumOf(LeadMelody.values, f.get<String>('melody')) ?? LeadMelody.check,
+    pattern: f.get<String>('pattern') ?? 'block',
+    style: _enumOf(LeadStyle.values, f.get<String>('style')),
+    melody: _choice(f, 'melody', LeadMelody.values, LeadMelody.check),
     bpm: f.get<int>('bpm') ?? 80,
     swing: f.get<int>('swing'),
-    split: f.get<Pitch>('split') ?? Pitch.parse('C4'),
+    split: _splitOf(f),
   );
 }
 
 /// `echo` (EX14): a fonte das notas (`source:`, uma das três formas), a faixa, o
 /// tamanho e o andamento das frases, e a conferência (`octave`, `rhythm`, a mão).
 /// `null` com erro (o erro já saiu).
-EchoSpec? _echo(
-  Fields f,
-  String id,
-  String title,
-  int line,
-  Fields? pass,
-  FileIssues issues,
-) {
-  var ok = true;
-  final map = f.values['source'] as Fields?;
+EchoSpec? _echo(Fields f, _Head head, FileIssues issues) {
+  final src = _echoSourceOf(f, issues);
+  if (src == null) return null;
+  final chart = _echoChartOf(f, issues, chordTones: src.chordTones);
+  final backing = _echoBacking(f, issues);
+  final ok = src.ok && chart.ok && !(f.has('backing') && backing == null);
+  final range = src.range;
+  if (!ok || range == null) return null;
+  return EchoSpec(
+    id: head.id,
+    title: head.title,
+    pass: _pass(head.pass),
+    line: head.line,
+    source: src.source,
+    range: range,
+    notes: f.get<int>('notes') ?? 4,
+    figures: f.get<List<Object>>('figures')?.cast<Figure>() ?? [Figure.quarter],
+    measures: f.get<int>('measures') ?? 1,
+    leaps: f.get<int>('leaps') ?? 3,
+    start: _choice(f, 'start', EchoStart.values, EchoStart.tonic),
+    bpm: f.get<int>('bpm') ?? 80,
+    swing: f.get<int>('swing') ?? 50,
+    count: f.get<int>('count') ?? 8,
+    octave: _choice(f, 'octave', EchoOctave.values, EchoOctave.any),
+    transpose: _choice(
+      f,
+      'transpose',
+      EchoTranspose.values,
+      EchoTranspose.none,
+    ),
+    rhythm: _choice(f, 'rhythm', EchoRhythm.values, EchoRhythm.loose),
+    split: _splitOf(f),
+    hand: f.get<String>('hand') == 'left' ? HandChoice.left : HandChoice.right,
+    backing: backing,
+    chartText: chart.chartText,
+    progression: chart.progression,
+    progressionBars: chart.progressionBars,
+    chartKey: chart.chartKey,
+  );
+}
+
+/// O `source:` do `echo`: a fonte (escala, acordes ou frases), a faixa e o que
+/// não vale com ela. `null` (o erro já saiu) se não há exatamente uma das três
+/// formas; o [ok] diz se o resto presta.
+({EchoSource source, NoteRange? range, bool chordTones, bool ok})?
+_echoSourceOf(Fields f, FileIssues issues) {
   // Sem `source:` a leitura do campo obrigatório já disse o que falta.
+  final map = f.values['source'] as Fields?;
   if (map == null) return null;
+  var ok = true;
   final scale = map.get<String>('scale');
   final chordTones = map.get<bool>('chord-tones') ?? false;
   final licks = map.get<String>('licks');
@@ -2805,16 +3426,36 @@ EchoSpec? _echo(
     ok = false;
   }
   // Com `licks`, a frase vem da biblioteca: estas chaves não fazem efeito.
-  if (licks != null) {
-    for (final key in ['notes', 'figures', 'leaps', 'start']) {
-      if (!f.has(key)) continue;
-      issues.error(
-        f.lineOf(key),
-        '`$key` não vale com `licks`: a frase vem da biblioteca.',
-      );
-      ok = false;
-    }
+  if (licks != null && !_lickKeysFit(f, issues)) ok = false;
+  return (source: source, range: range, chordTones: chordTones, ok: ok);
+}
+
+/// Com `licks`, as chaves da frase (`notes`, `figures`, `leaps`, `start`) não
+/// valem: a frase vem da biblioteca. `false` (com o erro) se alguma está escrita.
+bool _lickKeysFit(Fields f, FileIssues issues) {
+  var ok = true;
+  for (final key in ['notes', 'figures', 'leaps', 'start']) {
+    if (!f.has(key)) continue;
+    issues.error(
+      f.lineOf(key),
+      '`$key` não vale com `licks`: a frase vem da biblioteca.',
+    );
+    ok = false;
   }
+  return ok;
+}
+
+/// A grade do `echo` (`chart:`, o acorde de cada compasso): o texto, ou a
+/// progressão da biblioteca, e o tom. `chord-tones` pede a grade.
+({
+  String? chartText,
+  String? progression,
+  String chartKey,
+  int? progressionBars,
+  bool ok,
+})
+_echoChartOf(Fields f, FileIssues issues, {required bool chordTones}) {
+  var ok = true;
   final chart = f.values['chart'];
   final chartMap = chart is Fields ? chart : null;
   final chartText = chartMap == null ? chart as String? : null;
@@ -2829,48 +3470,24 @@ EchoSpec? _echo(
   }
   if (chart != null &&
       !_gradeOf(
-        text: chartText,
-        progression: progression,
-        key: chartKey,
-        time: '4/4',
-        textLine: f.lineOf('chart'),
-        progressionLine: chartMap?.lineOf('progression') ?? f.lineOf('chart'),
         issues: issues,
+        reading: (
+          text: chartText,
+          progression: progression,
+          key: chartKey,
+          time: '4/4',
+          textLine: f.lineOf('chart'),
+          progressionLine: chartMap?.lineOf('progression') ?? f.lineOf('chart'),
+        ),
       )) {
     ok = false;
   }
-  final backing = _echoBacking(f, issues);
-  if (f.has('backing') && backing == null) ok = false;
-  if (!ok || range == null) return null;
-  return EchoSpec(
-    id: id,
-    title: title,
-    pass: _pass(pass),
-    line: line,
-    source: source,
-    range: range,
-    notes: f.get<int>('notes') ?? 4,
-    figures: f.get<List<Object>>('figures')?.cast<Figure>() ?? [Figure.quarter],
-    measures: f.get<int>('measures') ?? 1,
-    leaps: f.get<int>('leaps') ?? 3,
-    start: _enumOf(EchoStart.values, f.get<String>('start')) ?? EchoStart.tonic,
-    bpm: f.get<int>('bpm') ?? 80,
-    swing: f.get<int>('swing') ?? 50,
-    count: f.get<int>('count') ?? 8,
-    octave:
-        _enumOf(EchoOctave.values, f.get<String>('octave')) ?? EchoOctave.any,
-    transpose:
-        _enumOf(EchoTranspose.values, f.get<String>('transpose')) ??
-        EchoTranspose.none,
-    rhythm:
-        _enumOf(EchoRhythm.values, f.get<String>('rhythm')) ?? EchoRhythm.loose,
-    split: f.get<Pitch>('split') ?? Pitch.parse('C4'),
-    hand: f.get<String>('hand') == 'left' ? HandChoice.left : HandChoice.right,
-    backing: backing,
+  return (
     chartText: chartText,
     progression: progression,
-    progressionBars: chartMap?.get<int>('bars'),
     chartKey: chartKey,
+    progressionBars: chartMap?.get<int>('bars'),
+    ok: ok,
   );
 }
 
@@ -2918,20 +3535,40 @@ BackingSpec? _echoBacking(Fields f, FileIssues issues) {
 /// erros de combinação saem aqui: o tópico da forma (ainda não roda), o teclado
 /// sem tópico de nota ou acorde, o `interval-build` com botões e a qualidade
 /// sem tópico de acorde.
-TheoryQuizSpec? _theoryQuiz(
-  Fields f,
-  String id,
-  String title,
-  int line,
-  Fields? pass,
-  FileIssues issues,
-) {
+TheoryQuizSpec? _theoryQuiz(Fields f, _Head head, FileIssues issues) {
   final topics = _theoryTopics(f, issues);
   final keys = _theoryKeys(f, issues);
   if (topics == null || keys == null) return null;
-  final answer =
-      _enumOf(TheoryAnswer.values, f.get<String>('answer')) ??
-      TheoryAnswer.buttons;
+  final answer = _choice(
+    f,
+    'answer',
+    TheoryAnswer.values,
+    TheoryAnswer.buttons,
+  );
+  final answerOk = _theoryAnswerOk(f, topics, answer, issues);
+  final qualitiesOk = _theoryQualitiesOk(f, topics, issues);
+  if (!answerOk || !qualitiesOk) return null;
+  return TheoryQuizSpec(
+    id: head.id,
+    title: head.title,
+    pass: _pass(head.pass),
+    line: head.line,
+    topics: topics,
+    keys: keys,
+    count: f.get<int>('count') ?? 10,
+    answer: answer,
+    qualities: _stringsOf(f.get<Object>('qualities')) ?? const ['M', 'm'],
+  );
+}
+
+/// `answer: keyboard` pede um tópico de nota ou acorde, e `interval-build` só se
+/// responde no teclado.
+bool _theoryAnswerOk(
+  Fields f,
+  List<TheoryTopic> topics,
+  TheoryAnswer answer,
+  FileIssues issues,
+) {
   var ok = true;
   if (answer == TheoryAnswer.keyboard && !topics.any(_answersNote)) {
     issues.error(
@@ -2949,6 +3586,13 @@ TheoryQuizSpec? _theoryQuiz(
     );
     ok = false;
   }
+  return ok;
+}
+
+/// `qualities` só vale com um tópico de acorde, e cada uma é qualidade do
+/// formato.
+bool _theoryQualitiesOk(Fields f, List<TheoryTopic> topics, FileIssues issues) {
+  var ok = true;
   if (f.has('qualities') && !topics.any(_chordTopics)) {
     issues.error(
       f.lineOf('qualities'),
@@ -2966,18 +3610,7 @@ TheoryQuizSpec? _theoryQuiz(
     );
     ok = false;
   }
-  if (!ok) return null;
-  return TheoryQuizSpec(
-    id: id,
-    title: title,
-    pass: _pass(pass),
-    line: line,
-    topics: topics,
-    keys: keys,
-    count: f.get<int>('count') ?? 10,
-    answer: answer,
-    qualities: qualities,
-  );
+  return ok;
 }
 
 /// Os tópicos do `theory-quiz`, na ordem do autor. O da forma ainda não roda.

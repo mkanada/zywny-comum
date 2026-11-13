@@ -18,6 +18,13 @@ List<({int first, int last})> reinforcementBlocks(
     ..sort();
   if (sorted.isEmpty) return const [];
 
+  final expanded = [for (final g in _runsOf(sorted)) _widened(g, measureCount)]
+    ..sort((a, b) => a.first.compareTo(b.first));
+  return _merged(expanded);
+}
+
+/// Os compassos de [sorted] (ordenados) em trechos de números seguidos.
+List<({int first, int last})> _runsOf(List<int> sorted) {
   final grouped = <({int first, int last})>[];
   var start = sorted.first;
   var prev = sorted.first;
@@ -31,25 +38,30 @@ List<({int first, int last})> reinforcementBlocks(
     }
   }
   grouped.add((first: start, last: prev));
+  return grouped;
+}
 
-  final expanded = <({int first, int last})>[];
-  for (final g in grouped) {
-    var first = g.first > 0 ? g.first - 1 : g.first;
-    var last = g.last < measureCount - 1 ? g.last + 1 : g.last;
-    while (last - first + 1 < 3) {
-      if (last + 1 < measureCount) {
-        last++;
-      } else if (first > 0) {
-        first--;
-      } else {
-        break;
-      }
+/// O trecho [g] com um compasso de folga de cada lado, e pelo menos três
+/// compassos no total (dentro da música de [measureCount] compassos).
+({int first, int last}) _widened(({int first, int last}) g, int measureCount) {
+  var first = g.first > 0 ? g.first - 1 : g.first;
+  var last = g.last < measureCount - 1 ? g.last + 1 : g.last;
+  while (last - first + 1 < 3) {
+    if (last + 1 < measureCount) {
+      last++;
+    } else if (first > 0) {
+      first--;
+    } else {
+      break;
     }
-    if (last >= measureCount) last = measureCount - 1;
-    expanded.add((first: first, last: last));
   }
-  expanded.sort((a, b) => a.first.compareTo(b.first));
+  if (last >= measureCount) last = measureCount - 1;
+  return (first: first, last: last);
+}
 
+/// Junta os trechos [expanded] (ordenados pelo começo) que se encostam ou se
+/// cruzam.
+List<({int first, int last})> _merged(List<({int first, int last})> expanded) {
   final merged = <({int first, int last})>[];
   for (final g in expanded) {
     if (merged.isEmpty) {

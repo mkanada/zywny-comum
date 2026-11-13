@@ -113,20 +113,7 @@ class PhoneRail extends StatelessWidget {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          IconButton.filled(
-            key: tourKeys?.play,
-            tooltip: playTooltip ?? (playing ? 'Pausar' : 'Tocar'),
-            onPressed: onPlayPause,
-            style: IconButton.styleFrom(
-              backgroundColor: kAccent,
-              foregroundColor: Colors.white,
-              minimumSize: const Size(52, 52),
-              maximumSize: const Size(52, 52),
-            ),
-            icon:
-                playIcon ??
-                Icon(playing ? Icons.pause : Icons.play_arrow, size: 24),
-          ),
+          _playButton(),
           if (onListen != null)
             IconButton(
               key: tourKeys?.listen,
@@ -153,38 +140,7 @@ class PhoneRail extends StatelessWidget {
             tooltip: 'Ir para compasso',
             onTap: onMeasureTap,
           ),
-          if (stageTempo case final tempo?) ...[
-            if (stageHand case final hand?)
-              _RailButton(
-                key: tourKeys?.hand,
-                top: hand,
-                bottom: 'mão da etapa',
-                tooltip: 'Mão da etapa — ver etapas',
-                onTap: onStageTap,
-              ),
-            _RailButton(
-              key: tourKeys?.tempo,
-              top: tempo,
-              bottom: stageTempoCaption,
-              tooltip: 'Andamento da etapa — ver etapas',
-              onTap: onStageTap,
-            ),
-          ] else ...[
-            _RailButton(
-              key: tourKeys?.tempo,
-              top: '$tempoPercent%',
-              bottom: 'andamento',
-              tooltip: 'Andamento',
-              onTap: onOptions,
-            ),
-            _RailButton(
-              key: tourKeys?.hand,
-              top: handLabel,
-              bottom: 'mão',
-              tooltip: 'Mão',
-              onTap: onOptions,
-            ),
-          ],
+          ..._stageOrTrainingButtons(),
           IconButton(
             key: tourKeys?.options,
             tooltip: 'Mais opções',
@@ -196,6 +152,60 @@ class PhoneRail extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  /// O botão de tocar (ou de pausar), com o ícone e o aviso que a tela manda.
+  Widget _playButton() => IconButton.filled(
+    key: tourKeys?.play,
+    tooltip: playTooltip ?? (playing ? 'Pausar' : 'Tocar'),
+    onPressed: onPlayPause,
+    style: IconButton.styleFrom(
+      backgroundColor: kAccent,
+      foregroundColor: Colors.white,
+      minimumSize: const Size(52, 52),
+      maximumSize: const Size(52, 52),
+    ),
+    icon: playIcon ?? Icon(playing ? Icons.pause : Icons.play_arrow, size: 24),
+  );
+
+  /// Na trilha, a mão e o andamento da etapa (abrem as etapas); fora dela, o
+  /// andamento e a mão do treino livre (abrem as opções).
+  List<Widget> _stageOrTrainingButtons() {
+    if (stageTempo case final tempo?) {
+      return [
+        if (stageHand case final hand?)
+          _RailButton(
+            key: tourKeys?.hand,
+            top: hand,
+            bottom: 'mão da etapa',
+            tooltip: 'Mão da etapa — ver etapas',
+            onTap: onStageTap,
+          ),
+        _RailButton(
+          key: tourKeys?.tempo,
+          top: tempo,
+          bottom: stageTempoCaption,
+          tooltip: 'Andamento da etapa — ver etapas',
+          onTap: onStageTap,
+        ),
+      ];
+    }
+    return [
+      _RailButton(
+        key: tourKeys?.tempo,
+        top: '$tempoPercent%',
+        bottom: 'andamento',
+        tooltip: 'Andamento',
+        onTap: onOptions,
+      ),
+      _RailButton(
+        key: tourKeys?.hand,
+        top: handLabel,
+        bottom: 'mão',
+        tooltip: 'Mão',
+        onTap: onOptions,
+      ),
+    ];
   }
 }
 
@@ -663,65 +673,72 @@ class PhoneOptionsDrawer extends StatelessWidget {
       child: SingleChildScrollView(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            ...top,
-            if (!trailMode) ...[
-              _Section(
-                label: 'MODO',
-                child: IgnorePointer(
-                  ignoring: onModeChanged == null,
-                  child: Opacity(
-                    opacity: onModeChanged == null ? 0.5 : 1,
-                    child: Segmented<StudyMode>(
-                      value: mode,
-                      options: StudyMode.values,
-                      labelOf: (m) => m.label,
-                      onChanged: (m) => onModeChanged?.call(m),
-                    ),
-                  ),
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.only(top: 6),
-                child: Text(
-                  mode.explanation,
-                  style: const TextStyle(fontSize: 12, color: kInkCaption),
-                ),
-              ),
-              const SizedBox(height: 10),
-              _Section(
-                label: 'MÃO',
-                child: Segmented<Hand>(
-                  value: hand,
-                  options: Hand.values,
-                  labelOf: (h) => h.label,
-                  onChanged: onHandChanged,
-                ),
-              ),
-              const SizedBox(height: 10),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const _Caption('ANDAMENTO'),
-                  Text(
-                    '$tempoPercent%',
-                    style: const TextStyle(fontSize: 13, color: kInk),
-                  ),
-                ],
-              ),
-              Slider(
-                value: tempoPercent.toDouble().clamp(25, 150),
-                min: 25,
-                max: 150,
-                onChanged: (v) => onTempoChanged(v.round()),
-              ),
-            ],
-            ...children,
-          ],
+          children: [...top, if (!trailMode) ..._studyControls(), ...children],
         ),
       ),
     );
   }
+
+  /// Fora da trilha: o modo, a mão e o andamento (na trilha, quem manda é a
+  /// etapa).
+  List<Widget> _studyControls() => [..._modeControls(), ..._handAndTempo()];
+
+  /// O modo de treino e a explicação dele.
+  List<Widget> _modeControls() => [
+    _Section(
+      label: 'MODO',
+      child: IgnorePointer(
+        ignoring: onModeChanged == null,
+        child: Opacity(
+          opacity: onModeChanged == null ? 0.5 : 1,
+          child: Segmented<StudyMode>(
+            value: mode,
+            options: StudyMode.values,
+            labelOf: (m) => m.label,
+            onChanged: (m) => onModeChanged?.call(m),
+          ),
+        ),
+      ),
+    ),
+    Padding(
+      padding: const EdgeInsets.only(top: 6),
+      child: Text(
+        mode.explanation,
+        style: const TextStyle(fontSize: 12, color: kInkCaption),
+      ),
+    ),
+  ];
+
+  /// A mão do treino e o andamento (a barra e o número).
+  List<Widget> _handAndTempo() => [
+    const SizedBox(height: 10),
+    _Section(
+      label: 'MÃO',
+      child: Segmented<Hand>(
+        value: hand,
+        options: Hand.values,
+        labelOf: (h) => h.label,
+        onChanged: onHandChanged,
+      ),
+    ),
+    const SizedBox(height: 10),
+    Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        const _Caption('ANDAMENTO'),
+        Text(
+          '$tempoPercent%',
+          style: const TextStyle(fontSize: 13, color: kInk),
+        ),
+      ],
+    ),
+    Slider(
+      value: tempoPercent.toDouble().clamp(25, 150),
+      min: 25,
+      max: 150,
+      onChanged: (v) => onTempoChanged(v.round()),
+    ),
+  ];
 }
 
 /// Linha de interruptor da gaveta (mesmo desenho de "Metrônomo" no artefato).

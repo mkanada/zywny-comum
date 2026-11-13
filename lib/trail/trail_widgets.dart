@@ -107,121 +107,160 @@ class TrailTitleChip extends StatelessWidget {
 /// etapa e abre a revisão das notas erradas na partitura.
 enum StageSummaryAction { next, retry, skip, train, review }
 
-/// Resumo da etapa (folha nova, não o `showPracticeSummary`): porcentagem
-/// grande, aprovado/faltou, compassos com erro (números lógicos) e os botões
-/// do J00. "Pular" pede confirmação curta. Fechar sem escolher devolve
-/// `null` (nada acontece).
+/// O que o resumo de uma etapa mostra: a etapa, o resultado, os compassos com
+/// erro e o que a revisão e o treino de blocos oferecem.
+class StageSummaryInfo {
+  const StageSummaryInfo({
+    required this.stageRef,
+    required this.result,
+    required this.badLogical,
+    required this.isLast,
+    this.blockCount,
+    this.reviewCount = 0,
+    this.reviewHasSides = false,
+  });
+
+  /// O nome da etapa (ex.: "Trecho 1/3").
+  final String stageRef;
+
+  /// O resultado da passada.
+  final StageResult result;
+
+  /// Os compassos lógicos com erro, para a legenda.
+  final List<int> badLogical;
+
+  /// A última etapa da trilha: o botão diz "Concluir".
+  final bool isLast;
+
+  /// Fase final reprovada com reforço (J07): o botão principal treina os
+  /// blocos em vez de tentar de novo.
+  final int? blockCount;
+
+  /// Notas erradas guardadas para a revisão na partitura (0 esconde o botão).
+  final int reviewCount;
+
+  /// Se alguma nota de revisão foi fora do tempo (a legenda dos lados).
+  final bool reviewHasSides;
+}
+
+/// O resumo da etapa, numa folha inferior ou (com [sidePanel]) na lateral.
+/// No celular o resumo entra pela lateral e deixa a pauta (com os compassos de
+/// erro marcados) à vista; fora dele, a folha inferior de sempre (U18).
 Future<StageSummaryAction?> showStageSummary(
-  BuildContext context, {
-  required String stageRef,
-  required StageResult result,
-  required List<int> badLogical,
-  required bool isLast,
-
-  // Fase final reprovada com reforço (J07): o botão principal treina os
-  // blocos em vez de tentar de novo.
-  int? blockCount,
-
-  // Notas erradas guardadas para a revisão na partitura (0 esconde o botão)
-  // e se alguma foi fora do tempo (a legenda dos lados).
-  int reviewCount = 0,
-  bool reviewHasSides = false,
-
-  // No celular o resumo entra pela lateral e deixa a pauta (com os compassos
-  // de erro marcados) à vista; fora dele, a folha inferior de sempre (U18).
+  BuildContext context,
+  StageSummaryInfo info, {
   bool sidePanel = false,
 }) {
-  final passed = result.passed;
-  final goal = (kTrailPassAccuracy * 100).round();
   return showSheetOrSidePanel<StageSummaryAction>(
     context,
     sidePanel: sidePanel,
     title: 'Resumo da etapa',
     builder: (context) => sheetBody(
       sidePanel: sidePanel,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Text(stageRef, style: const TextStyle(color: kInkCaption)),
-          const SizedBox(height: 4),
-          Text('${result.percent}%', style: serifDisplay(fontSize: 40)),
-          Text(
-            passed ? 'Aprovado · meta $goal%' : 'Precisa de $goal% para passar',
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w600,
-              color: passed ? kGoodColor : kBadColor,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            result.nothingToPlay
-                ? 'Esta mão não tem notas neste trecho.'
-                : badLogical.isEmpty
-                ? 'Nenhum compasso com erro.'
-                : 'Erros ${badLogical.length == 1 ? 'no compasso' : 'nos compassos'} '
-                      '${joinMeasureNumbers(badLogical)} — marcados na partitura.',
-          ),
-          const SizedBox(height: 12),
-          if (reviewCount > 0)
-            ...reviewButton(
-              hasSides: reviewHasSides,
-              onPressed: () =>
-                  Navigator.pop(context, StageSummaryAction.review),
-            ),
-          if (passed) ...[
-            FilledButton(
-              onPressed: () => Navigator.pop(context, StageSummaryAction.next),
-              child: Text(isLast ? 'Concluir' : 'Próxima etapa'),
-            ),
-            TextButton(
-              onPressed: () => Navigator.pop(context, StageSummaryAction.retry),
-              child: const Text('Repetir'),
-            ),
-          ] else ...[
-            if (blockCount != null)
-              FilledButton(
-                onPressed: () =>
-                    Navigator.pop(context, StageSummaryAction.train),
-                child: Text('Treinar os trechos com erro ($blockCount)'),
-              )
-            else
-              FilledButton(
-                onPressed: () =>
-                    Navigator.pop(context, StageSummaryAction.retry),
-                child: const Text('Tentar de novo'),
-              ),
-            TextButton(
-              onPressed: () async {
-                final skip = await showDialog<bool>(
-                  context: context,
-                  builder: (context) => AlertDialog(
-                    title: const Text('Pular etapa?'),
-                    content: const Text('A etapa fica marcada como pulada.'),
-                    actions: [
-                      TextButton(
-                        onPressed: () => Navigator.pop(context, false),
-                        child: const Text('Continuar aqui'),
-                      ),
-                      FilledButton(
-                        onPressed: () => Navigator.pop(context, true),
-                        child: const Text('Pular'),
-                      ),
-                    ],
-                  ),
-                );
-                if (skip == true && context.mounted) {
-                  Navigator.pop(context, StageSummaryAction.skip);
-                }
-              },
-              child: const Text('Pular etapa'),
-            ),
-          ],
-        ],
-      ),
+      child: _stageSummaryBody(context, info),
     ),
   );
+}
+
+/// O conteúdo do resumo: o resultado, os compassos com erro, a revisão e as
+/// ações.
+Widget _stageSummaryBody(BuildContext context, StageSummaryInfo info) {
+  final result = info.result;
+  final passed = result.passed;
+  final goal = (kTrailPassAccuracy * 100).round();
+  final badLogical = info.badLogical;
+  return Column(
+    mainAxisSize: MainAxisSize.min,
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      Text(info.stageRef, style: const TextStyle(color: kInkCaption)),
+      const SizedBox(height: 4),
+      Text('${result.percent}%', style: serifDisplay(fontSize: 40)),
+      Text(
+        passed ? 'Aprovado · meta $goal%' : 'Precisa de $goal% para passar',
+        style: TextStyle(
+          fontSize: 16,
+          fontWeight: FontWeight.w600,
+          color: passed ? kGoodColor : kBadColor,
+        ),
+      ),
+      const SizedBox(height: 8),
+      Text(
+        result.nothingToPlay
+            ? 'Esta mão não tem notas neste trecho.'
+            : badLogical.isEmpty
+            ? 'Nenhum compasso com erro.'
+            : 'Erros ${badLogical.length == 1 ? 'no compasso' : 'nos compassos'} '
+                  '${joinMeasureNumbers(badLogical)} — marcados na partitura.',
+      ),
+      const SizedBox(height: 12),
+      if (info.reviewCount > 0)
+        ...reviewButton(
+          hasSides: info.reviewHasSides,
+          onPressed: () => Navigator.pop(context, StageSummaryAction.review),
+        ),
+      ..._summaryActions(context, info),
+    ],
+  );
+}
+
+/// As ações do resumo. Passou: a próxima (ou concluir) e repetir. Não passou:
+/// treinar os blocos (ou tentar de novo) e pular a etapa.
+List<Widget> _summaryActions(BuildContext context, StageSummaryInfo info) {
+  if (info.result.passed) {
+    return [
+      FilledButton(
+        onPressed: () => Navigator.pop(context, StageSummaryAction.next),
+        child: Text(info.isLast ? 'Concluir' : 'Próxima etapa'),
+      ),
+      TextButton(
+        onPressed: () => Navigator.pop(context, StageSummaryAction.retry),
+        child: const Text('Repetir'),
+      ),
+    ];
+  }
+  final blockCount = info.blockCount;
+  return [
+    if (blockCount != null)
+      FilledButton(
+        onPressed: () => Navigator.pop(context, StageSummaryAction.train),
+        child: Text('Treinar os trechos com erro ($blockCount)'),
+      )
+    else
+      FilledButton(
+        onPressed: () => Navigator.pop(context, StageSummaryAction.retry),
+        child: const Text('Tentar de novo'),
+      ),
+    TextButton(
+      onPressed: () => _askSkipStage(context),
+      child: const Text('Pular etapa'),
+    ),
+  ];
+}
+
+/// Pede a confirmação de pular a etapa; se o aluno confirma, o resumo devolve
+/// `skip`.
+Future<void> _askSkipStage(BuildContext context) async {
+  final skip = await showDialog<bool>(
+    context: context,
+    builder: (context) => AlertDialog(
+      title: const Text('Pular etapa?'),
+      content: const Text('A etapa fica marcada como pulada.'),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context, false),
+          child: const Text('Continuar aqui'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.pop(context, true),
+          child: const Text('Pular'),
+        ),
+      ],
+    ),
+  );
+  if (skip == true && context.mounted) {
+    Navigator.pop(context, StageSummaryAction.skip);
+  }
 }
 
 /// O que a conclusão devolve: para onde o aluno vai.
@@ -338,42 +377,13 @@ class TrailDrawer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final term = LibraryTermScope.of(context);
     return PhoneSidePanel(
       title: 'Trilha de estudo',
       onClose: onClose,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // O todo, à vista: quantas etapas da trilha já foram feitas.
-          Padding(
-            padding: const EdgeInsets.only(bottom: 8),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                TrailProgressBar(
-                  done: progress.doneCount(plan),
-                  skipped: progress.skipped,
-                  total: plan.stages.length,
-                  height: 6,
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  trailProgressText(
-                    done: progress.doneCount(plan),
-                    total: plan.stages.length,
-                    skipped: progress.skipped,
-                  ),
-                  style: const TextStyle(fontSize: 12, color: kInkCaption),
-                ),
-                if (alsoStudied case final text?)
-                  Text(
-                    text,
-                    style: const TextStyle(fontSize: 12, color: kInkCaption),
-                  ),
-              ],
-            ),
-          ),
+          _progressHeader(),
           if (currentId != null)
             OutlinedButton.icon(
               onPressed: onSkipCurrent,
@@ -391,23 +401,57 @@ class TrailDrawer extends StatelessWidget {
           ),
           if (footer case final footer?)
             Padding(padding: const EdgeInsets.only(top: 6), child: footer),
-          TextButton.icon(
-            onPressed: () async {
-              final ok = await confirmTrailReset(
-                context,
-                title: 'Reiniciar trilha?',
-                message:
-                    'O progresso ${term.deste} ${term.singular} volta a zero. '
-                    'Só ${term.este} ${term.singular}.',
-                confirmLabel: 'Reiniciar',
-              );
-              if (ok) onRestartTrail();
-            },
-            icon: const Icon(Icons.restart_alt, size: 18),
-            label: const Text('Reiniciar trilha'),
-          ),
+          _restartButton(context),
         ],
       ),
+    );
+  }
+
+  /// O todo, à vista: quantas etapas da trilha já foram feitas (e o texto do
+  /// outro tom, se há).
+  Widget _progressHeader() => Padding(
+    padding: const EdgeInsets.only(bottom: 8),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        TrailProgressBar(
+          done: progress.doneCount(plan),
+          skipped: progress.skipped,
+          total: plan.stages.length,
+          height: 6,
+        ),
+        const SizedBox(height: 4),
+        Text(
+          trailProgressText(
+            done: progress.doneCount(plan),
+            total: plan.stages.length,
+            skipped: progress.skipped,
+          ),
+          style: const TextStyle(fontSize: 12, color: kInkCaption),
+        ),
+        if (alsoStudied case final text?)
+          Text(text, style: const TextStyle(fontSize: 12, color: kInkCaption)),
+      ],
+    ),
+  );
+
+  /// Reiniciar a trilha, depois de confirmar (o progresso volta a zero).
+  Widget _restartButton(BuildContext context) {
+    final term = LibraryTermScope.of(context);
+    return TextButton.icon(
+      onPressed: () async {
+        final ok = await confirmTrailReset(
+          context,
+          title: 'Reiniciar trilha?',
+          message:
+              'O progresso ${term.deste} ${term.singular} volta a zero. '
+              'Só ${term.este} ${term.singular}.',
+          confirmLabel: 'Reiniciar',
+        );
+        if (ok) onRestartTrail();
+      },
+      icon: const Icon(Icons.restart_alt, size: 18),
+      label: const Text('Reiniciar trilha'),
     );
   }
 
@@ -436,37 +480,16 @@ class TrailDrawer extends StatelessWidget {
     final open = progress.isOpen(plan, id);
     final record = progress.records[id];
     final state = record?.state ?? StageState.pendente;
-    final IconData icon;
-    final Color? iconColor;
-    var trailing = '';
-    if (!open) {
-      icon = Icons.lock;
-      iconColor = kInkCaption;
-    } else if (state == StageState.aprovada) {
-      icon = Icons.check_circle;
-      iconColor = kGoodColor;
-      trailing = '${record!.best}%';
-    } else if (state == StageState.pulada) {
-      icon = Icons.skip_next;
-      iconColor = kInkCaption;
-      trailing = 'pulada';
-    } else if (id == currentId) {
-      icon = Icons.play_arrow;
-      iconColor = kAccentDark;
-      trailing = 'atual';
-    } else {
-      icon = Icons.circle_outlined;
-      iconColor = kInkCaption;
-    }
+    final look = _stageLook(id, open, state, record?.best);
     final repeat = onRepeatStage;
     final canRepeat = open && state != StageState.pendente && repeat != null;
-    final trailingText = trailing.isEmpty
+    final trailingText = look.trailing.isEmpty
         ? null
-        : Text(trailing, style: const TextStyle(fontSize: 12));
+        : Text(look.trailing, style: const TextStyle(fontSize: 12));
     return ListTile(
       dense: true,
       enabled: open,
-      leading: Icon(icon, size: 20, color: iconColor),
+      leading: Icon(look.icon, size: 20, color: look.iconColor),
       title: Text(label, style: const TextStyle(fontSize: 14)),
       trailing: canRepeat
           ? Row(
@@ -486,6 +509,39 @@ class TrailDrawer extends StatelessWidget {
           : trailingText,
       onTap: open ? () => onSelectStage(id) : null,
     );
+  }
+
+  /// O ícone, a cor e o texto de uma etapa: cadeado se está fechada; a nota se
+  /// foi aprovada; "pulada"; "atual" se é a da vez; senão, um círculo vazio.
+  ({IconData icon, Color iconColor, String trailing}) _stageLook(
+    String id,
+    bool open,
+    StageState state,
+    int? best,
+  ) {
+    if (!open) return (icon: Icons.lock, iconColor: kInkCaption, trailing: '');
+    if (state == StageState.aprovada) {
+      return (
+        icon: Icons.check_circle,
+        iconColor: kGoodColor,
+        trailing: '$best%',
+      );
+    }
+    if (state == StageState.pulada) {
+      return (
+        icon: Icons.skip_next,
+        iconColor: kInkCaption,
+        trailing: 'pulada',
+      );
+    }
+    if (id == currentId) {
+      return (
+        icon: Icons.play_arrow,
+        iconColor: kAccentDark,
+        trailing: 'atual',
+      );
+    }
+    return (icon: Icons.circle_outlined, iconColor: kInkCaption, trailing: '');
   }
 
   Widget _finalGroup() {

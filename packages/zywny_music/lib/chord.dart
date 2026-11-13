@@ -80,48 +80,10 @@ class ChordSymbol {
     final slash = _bassPattern.firstMatch(body);
     if (slash != null) body = body.substring(0, slash.start);
 
-    var quality = ChordQuality.major;
-    final tensions = <ChordTension>{};
-    if (body == 'alt' || body == '7alt') {
-      quality = ChordQuality.dominant7;
-      tensions.addAll(_alt);
-    } else {
-      final token = _qualityTokens.firstWhere((t) => body.startsWith(t.$1));
-      quality = token.$2;
-      if (token.$1 == '°' && kDegreeSignMeansDim7) {
-        quality = ChordQuality.diminished7;
-      }
-      final tail = body.substring(token.$1.length);
-      final clean = tail.replaceAll(RegExp(r'[(),/]'), '');
-      var at = 0;
-      while (at < clean.length) {
-        final match = _tensionPattern.matchAsPrefix(clean, at);
-        final tension = match == null ? null : _tensionFromText[match.group(0)];
-        if (tension == null) {
-          error?.call('`$text`: não entendi `${clean.substring(at)}`.');
-          return null;
-        }
-        tensions.add(tension);
-        at = match!.end;
-      }
-    }
-
-    // `C9` é `C7(9)`, e `Cm9` é `Cm7(9)`: a nona pede a sétima.
-    final hasNumber =
-        tensions.contains(ChordTension.nine) ||
-        tensions.contains(ChordTension.eleven) ||
-        tensions.contains(ChordTension.thirteen);
-    if (hasNumber && quality == ChordQuality.major) {
-      quality = ChordQuality.dominant7;
-    }
-    if (hasNumber && quality == ChordQuality.minor) {
-      quality = ChordQuality.minor7;
-    }
-    // A 11ª e a 13ª pedem a 9ª.
-    if (tensions.contains(ChordTension.eleven) ||
-        tensions.contains(ChordTension.thirteen)) {
-      tensions.add(ChordTension.nine);
-    }
+    final read = _readQuality(text, body, error);
+    if (read == null) return null;
+    final tensions = read.tensions;
+    final quality = _withNumbers(read.quality, tensions);
 
     final slashLetter = slash?.group(1);
     final slashAccidental = slash?.group(2) ?? '';
@@ -135,6 +97,65 @@ class ChordSymbol {
           : _pitchClass(slashLetter, slashAccidental),
       bassSpelling: slashLetter == null ? null : slashLetter + slashAccidental,
     );
+  }
+
+  /// A qualidade e as tensões que [body] (o que vem depois da fundamental e
+  /// antes do baixo) escreve. `null`, com [error], se não entende.
+  static ({ChordQuality quality, Set<ChordTension> tensions})? _readQuality(
+    String text,
+    String body,
+    void Function(String)? error,
+  ) {
+    var quality = ChordQuality.major;
+    final tensions = <ChordTension>{};
+    if (body == 'alt' || body == '7alt') {
+      quality = ChordQuality.dominant7;
+      tensions.addAll(_alt);
+      return (quality: quality, tensions: tensions);
+    }
+    final token = _qualityTokens.firstWhere((t) => body.startsWith(t.$1));
+    quality = token.$2;
+    if (token.$1 == '°' && kDegreeSignMeansDim7) {
+      quality = ChordQuality.diminished7;
+    }
+    final tail = body.substring(token.$1.length);
+    final clean = tail.replaceAll(RegExp(r'[(),/]'), '');
+    var at = 0;
+    while (at < clean.length) {
+      final match = _tensionPattern.matchAsPrefix(clean, at);
+      final tension = match == null ? null : _tensionFromText[match.group(0)];
+      if (tension == null) {
+        error?.call('`$text`: não entendi `${clean.substring(at)}`.');
+        return null;
+      }
+      tensions.add(tension);
+      at = match!.end;
+    }
+    return (quality: quality, tensions: tensions);
+  }
+
+  /// `C9` é `C7(9)`, e `Cm9` é `Cm7(9)`: a nona, a 11ª e a 13ª pedem a sétima.
+  /// A 11ª e a 13ª pedem também a 9ª (que entra em [tensions]).
+  static ChordQuality _withNumbers(
+    ChordQuality quality,
+    Set<ChordTension> tensions,
+  ) {
+    final hasNumber =
+        tensions.contains(ChordTension.nine) ||
+        tensions.contains(ChordTension.eleven) ||
+        tensions.contains(ChordTension.thirteen);
+    var settled = quality;
+    if (hasNumber && quality == ChordQuality.major) {
+      settled = ChordQuality.dominant7;
+    }
+    if (hasNumber && quality == ChordQuality.minor) {
+      settled = ChordQuality.minor7;
+    }
+    if (tensions.contains(ChordTension.eleven) ||
+        tensions.contains(ChordTension.thirteen)) {
+      tensions.add(ChordTension.nine);
+    }
+    return settled;
   }
 
   /// Fundamental, de 0 (Dó) a 11 (Si).

@@ -61,62 +61,72 @@ const _cifras = [
 ];
 
 void main() {
-  group('leitura', () {
-    final tabela = {
-      'C': {0, 4, 7},
-      'Cm': {0, 3, 7},
-      'Cdim': {0, 3, 6},
-      'Caug': {0, 4, 8},
-      'C7': {0, 4, 7, 10},
-      'Cmaj7': {0, 4, 7, 11},
-      'Cm7': {0, 3, 7, 10},
-      'Cm7b5': {0, 3, 6, 10},
-      'Cdim7': {0, 3, 6, 9},
-      'C6': {0, 4, 7, 9},
-      'C9': {0, 2, 4, 7, 10},
-      'C7b9': {0, 1, 4, 7, 10},
-      'Csus4': {0, 5, 7},
-      'Cm7(b5)': {0, 3, 6, 10},
-      'C°': {0, 3, 6},
-      'C°7': {0, 3, 6, 9},
-      'C+': {0, 4, 8},
-      'C7(4)': {0, 5, 7, 10},
-      'C5': {0, 7},
-      'C6/9': {0, 2, 4, 7, 9},
-      'C7alt': {0, 1, 3, 4, 6, 8, 10},
-      'F/G': {0, 5, 7, 9},
-    };
-    tabela.forEach((texto, pitches) {
-      test('`$texto` tem as classes $pitches', () {
-        expect(_chord(texto).pitchClasses, pitches);
-      });
-    });
+  _parte3();
+  _parte4();
+  _parte5();
+}
 
-    test('C7M é Cmaj7 (as duas grafias são a mesma cifra)', () {
-      expect(_chord('C7M'), _chord('Cmaj7'));
-    });
-
-    test('`F/G` tem o baixo no G', () {
-      final chord = _chord('F/G');
-      expect(chord.bass, 7);
-      expect(chord.bassSpelling, 'G');
-      expect(chord.pitchClasses, contains(7));
-    });
-
-    test('a grafia da fundamental segue a cifra: Bb7(#11), F#m7, Eb', () {
-      expect(_chord('Bb7(#11)').rootSpelling, 'Bb');
-      expect(_chord('Bb7(#11)').root, 10);
-      expect(_chord('F#m7').rootSpelling, 'F#');
-      expect(_chord('F#m7').root, 6);
-      expect(_chord('Eb').root, 3);
-    });
-
-    test('♯ e ♭ valem como # e b', () {
-      expect(_chord('B♭7'), _chord('Bb7'));
-      expect(_chord('F♯m'), _chord('F#m'));
+void _parte1() {
+  final tabela = {
+    'C': {0, 4, 7},
+    'Cm': {0, 3, 7},
+    'Cdim': {0, 3, 6},
+    'Caug': {0, 4, 8},
+    'C7': {0, 4, 7, 10},
+    'Cmaj7': {0, 4, 7, 11},
+    'Cm7': {0, 3, 7, 10},
+    'Cm7b5': {0, 3, 6, 10},
+    'Cdim7': {0, 3, 6, 9},
+    'C6': {0, 4, 7, 9},
+    'C9': {0, 2, 4, 7, 10},
+    'C7b9': {0, 1, 4, 7, 10},
+    'Csus4': {0, 5, 7},
+    'Cm7(b5)': {0, 3, 6, 10},
+    'C°': {0, 3, 6},
+    'C°7': {0, 3, 6, 9},
+    'C+': {0, 4, 8},
+    'C7(4)': {0, 5, 7, 10},
+    'C5': {0, 7},
+    'C6/9': {0, 2, 4, 7, 9},
+    'C7alt': {0, 1, 3, 4, 6, 8, 10},
+    'F/G': {0, 5, 7, 9},
+  };
+  tabela.forEach((texto, pitches) {
+    test('`$texto` tem as classes $pitches', () {
+      expect(_chord(texto).pitchClasses, pitches);
     });
   });
+  test('C7M é Cmaj7 (as duas grafias são a mesma cifra)', () {
+    expect(_chord('C7M'), _chord('Cmaj7'));
+  });
+  test('`F/G` tem o baixo no G', () {
+    final chord = _chord('F/G');
+    expect(chord.bass, 7);
+    expect(chord.bassSpelling, 'G');
+    expect(chord.pitchClasses, contains(7));
+  });
+}
 
+void _parte2() {
+  test('a grafia da fundamental segue a cifra: Bb7(#11), F#m7, Eb', () {
+    expect(_chord('Bb7(#11)').rootSpelling, 'Bb');
+    expect(_chord('Bb7(#11)').root, 10);
+    expect(_chord('F#m7').rootSpelling, 'F#');
+    expect(_chord('F#m7').root, 6);
+    expect(_chord('Eb').root, 3);
+  });
+  test('♯ e ♭ valem como # e b', () {
+    expect(_chord('B♭7'), _chord('Bb7'));
+    expect(_chord('F♯m'), _chord('F#m'));
+  });
+}
+
+// Testes: leitura · erros
+void _parte3() {
+  group('leitura', () {
+    _parte1();
+    _parte2();
+  });
   group('erros', () {
     String? erro(String texto) {
       String? mensagem;
@@ -137,7 +147,10 @@ void main() {
       expect(erro(''), contains('vazia'));
     });
   });
+}
 
+// Testes: escrita
+void _parte4() {
   group('escrita', () {
     test('as duas grafias da tabela do EX01', () {
       expect(_chord('Cm7b5').label(ChordNotation.american), 'Cm7b5');
@@ -171,7 +184,10 @@ void main() {
       expect(_chord('C°7').quality, ChordQuality.diminished7);
     });
   });
+}
 
+// Testes: classes de altura exigidas · graus
+void _parte5() {
   group('classes de altura exigidas', () {
     test('C7: a 5ª justa pode faltar (omit5 por padrão)', () {
       final chord = _chord('C7');
@@ -186,7 +202,6 @@ void main() {
       expect(chord.allowedPitchClasses(), isEmpty);
     });
   });
-
   group('graus', () {
     test('degreeOf diz o nome da classe no acorde', () {
       expect(_chord('C7').degreeOf(4), '3');

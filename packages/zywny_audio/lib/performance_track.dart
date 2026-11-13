@@ -100,6 +100,62 @@ class Chord {
   const Chord({required this.onMs, required this.staff, required this.notes});
 }
 
+/// O que [PerformanceTrack.withOrnaments] acrescenta à trilha. Sem nada, a
+/// trilha volta como está.
+class OrnamentPlan {
+  const OrnamentPlan({
+    this.expand = const {},
+    this.free = const {},
+    this.tremoloHeads = false,
+    this.groups = const {},
+    this.app = const {},
+  });
+
+  /// Notas que cada evento (pelo id) vira, em ornamento.
+  final Map<String, List<OrnamentNote>> expand;
+
+  /// Eventos (pelo id) que saem também como ornamento.
+  final Set<String> free;
+
+  /// A primeira nota de cada altura do trêmolo sai como cabeça.
+  final bool tremoloHeads;
+
+  /// Grupos irregulares: o id do evento e o grupo dele.
+  final Map<String, int> groups;
+
+  /// Eventos (pelo id) que a própria pessoa toca (o app os marca).
+  final Set<String> app;
+
+  bool get isEmpty =>
+      expand.isEmpty &&
+      free.isEmpty &&
+      !tremoloHeads &&
+      groups.isEmpty &&
+      app.isEmpty;
+}
+
+/// Os campos que uma cópia de evento troca (ver `PerformanceTrack._copy`); o
+/// que não vem fica como está.
+class _Change {
+  const _Change({
+    this.pitch,
+    this.onMs,
+    this.offMs,
+    this.ornament,
+    this.tied,
+    this.groupId,
+    this.byApp,
+  });
+
+  final int? pitch;
+  final double? onMs;
+  final double? offMs;
+  final bool? ornament;
+  final List<String>? tied;
+  final int? groupId;
+  final bool? byApp;
+}
+
 /// Estrutura Dart pura, construída uma vez por `.vsb`, que responde a tudo
 /// que som, MIDI e treino precisam perguntar sobre "o que soa quando".
 class PerformanceTrack {
@@ -136,41 +192,8 @@ class PerformanceTrack {
       );
     }
 
-    final events =
-        midi.notes
-            .map(
-              (note) => SoundEvent(
-                id: note.id,
-                pitch: note.pitch,
-                onMs: note.onMs,
-                offMs: note.offMs,
-                staff: note.staff,
-                channel: note.channel,
-                program: note.program,
-                velocity: note.velocity,
-                ornament: note.ornament,
-                tied: note.tied,
-              ),
-            )
-            .toList()
-          ..sort((a, b) {
-            final byOnMs = a.onMs.compareTo(b.onMs);
-            return byOnMs != 0 ? byOnMs : a.pitch.compareTo(b.pitch);
-          });
-
-    final pedal =
-        midi.pedal
-            .map(
-              (p) => PedalEvent(
-                id: p.id,
-                timeMs: p.timeMs,
-                dir: p.dir,
-                staff: p.staff,
-                channel: p.channel,
-              ),
-            )
-            .toList()
-          ..sort((a, b) => a.timeMs.compareTo(b.timeMs));
+    final events = _notesOf(midi);
+    final pedal = _pedalsOf(midi);
 
     var durationMs = 0.0;
     for (final e in events) {
@@ -238,67 +261,41 @@ class PerformanceTrack {
   ///   volta a ser cobrada.
   ///
   /// Sem nada disso, devolve a própria track.
-  PerformanceTrack withOrnaments({
-    Map<String, List<OrnamentNote>> expand = const {},
-    Set<String> free = const {},
-    bool tremoloHeads = false,
-    Map<String, int> groups = const {},
-    Set<String> app = const {},
-  }) {
-    if (expand.isEmpty &&
-        free.isEmpty &&
-        !tremoloHeads &&
-        groups.isEmpty &&
-        app.isEmpty) {
-      return this;
-    }
+  PerformanceTrack withOrnaments({OrnamentPlan plan = const OrnamentPlan()}) {
+    if (plan.isEmpty) return this;
+    final expand = plan.expand;
+    final free = plan.free;
+    final tremoloHeads = plan.tremoloHeads;
+    final groups = plan.groups;
+    final app = plan.app;
     final heads = <String, Set<int>>{};
     final out = <SoundEvent>[];
     // Todo evento que sai daqui passa por aqui: o id em [app] vence o ramo
     // que o montou (ornamento, cabeça do trêmolo ou a cópia de `free`).
     void emit(SoundEvent x) {
-      out.add(app.contains(x.id) ? _copy(x, ornament: true, byApp: true) : x);
+      out.add(
+        app.contains(x.id)
+            ? _copy(x, const _Change(ornament: true, byApp: true))
+            : x,
+      );
     }
 
     for (final e in events) {
       final notes = expand[e.id];
       if (notes != null && notes.isNotEmpty && !e.ornament) {
-        final length = e.offMs - e.onMs;
-        var principal = notes.indexWhere((n) => n.pitch == e.pitch);
-        if (principal < 0) principal = 0;
-        for (var i = 0; i < notes.length; i++) {
-          final n = notes[i];
-          emit(
-            _copy(
-              e,
-              pitch: n.pitch,
-              onMs: e.onMs + n.start * length,
-              offMs: e.onMs + n.end * length,
-              ornament: i != principal,
-              tied: i == principal ? e.tied : const [],
-            ),
-          );
-        }
+        _expandNotes(e, notes, emit);
       } else if (free.contains(e.id)) {
-        emit(_copy(e, ornament: true));
+        emit(_copy(e, const _Change(ornament: true)));
       } else if (tremoloHeads &&
           e.ornament &&
           (heads[e.id] ??= {}).add(e.pitch)) {
-        emit(_copy(e, ornament: false));
+        emit(_copy(e, const _Change(ornament: false)));
       } else {
         emit(e);
       }
     }
-    if (groups.isNotEmpty) {
-      for (var i = 0; i < out.length; i++) {
-        final group = groups[out[i].id];
-        if (group != null) out[i] = _copy(out[i], groupId: group);
-      }
-    }
-    out.sort((a, b) {
-      final byOnMs = a.onMs.compareTo(b.onMs);
-      return byOnMs != 0 ? byOnMs : a.pitch.compareTo(b.pitch);
-    });
+    _assignGroups(out, groups);
+    _sortByOnset(out);
     return PerformanceTrack._(
       events: out,
       pedal: pedal,
@@ -307,29 +304,103 @@ class PerformanceTrack {
     );
   }
 
-  static SoundEvent _copy(
-    SoundEvent e, {
-    int? pitch,
-    double? onMs,
-    double? offMs,
-    bool? ornament,
-    List<String>? tied,
-    int? groupId,
-    bool? byApp,
-  }) => SoundEvent(
-    id: e.id,
-    pitch: pitch ?? e.pitch,
-    onMs: onMs ?? e.onMs,
-    offMs: offMs ?? e.offMs,
-    staff: e.staff,
-    channel: e.channel,
-    program: e.program,
-    velocity: e.velocity,
-    ornament: ornament ?? e.ornament,
-    tied: tied ?? e.tied,
-    groupId: groupId ?? e.groupId,
-    byApp: byApp ?? e.byApp,
-  );
+  /// As notas que [e] vira (um ornamento escrito por extenso): a principal, a
+  /// de altura igual à de [e] (ou a primeira), leva a ligadura; as outras, são
+  /// ornamento. Cada uma cai no trecho dela da duração de [e].
+  static void _expandNotes(
+    SoundEvent e,
+    List<OrnamentNote> notes,
+    void Function(SoundEvent) emit,
+  ) {
+    final length = e.offMs - e.onMs;
+    var principal = notes.indexWhere((n) => n.pitch == e.pitch);
+    if (principal < 0) principal = 0;
+    for (var i = 0; i < notes.length; i++) {
+      final n = notes[i];
+      emit(
+        _copy(
+          e,
+          _Change(
+            pitch: n.pitch,
+            onMs: e.onMs + n.start * length,
+            offMs: e.onMs + n.end * length,
+            ornament: i != principal,
+            tied: i == principal ? e.tied : const [],
+          ),
+        ),
+      );
+    }
+  }
+
+  /// Põe o grupo de cada evento cujo id está em [groups] (grupos irregulares).
+  static void _assignGroups(List<SoundEvent> out, Map<String, int> groups) {
+    if (groups.isEmpty) return;
+    for (var i = 0; i < out.length; i++) {
+      final group = groups[out[i].id];
+      if (group != null) out[i] = _copy(out[i], _Change(groupId: group));
+    }
+  }
+
+  /// Ordena por ataque e, empatando, por altura.
+  static void _sortByOnset(List<SoundEvent> out) => out.sort((a, b) {
+    final byOnMs = a.onMs.compareTo(b.onMs);
+    return byOnMs != 0 ? byOnMs : a.pitch.compareTo(b.pitch);
+  });
+
+  /// As notas do `midi.json`, na ordem de ataque (e de altura, empatando).
+  static List<SoundEvent> _notesOf(VsbMidi midi) =>
+      midi.notes
+          .map(
+            (note) => SoundEvent(
+              id: note.id,
+              pitch: note.pitch,
+              onMs: note.onMs,
+              offMs: note.offMs,
+              staff: note.staff,
+              channel: note.channel,
+              program: note.program,
+              velocity: note.velocity,
+              ornament: note.ornament,
+              tied: note.tied,
+            ),
+          )
+          .toList()
+        ..sort((a, b) {
+          final byOnMs = a.onMs.compareTo(b.onMs);
+          return byOnMs != 0 ? byOnMs : a.pitch.compareTo(b.pitch);
+        });
+
+  /// Os pedais do `midi.json`, na ordem do tempo.
+  static List<PedalEvent> _pedalsOf(VsbMidi midi) =>
+      midi.pedal
+          .map(
+            (p) => PedalEvent(
+              id: p.id,
+              timeMs: p.timeMs,
+              dir: p.dir,
+              staff: p.staff,
+              channel: p.channel,
+            ),
+          )
+          .toList()
+        ..sort((a, b) => a.timeMs.compareTo(b.timeMs));
+
+  /// Uma cópia de [e] com os campos de [change] trocados (o que não vem fica).
+  static SoundEvent _copy(SoundEvent e, [_Change change = const _Change()]) =>
+      SoundEvent(
+        id: e.id,
+        pitch: change.pitch ?? e.pitch,
+        onMs: change.onMs ?? e.onMs,
+        offMs: change.offMs ?? e.offMs,
+        staff: e.staff,
+        channel: e.channel,
+        program: e.program,
+        velocity: e.velocity,
+        ornament: change.ornament ?? e.ornament,
+        tied: change.tied ?? e.tied,
+        groupId: change.groupId ?? e.groupId,
+        byApp: change.byApp ?? e.byApp,
+      );
 
   /// Recorte para as sessões de um intervalo com saltos (J08): só eventos
   /// com `onMs` em `[startMs, endMs)` fora dos vãos. Sem pedal (as sessões

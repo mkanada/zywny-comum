@@ -83,46 +83,9 @@ class _BugReportPageState extends State<BugReportPage> {
                 ),
                 const SizedBox(height: 12),
                 if (done == null) ...[
-                  if (widget.screenshot != null)
-                    ConstrainedBox(
-                      constraints: const BoxConstraints(maxHeight: 160),
-                      child: Align(
-                        alignment: Alignment.centerLeft,
-                        child: DecoratedBox(
-                          decoration: BoxDecoration(
-                            border: Border.all(color: kBorder),
-                          ),
-                          child: Image.memory(
-                            widget.screenshot!,
-                            fit: BoxFit.contain,
-                          ),
-                        ),
-                      ),
-                    ),
+                  if (widget.screenshot != null) _screenshotPreview(),
                   const SizedBox(height: 12),
-                  TextField(
-                    controller: _doing,
-                    minLines: 2,
-                    maxLines: 5,
-                    textCapitalization: TextCapitalization.sentences,
-                    decoration: const InputDecoration(
-                      labelText: 'O que você estava fazendo?',
-                      alignLabelWithHint: true,
-                      border: OutlineInputBorder(),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: _happened,
-                    minLines: 2,
-                    maxLines: 5,
-                    textCapitalization: TextCapitalization.sentences,
-                    decoration: const InputDecoration(
-                      labelText: 'O que aconteceu (o erro)?',
-                      alignLabelWithHint: true,
-                      border: OutlineInputBorder(),
-                    ),
-                  ),
+                  ..._questions(),
                 ],
                 const SizedBox(height: 16),
                 if (_error != null)
@@ -134,21 +97,7 @@ class _BugReportPageState extends State<BugReportPage> {
                     ),
                   ),
                 if (done == null)
-                  Wrap(
-                    alignment: WrapAlignment.end,
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: [
-                      TextButton(
-                        onPressed: _busy ? null : widget.onCancel,
-                        child: const Text('Cancelar'),
-                      ),
-                      FilledButton(
-                        onPressed: _busy ? null : () => unawaited(_generate()),
-                        child: Text(_busy ? 'Gerando…' : 'Gerar relatório'),
-                      ),
-                    ],
-                  )
+                  _actions()
                 else
                   _Done(delivery: done, onClose: widget.onCancel),
               ],
@@ -158,6 +107,62 @@ class _BugReportPageState extends State<BugReportPage> {
       ),
     );
   }
+
+  /// A imagem da tela, pequena, para o aluno conferir o que vai no arquivo.
+  Widget _screenshotPreview() => ConstrainedBox(
+    constraints: const BoxConstraints(maxHeight: 160),
+    child: Align(
+      alignment: Alignment.centerLeft,
+      child: DecoratedBox(
+        decoration: BoxDecoration(border: Border.all(color: kBorder)),
+        child: Image.memory(widget.screenshot!, fit: BoxFit.contain),
+      ),
+    ),
+  );
+
+  /// As duas perguntas do relatório: o que o aluno fazia e o que aconteceu.
+  List<Widget> _questions() => [
+    TextField(
+      controller: _doing,
+      minLines: 2,
+      maxLines: 5,
+      textCapitalization: TextCapitalization.sentences,
+      decoration: const InputDecoration(
+        labelText: 'O que você estava fazendo?',
+        alignLabelWithHint: true,
+        border: OutlineInputBorder(),
+      ),
+    ),
+    const SizedBox(height: 12),
+    TextField(
+      controller: _happened,
+      minLines: 2,
+      maxLines: 5,
+      textCapitalization: TextCapitalization.sentences,
+      decoration: const InputDecoration(
+        labelText: 'O que aconteceu (o erro)?',
+        alignLabelWithHint: true,
+        border: OutlineInputBorder(),
+      ),
+    ),
+  ];
+
+  /// Cancelar e gerar o relatório (desligados enquanto ele é gerado).
+  Widget _actions() => Wrap(
+    alignment: WrapAlignment.end,
+    spacing: 8,
+    runSpacing: 8,
+    children: [
+      TextButton(
+        onPressed: _busy ? null : widget.onCancel,
+        child: const Text('Cancelar'),
+      ),
+      FilledButton(
+        onPressed: _busy ? null : () => unawaited(_generate()),
+        child: Text(_busy ? 'Gerando…' : 'Gerar relatório'),
+      ),
+    ],
+  );
 }
 
 class _Done extends StatelessWidget {

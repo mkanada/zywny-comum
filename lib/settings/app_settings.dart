@@ -75,6 +75,49 @@ enum SoundOutput { appSynth, midiKeyboard }
 ///
 /// Avisa quem escuta a cada mudança; a tela de partitura aplica o que mudou
 /// (trocar o motor de saída, a cor do destaque…) e os painéis se redesenham.
+/// As preferências lidas do armazenamento, uma por campo (`null` se não há).
+typedef _Stored = ({
+  String? output,
+  bool? instruments,
+  bool? soundOn,
+  bool? metronome,
+  String? mode,
+  int? highlight,
+  int? pending,
+  int? wrong,
+  double? halo,
+  int? bar,
+  int? trailMeasures,
+  List<String>? trailPhases,
+  List<String>? trailSpeeds,
+  List<String>? phaseOrder,
+  double? tolerance,
+  String? noteNaming,
+  String? chordNotation,
+  double? textScale,
+  bool? transposeByDefault,
+  String? keyboardTranspose,
+  String? scoreLayout,
+  bool? scorePageFitsBox,
+});
+
+/// Lê uma preferência; se o armazenamento falha, vale `null`.
+Future<T?> _readPref<T>(Future<T?> Function() get) async {
+  try {
+    return await get();
+  } on Object {
+    return null;
+  }
+}
+
+/// O valor do enum cujo nome é [name]; `null` se não há.
+T? _byName<T extends Enum>(List<T> values, String? name) {
+  for (final v in values) {
+    if (v.name == name) return v;
+  }
+  return null;
+}
+
 class AppSettings extends ChangeNotifier {
   AppSettings({SharedPreferencesAsync? prefs})
     : _prefs = prefs ?? SharedPreferencesAsync();
@@ -485,107 +528,132 @@ class AppSettings extends ChangeNotifier {
   /// Lê tudo do armazenamento. Cada chave por si: uma estragada não derruba
   /// as outras.
   Future<void> load() async {
-    Future<T?> read<T>(Future<T?> Function() get) async {
-      try {
-        return await get();
-      } on Object {
-        return null;
-      }
-    }
+    _applyStored(await _readStored());
+    _loaded = true;
+    DiagLog.setState('configuracoes', diagSnapshot);
+    _diagLogChange('carregadas');
+    notifyListeners();
+  }
 
-    T? byName<T extends Enum>(List<T> values, String? name) {
-      for (final v in values) {
-        if (v.name == name) return v;
-      }
-      return null;
-    }
-
-    final output = await read(() => _prefs.getString(_kOutput));
-    final instruments = await read(() => _prefs.getBool(_kUseScoreInstruments));
-    final soundOn = await read(() => _prefs.getBool(_kSoundOn));
-    final metronome = await read(() => _prefs.getBool(_kMetronome));
-    final mode = await read(() => _prefs.getString(_kPracticeMode));
-    final highlight = await read(() => _prefs.getInt(_kHighlightColor));
-    final pending = await read(() => _prefs.getInt(_kPracticePendingColor));
-    final wrong = await read(() => _prefs.getInt(_kPracticeWrongColor));
-    final halo = await read(() => _prefs.getDouble(_kHaloWidth));
-    final bar = await read(() => _prefs.getInt(_kBarColor));
-    final trailMeasures = await read(() => _prefs.getInt(_kTrailMeasures));
-    final trailPhases = await read(() => _prefs.getStringList(_kTrailPhases));
-    final trailSpeeds = await read(() => _prefs.getStringList(_kTrailSpeeds));
-    final phaseOrder = await read(
-      () => _prefs.getStringList(_kTrailPhaseOrder),
-    );
-    final tolerance = await read(() => _prefs.getDouble(_kRhythmTolerance));
-    final noteNaming = await read(() => _prefs.getString(_kNoteNaming));
-    final chordNotation = await read(() => _prefs.getString(_kChordNotation));
-    final textScale = await read(() => _prefs.getDouble(_kCourseTextScale));
-    final transposeByDefault = await read(
+  /// Lê todas as preferências guardadas. Uma que falha (ou não existe) vale
+  /// `null`, e fica o padrão.
+  Future<_Stored> _readStored() async => (
+    output: await _readPref(() => _prefs.getString(_kOutput)),
+    instruments: await _readPref(() => _prefs.getBool(_kUseScoreInstruments)),
+    soundOn: await _readPref(() => _prefs.getBool(_kSoundOn)),
+    metronome: await _readPref(() => _prefs.getBool(_kMetronome)),
+    mode: await _readPref(() => _prefs.getString(_kPracticeMode)),
+    highlight: await _readPref(() => _prefs.getInt(_kHighlightColor)),
+    pending: await _readPref(() => _prefs.getInt(_kPracticePendingColor)),
+    wrong: await _readPref(() => _prefs.getInt(_kPracticeWrongColor)),
+    halo: await _readPref(() => _prefs.getDouble(_kHaloWidth)),
+    bar: await _readPref(() => _prefs.getInt(_kBarColor)),
+    trailMeasures: await _readPref(() => _prefs.getInt(_kTrailMeasures)),
+    trailPhases: await _readPref(() => _prefs.getStringList(_kTrailPhases)),
+    trailSpeeds: await _readPref(() => _prefs.getStringList(_kTrailSpeeds)),
+    phaseOrder: await _readPref(() => _prefs.getStringList(_kTrailPhaseOrder)),
+    tolerance: await _readPref(() => _prefs.getDouble(_kRhythmTolerance)),
+    noteNaming: await _readPref(() => _prefs.getString(_kNoteNaming)),
+    chordNotation: await _readPref(() => _prefs.getString(_kChordNotation)),
+    textScale: await _readPref(() => _prefs.getDouble(_kCourseTextScale)),
+    transposeByDefault: await _readPref(
       () => _prefs.getBool(_kTransposeByDefault),
-    );
-    final keyboardTranspose = await read(
+    ),
+    keyboardTranspose: await _readPref(
       () => _prefs.getString(_kKeyboardTranspose),
-    );
-    final scoreLayout = await read(() => _prefs.getString(_kScoreLayout));
-    final scorePageFitsBox = await read(
-      () => _prefs.getBool(_kScorePageFitsBox),
-    );
+    ),
+    scoreLayout: await _readPref(() => _prefs.getString(_kScoreLayout)),
+    scorePageFitsBox: await _readPref(() => _prefs.getBool(_kScorePageFitsBox)),
+  );
 
-    _output = byName(SoundOutput.values, output) ?? _output;
-    _useScoreInstruments = instruments ?? _useScoreInstruments;
-    _soundOn = soundOn ?? _soundOn;
-    _metronomeOn = metronome ?? _metronomeOn;
-    _practiceMode = byName(PracticeMode.values, mode) ?? _practiceMode;
+  /// Põe no lugar o que foi lido; o que não veio fica como estava.
+  void _applyStored(_Stored stored) {
+    _applySound(stored);
+    _applyColors(stored);
+    _applyTrail(stored);
+    _applyText(stored);
+  }
+
+  /// O som (a saída, o timbre do teclado, se toca e o metrônomo) e o modo de
+  /// treino.
+  void _applySound(_Stored stored) {
+    _output = _byName(SoundOutput.values, stored.output) ?? _output;
+    _useScoreInstruments = stored.instruments ?? _useScoreInstruments;
+    _soundOn = stored.soundOn ?? _soundOn;
+    _metronomeOn = stored.metronome ?? _metronomeOn;
+    _practiceMode = _byName(PracticeMode.values, stored.mode) ?? _practiceMode;
+  }
+
+  /// As cores da partitura e do treino, e o brilho em volta da nota.
+  void _applyColors(_Stored stored) {
+    final highlight = stored.highlight;
     if (highlight != null) _highlightColor = Color(highlight);
+    final pending = stored.pending;
     if (pending != null) _practicePendingColor = Color(pending);
+    final wrong = stored.wrong;
     if (wrong != null) _practiceWrongColor = Color(wrong);
+    final halo = stored.halo;
     if (halo != null) _haloWidth = halo.clamp(0.0, 3.0);
+    final bar = stored.bar;
     if (bar != null) _barColor = Color(bar);
-    if (trailMeasures != null) {
-      _trailMeasures = trailMeasures < kTrailMinMeasures
+  }
+
+  /// A trilha: o tamanho do trecho, as etapas (e a ordem delas) e os
+  /// andamentos. O que não é reconhecido fica de fora.
+  void _applyTrail(_Stored stored) {
+    final measures = stored.trailMeasures;
+    if (measures != null) {
+      _trailMeasures = measures < kTrailMinMeasures
           ? kTrailMinMeasures
-          : trailMeasures;
+          : measures;
     }
-    if (trailPhases != null) {
-      final phases = {
-        for (final name in trailPhases) ?byName(TrailPhase.values, name),
+    final phases = stored.trailPhases;
+    if (phases != null) {
+      final picked = {
+        for (final name in phases) ?_byName(TrailPhase.values, name),
       };
-      if (phases.isNotEmpty) _trailPhases = phases;
+      if (picked.isNotEmpty) _trailPhases = picked;
     }
-    if (phaseOrder != null) {
+    final order = stored.phaseOrder;
+    if (order != null) {
       _trailPhaseOrder = _completeOrder([
-        for (final name in phaseOrder) ?byName(TrailPhase.values, name),
+        for (final name in order) ?_byName(TrailPhase.values, name),
       ]);
     }
-    if (trailSpeeds != null) {
-      final speeds = {
+    final speeds = stored.trailSpeeds;
+    if (speeds != null) {
+      final picked = {
         for (final s in kTrailSpeeds)
-          if (trailSpeeds.contains('${(s * 100).round()}')) s,
+          if (speeds.contains('${(s * 100).round()}')) s,
       };
-      if (speeds.isNotEmpty) _trailSpeeds = speeds;
+      if (picked.isNotEmpty) _trailSpeeds = picked;
     }
+  }
+
+  /// O texto e o resto: a margem do tempo, o nome das notas, a cifra, o
+  /// tamanho do texto dos cursos, a transposição, a transposição do teclado e
+  /// a partitura.
+  void _applyText(_Stored stored) {
+    final tolerance = stored.tolerance;
     if (tolerance != null) {
       _rhythmToleranceMs = tolerance.clamp(
         kMinRhythmToleranceMs,
         kMaxRhythmToleranceMs,
       );
     }
-    _noteNaming = NoteNaming.fromWire(noteNaming);
+    _noteNaming = NoteNaming.fromWire(stored.noteNaming);
     _chordNotation =
-        byName(ChordNotation.values, chordNotation) ?? _chordNotation;
+        _byName(ChordNotation.values, stored.chordNotation) ?? _chordNotation;
+    final textScale = stored.textScale;
     if (textScale != null) {
       _courseTextScale = textScale.clamp(
         kMinCourseTextScale,
         kMaxCourseTextScale,
       );
     }
-    _transposeByDefault = transposeByDefault ?? _transposeByDefault;
-    _keyboardTranspose = _decodeKeyboardTranspose(keyboardTranspose);
-    _scoreLayout = _decodeScoreLayout(scoreLayout);
-    _scorePageFitsBox = scorePageFitsBox ?? _scorePageFitsBox;
-    _loaded = true;
-    DiagLog.setState('configuracoes', diagSnapshot);
-    _diagLogChange('carregadas');
-    notifyListeners();
+    _transposeByDefault = stored.transposeByDefault ?? _transposeByDefault;
+    _keyboardTranspose = _decodeKeyboardTranspose(stored.keyboardTranspose);
+    _scoreLayout = _decodeScoreLayout(stored.scoreLayout);
+    _scorePageFitsBox = stored.scorePageFitsBox ?? _scorePageFitsBox;
   }
 }

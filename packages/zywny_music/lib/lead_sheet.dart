@@ -67,51 +67,67 @@ List<LeadChord>? leadSheetChords(
     return null;
   }
 
-  // A cifra de um tempo vale a última que o arquivo escreveu nele.
+  final ordered = _orderedHarmonies(harmonies, end);
+  final chords = <LeadChord>[];
+  for (var k = 0; k < ordered.length; k++) {
+    final next = k + 1 < ordered.length ? ordered[k + 1].start : end;
+    final chord = _leadChordOf(melody, ordered[k], next, error);
+    if (chord == null) return null;
+    chords.add(chord);
+  }
+  return chords;
+}
+
+/// As cifras que valem, uma por tempo, na ordem: a de um tempo é a última que
+/// o arquivo escreveu nele. As que começam no fim da peça não valem.
+List<MelodyHarmony> _orderedHarmonies(
+  List<MelodyHarmony> harmonies,
+  double end,
+) {
   final starts = <double, MelodyHarmony>{};
   for (final harmony in harmonies) {
     if (harmony.start >= end - 1e-9) continue;
     starts[harmony.start] = harmony;
   }
-  final ordered = starts.values.toList()
-    ..sort((a, b) => a.start.compareTo(b.start));
+  return starts.values.toList()..sort((a, b) => a.start.compareTo(b.start));
+}
 
-  final chords = <LeadChord>[];
-  for (var k = 0; k < ordered.length; k++) {
-    final harmony = ordered[k];
-    final bar = melody.measureAt(harmony.start);
-    final symbolText = harmony.symbol;
-    if (symbolText == null) {
-      error?.call(
-        'o compasso ${bar + 1}: o tipo de acorde `${harmony.kind}` não tem '
-        'nome na grafia da EX01 (use `text` no `<kind>`, como `7M`)',
-      );
-      return null;
-    }
-    String? problem;
-    final chord = ChordSymbol.parse(
-      symbolText,
-      error: (message) {
-        problem = message;
-      },
+/// A cifra [harmony] como acorde, que vai até [next]. `null`, com [error], se
+/// o tipo não tem nome na grafia da EX01 ou se a cifra não se lê.
+LeadChord? _leadChordOf(
+  MelodyScore melody,
+  MelodyHarmony harmony,
+  double next,
+  void Function(String message)? error,
+) {
+  final bar = melody.measureAt(harmony.start);
+  final symbolText = harmony.symbol;
+  if (symbolText == null) {
+    error?.call(
+      'o compasso ${bar + 1}: o tipo de acorde `${harmony.kind}` não tem '
+      'nome na grafia da EX01 (use `text` no `<kind>`, como `7M`)',
     );
-    if (chord == null) {
-      error?.call(
-        'o compasso ${bar + 1}: a cifra `$symbolText` não se lê'
-        '${problem == null ? '' : ' ($problem)'}',
-      );
-      return null;
-    }
-    final next = k + 1 < ordered.length ? ordered[k + 1].start : end;
-    chords.add(
-      LeadChord(
-        label: symbolText,
-        chord: chord,
-        bar: bar,
-        start: harmony.start,
-        beats: next - harmony.start,
-      ),
-    );
+    return null;
   }
-  return chords;
+  String? problem;
+  final chord = ChordSymbol.parse(
+    symbolText,
+    error: (message) {
+      problem = message;
+    },
+  );
+  if (chord == null) {
+    error?.call(
+      'o compasso ${bar + 1}: a cifra `$symbolText` não se lê'
+      '${problem == null ? '' : ' ($problem)'}',
+    );
+    return null;
+  }
+  return LeadChord(
+    label: symbolText,
+    chord: chord,
+    bar: bar,
+    start: harmony.start,
+    beats: next - harmony.start,
+  );
 }

@@ -51,9 +51,12 @@ RhythmSpec _spec(CourseReadResult result) =>
     result.course!.lessons.single.exercises.single as RhythmSpec;
 
 void main() {
-  group('rhythm com groove e moldes: leitura', () {
-    test('groove lê o groove certo e copia os moldes dele', () async {
-      final result = await _read('''
+  _parte17();
+}
+
+void _parte1() {
+  test('groove lê o groove certo e copia os moldes dele', () async {
+    final result = await _read('''
 ```zywny-exercise
 id: n4-clave
 type: rhythm
@@ -64,24 +67,24 @@ measures: 4
 pass: {accuracy: 80}
 ```
 ''');
-      expect(_messages(result), isEmpty);
-      final spec = _spec(result);
-      expect(spec.groove!.name, 'clave-son-3-2');
-      expect(spec.hands, 2, reason: 'o groove de duas mãos põe as duas');
-      expect(spec.time, '4/4');
-      expect(spec.bpm, 90);
-      expect(spec.measures, 4);
-      expect(spec.figures, isNull);
-      expect(spec.abc, isNull);
-      expect(spec.split.toString(), 'C4');
-      expect(_text(spec.right!), 'X . . X . . X . | . . X . X . . .');
-      expect(_text(spec.left!), '. . . X . . X . | . . . X . . X .');
-    });
+    expect(_messages(result), isEmpty);
+    final spec = _spec(result);
+    expect(spec.groove!.name, 'clave-son-3-2');
+    expect(spec.hands, 2, reason: 'o groove de duas mãos põe as duas');
+    expect(spec.time, '4/4');
+    expect(spec.bpm, 90);
+    expect(spec.measures, 4);
+    expect(spec.figures, isNull);
+    expect(spec.abc, isNull);
+    expect(spec.split.toString(), 'C4');
+    expect(_text(spec.right!), 'X . . X . . X . | . . X . X . . .');
+    expect(_text(spec.left!), '. . . X . . X . | . . . X . . X .');
+  });
+}
 
-    test(
-      'right e left escritos, sem hands: as duas mãos saem do left',
-      () async {
-        final result = await _read('''
+void _parte2() {
+  test('right e left escritos, sem hands: as duas mãos saem do left', () async {
+    final result = await _read('''
 ```zywny-exercise
 id: n2-dois-por-quatro
 type: rhythm
@@ -91,21 +94,22 @@ left: "X . . . | . . X ."
 pass: {accuracy: 80}
 ```
 ''');
-        expect(_messages(result), isEmpty);
-        final spec = _spec(result);
-        expect(spec.groove, isNull);
-        expect(spec.hands, 2);
-        expect(spec.time, '4/4');
-        expect(spec.measures, 4, reason: 'o padrão de `measures` nos moldes');
-        expect(_text(spec.right!), 'X . X . | X X X X');
-        expect(_text(spec.left!), 'X . . . | . . X .');
-        expect(spec.figures, isNull);
-        expect(spec.abc, isNull);
-      },
-    );
+    expect(_messages(result), isEmpty);
+    final spec = _spec(result);
+    expect(spec.groove, isNull);
+    expect(spec.hands, 2);
+    expect(spec.time, '4/4');
+    expect(spec.measures, 4, reason: 'o padrão de `measures` nos moldes');
+    expect(_text(spec.right!), 'X . X . | X X X X');
+    expect(_text(spec.left!), 'X . . . | . . X .');
+    expect(spec.figures, isNull);
+    expect(spec.abc, isNull);
+  });
+}
 
-    test('um right só é uma mão escrita, e `measures` fica no molde', () async {
-      final result = await _read('''
+void _parte3() {
+  test('um right só é uma mão escrita, e `measures` fica no molde', () async {
+    final result = await _read('''
 ```zywny-exercise
 id: n1-so-direita
 type: rhythm
@@ -115,16 +119,15 @@ measures: 8
 pass: {accuracy: 85}
 ```
 ''');
-      expect(_messages(result), isEmpty);
-      final spec = _spec(result);
-      expect(spec.hands, 1);
-      expect(spec.left, isNull);
-      expect(_text(spec.right!), 'X . X . X . X .');
-      expect(spec.measures, 8);
-    });
-
-    test('o compasso de 3/4 vai para o molde', () async {
-      final result = await _read('''
+    expect(_messages(result), isEmpty);
+    final spec = _spec(result);
+    expect(spec.hands, 1);
+    expect(spec.left, isNull);
+    expect(_text(spec.right!), 'X . X . X . X .');
+    expect(spec.measures, 8);
+  });
+  test('o compasso de 3/4 vai para o molde', () async {
+    final result = await _read('''
 ```zywny-exercise
 id: n1-valsa
 type: rhythm
@@ -134,16 +137,18 @@ right: "X . . | X . ."
 pass: {accuracy: 85}
 ```
 ''');
-      expect(_messages(result), isEmpty);
-      final spec = _spec(result);
-      expect(spec.time, '3/4');
-      expect(_text(spec.right!), 'X . . | X . .');
-    });
+    expect(_messages(result), isEmpty);
+    final spec = _spec(result);
+    expect(spec.time, '3/4');
+    expect(_text(spec.right!), 'X . . | X . .');
+  });
+}
 
-    test(
-      'o split de um groove de duas mãos é lido, e hands: two confere',
-      () async {
-        final result = await _read('''
+void _parte4() {
+  test(
+    'o split de um groove de duas mãos é lido, e hands: two confere',
+    () async {
+      final result = await _read('''
 ```zywny-exercise
 id: n3-tres-contra-dois
 type: rhythm
@@ -154,16 +159,18 @@ split: C2
 pass: {accuracy: 85}
 ```
 ''');
-        expect(_messages(result), isEmpty);
-        final spec = _spec(result);
-        expect(spec.hands, 2);
-        expect(spec.split.toString(), 'C2');
-        expect(spec.groove!.name, 'two-against-three');
-      },
-    );
+      expect(_messages(result), isEmpty);
+      final spec = _spec(result);
+      expect(spec.hands, 2);
+      expect(spec.split.toString(), 'C2');
+      expect(spec.groove!.name, 'two-against-three');
+    },
+  );
+}
 
-    test('ganza: um groove de uma mão, com os acentos no molde', () async {
-      final result = await _read('''
+void _parte5() {
+  test('ganza: um groove de uma mão, com os acentos no molde', () async {
+    final result = await _read('''
 ```zywny-exercise
 id: n4-ganza
 type: rhythm
@@ -174,18 +181,20 @@ measures: 4
 pass: {accuracy: 85, accents: 12}
 ```
 ''');
-      expect(_messages(result), isEmpty);
-      final spec = _spec(result);
-      expect(spec.hands, 1);
-      expect(spec.left, isNull);
-      expect(
-        spec.right!.single.where((s) => s == RhythmSymbol.accent),
-        hasLength(4),
-      );
-    });
+    expect(_messages(result), isEmpty);
+    final spec = _spec(result);
+    expect(spec.hands, 1);
+    expect(spec.left, isNull);
+    expect(
+      spec.right!.single.where((s) => s == RhythmSymbol.accent),
+      hasLength(4),
+    );
+  });
+}
 
-    test('o sorteio e o ABC continuam com uma mão e sem moldes', () async {
-      final result = await _read('''
+void _parte6() {
+  test('o sorteio e o ABC continuam com uma mão e sem moldes', () async {
+    final result = await _read('''
 ```zywny-exercise
 id: n1-sorteio
 type: rhythm
@@ -202,23 +211,23 @@ abc: "C"
 pass: {accuracy: 85}
 ```
 ''');
-      expect(_messages(result), isEmpty);
-      final specs = result.course!.lessons.single.exercises.toList();
-      final sorteio = specs[0] as RhythmSpec;
-      expect(sorteio.hands, 1);
-      expect(sorteio.split.toString(), 'C4');
-      expect(sorteio.groove, isNull);
-      expect(sorteio.right, isNull);
-      expect(sorteio.left, isNull);
-      final abc = specs[1] as RhythmSpec;
-      expect(abc.hands, 1);
-      expect(abc.right, isNull);
-    });
+    expect(_messages(result), isEmpty);
+    final specs = result.course!.lessons.single.exercises.toList();
+    final sorteio = specs[0] as RhythmSpec;
+    expect(sorteio.hands, 1);
+    expect(sorteio.split.toString(), 'C4');
+    expect(sorteio.groove, isNull);
+    expect(sorteio.right, isNull);
+    expect(sorteio.left, isNull);
+    final abc = specs[1] as RhythmSpec;
+    expect(abc.hands, 1);
+    expect(abc.right, isNull);
   });
+}
 
-  group('rhythm com groove e moldes: erros', () {
-    test('hands: two sem left nem groove de duas mãos', () async {
-      final result = await _read('''
+void _parte7() {
+  test('hands: two sem left nem groove de duas mãos', () async {
+    final result = await _read('''
 ```zywny-exercise
 id: n1-x
 type: rhythm
@@ -228,14 +237,13 @@ figures: [quarter, eighth, quarter-rest]
 pass: {accuracy: 80}
 ```
 ''');
-      expect(
-        _messages(result),
-        contains('`hands: two` pede `left:` ou um `groove` de duas mãos.'),
-      );
-    });
-
-    test('groove de duas mãos com hands: one', () async {
-      final result = await _read('''
+    expect(
+      _messages(result),
+      contains('`hands: two` pede `left:` ou um `groove` de duas mãos.'),
+    );
+  });
+  test('groove de duas mãos com hands: one', () async {
+    final result = await _read('''
 ```zywny-exercise
 id: n4-x
 type: rhythm
@@ -245,14 +253,16 @@ hands: one
 pass: {accuracy: 80}
 ```
 ''');
-      expect(
-        _messages(result),
-        contains('o groove `clave-son-3-2` toca as duas mãos: tire `hands:`.'),
-      );
-    });
+    expect(
+      _messages(result),
+      contains('o groove `clave-son-3-2` toca as duas mãos: tire `hands:`.'),
+    );
+  });
+}
 
-    test('ganza, de uma mão, com hands: two', () async {
-      final result = await _read('''
+void _parte8() {
+  test('ganza, de uma mão, com hands: two', () async {
+    final result = await _read('''
 ```zywny-exercise
 id: n4-x
 type: rhythm
@@ -262,14 +272,13 @@ hands: two
 pass: {accuracy: 80}
 ```
 ''');
-      expect(
-        _messages(result),
-        contains('o groove `ganza` toca só a mão direita: tire `hands: two`.'),
-      );
-    });
-
-    test('groove com figures é erro', () async {
-      final result = await _read('''
+    expect(
+      _messages(result),
+      contains('o groove `ganza` toca só a mão direita: tire `hands: two`.'),
+    );
+  });
+  test('groove com figures é erro', () async {
+    final result = await _read('''
 ```zywny-exercise
 id: n4-x
 type: rhythm
@@ -279,16 +288,18 @@ figures: [quarter, eighth, quarter-rest]
 pass: {accuracy: 80}
 ```
 ''');
-      expect(
-        _messages(result),
-        contains(
-          '`figures` não vale com `groove` ou `right`: o ritmo é o molde.',
-        ),
-      );
-    });
+    expect(
+      _messages(result),
+      contains(
+        '`figures` não vale com `groove` ou `right`: o ritmo é o molde.',
+      ),
+    );
+  });
+}
 
-    test('right com abc é erro', () async {
-      final result = await _read('''
+void _parte9() {
+  test('right com abc é erro', () async {
+    final result = await _read('''
 ```zywny-exercise
 id: n1-x
 type: rhythm
@@ -298,14 +309,13 @@ abc: "C"
 pass: {accuracy: 80}
 ```
 ''');
-      expect(
-        _messages(result),
-        contains('`abc` não vale com `groove` ou `right`: o ritmo é o molde.'),
-      );
-    });
-
-    test('groove com right ou left é erro', () async {
-      final result = await _read('''
+    expect(
+      _messages(result),
+      contains('`abc` não vale com `groove` ou `right`: o ritmo é o molde.'),
+    );
+  });
+  test('groove com right ou left é erro', () async {
+    final result = await _read('''
 ```zywny-exercise
 id: n4-x
 type: rhythm
@@ -315,16 +325,18 @@ right: "X . X ."
 pass: {accuracy: 80}
 ```
 ''');
-      expect(
-        _messages(result),
-        contains(
-          '`groove` não vale com `right` e `left`: o groove já traz os moldes.',
-        ),
-      );
-    });
+    expect(
+      _messages(result),
+      contains(
+        '`groove` não vale com `right` e `left`: o groove já traz os moldes.',
+      ),
+    );
+  });
+}
 
-    test('left sem right é erro', () async {
-      final result = await _read('''
+void _parte10() {
+  test('left sem right é erro', () async {
+    final result = await _read('''
 ```zywny-exercise
 id: n1-x
 type: rhythm
@@ -333,14 +345,13 @@ left: "X . . ."
 pass: {accuracy: 80}
 ```
 ''');
-      expect(
-        _messages(result),
-        contains('`left` pede `right`: os dois moldes vêm juntos.'),
-      );
-    });
-
-    test('left com hands: one é erro', () async {
-      final result = await _read('''
+    expect(
+      _messages(result),
+      contains('`left` pede `right`: os dois moldes vêm juntos.'),
+    );
+  });
+  test('left com hands: one é erro', () async {
+    final result = await _read('''
 ```zywny-exercise
 id: n1-x
 type: rhythm
@@ -351,11 +362,13 @@ left: "X . . ."
 pass: {accuracy: 80}
 ```
 ''');
-      expect(_messages(result), contains('`left:` não vale com `hands: one`.'));
-    });
+    expect(_messages(result), contains('`left:` não vale com `hands: one`.'));
+  });
+}
 
-    test('molde com um token errado, na linha do molde', () async {
-      const body = '''
+void _parte11() {
+  test('molde com um token errado, na linha do molde', () async {
+    const body = '''
 ```zywny-exercise
 id: n1-x
 type: rhythm
@@ -364,21 +377,23 @@ right: "X . Q ."
 pass: {accuracy: 80}
 ```
 ''';
-      final result = await _read(body);
-      expect(
-        _messages(result),
-        contains(
-          '`right`: `Q` não é um símbolo do ritmo (use `X`, `A`, `-` ou `.`).',
-        ),
-      );
-      final issue = result.issues.singleWhere(
-        (issue) => issue.message.contains('não é um símbolo do ritmo'),
-      );
-      expect(issue.line, _lineStarting(body, 'right:'));
-    });
+    final result = await _read(body);
+    expect(
+      _messages(result),
+      contains(
+        '`right`: `Q` não é um símbolo do ritmo (use `X`, `A`, `-` ou `.`).',
+      ),
+    );
+    final issue = result.issues.singleWhere(
+      (issue) => issue.message.contains('não é um símbolo do ritmo'),
+    );
+    expect(issue.line, _lineStarting(body, 'right:'));
+  });
+}
 
-    test('moldes de números de compassos diferentes', () async {
-      final result = await _read('''
+void _parte12() {
+  test('moldes de números de compassos diferentes', () async {
+    final result = await _read('''
 ```zywny-exercise
 id: n2-x
 type: rhythm
@@ -388,17 +403,16 @@ left: "X . . ."
 pass: {accuracy: 80}
 ```
 ''');
-      expect(
-        _messages(result),
-        contains(
-          '`left` tem 1 compasso(s) e `right` tem 2: as duas mãos têm de ter o '
-          'mesmo número de compassos.',
-        ),
-      );
-    });
-
-    test('measures que não é múltiplo do molde', () async {
-      final result = await _read('''
+    expect(
+      _messages(result),
+      contains(
+        '`left` tem 1 compasso(s) e `right` tem 2: as duas mãos têm de ter o '
+        'mesmo número de compassos.',
+      ),
+    );
+  });
+  test('measures que não é múltiplo do molde', () async {
+    final result = await _read('''
 ```zywny-exercise
 id: n2-x
 type: rhythm
@@ -408,17 +422,19 @@ measures: 3
 pass: {accuracy: 80}
 ```
 ''');
-      expect(
-        _messages(result),
-        contains(
-          '`measures` precisa ser múltiplo de 2, o número de compassos do molde '
-          '(recebi 3).',
-        ),
-      );
-    });
+    expect(
+      _messages(result),
+      contains(
+        '`measures` precisa ser múltiplo de 2, o número de compassos do molde '
+        '(recebi 3).',
+      ),
+    );
+  });
+}
 
-    test('molde de 3 compassos com o measures padrão (4)', () async {
-      final result = await _read('''
+void _parte13() {
+  test('molde de 3 compassos com o measures padrão (4)', () async {
+    final result = await _read('''
 ```zywny-exercise
 id: n2-x
 type: rhythm
@@ -427,17 +443,16 @@ right: "X . X . | X X X X | X . . ."
 pass: {accuracy: 80}
 ```
 ''');
-      expect(
-        _messages(result),
-        contains(
-          'o molde tem 3 compasso(s), e `measures` (padrão 4) não é múltiplo '
-          'disso: escreva `measures:`.',
-        ),
-      );
-    });
-
-    test('measures múltiplo do molde passa', () async {
-      final result = await _read('''
+    expect(
+      _messages(result),
+      contains(
+        'o molde tem 3 compasso(s), e `measures` (padrão 4) não é múltiplo '
+        'disso: escreva `measures:`.',
+      ),
+    );
+  });
+  test('measures múltiplo do molde passa', () async {
+    final result = await _read('''
 ```zywny-exercise
 id: n2-x
 type: rhythm
@@ -447,12 +462,14 @@ measures: 8
 pass: {accuracy: 80}
 ```
 ''');
-      expect(_messages(result), isEmpty);
-      expect(_spec(result).measures, 8);
-    });
+    expect(_messages(result), isEmpty);
+    expect(_spec(result).measures, 8);
+  });
+}
 
-    test('o time do exercício que não é o do groove', () async {
-      final result = await _read('''
+void _parte14() {
+  test('o time do exercício que não é o do groove', () async {
+    final result = await _read('''
 ```zywny-exercise
 id: n4-x
 type: rhythm
@@ -462,14 +479,13 @@ time: 3/4
 pass: {accuracy: 80}
 ```
 ''');
-      expect(
-        _messages(result),
-        contains('o groove `clave-son-3-2` é de 4/4, e o exercício é de 3/4.'),
-      );
-    });
-
-    test('split sem duas mãos é erro', () async {
-      final result = await _read('''
+    expect(
+      _messages(result),
+      contains('o groove `clave-son-3-2` é de 4/4, e o exercício é de 3/4.'),
+    );
+  });
+  test('split sem duas mãos é erro', () async {
+    final result = await _read('''
 ```zywny-exercise
 id: n1-x
 type: rhythm
@@ -479,11 +495,13 @@ split: C2
 pass: {accuracy: 80}
 ```
 ''');
-      expect(_messages(result), contains('`split` só vale com duas mãos'));
-    });
+    expect(_messages(result), contains('`split` só vale com duas mãos'));
+  });
+}
 
-    test('note com groove ou molde é erro', () async {
-      final result = await _read('''
+void _parte15() {
+  test('note com groove ou molde é erro', () async {
+    final result = await _read('''
 ```zywny-exercise
 id: n4-x
 type: rhythm
@@ -493,14 +511,13 @@ note: C5
 pass: {accuracy: 80}
 ```
 ''');
-      expect(
-        _messages(result),
-        contains('`note` só vale no sorteio, com `figures`.'),
-      );
-    });
-
-    test('sem figures, abc, groove nem right, o autor é avisado', () async {
-      final result = await _read('''
+    expect(
+      _messages(result),
+      contains('`note` só vale no sorteio, com `figures`.'),
+    );
+  });
+  test('sem figures, abc, groove nem right, o autor é avisado', () async {
+    final result = await _read('''
 ```zywny-exercise
 id: n1-x
 type: rhythm
@@ -509,17 +526,19 @@ bpm: 80
 pass: {accuracy: 80}
 ```
 ''');
-      expect(
-        _messages(result),
-        contains(
-          'informe `figures` (ritmo sorteado), `abc` (ritmo escrito), `groove` '
-          'ou `right` (molde).',
-        ),
-      );
-    });
+    expect(
+      _messages(result),
+      contains(
+        'informe `figures` (ritmo sorteado), `abc` (ritmo escrito), `groove` '
+        'ou `right` (molde).',
+      ),
+    );
+  });
+}
 
-    test('groove com nome errado sugere o certo', () async {
-      final result = await _read('''
+void _parte16() {
+  test('groove com nome errado sugere o certo', () async {
+    final result = await _read('''
 ```zywny-exercise
 id: n4-x
 type: rhythm
@@ -528,11 +547,31 @@ groove: two-against-thre
 pass: {accuracy: 80}
 ```
 ''');
-      expect(_messages(result), contains('`groove` aceita two-against-three'));
-      expect(
-        _messages(result),
-        contains('você quis dizer `two-against-three`'),
-      );
-    });
+    expect(_messages(result), contains('`groove` aceita two-against-three'));
+    expect(_messages(result), contains('você quis dizer `two-against-three`'));
+  });
+}
+
+// Testes: rhythm com groove e moldes: leitura · rhythm com groove e moldes: erros
+void _parte17() {
+  group('rhythm com groove e moldes: leitura', () {
+    _parte1();
+    _parte2();
+    _parte3();
+    _parte4();
+    _parte5();
+    _parte6();
+  });
+  group('rhythm com groove e moldes: erros', () {
+    _parte7();
+    _parte8();
+    _parte9();
+    _parte10();
+    _parte11();
+    _parte12();
+    _parte13();
+    _parte14();
+    _parte15();
+    _parte16();
   });
 }

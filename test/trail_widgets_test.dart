@@ -75,10 +75,12 @@ void main() {
       required bool last,
     }) => showStageSummary(
       tester.element(find.byType(Scaffold)),
-      stageRef: 'Trecho 1/4 · Notas da direita',
-      result: StageResult(hits: percent, total: 100, badMeasures: const {6}),
-      badLogical: const [7],
-      isLast: last,
+      StageSummaryInfo(
+        stageRef: 'Trecho 1/4 · Notas da direita',
+        result: StageResult(hits: percent, total: 100, badMeasures: const {6}),
+        badLogical: const [7],
+        isLast: last,
+      ),
     );
 
     testWidgets('aprovado: próxima ou repetir', (tester) async {
@@ -102,12 +104,14 @@ void main() {
       await tester.pumpWidget(_app(const SizedBox()));
       final future = showStageSummary(
         tester.element(find.byType(Scaffold)),
-        stageRef: 'Trecho 1/4 · Notas da direita',
-        result: const StageResult(hits: 80, total: 100, badMeasures: {6}),
-        badLogical: const [7],
-        isLast: false,
-        reviewCount: 3,
-        reviewHasSides: true,
+        StageSummaryInfo(
+          stageRef: 'Trecho 1/4 · Notas da direita',
+          result: const StageResult(hits: 80, total: 100, badMeasures: {6}),
+          badLogical: const [7],
+          isLast: false,
+          reviewCount: 3,
+          reviewHasSides: true,
+        ),
       );
       await tester.pumpAndSettle();
       expect(find.textContaining('antes do tempo fica à esquerda'), findsOne);
@@ -138,11 +142,13 @@ void main() {
       await tester.pumpWidget(_app(const SizedBox()));
       final future = showStageSummary(
         tester.element(find.byType(Scaffold)),
-        stageRef: 'Fase final · Tudo junto no ritmo 50%',
-        result: const StageResult(hits: 17, total: 20, badMeasures: {7}),
-        badLogical: const [8],
-        isLast: false,
-        blockCount: 2,
+        StageSummaryInfo(
+          stageRef: 'Fase final · Tudo junto no ritmo 50%',
+          result: const StageResult(hits: 17, total: 20, badMeasures: {7}),
+          badLogical: const [8],
+          isLast: false,
+          blockCount: 2,
+        ),
       );
       await tester.pumpAndSettle();
       expect(find.text('Tentar de novo'), findsNothing);

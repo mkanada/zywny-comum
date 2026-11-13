@@ -170,115 +170,11 @@ Future<void> showMidiDevicePicker(
             deviceManager.bluetoothNote,
             searching,
           ]),
-          builder: (context, _) {
-            final devices = deviceManager.devices.value;
-            final connected = deviceManager.connected.value;
-            final error = deviceManager.lastError.value;
-            final bluetoothNote = deviceManager.bluetoothNote.value;
-            final unavailable = deviceManager.unavailable.value;
-            final unavailableText = unavailable == null
-                ? null
-                : midiUnavailableText(unavailable);
-            return Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                if (error != null) ...[
-                  Text(
-                    'Não deu para conectar. $error',
-                    style: TextStyle(
-                      color: Theme.of(context).colorScheme.error,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                ],
-                if (devices.isEmpty)
-                  Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 8),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Icon(
-                          Icons.piano_off,
-                          size: 36,
-                          color: kInkCaption,
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          unavailableText?.title ?? 'Nenhum teclado encontrado',
-                          style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                        const SizedBox(height: 6),
-                        Text(
-                          unavailableText?.body ??
-                              midiHelpText(
-                                android: deviceManager.bluetooth,
-                                device: deviceNoun(context),
-                              ),
-                        ),
-                        if (bluetoothNote != null) ...[
-                          const SizedBox(height: 8),
-                          Text(
-                            bluetoothNote,
-                            style: TextStyle(
-                              color: Theme.of(context).colorScheme.error,
-                            ),
-                          ),
-                        ],
-                        if (unavailableText == null ||
-                            unavailableText.action != null) ...[
-                          const SizedBox(height: 12),
-                          FilledButton.tonal(
-                            onPressed: searching.value ? null : search,
-                            child: searching.value
-                                ? const SizedBox(
-                                    width: 18,
-                                    height: 18,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                    ),
-                                  )
-                                : Text(
-                                    unavailableText?.action ??
-                                        'Procurar de novo',
-                                  ),
-                          ),
-                        ],
-                      ],
-                    ),
-                  )
-                else
-                  for (final device in devices)
-                    _deviceTile(
-                      device,
-                      isConnected: connected?.id == device.id,
-                      deviceManager: deviceManager,
-                      context: context,
-                    ),
-              ],
-            );
-          },
+          builder: (context, _) =>
+              _pickerBody(context, deviceManager, searching, search),
         ),
       ),
-      actions: [
-        if (onCalibrate != null)
-          TextButton(
-            onPressed: deviceManager.connected.value == null
-                ? null
-                : () {
-                    Navigator.of(context).pop();
-                    onCalibrate();
-                  },
-            child: const Text('Ajustar o atraso'),
-          ),
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Fechar'),
-        ),
-      ],
+      actions: _pickerActions(context, deviceManager, onCalibrate),
     ),
   ).whenComplete(() {
     open = false;
@@ -286,6 +182,129 @@ Future<void> showMidiDevicePicker(
     searching.dispose();
   });
 }
+
+/// O corpo do diálogo: o erro de conectar (se houve) e a lista de aparelhos ou,
+/// sem nenhum, a orientação para ligar um.
+Widget _pickerBody(
+  BuildContext context,
+  MidiDeviceManager deviceManager,
+  ValueNotifier<bool> searching,
+  Future<void> Function() search,
+) {
+  final devices = deviceManager.devices.value;
+  final connected = deviceManager.connected.value;
+  final error = deviceManager.lastError.value;
+  return Column(
+    mainAxisSize: MainAxisSize.min,
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      if (error != null) ...[
+        Text(
+          'Não deu para conectar. $error',
+          style: TextStyle(color: Theme.of(context).colorScheme.error),
+        ),
+        const SizedBox(height: 8),
+      ],
+      if (devices.isEmpty)
+        _noDevices(context, deviceManager, searching, search)
+      else
+        for (final device in devices)
+          _deviceTile(
+            device,
+            isConnected: connected?.id == device.id,
+            deviceManager: deviceManager,
+            context: context,
+          ),
+    ],
+  );
+}
+
+/// Sem aparelho: o aviso (do navegador, ou a orientação para ligar um), a nota
+/// do Bluetooth e o botão de procurar de novo.
+Widget _noDevices(
+  BuildContext context,
+  MidiDeviceManager deviceManager,
+  ValueNotifier<bool> searching,
+  Future<void> Function() search,
+) {
+  final bluetoothNote = deviceManager.bluetoothNote.value;
+  final unavailable = deviceManager.unavailable.value;
+  final unavailableText = unavailable == null
+      ? null
+      : midiUnavailableText(unavailable);
+  return Padding(
+    padding: const EdgeInsets.symmetric(vertical: 8),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Icon(Icons.piano_off, size: 36, color: kInkCaption),
+        const SizedBox(height: 8),
+        Text(
+          unavailableText?.title ?? 'Nenhum teclado encontrado',
+          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+        ),
+        const SizedBox(height: 6),
+        Text(
+          unavailableText?.body ??
+              midiHelpText(
+                android: deviceManager.bluetooth,
+                device: deviceNoun(context),
+              ),
+        ),
+        if (bluetoothNote != null) ...[
+          const SizedBox(height: 8),
+          Text(
+            bluetoothNote,
+            style: TextStyle(color: Theme.of(context).colorScheme.error),
+          ),
+        ],
+        if (unavailableText == null || unavailableText.action != null) ...[
+          const SizedBox(height: 12),
+          _searchButton(searching, search, unavailableText?.action),
+        ],
+      ],
+    ),
+  );
+}
+
+/// O botão de procurar (ou o da permissão, com o rótulo [action]); gira
+/// enquanto a busca corre.
+Widget _searchButton(
+  ValueNotifier<bool> searching,
+  Future<void> Function() search,
+  String? action,
+) => FilledButton.tonal(
+  onPressed: searching.value ? null : search,
+  child: searching.value
+      ? const SizedBox(
+          width: 18,
+          height: 18,
+          child: CircularProgressIndicator(strokeWidth: 2),
+        )
+      : Text(action ?? 'Procurar de novo'),
+);
+
+/// Os botões do diálogo: ajustar o atraso (com teclado conectado) e fechar.
+List<Widget> _pickerActions(
+  BuildContext context,
+  MidiDeviceManager deviceManager,
+  VoidCallback? onCalibrate,
+) => [
+  if (onCalibrate != null)
+    TextButton(
+      onPressed: deviceManager.connected.value == null
+          ? null
+          : () {
+              Navigator.of(context).pop();
+              onCalibrate();
+            },
+      child: const Text('Ajustar o atraso'),
+    ),
+  TextButton(
+    onPressed: () => Navigator.of(context).pop(),
+    child: const Text('Fechar'),
+  ),
+];
 
 Widget _deviceTile(
   MidiDevice device, {

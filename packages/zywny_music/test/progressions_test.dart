@@ -34,45 +34,54 @@ const _compassos = {
   'miss-jones-b': 8,
 };
 
+/// Cada grau da progressão [chart] se escreve nos tons de dó, fá♯ e si♭ menor.
+void _resolveEmTons(String chart) {
+  final bars = parseProgression(chart);
+  expect(bars, isNotNull);
+  for (final tom in ['C', 'F#', 'Bbm']) {
+    final key = KeySpec.parse(tom)!;
+    for (final bar in bars!) {
+      for (final degree in bar) {
+        expect(degree.inKey(key).rootSpelling, isNotEmpty);
+      }
+    }
+  }
+}
+
 void main() {
+  _parte1();
+  _parte2();
+}
+
+void _parte1() {
   test('a biblioteca tem as 24 progressões da tabela, sem nome repetido', () {
     final nomes = [for (final p in kProgressions) p.name];
     expect(nomes.toSet(), hasLength(nomes.length));
     expect(nomes.toSet(), _compassos.keys.toSet());
   });
-
   for (final entrada in _compassos.entries) {
     test('${entrada.key} tem ${entrada.value} compassos e resolve em C, F♯ e '
         'B♭m', () {
       final progression = progressionNamed(entrada.key);
       expect(progression, isNotNull);
       expect(progression!.barCount, entrada.value);
-      final bars = parseProgression(progression.chart);
-      expect(bars, isNotNull);
-      for (final tom in ['C', 'F#', 'Bbm']) {
-        final key = KeySpec.parse(tom)!;
-        for (final bar in bars!) {
-          for (final degree in bar) {
-            expect(degree.inKey(key).rootSpelling, isNotEmpty);
-          }
-        }
-      }
+      _resolveEmTons(progression.chart);
     });
   }
-
   test('a progressão do exercício lê os mesmos compassos e graus', () {
     final bars = parseProgression('ii7 V7 | Imaj7');
     expect(bars, hasLength(2));
     expect(bars![0], hasLength(2));
     expect(bars[1].single.label, 'Imaj7');
   });
-
   test('um grau errado na progressão do exercício é recusado', () {
     String? erro;
     expect(parseProgression('ii7 xyz', error: (m) => erro = m), isNull);
     expect(erro, contains('`xyz`'));
   });
+}
 
+void _parte2() {
   test('long-rhythm-changes-a dobra cada acorde de rhythm-changes-a', () {
     final longa = progressionNamed('long-rhythm-changes-a')!;
     final curta = progressionNamed('rhythm-changes-a')!;
@@ -81,7 +90,6 @@ void main() {
       for (final acorde in acordes) [acorde],
     ]);
   });
-
   test('minor-blues em Bbm começa no Bbm7', () {
     final bars = parseProgression(progressionNamed('minor-blues')!.chart)!;
     expect(bars.first.first.inKey(KeySpec.parse('Bbm')!).rootSpelling, 'Bb');

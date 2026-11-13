@@ -41,6 +41,64 @@ MelodyScore _score(String xml) {
 }
 
 void main() {
+  _parte3();
+  _parte4();
+}
+
+void _parte1() {
+  test('uma partitura sem cifra', () {
+    final messages = <String>[];
+    final chords = leadSheetChords(
+      _score(_xml(['$_q$_q$_q$_q'])),
+      error: messages.add,
+    );
+    expect(chords, isNull);
+    expect(messages.single, 'a partitura não tem cifras (`<harmony>`)');
+  });
+  test('a primeira cifra depois do começo', () {
+    final messages = <String>[];
+    final chords = leadSheetChords(
+      _score(_xml(['$_q$_q${_harm('C', 'major')}$_q$_q'])),
+      error: messages.add,
+    );
+    expect(chords, isNull);
+    expect(messages.single, contains('o compasso 1 não tem cifra'));
+  });
+  test('um tipo de acorde sem nome na grafia da EX01', () {
+    final messages = <String>[];
+    final chords = leadSheetChords(
+      _score(
+        _xml([
+          '${_harm('C', 'major')}$_q$_q$_q$_q',
+          '${_harm('D', 'pedal')}$_q$_q$_q$_q',
+        ]),
+      ),
+      error: messages.add,
+    );
+    expect(chords, isNull);
+    expect(messages.single, contains('o compasso 2'));
+    expect(messages.single, contains('pedal'));
+  });
+}
+
+void _parte2() {
+  test('uma cifra que a EX01 não lê, com o compasso', () {
+    final messages = <String>[];
+    final chords = leadSheetChords(
+      _score(
+        _xml([
+          '${_harm('C', 'major')}$_q$_q$_q$_q',
+          '${_harm('D', 'major', text: 'zz9')}$_q$_q$_q$_q',
+        ]),
+      ),
+      error: messages.add,
+    );
+    expect(chords, isNull);
+    expect(messages.single, startsWith('o compasso 2: a cifra `Dzz9`'));
+  });
+}
+
+void _parte3() {
   test('as cifras dão a hora, a duração e o compasso de cada uma', () {
     final score = _score(
       _xml([
@@ -58,7 +116,6 @@ void main() {
     expect(chords.first.chord.root, 0);
     expect(chords[1].chord.pitchClasses, contains(11), reason: 'G7 tem o Fá');
   });
-
   test('a grafia `text` do arquivo vale: `7M` sai como `C7M` e lê o maj7', () {
     final score = _score(
       _xml(['${_harm('C', 'major-seventh', text: '7M')}$_q$_q$_q$_q']),
@@ -67,7 +124,6 @@ void main() {
     expect(chords.single.label, 'C7M');
     expect(chords.single.chord.pitchClasses, {0, 4, 7, 11});
   });
-
   test('o `text` com `(b5)` e o baixo (`C/E`) saem na grafia da EX01', () {
     final score = _score(
       _xml([
@@ -81,7 +137,10 @@ void main() {
     expect(chords[1].label, 'C/E');
     expect(chords[1].chord.bass, 4);
   });
+}
 
+// Testes: erros, com o compasso
+void _parte4() {
   test('um acorde sobre uma pausa começa na pausa', () {
     final score = _score(
       _xml([
@@ -96,7 +155,6 @@ void main() {
     expect([for (final c in chords) c.label], ['Dm', 'Am', 'G7']);
     expect([for (final c in chords) c.beats], [2, 2, 4]);
   });
-
   test('a troca no meio do compasso sai com o tempo que tem', () {
     final score = _score(
       _xml([
@@ -109,57 +167,8 @@ void main() {
     expect([for (final c in chords) c.beats], [1, 3, 4]);
     expect([for (final c in chords) c.bar], [0, 0, 1]);
   });
-
   group('erros, com o compasso', () {
-    test('uma partitura sem cifra', () {
-      final messages = <String>[];
-      final chords = leadSheetChords(
-        _score(_xml(['$_q$_q$_q$_q'])),
-        error: messages.add,
-      );
-      expect(chords, isNull);
-      expect(messages.single, 'a partitura não tem cifras (`<harmony>`)');
-    });
-
-    test('a primeira cifra depois do começo', () {
-      final messages = <String>[];
-      final chords = leadSheetChords(
-        _score(_xml(['$_q$_q${_harm('C', 'major')}$_q$_q'])),
-        error: messages.add,
-      );
-      expect(chords, isNull);
-      expect(messages.single, contains('o compasso 1 não tem cifra'));
-    });
-
-    test('um tipo de acorde sem nome na grafia da EX01', () {
-      final messages = <String>[];
-      final chords = leadSheetChords(
-        _score(
-          _xml([
-            '${_harm('C', 'major')}$_q$_q$_q$_q',
-            '${_harm('D', 'pedal')}$_q$_q$_q$_q',
-          ]),
-        ),
-        error: messages.add,
-      );
-      expect(chords, isNull);
-      expect(messages.single, contains('o compasso 2'));
-      expect(messages.single, contains('pedal'));
-    });
-
-    test('uma cifra que a EX01 não lê, com o compasso', () {
-      final messages = <String>[];
-      final chords = leadSheetChords(
-        _score(
-          _xml([
-            '${_harm('C', 'major')}$_q$_q$_q$_q',
-            '${_harm('D', 'major', text: 'zz9')}$_q$_q$_q$_q',
-          ]),
-        ),
-        error: messages.add,
-      );
-      expect(chords, isNull);
-      expect(messages.single, startsWith('o compasso 2: a cifra `Dzz9`'));
-    });
+    _parte1();
+    _parte2();
   });
 }

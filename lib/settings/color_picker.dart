@@ -124,13 +124,6 @@ class _ColorPickerDialogState extends State<ColorPickerDialog> {
     // Celular deitado: pouca altura e muita largura — paleta e ajuste fino
     // ficam lado a lado em vez de empilhados.
     final wide = size.width >= 600 && size.height < 560;
-    final palette = _Palette(value: _color, onPick: _pick);
-    final fine = _FineTuning(
-      hsv: _hsv,
-      hex: _hex,
-      onChanged: _adjust,
-      onHexChanged: _typed,
-    );
     return Dialog(
       insetPadding: const EdgeInsets.all(16),
       child: ConstrainedBox(
@@ -141,68 +134,77 @@ class _ColorPickerDialogState extends State<ColorPickerDialog> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      widget.title,
-                      style: theme.textTheme.titleMedium,
-                    ),
-                  ),
-                  _NotePreview(before: widget.initial, after: _color),
-                ],
-              ),
+              _titleRow(theme),
               const SizedBox(height: 12),
-              Flexible(
-                child: SingleChildScrollView(
-                  child: wide
-                      ? Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Expanded(child: palette),
-                            const SizedBox(width: 20),
-                            Expanded(child: fine),
-                          ],
-                        )
-                      : Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [palette, const SizedBox(height: 12), fine],
-                        ),
-                ),
-              ),
+              Flexible(child: SingleChildScrollView(child: _body(wide))),
               const SizedBox(height: 4),
-              // `Wrap`, não `Row`: em tela estreita com fonte grande os
-              // botões descem uma linha em vez de estourar.
-              Wrap(
-                alignment: WrapAlignment.spaceBetween,
-                crossAxisAlignment: WrapCrossAlignment.center,
-                children: [
-                  TextButton(
-                    onPressed: () => _pick(widget.defaultColor),
-                    child: const Text('Padrão'),
-                  ),
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      TextButton(
-                        onPressed: () => Navigator.of(context).pop(),
-                        child: const Text('Cancelar'),
-                      ),
-                      const SizedBox(width: 4),
-                      FilledButton(
-                        onPressed: () => Navigator.of(context).pop(_color),
-                        child: const Text('Aplicar'),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
+              _buttons(context),
             ],
           ),
         ),
       ),
     );
   }
+
+  /// O título e a prévia da nota, antes e depois da escolha.
+  Widget _titleRow(ThemeData theme) => Row(
+    children: [
+      Expanded(child: Text(widget.title, style: theme.textTheme.titleMedium)),
+      _NotePreview(before: widget.initial, after: _color),
+    ],
+  );
+
+  /// A paleta e o ajuste fino: lado a lado (celular deitado) ou empilhados.
+  Widget _body(bool wide) {
+    final palette = _Palette(value: _color, onPick: _pick);
+    final fine = _FineTuning(
+      hsv: _hsv,
+      hex: _hex,
+      onChanged: _adjust,
+      onHexChanged: _typed,
+    );
+    return wide
+        ? Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(child: palette),
+              const SizedBox(width: 20),
+              Expanded(child: fine),
+            ],
+          )
+        : Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [palette, const SizedBox(height: 12), fine],
+          );
+  }
+
+  /// Padrão à esquerda; cancelar e aplicar à direita. `Wrap`, não `Row`: em
+  /// tela estreita com fonte grande os botões descem uma linha em vez de
+  /// estourar.
+  Widget _buttons(BuildContext context) => Wrap(
+    alignment: WrapAlignment.spaceBetween,
+    crossAxisAlignment: WrapCrossAlignment.center,
+    children: [
+      TextButton(
+        onPressed: () => _pick(widget.defaultColor),
+        child: const Text('Padrão'),
+      ),
+      Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancelar'),
+          ),
+          const SizedBox(width: 4),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(_color),
+            child: const Text('Aplicar'),
+          ),
+        ],
+      ),
+    ],
+  );
 }
 
 /// A grade de [kColorPalette]; a cor atual, se estiver nela, fica marcada.
@@ -323,34 +325,37 @@ class _FineTuning extends StatelessWidget {
           onChanged: (v) => onChanged(hsv.withValue(v)),
         ),
         const SizedBox(height: 4),
-        Row(
-          children: [
-            Text('Código', style: Theme.of(context).textTheme.bodySmall),
-            const SizedBox(width: 12),
-            SizedBox(
-              width: 120,
-              child: TextField(
-                controller: hex,
-                onChanged: onHexChanged,
-                maxLength: 6,
-                textCapitalization: TextCapitalization.characters,
-                inputFormatters: [
-                  FilteringTextInputFormatter.allow(RegExp('[0-9a-fA-F]')),
-                ],
-                style: const TextStyle(fontFamily: 'monospace'),
-                decoration: const InputDecoration(
-                  isDense: true,
-                  prefixText: '#',
-                  counterText: '',
-                  border: OutlineInputBorder(),
-                ),
-              ),
-            ),
-          ],
-        ),
+        _hexField(context),
       ],
     );
   }
+
+  /// O código hexadecimal da cor, digitado (seis dígitos, sem o #).
+  Widget _hexField(BuildContext context) => Row(
+    children: [
+      Text('Código', style: Theme.of(context).textTheme.bodySmall),
+      const SizedBox(width: 12),
+      SizedBox(
+        width: 120,
+        child: TextField(
+          controller: hex,
+          onChanged: onHexChanged,
+          maxLength: 6,
+          textCapitalization: TextCapitalization.characters,
+          inputFormatters: [
+            FilteringTextInputFormatter.allow(RegExp('[0-9a-fA-F]')),
+          ],
+          style: const TextStyle(fontFamily: 'monospace'),
+          decoration: const InputDecoration(
+            isDense: true,
+            prefixText: '#',
+            counterText: '',
+            border: OutlineInputBorder(),
+          ),
+        ),
+      ),
+    ],
+  );
 }
 
 /// Um `Slider` cujo trilho é o próprio gradiente do que ele muda.

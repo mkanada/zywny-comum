@@ -69,7 +69,6 @@ class _MidiMonitorPanelState extends State<MidiMonitorPanel> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     return Card(
       margin: EdgeInsets.zero,
       elevation: 6,
@@ -77,94 +76,111 @@ class _MidiMonitorPanelState extends State<MidiMonitorPanel> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 4, 4, 0),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    'Teclas que chegam',
-                    style: theme.textTheme.titleSmall,
-                  ),
-                ),
-                IconButton(
-                  tooltip: 'Trocar dispositivo',
-                  onPressed: () =>
-                      showMidiDevicePicker(context, widget.deviceManager),
-                  icon: const Icon(Icons.piano, size: 20),
-                ),
-                IconButton(
-                  tooltip: 'Fechar',
-                  onPressed: widget.onClose,
-                  icon: const Icon(Icons.close, size: 20),
-                ),
-              ],
-            ),
-          ),
+          _header(context),
           const Divider(height: 1),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            child: ListenableBuilder(
-              listenable: widget.deviceManager.connected,
-              builder: (context, _) {
-                final device = widget.deviceManager.connected.value;
-                return Text(
-                  device == null
-                      ? 'nenhum dispositivo conectado'
-                      : 'conectado: ${device.name}',
-                  style: theme.textTheme.bodySmall,
-                  overflow: TextOverflow.ellipsis,
-                );
-              },
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 8),
-            child: LayoutBuilder(
-              builder: (context, constraints) =>
-                  ValueListenableBuilder<Set<int>>(
-                    valueListenable: widget.input.held,
-                    builder: (context, received, _) {
-                      final convert = widget.heldPitchOf;
-                      final held = convert == null
-                          ? received
-                          : {for (final p in received) convert(p)};
-                      final wrong = widget.wrong;
-                      Widget paint(Set<int> wrongPitches) => CustomPaint(
-                        size: Size(constraints.maxWidth, 64),
-                        painter: PianoKeyboardPainter(
-                          held: held,
-                          heldColor: theme.colorScheme.primary,
-                          wrong: wrongPitches,
-                        ),
-                      );
-                      if (wrong == null) return paint(const {});
-                      return ValueListenableBuilder<Set<int>>(
-                        valueListenable: wrong,
-                        builder: (context, wrongPitches, _) =>
-                            paint(wrongPitches),
-                      );
-                    },
-                  ),
-            ),
-          ),
+          _deviceLine(context),
+          _keyboardPaint(context),
           const SizedBox(height: 8),
           const Divider(height: 1),
+          Expanded(child: _messagesArea(context)),
+        ],
+      ),
+    );
+  }
+
+  /// O título ("Teclas que chegam") e os botões: trocar o dispositivo, fechar.
+  Widget _header(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 4, 4, 0),
+      child: Row(
+        children: [
           Expanded(
-            child: _messages.isEmpty
-                ? Center(
-                    child: Text(
-                      'toque uma nota para ver aqui',
-                      style: theme.textTheme.bodySmall,
-                    ),
-                  )
-                : ListView.builder(
-                    itemCount: _messages.length,
-                    itemBuilder: (context, i) => _MessageRow(_messages[i]),
-                  ),
+            child: Text('Teclas que chegam', style: theme.textTheme.titleSmall),
+          ),
+          IconButton(
+            tooltip: 'Trocar dispositivo',
+            onPressed: () =>
+                showMidiDevicePicker(context, widget.deviceManager),
+            icon: const Icon(Icons.piano, size: 20),
+          ),
+          IconButton(
+            tooltip: 'Fechar',
+            onPressed: widget.onClose,
+            icon: const Icon(Icons.close, size: 20),
           ),
         ],
       ),
+    );
+  }
+
+  /// O nome do teclado conectado (ou que nenhum está).
+  Widget _deviceLine(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: ListenableBuilder(
+        listenable: widget.deviceManager.connected,
+        builder: (context, _) {
+          final device = widget.deviceManager.connected.value;
+          return Text(
+            device == null
+                ? 'nenhum dispositivo conectado'
+                : 'conectado: ${device.name}',
+            style: theme.textTheme.bodySmall,
+            overflow: TextOverflow.ellipsis,
+          );
+        },
+      ),
+    );
+  }
+
+  /// O desenho do teclado, com as teclas apertadas e as erradas.
+  Widget _keyboardPaint(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 8),
+      child: LayoutBuilder(
+        builder: (context, constraints) => ValueListenableBuilder<Set<int>>(
+          valueListenable: widget.input.held,
+          builder: (context, received, _) {
+            final convert = widget.heldPitchOf;
+            final held = convert == null
+                ? received
+                : {for (final p in received) convert(p)};
+            final wrong = widget.wrong;
+            Widget paint(Set<int> wrongPitches) => CustomPaint(
+              size: Size(constraints.maxWidth, 64),
+              painter: PianoKeyboardPainter(
+                held: held,
+                heldColor: theme.colorScheme.primary,
+                wrong: wrongPitches,
+              ),
+            );
+            if (wrong == null) return paint(const {});
+            return ValueListenableBuilder<Set<int>>(
+              valueListenable: wrong,
+              builder: (context, wrongPitches, _) => paint(wrongPitches),
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  /// As mensagens das teclas (ou a dica de tocar uma nota, sem nenhuma).
+  Widget _messagesArea(BuildContext context) {
+    if (_messages.isEmpty) {
+      return Center(
+        child: Text(
+          'toque uma nota para ver aqui',
+          style: Theme.of(context).textTheme.bodySmall,
+        ),
+      );
+    }
+    return ListView.builder(
+      itemCount: _messages.length,
+      itemBuilder: (context, i) => _MessageRow(_messages[i]),
     );
   }
 }
