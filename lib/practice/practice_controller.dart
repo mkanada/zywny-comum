@@ -77,6 +77,7 @@ class PracticeController {
     this.onRewind,
     this.repeatSpeeds = const [],
     this.repeatNoticeDuration = kRepeatNoticeDuration,
+    this.restColors = const {},
   }) : _midiInput = midiInput, // ignore: prefer_initializing_formals
        _track = track {
     if (range != null) {
@@ -1629,10 +1630,22 @@ class PracticeController {
     }
   }
 
+  /// A cor de repouso de cada nota (a da partitura pintada pelo host, como a
+  /// parte do aluno na leitura pela música): quando o passo fecha, a nota volta
+  /// a ela em vez de ficar sem cor (preta).
+  final Map<String, Color> restColors;
+
   void _clearExpected() {
+    final back = <String, Color>{};
     for (final id in _expectedIds) {
-      controller.clearColor(id);
+      final rest = restColors[id];
+      if (rest == null) {
+        controller.clearColor(id);
+      } else {
+        back[id] = rest;
+      }
     }
+    if (back.isNotEmpty) controller.setColors(back);
     _expectedIds = const [];
   }
 
