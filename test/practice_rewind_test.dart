@@ -37,6 +37,7 @@ class _Rig {
     this.skipMeasure,
     this.speed = 1.0,
     this.repeatSpeeds = const [],
+    this.noticeDuration = const Duration(hours: 1),
   }) {
     final doc = _loadDoc();
     track = PerformanceTrack.fromDocument(doc);
@@ -83,7 +84,7 @@ class _Rig {
         rewoundAt.add(engine.now);
       },
       repeatSpeeds: repeatSpeeds,
-      repeatNoticeDuration: const Duration(hours: 1),
+      repeatNoticeDuration: noticeDuration,
     );
     // Cada nota do app que o agendador manda ao motor, com o instante musical
     // dela (lido com a âncora de agora, que vale para este lote).
@@ -106,6 +107,7 @@ class _Rig {
   final int? skipMeasure;
   final double speed;
   final List<double> repeatSpeeds;
+  final Duration noticeDuration;
   final FakeSoundEngine engine = FakeSoundEngine();
   final FakeMidiInput midi = FakeMidiInput();
   late final PerformanceTrack track;
@@ -436,6 +438,68 @@ void main() {
         expect(rig.scheduler.isRunning, isFalse);
       },
     );
+
+    test('a primeira nota do compasso, tocada logo que a contagem acaba, conta '
+        '(antes o tick ainda não tinha soltado a escada)', () async {
+      rig = _Rig(mode: PracticeMode.realtime, firstMeasure: 1, endMeasure: 3);
+      rig.practice.start();
+      await rig.playTimed(1, miss: 0);
+      rig.advanceTo(rig.timeline.measures[1].endMs + 400);
+      await rig.settle();
+      await rig.playWaitMeasure();
+      await rig.settle();
+      expect(rig.scheduler.isCountingIn, isTrue);
+      // Anda o motor até a contagem acabar, sem passar pelo tick do controlador.
+      while (rig.scheduler.isCountingIn) {
+        rig.engine.now += 0.01;
+        rig.scheduler.pump();
+      }
+      final first = rig.notesOf(1).first;
+      while (rig.scheduler.positionMs < first.onMs) {
+        rig.engine.now += 0.01;
+        rig.scheduler.pump();
+      }
+      final before = rig.practice.report.correct;
+      rig.midi.press(first.pitch, atSeconds: rig.engine.now);
+      await pumpEventQueue();
+      expect(rig.practice.report.correct, before + 1);
+    });
+
+    test('degrau de tempo real: a primeira nota do compasso seguinte, tocada '
+        'um pouco antes, não é erro do compasso que repete', () async {
+      rig = _Rig(mode: PracticeMode.realtime, firstMeasure: 1, endMeasure: 3);
+      rig.practice.start();
+      await rig.playTimed(1, miss: 0);
+      rig.advanceTo(rig.timeline.measures[1].endMs + 400);
+      await rig.settle();
+      await rig.playWaitMeasure();
+      await rig.settle();
+      rig.runCountIn();
+      await rig.playTimed(1);
+      final next = rig.notesOf(2).first;
+      rig.advanceTo(next.onMs - 8);
+      rig.midi.press(next.pitch, atSeconds: rig.engine.now);
+      await pumpEventQueue();
+      rig.passEnd(1);
+      expect(rig.status, isNull, reason: 'o degrau acertou e a escada acabou');
+      expect(rig.rewound, hasLength(2));
+    });
+
+    test('aviso em 0 s: nada aparece e o degrau começa na hora', () async {
+      rig = _Rig(
+        mode: PracticeMode.realtime,
+        firstMeasure: 1,
+        endMeasure: 3,
+        noticeDuration: Duration.zero,
+      );
+      rig.practice.start();
+      await rig.playTimed(1, miss: 0);
+      rig.advanceTo(rig.timeline.measures[1].endMs + 400);
+      expect(rig.rewound, isNotEmpty);
+      expect(rig.status!.notice, RepeatNotice.none);
+      await pumpEventQueue();
+      expect(rig.practice.rewinds, {1: 1}, reason: 'o degrau já começou');
+    });
 
     test('a tecla tocada durante o aviso não conta', () async {
       rig = _Rig(mode: PracticeMode.realtime, firstMeasure: 1, endMeasure: 3);

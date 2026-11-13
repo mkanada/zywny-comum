@@ -1115,6 +1115,9 @@ class PracticeController {
     );
     // Uma conversão só, no topo: daqui para baixo tudo é altura escrita.
     final pitch = writtenFromReceived(note.pitch);
+    // A contagem da escada acabou entre dois ticks: a tecla já conta (senão a
+    // primeira nota do compasso, tocada junto do clique, se perdia).
+    if (_repeatHold && scheduler.isRunning) _clearCountIn();
     // Pausada ou no aviso da escada: a tecla não conta, nem como erro nem como
     // acerto. A soltura chega à sessão de espera, para não deixar a nota presa.
     if (_paused || _repeatHold) {
