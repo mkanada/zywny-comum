@@ -26,11 +26,17 @@ import 'practice_colors.dart';
 import 'practice_mode.dart';
 import 'practice_report.dart';
 import 'practice_session.dart';
+import 'repeat_ladder.dart';
 import 'shift_detector.dart';
 import 'wrong_mark.dart';
 
 export 'practice_mode.dart';
 export 'wrong_mark.dart';
+export 'repeat_ladder.dart' show RepeatNotice, RepeatRung, RepeatStatus;
+
+/// Quanto tempo o aviso da escada de repetição ("Errou" ou "Acertou") fica na
+/// tela antes de o compasso repetir (LP25).
+const kRepeatNoticeDuration = Duration(seconds: 2);
 
 /// Modo espera (T02): o aluno escolhe [hand], o app agenda a outra no
 /// [scheduler] (freio incluso) e cada nota tocada no [midiInput] alimenta o
@@ -69,6 +75,8 @@ class PracticeController {
     this.rewindOnError = false,
     this.measureSpanOf,
     this.onRewind,
+    this.repeatSpeeds = const [],
+    this.repeatNoticeDuration = kRepeatNoticeDuration,
   }) : _midiInput = midiInput, // ignore: prefer_initializing_formals
        _track = track {
     if (range != null) {
@@ -91,12 +99,27 @@ class PracticeController {
             endMs: activeRange.endMs,
             gaps: rangeJumps,
           );
+    _sessionTrack = sessionTrack;
+    _baseSpeed = scheduler.speed;
+    _openSession(sessionTrack);
+    _diagOffState = DiagLog.setState('pratica', _diagSnapshot);
+    DiagLog.log(
+      'pratica',
+      'início modo=${mode.name} mão=${hand.name} '
+          'intervalo=${range == null ? '-' : '${range!.startMs}..${range!.endMs}'}',
+    );
+  }
+
+  /// Abre a sessão de avaliação do modo ([WaitModeSession] ou
+  /// [RealtimeSession]) sobre [sessionTrack] e liga os veredictos.
+  void _openSession(PerformanceTrack sessionTrack) {
     if (mode == PracticeMode.wait) {
       final wait = WaitModeSession.forStaves(
         sessionTrack,
         staves: hand.studentStaves,
       );
       _wait = wait;
+      _ownWait = wait;
       if (range != null) _tally = WaitTally();
       _verdictSub = wait.verdicts.listen(_onVerdict);
       wait.current.addListener(_onStepChanged);
@@ -115,12 +138,6 @@ class PracticeController {
       _rt = rt;
       _verdictSub = rt.verdicts.listen(_onVerdict);
     }
-    _diagOffState = DiagLog.setState('pratica', _diagSnapshot);
-    DiagLog.log(
-      'pratica',
-      'início modo=${mode.name} mão=${hand.name} '
-          'intervalo=${range == null ? '-' : '${range!.startMs}..${range!.endMs}'}',
-    );
   }
 
   late final VoidCallback _diagOffState;
@@ -248,10 +265,12 @@ class PracticeController {
   /// relógio (que fica parado no freio).
   final void Function(double? onMs)? onWaitTarget;
 
-  /// A volta na hora (LP24.2): na passagem única ([range]), o compasso que
-  /// acaba com erro (nota errada ou perdida no tempo real; tecla errada no
-  /// modo espera) volta ao começo dele, sem contagem, até sair certo. Pede
-  /// [measureSpanOf] e [measureIndexAt]. Desligada, nada muda.
+  /// A volta na hora (LP24.2, escada LP25): na passagem única ([range]), o
+  /// compasso que acaba com erro (nota errada ou perdida no tempo real; tecla
+  /// errada no modo espera) não segue: ele repete numa escada (só notas, depois
+  /// os andamentos de [repeatSpeeds] até o da rodada), com aviso e contagem entre
+  /// os degraus que sobem ([repeat]). Pede [measureSpanOf] e [measureIndexAt].
+  /// Desligada, nada muda.
   final bool rewindOnError;
 
   /// O instante musical (ms do timemap) do começo e do fim de uma ocorrência
@@ -259,12 +278,63 @@ class PracticeController {
   final ({double startMs, double endMs}) Function(int measureIndex)?
   measureSpanOf;
 
-  /// Chamado a cada volta na hora com o compasso que volta e o instante do
-  /// começo dele: o agendador e a avaliação já foram repostos aqui, e o host
-  /// leva o `ScorePlayer` para lá (como em [onLoopRestart]).
+  /// Chamado a cada volta na hora (o aviso, que segura a música) com o compasso
+  /// e o instante do começo dele: o host leva o `ScorePlayer` para lá (como em
+  /// [onLoopRestart]). A repetição começa depois do aviso ([repeatNoticeDuration]).
   final void Function(int measureIndex, double startMs)? onRewind;
 
+  /// A escada de repetição (LP25): os andamentos menores que o da rodada, em
+  /// fração do escrito (o último degrau é o da rodada). Vazio: só o degrau "só
+  /// notas" e o da rodada. Só vale com [rewindOnError].
+  final List<double> repeatSpeeds;
+
+  /// Quanto tempo o aviso ("Errou" ou "Acertou") fica antes de o compasso repetir.
+  final Duration repeatNoticeDuration;
+
   final MeasureRewinds _rewindBook = MeasureRewinds();
+
+  /// A escada do compasso que repete agora (`null` quando não repete).
+  RepeatLadder? _ladder;
+
+  /// O compasso que a escada repete.
+  int _repeatMeasure = 0;
+
+  /// Aviso ou contagem em curso: a tecla não conta (como na pausa), menos a
+  /// soltura, que segue para a sessão para não deixar nota presa.
+  bool _repeatHold = false;
+
+  /// O aviso da escada, até o compasso repetir, e a contagem que o degrau
+  /// seguinte pede.
+  Timer? _holdTimer;
+  bool _holdCountIn = false;
+
+  /// Um degrau esperou a retomada (a rodada estava pausada quando o aviso
+  /// acabou): a contagem dele, para [resume].
+  bool? _pendingRung;
+
+  /// A escada na tela (`null` quando não repete).
+  final ValueNotifier<RepeatStatus?> _repeat = ValueNotifier(null);
+
+  /// O estado da escada de repetição para a tela (LP25): o compasso, o degrau, o
+  /// aviso e a contagem. `null` quando o compasso não repete.
+  ValueListenable<RepeatStatus?> get repeat => _repeat;
+
+  /// O andamento da rodada (o último degrau da escada), lido na construção.
+  late final double _baseSpeed;
+
+  /// O trecho de sessões (o `rangeView` da passagem), para criar a sessão de
+  /// modo espera do degrau "só notas" numa rodada de tempo real.
+  late final PerformanceTrack _sessionTrack;
+
+  /// A sessão de modo espera que a controladora criou para o degrau "só notas"
+  /// numa rodada de tempo real (ou a da própria rodada, no modo espera).
+  WaitModeSession? _ownWait;
+
+  /// A assinatura dos veredictos da sessão criada para o degrau "só notas".
+  StreamSubscription<NoteVerdict>? _ownWaitVerdictSub;
+
+  /// O compasso do passo pendente do modo espera, para ver quando ele acaba.
+  int? _pendingMeasure;
 
   /// Tempo real com a volta na hora: o primeiro compasso que ainda não está
   /// limpo (nota do aluno por tocar ou erro). O portão do agendador fica no
@@ -276,9 +346,6 @@ class PracticeController {
   bool _judgeQueued = false;
 
   bool _disposed = false;
-
-  /// Modo espera: o compasso do passo que o [_tally] tem como pendente.
-  int? _tallyMeasure;
 
   /// A volta na hora: quantas vezes cada compasso (ocorrência) voltou.
   Map<int, int> get rewinds => _rewindBook.counts;
@@ -391,6 +458,7 @@ class PracticeController {
   /// compasso de cliques (T04). Com [range], começa em `range.startMs` e o
   /// teto de áudio vai para `range.endMs`.
   void start({double fromMs = 0, bool countIn = false}) {
+    _cancelRepeat();
     scheduler.setStaves(hand.appStaves);
     scheduler.setGate(null);
     final range = this.range;
@@ -507,14 +575,14 @@ class PracticeController {
 
   /// Chamado ~a cada 30 ms no tempo real: dispara os `missed`, fecha a volta
   /// do loop quando a posição recua e sinaliza o fim da peça.
-  bool get _timed => _rt != null;
+  bool get _timed => _rt != null && _wait == null;
 
   void _resetTimed(double fromMs, {double? untilMs}) {
     _rt?.resetTo(fromMs, untilMs: untilMs);
   }
 
   void _tickTimed(double ms) {
-    _rt?.tick(ms);
+    if (_timed) _rt?.tick(ms);
   }
 
   /// Folga (ms musicais) depois da qual um alvo sem toque vira `missed`.
@@ -533,7 +601,15 @@ class PracticeController {
     if (range != null) {
       if (rewindOnError) {
         _tickTimed(pos);
-        if (_judgeRewind(pos)) return;
+        if (_ladder != null) {
+          _clearCountIn();
+          // A escada decidiu o compasso (aviso ou fim) ou ainda o toca: o fim
+          // da passagem só vale depois que ela acaba.
+          if (_judgeRung(pos)) return;
+          if (_ladder != null) return;
+        } else if (_judgeRewind(pos)) {
+          return;
+        }
       }
       // Passagem única: a posição passa do fim + folga (o último toque
       // ainda pode casar), aí o que faltou vira `missed` e termina sozinho.
@@ -586,10 +662,12 @@ class PracticeController {
     if (!rewindOnError || range == null || rt == null || _wait != null) {
       return false;
     }
+    // Com a escada no ar (LP25), quem decide é o degrau dela (`_judgeRung`).
+    if (_ladder != null) return false;
     final cursor = _watchMeasure;
     final back = _firstErrorMeasure(cursor);
     if (back != null) {
-      _rewindTo(back);
+      _startRepeat(back);
       return true;
     }
     // Com erro e depois do fim, volta quando as notas do compasso já foram
@@ -599,7 +677,7 @@ class PracticeController {
         _rewindBook.hasError(cursor) &&
         pos >= _measureEndMs(cursor) &&
         !rt.hasPendingIn(_measureStartMs(cursor), _measureEndMs(cursor))) {
-      _rewindTo(cursor);
+      _startRepeat(cursor);
       return true;
     }
     final next = _firstUnclear(cursor, rt);
@@ -688,47 +766,220 @@ class PracticeController {
     return next > measure ? next : null;
   }
 
-  /// Modo espera com a volta na hora: o passo pendente concluiu e o seguinte
-  /// é [next] (`null` se o intervalo acabou). Se ele é de outro compasso e o
-  /// compasso que acabou teve tecla errada, o compasso volta. `true` se voltou.
-  bool _rewindWait(PracticeStep? next) {
-    final measure = _tallyMeasure;
-    if (!rewindOnError || measure == null) return false;
-    if (next != null && _measureAt(next.onMs) == measure) return false;
-    if (!_rewindBook.hasError(measure)) return false;
-    _rewindTo(measure);
+  /// A escada de repetição (LP25), no tempo real: o compasso do degrau acaba
+  /// quando o fim dele já passou e as notas dele estão decididas. `true` se a
+  /// escada segurou a música (aviso); `false` se ainda toca ou se acabou.
+  bool _judgeRung(double pos) {
+    final rt = _rt;
+    if (rt == null || _wait != null || _ladder == null) return false;
+    final measure = _repeatMeasure;
+    final start = _measureStartMs(measure);
+    final end = _measureEndMs(measure);
+    if (pos < end || rt.hasPendingIn(start, end)) return false;
+    return _decideRung();
+  }
+
+  /// A escada de repetição, no modo espera: o compasso que repete acabou (o
+  /// passo pendente já é de outro compasso). `true` se a escada segurou a
+  /// música; `false` se o compasso seguiu (sem erro, ou a escada acabou).
+  bool _measureEnded(int measure) {
+    if (_ladder == null) {
+      // Fora da escada, o primeiro erro do compasso que acaba a abre.
+      if (!rewindOnError || !_rewindBook.hasError(measure)) return false;
+      _startRepeat(measure);
+      return true;
+    }
+    if (measure != _repeatMeasure) return false;
+    return _decideRung();
+  }
+
+  /// O degrau que acabou: o compasso saiu com erro (volta ao primeiro, com
+  /// aviso) ou certo (sobe, com aviso e contagem; no último, a música segue).
+  /// `true` se a escada segurou a música; `false` se acabou.
+  bool _decideRung() {
+    final ladder = _ladder!;
+    final measure = _repeatMeasure;
+    final clean = !_rewindBook.hasError(measure);
+    final outcome = clean ? ladder.passed() : ladder.missed();
+    DiagLog.log(
+      'volta',
+      'compasso=$measure degrau=${ladder.index + 1}/${ladder.length} '
+          'resultado=${clean ? 'certo' : 'errou'} '
+          'aviso=${outcome.notice.name} '
+          'proximo=${outcome.next == null ? 'fim' : ladder.current}',
+    );
+    if (outcome.finished) {
+      _endRepeat();
+      return false;
+    }
+    _hold(outcome.notice, countIn: outcome.countIn);
     return true;
   }
 
-  /// A volta na hora ao começo do compasso [measure]: o agendador vai para
-  /// lá (sem contagem), a avaliação recomeça nele e o host é avisado.
-  void _rewindTo(int measure) {
-    final startMs = _measureStartMs(measure);
-    final attempt = _rewindBook.rewind(measure);
-    _dropAfter(measure);
+  /// A escada começa no [measure] (o primeiro erro dele, fora da escada): o
+  /// aviso de "Errou" e, depois, o compasso repete no primeiro degrau.
+  void _startRepeat(int measure) {
+    _ladder = RepeatLadder.of(
+      top: mode == PracticeMode.realtime ? _baseSpeed : null,
+      speeds: repeatSpeeds,
+    );
+    _repeatMeasure = measure;
     DiagLog.log(
       'volta',
-      'compasso=$measure tentativa=$attempt modo=${mode.name} '
-          'em ${startMs.toStringAsFixed(1)}ms',
+      'compasso=$measure escada de ${_ladder!.length} degraus, '
+          'do ${_ladder!.current}',
     );
-    final wait = _wait;
-    if (wait == null) {
-      // O portão antes do seek: o seek já agenda até ele, e o que vem depois
-      // do compasso (ainda não decidido) não pode entrar.
-      _watchMeasure = measure;
-      scheduler.setGate(_gateOf(measure));
-    }
+    _hold(RepeatNotice.missed, countIn: false);
+  }
+
+  /// O aviso da escada: a música para no começo do compasso que repete, o host
+  /// leva a partitura para lá ([onRewind]) e, depois de [repeatNoticeDuration],
+  /// o degrau começa ([_beginRung]).
+  void _hold(RepeatNotice notice, {required bool countIn}) {
+    final measure = _repeatMeasure;
+    final startMs = _measureStartMs(measure);
+    scheduler.pause();
     scheduler.seek(startMs - kRangeBoundaryToleranceMs);
-    if (wait != null) {
+    _repeatHold = true;
+    _publish(notice: notice);
+    onRewind?.call(measure, startMs);
+    _holdCountIn = countIn;
+    _holdTimer?.cancel();
+    _holdTimer = Timer(repeatNoticeDuration, _endHold);
+  }
+
+  /// O aviso acabou: o degrau começa (ou espera a retomada, se pausada).
+  void _endHold() {
+    _holdTimer = null;
+    _beginRung(countIn: _holdCountIn);
+  }
+
+  /// Os testes: o aviso acaba agora (como o `Timer` dele, sem esperar).
+  @visibleForTesting
+  void debugEndNotice() {
+    if (_holdTimer == null) return;
+    _holdTimer!.cancel();
+    _endHold();
+  }
+
+  /// O compasso repete no degrau atual da escada: a sessão do degrau (espera ou
+  /// tempo real), o andamento dele, e a contagem de um compasso antes, se o
+  /// degrau sobe. Cada repetição conta em [rewinds].
+  void _beginRung({required bool countIn}) {
+    final ladder = _ladder;
+    if (ladder == null || _disposed) return;
+    // Pausada, o degrau espera a retomada (`resume`).
+    if (_paused) {
+      _pendingRung = countIn;
+      return;
+    }
+    final measure = _repeatMeasure;
+    final rung = ladder.current;
+    final startMs = _measureStartMs(measure);
+    final endMs = _measureEndMs(measure);
+    final attempt = _rewindBook.rewind(measure);
+    _dropAfter(measure);
+    scheduler.setSpeed(rung.speed ?? _baseSpeed);
+    _pendingMeasure = null;
+    if (rung.isWait) {
+      final wait = _waitSession();
+      // Um degrau de espera fica com o freio (a música para no passo pendente);
+      // o portão do tempo real não vale aqui.
+      scheduler.setGate(null);
       _tally?.rewindTo(measure);
-      // A sessão publica o primeiro passo do compasso, e [_onStepChanged] o
-      // conta e arma o freio nele.
+      _wait = wait;
       wait.resetTo(startMs);
     } else {
-      _resetTimed(startMs, untilMs: range!.endMs);
+      _wait = null;
+      scheduler.setGate(_gateOf(measure));
+      _rt?.resetTo(startMs, untilMs: endMs);
       _lastPositionMs = startMs;
+      _setBrake(null);
     }
-    onRewind?.call(measure, startMs);
+    final withCount = countIn && scheduler.beats.isNotEmpty;
+    DiagLog.log(
+      'volta',
+      'compasso=$measure degrau=${ladder.index + 1}/${ladder.length} '
+          '${rung.isWait ? 'só notas' : '${(rung.speed! * 100).round()}%'} '
+          'tentativa=${attempt - 1} contagem=$withCount '
+          'em ${startMs.toStringAsFixed(1)}ms',
+    );
+    _repeatHold = withCount;
+    _publish(notice: RepeatNotice.none, countingIn: withCount);
+    scheduler.play(startMs - kRangeBoundaryToleranceMs, countIn: withCount);
+  }
+
+  /// A escada acabou (o compasso saiu certo no degrau da etapa): a música segue
+  /// a partir do compasso seguinte, no andamento da etapa, sem aviso.
+  void _endRepeat() {
+    final measure = _repeatMeasure;
+    final endMs = _measureEndMs(measure);
+    DiagLog.log('volta', 'compasso=$measure certo: a escada acabou');
+    _cancelRepeat();
+    scheduler.setSpeed(_baseSpeed);
+    if (mode != PracticeMode.realtime) return;
+    // Tempo real: o agendador não passou do portão do compasso, e o que vem
+    // depois dele ainda não foi agendado. Volta ao fim do compasso e segue.
+    // A nota do fim do compasso (dentro da tolerância) já foi decidida: o que
+    // volta a ser esperado começa no fim exato.
+    final rt = _rt;
+    if (rt != null) {
+      rt.resetTo(endMs + kRangeBoundaryToleranceMs, untilMs: range!.endMs);
+    }
+    _lastPositionMs = endMs;
+    _watchMeasure = _measureAfter(measure, endMs);
+    final next = _watchMeasure;
+    scheduler.setGate(next == null ? null : _gateOf(next));
+    scheduler.seek(endMs - kRangeBoundaryToleranceMs);
+  }
+
+  /// A sessão de modo espera do degrau "só notas": a da própria rodada no modo
+  /// espera; numa rodada de tempo real, uma criada na primeira vez.
+  WaitModeSession _waitSession() {
+    final own = _ownWait;
+    if (own != null) return own;
+    final created = WaitModeSession.forStaves(
+      _sessionTrack,
+      staves: hand.studentStaves,
+    );
+    _ownWait = created;
+    created.current.addListener(_onStepChanged);
+    _ownWaitVerdictSub = created.verdicts.listen(_onVerdict);
+    return created;
+  }
+
+  /// Publica o estado da escada para a tela ([repeat]).
+  void _publish({required RepeatNotice notice, bool countingIn = false}) {
+    final ladder = _ladder;
+    if (ladder == null) {
+      _repeat.value = null;
+      return;
+    }
+    _repeat.value = RepeatStatus(
+      measure: _repeatMeasure,
+      rung: ladder.current,
+      rungIndex: ladder.index,
+      rungCount: ladder.length,
+      notice: notice,
+      countingIn: countingIn,
+    );
+  }
+
+  /// A contagem da escada acabou: a tecla volta a contar.
+  void _clearCountIn() {
+    if (!_repeatHold || scheduler.isCountingIn) return;
+    _repeatHold = false;
+    _publish(notice: RepeatNotice.none);
+  }
+
+  /// Solta a escada (parar, ou a rodada acabou): sem aviso pendente.
+  void _cancelRepeat() {
+    _holdTimer?.cancel();
+    _holdTimer = null;
+    _ladder = null;
+    _repeatHold = false;
+    _pendingRung = null;
+    _repeat.value = null;
   }
 
   /// A volta ao compasso [measure]: o que foi avaliado depois dele (na folga
@@ -803,6 +1054,15 @@ class PracticeController {
     if (!_paused) return;
     _paused = false;
     if (_rangeDone) return;
+    // Um degrau da escada que ficou esperando a pausa começa agora.
+    final pending = _pendingRung;
+    if (pending != null) {
+      _pendingRung = null;
+      _beginRung(countIn: pending);
+      return;
+    }
+    // O aviso da escada corre: o fim dele é que começa o degrau.
+    if (_holdTimer != null) return;
     scheduler.play(scheduler.positionMs);
   }
 
@@ -811,6 +1071,7 @@ class PracticeController {
   void stop() {
     _tickTimer?.cancel();
     _tickTimer = null;
+    _cancelRepeat();
     scheduler.setGate(null);
     if (_wait != null) {
       _setBrake(null);
@@ -839,10 +1100,14 @@ class PracticeController {
           'pos=${scheduler.positionMs.toStringAsFixed(1)}ms'
           '${_paused ? ' (pausada, ignorada)' : ''}',
     );
-    // Pausada: a tecla não conta, nem como erro nem como acerto.
-    if (_paused) return;
     // Uma conversão só, no topo: daqui para baixo tudo é altura escrita.
     final pitch = writtenFromReceived(note.pitch);
+    // Pausada ou no aviso da escada: a tecla não conta, nem como erro nem como
+    // acerto. A soltura chega à sessão de espera, para não deixar a nota presa.
+    if (_paused || _repeatHold) {
+      if (!note.on) _wait?.noteOff(pitch);
+      return;
+    }
     // A mesma hora musical para a gravação e para o tempo real (EX07).
     final musicalMs = scheduler.musicalAtDevice(
       note.atSeconds - inputLatencyMs / 1000,
@@ -877,7 +1142,7 @@ class PracticeController {
 
   void _onSustain(SustainChange change) {
     // Pausada, o pedal também não entra na gravação, como as teclas.
-    if (_paused) return;
+    if (_paused || _repeatHold) return;
     _capture.pedal(
       change.value,
       scheduler.musicalAtDevice(change.atSeconds - inputLatencyMs / 1000),
@@ -1199,29 +1464,7 @@ class PracticeController {
     );
     final range = this.range;
     if (range != null) {
-      // Passagem única: o passo anterior concluiu quando o índice troca (a
-      // republicação do mesmo passo a cada nota certa não conta); o
-      // seguinte, se ainda está no intervalo, entra na contagem — senão o
-      // intervalo acabou.
-      final step = wait.current.value;
-      final ended = step == null || step.onMs >= range.endMs;
-      if (_tallyStep != null && _tallyStep != step?.index) {
-        _tally?.stepDone();
-        _tallyStep = null;
-        _liveFromTally();
-        if (_rewindWait(ended ? null : step)) return;
-      }
-      if (ended) {
-        _finishRange();
-        return;
-      }
-      _paintStep();
-      if (_tallyStep == step.index) return;
-      _tally?.stepStarted(step.index, measureIndexAt?.call(step.onMs) ?? 0);
-      _tallyStep = step.index;
-      _tallyMeasure = _measureAt(step.onMs);
-      _setBrake(step.onMs);
-      _syncGhostExpected();
+      _onRangeStep(wait, range);
       return;
     }
     final end = _loopEndMs;
@@ -1234,6 +1477,41 @@ class PracticeController {
     }
     _paintStep();
     _setBrake(wait.current.value?.onMs);
+    _syncGhostExpected();
+  }
+
+  /// O passo mudou na passagem única ([range]): conta o passo, decide se o
+  /// compasso acabou (escada, LP25) ou o intervalo terminou e agenda o próximo.
+  void _onRangeStep(
+    WaitModeSession wait,
+    ({double startMs, double endMs}) range,
+  ) {
+    // Passagem única: o passo anterior concluiu quando o índice troca (a
+    // republicação do mesmo passo a cada nota certa não conta); o
+    // seguinte, se ainda está no intervalo, entra na contagem — senão o
+    // intervalo acabou.
+    final step = wait.current.value;
+    final ended = step == null || step.onMs >= range.endMs;
+    if (_tallyStep != null && _tallyStep != step?.index) {
+      _tally?.stepDone();
+      _tallyStep = null;
+      _liveFromTally();
+    }
+    // O compasso do passo anterior acabou quando o pendente já é de outro
+    // compasso (ou a peça): a escada (LP25) decide se ele segue ou repete.
+    final measure = step == null ? null : _measureAt(step.onMs);
+    final was = _pendingMeasure;
+    _pendingMeasure = measure;
+    if (was != null && was != measure && _measureEnded(was)) return;
+    if (ended) {
+      _finishRange();
+      return;
+    }
+    _paintStep();
+    if (_tallyStep == step.index) return;
+    _tally?.stepStarted(step.index, measureIndexAt?.call(step.onMs) ?? 0);
+    _tallyStep = step.index;
+    _setBrake(step.onMs);
     _syncGhostExpected();
   }
 
@@ -1357,12 +1635,15 @@ class PracticeController {
     _diagOffState();
     _disposed = true;
     _tickTimer?.cancel();
+    _holdTimer?.cancel();
     unawaited(_noteSub.cancel());
     unawaited(_sustainSub.cancel());
     unawaited(_verdictSub?.cancel());
-    _wait?.current.removeListener(_onStepChanged);
-    _wait?.dispose();
+    unawaited(_ownWaitVerdictSub?.cancel());
+    _ownWait?.current.removeListener(_onStepChanged);
+    _ownWait?.dispose();
     _rt?.dispose();
+    _repeat.dispose();
     _wrongPitches.dispose();
     _correctCount.dispose();
     _wrongCount.dispose();
