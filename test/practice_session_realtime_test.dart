@@ -219,6 +219,23 @@ void main() {
       expect(verdicts.single.eventId, 'b');
     });
 
+    test('resetTo com untilMs: a primeira nota do compasso seguinte tocada um '
+        'pouco antes do fim não é wrong (a escada de repetição)', () {
+      final session = RealtimeSession([
+        _ev('a', 60, 0),
+        _ev('b', 62, 1500),
+      ], speed: 1);
+      final verdicts = <NoteVerdict>[];
+      session.verdicts.listen(verdicts.add);
+
+      session.resetTo(0, untilMs: 1500);
+      session.noteOn(62, 1490);
+      expect(verdicts, isEmpty);
+      // Uma nota que não é a seguinte continua sendo erro.
+      session.noteOn(65, 1490);
+      expect(verdicts.single.kind, PracticeVerdictKind.wrong);
+    });
+
     test('hasPendingIn: há nota por tocar no intervalo até o veredito dela; '
         'ornamento não conta', () {
       final session = RealtimeSession([

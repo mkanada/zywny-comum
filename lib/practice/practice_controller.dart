@@ -577,6 +577,12 @@ class PracticeController {
   /// do loop quando a posição recua e sinaliza o fim da peça.
   bool get _timed => _rt != null && _wait == null;
 
+  /// As cores do modo espera (nota esperada em azul, certa acesa até soltar a
+  /// tecla) só valem na rodada de modo espera. O degrau "só notas" de uma
+  /// rodada de tempo real (a escada de repetição) pinta como a primeira
+  /// passada: sem a cor de esperada e com a certa que se apaga sozinha.
+  bool get _waitLook => _wait != null && mode == PracticeMode.wait;
+
   void _resetTimed(double fromMs, {double? untilMs}) {
     _rt?.resetTo(fromMs, untilMs: untilMs);
   }
@@ -841,7 +847,10 @@ class PracticeController {
     scheduler.pause();
     scheduler.seek(startMs - kRangeBoundaryToleranceMs);
     _repeatHold = true;
-    _publish(notice: notice);
+    // Com o aviso em 0 s, nada aparece: o degrau começa na hora.
+    _publish(
+      notice: repeatNoticeDuration == Duration.zero ? RepeatNotice.none : notice,
+    );
     onRewind?.call(measure, startMs);
     _holdCountIn = countIn;
     _holdTimer?.cancel();
@@ -880,7 +889,11 @@ class PracticeController {
     final attempt = _rewindBook.rewind(measure);
     _dropAfter(measure);
     scheduler.setSpeed(rung.speed ?? _baseSpeed);
-    _pendingMeasure = null;
+    // O compasso do degrau já "está pendente": se ele não tem nota do aluno
+    // (pausa, nota ligada), o primeiro passo pendente já é de outro compasso e
+    // o degrau acaba na hora (`_onRangeStep`). Com `null`, a escada nunca
+    // decidia esse degrau e ficava pendurada (a música seguia sem voltar).
+    _pendingMeasure = rung.isWait ? measure : null;
     if (rung.isWait) {
       final wait = _waitSession();
       // Um degrau de espera fica com o freio (a música para no passo pendente);
@@ -1244,7 +1257,7 @@ class PracticeController {
   void _onCorrectVerdict(NoteVerdict verdict) {
     _unwatchShift(verdict);
     _correctCount.value++;
-    if (_wait != null) {
+    if (_waitLook) {
       _closeHit(verdict.pitch);
     } else if (verdict.eventId != null) {
       controller.highlightAll(
@@ -1270,7 +1283,7 @@ class PracticeController {
     // tecla estiver apertada; as esperadas ficam como estão (pintar a
     // mais próxima de vermelho parecia dizer que ela é que está errada).
     _watchShift(verdict.pitch);
-    final nearestId = _wait != null
+    final nearestId = _waitLook
         ? (ghosts == null ? _nearestExpectedId(verdict.pitch) : null)
         : _nearestEventId(verdict.pitch, _lastPlayedMusicalMs);
     if (nearestId != null) {
@@ -1554,7 +1567,7 @@ class PracticeController {
   /// Põe na tela o passo publicado pela sessão: troca a camada do meio
   /// quando o passo muda e acende/apaga as certas conforme `remaining`.
   void _paintStep() {
-    final step = _wait?.current.value;
+    final step = _waitLook ? _wait?.current.value : null;
     if (step?.index != _paintedStep) {
       // Passo novo: o que estava aceso do anterior sem ele fechar (loop,
       // salto) apaga; o que fechou já passou para [_litDone].

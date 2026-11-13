@@ -385,6 +385,9 @@ class RealtimeSession {
   final List<SoundEvent> _all;
   late List<SoundEvent> _pending;
 
+  /// As notas depois do fim do trecho ([resetTo] com `untilMs`).
+  List<SoundEvent> _beyond = const [];
+
   /// T11, a *fioritura*: um grupo irregular longo ([SoundEvent.groupId], 3
   /// eventos ou mais) tem a primeira e a última notas com a janela normal; as
   /// de dentro valem **na ordem**, com a janela do começo ao fim do grupo (a
@@ -512,6 +515,17 @@ class RealtimeSession {
     if (ornament != null) {
       _pending.remove(ornament);
       return;
+    }
+
+    // A primeira nota do compasso seguinte, tocada um pouco antes do fim do
+    // trecho ([resetTo] com `untilMs`), é do que vem depois: não é erro deste.
+    for (final e in _beyond) {
+      if (e.pitch == pitch &&
+          !e.ornament &&
+          musicalMs >= e.onMs - _maxMs &&
+          musicalMs <= e.onMs + _maxMs) {
+        return;
+      }
     }
 
     if (forgiveSounding && _sounding(pitch, musicalMs)) return;
@@ -658,6 +672,9 @@ class RealtimeSession {
   /// [untilMs] (exclusivo) limita o fim do trecho — o loop A-B só cobra o que
   /// cai em `[musicalMs, untilMs)`.
   void resetTo(double musicalMs, {double? untilMs}) {
+    _beyond = untilMs == null
+        ? const []
+        : _all.where((e) => e.onMs >= untilMs).toList();
     _pending = _all
         .where(
           (e) =>

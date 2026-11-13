@@ -20,6 +20,12 @@ import '../trail/trail_stage.dart'
 const double kMinRhythmToleranceMs = 30;
 const double kMaxRhythmToleranceMs = 200;
 
+/// Quanto tempo o aviso "Errou"/"Acertou" da volta na hora fica na tela, em
+/// segundos (o padrão é o `kRepeatNoticeDuration`: 2 s; 0 não mostra aviso).
+const double kMinRepeatNoticeSeconds = 0;
+const double kMaxRepeatNoticeSeconds = 6;
+const double kDefaultRepeatNoticeSeconds = 2;
+
 /// Limites do tamanho do texto dos cursos (o "Aa" da lição).
 const double kMinCourseTextScale = 0.85;
 const double kMaxCourseTextScale = 2.0;
@@ -92,6 +98,7 @@ typedef _Stored = ({
   List<String>? trailSpeeds,
   List<String>? phaseOrder,
   double? tolerance,
+  double? repeatNotice,
   String? noteNaming,
   String? chordNotation,
   double? textScale,
@@ -139,6 +146,7 @@ class AppSettings extends ChangeNotifier {
   static const _kTrailPhaseOrder = 'trail_phase_order';
   static const _kTrailSpeeds = 'trail_speeds';
   static const _kRhythmTolerance = 'rhythm_tolerance_ms';
+  static const _kRepeatNotice = 'repeat_notice_seconds';
   // I05 — nomes das notas na tela (D-LIC-NOMES): Dó–Ré–Mi ou C–D–E.
   // O interruptor nas configurações é do I09; aqui só a chave e o valor.
   static const _kNoteNaming = 'ui_note_naming';
@@ -173,6 +181,7 @@ class AppSettings extends ChangeNotifier {
   List<TrailPhase> _trailPhaseOrder = TrailPhase.values;
   Set<double> _trailSpeeds = {...kTrailSpeeds};
   double _rhythmToleranceMs = kDefaultRhythmToleranceMs;
+  double _repeatNoticeSeconds = kDefaultRepeatNoticeSeconds;
   NoteNaming _noteNaming = NoteNaming.latin;
   ChordNotation _chordNotation = ChordNotation.brazilian;
   double _courseTextScale = 1.0;
@@ -342,6 +351,16 @@ class AppSettings extends ChangeNotifier {
     _changed(_prefs.setDouble(_kRhythmTolerance, v));
   }
 
+  /// Quanto tempo o aviso da volta na hora fica na tela, em segundos, entre
+  /// [kMinRepeatNoticeSeconds] e [kMaxRepeatNoticeSeconds].
+  double get repeatNoticeSeconds => _repeatNoticeSeconds;
+  set repeatNoticeSeconds(double value) {
+    final v = value.clamp(kMinRepeatNoticeSeconds, kMaxRepeatNoticeSeconds);
+    if (v == _repeatNoticeSeconds) return;
+    _repeatNoticeSeconds = v;
+    _changed(_prefs.setDouble(_kRepeatNotice, v));
+  }
+
   /// Nomes das notas na tela (I05, D-LIC-NOMES): `latin` (Dó–Ré–Mi, padrão)
   /// ou `letters` (C–D–E). O arquivo do curso usa sempre `C4`.
   NoteNaming get noteNaming => _noteNaming;
@@ -480,6 +499,7 @@ class AppSettings extends ChangeNotifier {
       'brilho': _haloWidth,
       'corDaHaste': hex(_barColor),
       'margemDoRitmoMs': _rhythmToleranceMs,
+      'avisoDaVoltaS': _repeatNoticeSeconds,
       'nomeDasNotas': _noteNaming.name,
       'cifra': _chordNotation.name,
       'escalaDoTexto': _courseTextScale,
@@ -553,6 +573,7 @@ class AppSettings extends ChangeNotifier {
     trailSpeeds: await _readPref(() => _prefs.getStringList(_kTrailSpeeds)),
     phaseOrder: await _readPref(() => _prefs.getStringList(_kTrailPhaseOrder)),
     tolerance: await _readPref(() => _prefs.getDouble(_kRhythmTolerance)),
+    repeatNotice: await _readPref(() => _prefs.getDouble(_kRepeatNotice)),
     noteNaming: await _readPref(() => _prefs.getString(_kNoteNaming)),
     chordNotation: await _readPref(() => _prefs.getString(_kChordNotation)),
     textScale: await _readPref(() => _prefs.getDouble(_kCourseTextScale)),
@@ -639,6 +660,13 @@ class AppSettings extends ChangeNotifier {
       _rhythmToleranceMs = tolerance.clamp(
         kMinRhythmToleranceMs,
         kMaxRhythmToleranceMs,
+      );
+    }
+    final notice = stored.repeatNotice;
+    if (notice != null) {
+      _repeatNoticeSeconds = notice.clamp(
+        kMinRepeatNoticeSeconds,
+        kMaxRepeatNoticeSeconds,
       );
     }
     _noteNaming = NoteNaming.fromWire(stored.noteNaming);

@@ -450,6 +450,26 @@ class GeneralSettingsPanel extends StatelessWidget {
         style: TextStyle(fontSize: 12, color: kInkCaption),
       ),
     ),
+    _SliderRow(
+      label: 'Aviso de erro e acerto da repetição',
+      value: settings.repeatNoticeSeconds,
+      min: kMinRepeatNoticeSeconds,
+      max: kMaxRepeatNoticeSeconds,
+      step: 0.1,
+      formatValue: (v) => v < 0.05
+          ? 'sem aviso'
+          : '${v.toStringAsFixed(1).replaceAll('.', ',')} s',
+      onChanged: (v) => settings.repeatNoticeSeconds = v,
+    ),
+    const Padding(
+      padding: EdgeInsets.symmetric(horizontal: 16),
+      child: Text(
+        'Quanto tempo o aviso grande de "Errou" ou "Acertou" fica na tela '
+        'quando você repete um compasso errado. Em 0, não aparece e a repetição '
+        'começa na hora.',
+        style: TextStyle(fontSize: 12, color: kInkCaption),
+      ),
+    ),
   ];
 
   /// A trilha de estudo: o tamanho do trecho, as etapas (na ordem que o aluno
