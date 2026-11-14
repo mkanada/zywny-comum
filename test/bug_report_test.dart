@@ -404,5 +404,48 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.textContaining('Não consegui enviar agora'), findsOneWidget);
     });
+
+    testWidgets(
+      'sendNow envia com os textos prontos e sem a tela do relatório',
+      (tester) async {
+        final sender = _FakeSender();
+        await tester.pumpWidget(_app(sender));
+        await tester.pump(const Duration(seconds: 1));
+        expect(BugReportScope.canSend, isTrue);
+
+        late BugReportReceipt receipt;
+        await tester.runAsync(() async {
+          receipt = await BugReportScope.sendNow(
+            doing: 'Treinando o 34d',
+            happened: 'Errei o compasso 5',
+          );
+        });
+        expect(receipt.id, 'ABC123');
+        final up = sender.got!;
+        expect(up.doing, 'Treinando o 34d');
+        expect(up.happened, 'Errei o compasso 5');
+        final zip = ZipDecoder().decodeBytes(up.zip);
+        expect(
+          zip.map((f) => f.name),
+          containsAll(['relatorio.txt', 'estado.json']),
+        );
+        final text = String.fromCharCodes(
+          zip.findFile('relatorio.txt')!.content as List<int>,
+        );
+        expect(text, contains('Errei o compasso 5'));
+        // Não abriu a tela do relatório nem congelou nada.
+        expect(find.text('Reportar um bug'), findsNothing);
+      },
+    );
+
+    testWidgets('sendNow sem envio disponível diz o motivo', (tester) async {
+      await tester.pumpWidget(_app(_FakeSender(available: false)));
+      await tester.pump(const Duration(seconds: 1));
+      expect(BugReportScope.canSend, isFalse);
+      await expectLater(
+        BugReportScope.sendNow(doing: 'a', happened: 'b'),
+        throwsA(isA<BugReportSendException>()),
+      );
+    });
   });
 }

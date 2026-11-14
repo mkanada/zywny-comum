@@ -68,6 +68,28 @@ class BugReportScope extends StatefulWidget {
   /// Abre o relatório de bug agora. No-op sem [BugReportScope].
   static Future<void> start() async => current?.start();
 
+  /// Dá para enviar à equipe agora ([sender] disponível). Quem oferece um
+  /// botão de envio direto (o aviso "Errou" da escada) só o mostra com `true`.
+  static bool get canSend => current?.canSend ?? false;
+
+  /// Envia à equipe, **sem a tela do relatório**: o mesmo conteúdo do
+  /// "Reportar bug" (captura da tela, estado, pilha de telas, log rotativo,
+  /// anexos), com [doing] e [happened] já escritos por quem chama. Não para o
+  /// som nem as animações (o exercício segue). Falha com
+  /// [BugReportSendException] quando não dá para enviar.
+  static Future<BugReportReceipt> sendNow({
+    required String doing,
+    required String happened,
+  }) async {
+    final scope = current;
+    if (scope == null || !scope.canSend) {
+      throw const BugReportSendException(
+        'Este aparelho não envia relatórios agora.',
+      );
+    }
+    return scope.sendNow(doing, happened);
+  }
+
   @override
   State<BugReportScope> createState() => BugReportScopeState();
 }
@@ -297,7 +319,7 @@ class BugReportScopeState extends State<BugReportScope>
     });
   }
 
-  BugReportInput _input(String doing, String happened, {bool shot = true}) =>
+  BugReportInput _input(String doing, String happened, Uint8List? shot) =>
       BugReportInput(
         appName: widget.appName,
         appVersion: _version.replaceFirst('Versão ', ''),
@@ -311,7 +333,7 @@ class BugReportScopeState extends State<BugReportScope>
         ],
         stateJson: DiagLog.snapshotJson(),
         logs: DiagLog.collect(),
-        screenshotPng: shot ? _shot : null,
+        screenshotPng: shot,
         attachments: DiagLog.attachments(),
       );
 
@@ -320,26 +342,48 @@ class BugReportScopeState extends State<BugReportScope>
       'bug',
       'relatório gerado: fazia="$doing" aconteceu="$happened"',
     );
-    final input = _input(doing, happened);
+    final input = _input(doing, happened, _shot);
     final name = bugReportFileName(widget.appName, input.at);
     return widget.deliver(name, buildBugReportZip(input));
   }
 
-  /// **Enviar à equipe**: o mesmo arquivo, pelo [BugReportScope.sender]. Se o
-  /// zip passa do limite, refaz sem a captura da tela (o que mais pesa).
-  Future<BugReportReceipt> _send(String doing, String happened) async {
-    final sender = widget.sender;
-    if (sender == null) {
-      throw const BugReportSendException('Este aparelho não envia relatórios.');
-    }
+  bool get canSend => widget.sender?.isAvailable ?? false;
+
+  /// **Enviar à equipe** pela tela do relatório (a captura é a de quando ela
+  /// abriu).
+  Future<BugReportReceipt> _send(String doing, String happened) {
     DiagLog.log(
       'bug',
       'relatório enviado: fazia="$doing" aconteceu="$happened"',
     );
-    var input = _input(doing, happened);
+    return _sendWith(doing, happened, _shot);
+  }
+
+  /// **Enviar já** ([BugReportScope.sendNow]): tira a captura agora, sem parar
+  /// nada.
+  Future<BugReportReceipt> sendNow(String doing, String happened) async {
+    DiagLog.log(
+      'bug',
+      'relatório enviado direto: fazia="$doing" aconteceu="$happened"',
+    );
+    return _sendWith(doing, happened, await _capture());
+  }
+
+  /// O mesmo arquivo, pelo [BugReportScope.sender]. Se o zip passa do limite,
+  /// refaz sem a captura da tela (o que mais pesa).
+  Future<BugReportReceipt> _sendWith(
+    String doing,
+    String happened,
+    Uint8List? shot,
+  ) async {
+    final sender = widget.sender;
+    if (sender == null) {
+      throw const BugReportSendException('Este aparelho não envia relatórios.');
+    }
+    var input = _input(doing, happened, shot);
     var zip = buildBugReportZip(input);
     if (zip.length > kBugReportMaxUploadBytes) {
-      input = _input(doing, happened, shot: false);
+      input = _input(doing, happened, null);
       zip = buildBugReportZip(input);
     }
     if (zip.length > kBugReportMaxUploadBytes) {
@@ -422,9 +466,7 @@ class BugReportScopeState extends State<BugReportScope>
                       screenshot: _shot,
                       onCancel: _cancel,
                       onSubmit: _submit,
-                      onSend: widget.sender?.isAvailable ?? false
-                          ? _send
-                          : null,
+                      onSend: canSend ? _send : null,
                     ),
                   ),
                 ],
