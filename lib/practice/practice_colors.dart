@@ -54,3 +54,9 @@ const kPracticeMeterMarkColor = Color(0xFF7B4FB3);
 /// do laranja da fantasma (`kDefaultGhostColor`) e do violeta azulado dos
 /// compassos reprovados (`kPracticeMeterMarkColor`).
 const kMemoRestColor = Color(0xFF8E24AA);
+
+/// O compasso que o aluno repete na escada de repetição (LP25): uma faixa
+/// amarela atrás das notas dele, como um marca-texto. É o único amarelo da
+/// paleta (o âmbar do tempo, o laranja da fantasma e o vermelho da errada são
+/// outros), e some no instante em que a escada acaba.
+const kPracticeRepeatBandColor = Color(0x73FFC107);

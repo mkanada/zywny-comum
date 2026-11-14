@@ -185,6 +185,29 @@ void main() {
     expect(rects.single.rect, single.single.rect);
   });
 
+  test('a cor da faixa vai ao retângulo; sem ela, fica a do controlador', () {
+    const amarelo = ui.Color(0x73FFC107);
+    final rects = scoreBandRects(page, 0, geometry, const [
+      ScoreBand(['orw55dt'], fill: amarelo),
+      ScoreBand(['orw55dt']),
+    ]);
+    expect(rects.map((r) => r.fill), [amarelo, null]);
+  });
+
+  test('faixas de cores diferentes no mesmo sistema não se juntam', () {
+    // O compasso que a escada repete (amarelo) sobre a faixa do aluno (sem cor
+    // própria): cada uma fica com a sua cor, e nenhuma se perde na junção.
+    const amarelo = ui.Color(0x73FFC107);
+    final rects = scoreBandRects(page, 0, geometry, const [
+      ScoreBand(['e11eog5', 'xej0b6o'], label: _doros),
+      ScoreBand(['e11eog5', 'xej0b6o'], fill: amarelo),
+    ]);
+    expect(rects, hasLength(2));
+    expect(rects.where((r) => r.fill == amarelo), hasLength(1));
+    expect(rects.where((r) => r.fill == null), hasLength(1));
+    expect(rects.singleWhere((r) => r.fill == null).label, _doros);
+  });
+
   test('faixas de sistemas diferentes não se juntam', () {
     final rects = scoreBandRects(page, 0, geometry, [
       const ScoreBand(['orw55dt'], label: _doros),

@@ -23,10 +23,13 @@ import 'model.dart';
 /// nota.
 @immutable
 class ScoreBand {
-  const ScoreBand(this.noteIds, {this.label});
+  const ScoreBand(this.noteIds, {this.label, this.fill});
 
   final List<String> noteIds;
   final String? label;
+
+  /// A cor desta faixa; `null` usa a do controlador ([ScoreBandController.fill]).
+  final ui.Color? fill;
 }
 
 /// Um retângulo de faixa numa página, no espaço de conteúdo (o das bbox do
@@ -34,11 +37,14 @@ class ScoreBand {
 /// [labelSize] é a altura da letra, no mesmo espaço.
 @immutable
 class ScoreBandRect {
-  const ScoreBandRect(this.rect, {this.label, this.labelSize = 0});
+  const ScoreBandRect(this.rect, {this.label, this.labelSize = 0, this.fill});
 
   final ui.Rect rect;
   final String? label;
   final double labelSize;
+
+  /// A cor do retângulo (a da [ScoreBand] que o gerou); `null` é a do controlador.
+  final ui.Color? fill;
 }
 
 /// Índice de uma página: a pauta ancestral de cada id, o sistema de cada pauta e
@@ -140,6 +146,7 @@ List<ScoreBandRect> scoreBandRects(
           _groupRect(entry.value, label: hasLabel),
           label: hasLabel ? band.label : null,
           labelSize: 2.5 * space,
+          fill: band.fill,
         ),
       ));
     }
@@ -147,14 +154,15 @@ List<ScoreBandRect> scoreBandRects(
   return _mergeOverlapping(out);
 }
 
-/// Junta as faixas que se tocam ou se sobrepõem no mesmo sistema (dois trechos
-/// vizinhos do aluno, cuja folga de cada lado se cruza): uma faixa contínua, com
-/// um aviso só (o do retângulo mais à esquerda que tem um). Faixas de sistemas
-/// diferentes, ou separadas por um vão, ficam como estão.
+/// Junta as faixas que se tocam ou se sobrepõem no mesmo sistema e na mesma cor
+/// (dois trechos vizinhos do aluno, cuja folga de cada lado se cruza): uma faixa
+/// contínua, com um aviso só (o do retângulo mais à esquerda que tem um). Faixas
+/// de sistemas diferentes, de cores diferentes, ou separadas por um vão, ficam
+/// como estão.
 List<ScoreBandRect> _mergeOverlapping(List<(Object, ScoreBandRect)> entries) {
-  final byGroup = <Object, List<ScoreBandRect>>{};
+  final byGroup = <(Object, ui.Color?), List<ScoreBandRect>>{};
   for (final (group, rect) in entries) {
-    byGroup.putIfAbsent(group, () => []).add(rect);
+    byGroup.putIfAbsent((group, rect.fill), () => []).add(rect);
   }
   final out = <ScoreBandRect>[];
   for (final rects in byGroup.values) {
@@ -171,6 +179,7 @@ List<ScoreBandRect> _mergeOverlapping(List<(Object, ScoreBandRect)> entries) {
         current.rect.expandToInclude(next.rect),
         label: withLabel.label,
         labelSize: withLabel.labelSize,
+        fill: current.fill,
       );
     }
     out.add(current);
@@ -285,9 +294,9 @@ void paintScoreBands(
   required ui.Color fill,
   required ui.Color labelColor,
 }) {
-  final paint = ui.Paint()..color = fill;
   for (final r in rects) {
     final radius = r.rect.height / 12;
+    final paint = ui.Paint()..color = r.fill ?? fill;
     canvas.drawRRect(ui.RRect.fromRectXY(r.rect, radius, radius), paint);
     final label = r.label;
     if (label == null) continue;
