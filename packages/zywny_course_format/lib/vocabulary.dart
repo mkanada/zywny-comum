@@ -463,7 +463,8 @@ class PassKey {
 
   /// Só vale com tempo real: o andamento (`speed`) e os medidores que leem o
   /// tempo que o aluno tocou (EX08). No modo espera, o relógio não para no
-  /// freio, então esses tempos não batem com a partitura.
+  /// freio, então esses tempos não batem com a partitura. O `speed` é a
+  /// exceção que também vale no `hold` (ND03), e `_checkPass` a trata.
   final bool realtimeOnly;
 }
 
@@ -524,6 +525,11 @@ const _realtimeNote =
     'só vale com tempo real (`rhythm`, `play-score` e `play-pattern` com '
     '`mode: realtime`)';
 
+// O `speed` também vale no `hold` (ND03): a duração da nota depende dele.
+const _tempoNote =
+    'só vale com andamento (`rhythm`, `play-score` e `play-pattern` com '
+    '`mode: realtime` ou `mode: hold`)';
+
 final kPassKeys = <String, PassKey>{
   'accuracy': PassKey(
     const KeyDef(ValueType.integer, min: 1, max: 100, fallback: '90'),
@@ -536,7 +542,7 @@ final kPassKeys = <String, PassKey>{
   'speed': PassKey(
     const KeyDef(ValueType.integer, min: 25, max: 200, fallback: '100'),
     _timedTypes,
-    note: _realtimeNote,
+    note: _tempoNote,
     realtimeOnly: true,
   ),
   'time-limit': PassKey(const KeyDef(ValueType.integer, min: 1, max: 120), {

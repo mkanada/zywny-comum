@@ -127,6 +127,7 @@ VsbDocument _fromZipBytes(Uint8List bytes) {
     return parseAlternatesDocument(
       _asMap(alternatesDecoded, 'alternates'),
       path: 'alternates',
+      glyphs: glyphs,
     );
   }
 
@@ -182,6 +183,7 @@ VsbDocument _fromDocumentJson(Map<String, dynamic> root) {
     return parseAlternatesDocument(
       _asMap(alternatesJson, 'alternates'),
       path: 'alternates',
+      glyphs: glyphs,
     );
   }
 
@@ -870,6 +872,7 @@ _ShapeStyle _parseShapeStyle(Map<String, dynamic> json, String path) {
 List<AlternateSequence> parseAlternatesDocument(
   Map<String, dynamic> json, {
   required String path,
+  Map<String, GlyphDef> glyphs = const {},
 }) {
   final sequencesJson = _requireList(
     json,
@@ -882,6 +885,7 @@ List<AlternateSequence> parseAlternatesDocument(
       _parseAlternateSequence(
         _asMap(sequencesJson[k], '$path.sequences[$k]'),
         '$path.sequences[$k]',
+        glyphs,
       ),
   ];
 }
@@ -889,6 +893,7 @@ List<AlternateSequence> parseAlternatesDocument(
 AlternateSequence _parseAlternateSequence(
   Map<String, dynamic> json,
   String path,
+  Map<String, GlyphDef> glyphs,
 ) {
   final start = _asString(_requireField(json, 'start', path), '$path.start');
   // Mesmo `_parseScenePage` de scene.json (§5): uma página de sequência tem
@@ -901,7 +906,7 @@ AlternateSequence _parseAlternateSequence(
         '$path.pages[$k]',
       ),
   ];
-  return AlternateSequence(start: start, pages: pages);
+  return AlternateSequence(start: start, pages: pages, glyphs: glyphs);
 }
 
 // ---------------------------------------------------------------------------

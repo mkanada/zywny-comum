@@ -1485,4 +1485,62 @@ void _parte39() {
     _parte36();
     _parte37();
   });
+  group('notas com duração (ND03)', () {
+    _parte40();
+  });
+}
+
+// ND03: `mode: hold` no play-score. Com andamento (`speed`), como o tempo real;
+// os medidores e o `curtain` continuam só com `mode: realtime`.
+void _parte40() {
+  String holdScore(String extra, {String mode = 'hold'}) =>
+      '''
+```zywny-exercise
+id: g
+type: play-score
+title: G
+abc: |
+  X:1
+  K:C
+  CDEF|
+mode: $mode
+$extra
+```
+''';
+
+  test('mode: hold lê PlayMode.hold, e speed no pass não dá erro', () async {
+    final result = await _read(holdScore('pass: {speed: 50}'));
+    expect(_messages(result), isEmpty);
+    final score =
+        result.course!.lessons.single.exercises.single as PlayScoreSpec;
+    expect(score.mode, PlayMode.hold);
+    expect(score.pass.speed, 50);
+  });
+
+  test('mode: hold com legato no pass continua dando erro', () async {
+    final result = await _read(holdScore('pass: {legato: 80}'));
+    expect(
+      _messages(result).join('\n'),
+      contains('o modo espera não mede o tempo tocado: tire `legato`'),
+    );
+  });
+
+  test('mode: hold com curtain: true dá o erro do curtain', () async {
+    final result = await _read(holdScore('curtain: true'));
+    expect(
+      _messages(result).join('\n'),
+      contains('`curtain: true` só vale com `mode: realtime`'),
+    );
+  });
+
+  test('mode: wait com speed dá o erro, com o texto que cita hold', () async {
+    final result = await _read(holdScore('pass: {speed: 50}', mode: 'wait'));
+    expect(
+      _messages(result).join('\n'),
+      contains(
+        'o modo espera não tem andamento: tire `speed` ou use '
+        '`mode: realtime` ou `mode: hold`.',
+      ),
+    );
+  });
 }

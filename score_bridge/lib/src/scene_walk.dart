@@ -117,3 +117,26 @@ void _walkNode(
 ui.Color parseCssColor(String hex) {
   return ui.Color(0xFF000000 | int.parse(hex.substring(1), radix: 16));
 }
+
+/// O primeiro uso de glifo da árvore de [node], em pré-ordem; com
+/// [inNotehead], só conta o que está dentro de um nó de classe `notehead`
+/// (a cabeça da nota, e não a haste ou a bandeirola).
+///
+/// Fica aqui, junto do percurso da cena, porque o fantasma (`ghost.dart`) e a
+/// cabeça da nota (`ScoreGeometry.noteheadRectOf`) acham o glifo do mesmo jeito:
+/// duas cópias poderiam escolher glifos diferentes para a mesma nota.
+SceneGlyphUse? firstSceneGlyph(SceneNode node, {required bool inNotehead}) {
+  SceneGlyphUse? rec(SceneNode n, bool inHead) {
+    inHead = inHead || n.className.split(' ').contains('notehead');
+    for (final child in n.children) {
+      if (child is SceneGlyphUse && (inHead || !inNotehead)) return child;
+      if (child is SceneNode) {
+        final found = rec(child, inHead);
+        if (found != null) return found;
+      }
+    }
+    return null;
+  }
+
+  return rec(node, false);
+}

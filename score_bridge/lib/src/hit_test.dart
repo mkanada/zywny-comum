@@ -27,6 +27,7 @@ library;
 import 'dart:ui' as ui;
 
 import 'model.dart';
+import 'scene_walk.dart';
 
 /// Converte [bbox] (unidades de viewBox, referencial de conteúdo) para pixels
 /// da página, `widthPx × heightPx` de [page].
@@ -100,14 +101,18 @@ class ScoreGeometry {
   /// por [VsbDocument.sceneIdOf]). Para uma sequência alternativa, use
   /// `document.geometryOf(k)` ou `document.alternates[k].geometry`.
   ScoreGeometry(VsbDocument document)
-    : this.forPages(document.pages, sceneIdOf: document.sceneIdOf);
+    : this.forPages(
+        document.pages,
+        sceneIdOf: document.sceneIdOf,
+        glyphs: document.glyphs,
+      );
 
   /// A geometria de um conjunto de páginas qualquer — as páginas normais de
   /// um documento, ou as de uma [AlternateSequence]. [sceneIdOf] resolve um
   /// id expandido do timemap (`-rend<N>`) ao id da cena que ele representa
   /// (E02a); `null` quando o chamador não tem essa resolução (equivale a
   /// "todo id já é o da cena").
-  ScoreGeometry.forPages(this.pages, {this.sceneIdOf}) {
+  ScoreGeometry.forPages(this.pages, {this.sceneIdOf, this.glyphs = const {}}) {
     for (final page in pages) {
       final list = <ElementRef>[];
       for (final e in page.elements) {
@@ -136,6 +141,10 @@ class ScoreGeometry {
   /// representa (E02a); `null` quando o chamador não tem essa resolução.
   final String? Function(String)? sceneIdOf;
 
+  /// Dicionário de glifos do documento (`VsbDocument.glyphs`): dele sai a caixa
+  /// da cabeça em [noteheadRectOf]. Sem ele, [noteheadRectOf] devolve `null`.
+  final Map<String, GlyphDef> glyphs;
+
   final Map<String, ElementRef> _byId = {};
   final List<List<ElementRef>> _byPage = [];
 
@@ -154,6 +163,19 @@ class ScoreGeometry {
   double _scaleOf(int pageIndex, double? pageWidth) =>
       pageWidth == null ? 1.0 : pageWidth / pages[pageIndex].widthPx;
 
+  /// [px] (pixels da página [pageIndex]) em pixels do widget.
+  ui.Rect _widgetRectOf(ui.Rect px, int pageIndex, double? pageWidth) {
+    final s = _scaleOf(pageIndex, pageWidth);
+    return s == 1.0
+        ? px
+        : ui.Rect.fromLTRB(
+            px.left * s,
+            px.top * s,
+            px.right * s,
+            px.bottom * s,
+          );
+  }
+
   /// Retângulo de [id] (resolvido como em [elementOf]) em pixels lógicos
   /// **da página** desenhada com [pageWidth] (a origem é o canto superior
   /// esquerdo da página), ou `null`.
@@ -168,15 +190,48 @@ class ScoreGeometry {
   /// [rectForId] para um [ElementRef] já resolvido.
   ui.Rect rectOf(ElementRef ref, {double? pageWidth}) {
     final px = pageRectToPagePx(ref.bbox, pages[ref.page]);
-    final s = _scaleOf(ref.page, pageWidth);
-    return s == 1.0
-        ? px
-        : ui.Rect.fromLTRB(
-            px.left * s,
-            px.top * s,
-            px.right * s,
-            px.bottom * s,
-          );
+    return _widgetRectOf(px, ref.page, pageWidth);
+  }
+
+  /// Retângulo da **cabeça** da nota [id] (resolvido como em [elementOf]), em
+  /// pixels lógicos da página desenhada com [pageWidth]. É o mesmo sistema do
+  /// `rect` que o `overlayBuilder` recebe: quem está num
+  /// `Positioned.fromRect(rect)` acha a cabeça em `head.shift(-rect.topLeft)`.
+  ///
+  /// A caixa é a do glifo que a cena desenha dentro do nó `notehead`, a mesma
+  /// escolha do fantasma, e não uma conta sobre a altura da nota: assim a
+  /// cabeça sai certa com a haste para cima, para baixo ou sem haste (a haste
+  /// e a bandeirola ficam de fora). `null` para uma pausa, um id sem nó na
+  /// página ou sem glifo de cabeça.
+  ui.Rect? noteheadRectOf(String id, {double? pageWidth}) {
+    final ref = elementOf(id);
+    if (ref == null) {
+      return null;
+    }
+    final page = pages[ref.page];
+    final node = page.byId[ref.id];
+    if (node == null) {
+      return null;
+    }
+    final head = firstSceneGlyph(node, inNotehead: true);
+    if (head == null) {
+      return null;
+    }
+    final def = glyphs[head.glyphId];
+    if (def == null) {
+      return null;
+    }
+    // Os contornos do glifo entram pelo mesmo `translate(x, y)` e
+    // `scale(sx, sy)` que o painter aplica (`_drawGlyphUse`), no referencial
+    // de conteúdo em que estão as bboxes dos elementos.
+    final c = def.bbox.toContourRect();
+    final box = ui.Rect.fromLTRB(
+      head.x + c.left * head.sx,
+      head.y + c.top * head.sy,
+      head.x + c.right * head.sx,
+      head.y + c.bottom * head.sy,
+    );
+    return _widgetRectOf(pageRectToPagePx(box, page), ref.page, pageWidth);
   }
 
   /// O id do elemento **mais específico** (menor área) sob [localPosition],

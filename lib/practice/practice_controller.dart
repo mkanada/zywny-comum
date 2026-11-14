@@ -78,11 +78,16 @@ class PracticeController {
     this.repeatSpeeds = const [],
     this.repeatNoticeDuration = kRepeatNoticeDuration,
     this.restColors = const {},
+    this.holdNotes = false,
   }) : _midiInput = midiInput, // ignore: prefer_initializing_formals
        _track = track {
     if (range != null) {
       assert(range!.startMs < range!.endMs, 'range precisa de startMs < endMs');
     }
+    assert(
+      !holdNotes || mode == PracticeMode.wait,
+      'notas com duração pede o modo espera',
+    );
     assert(
       !rewindOnError ||
           (range != null && measureSpanOf != null && measureIndexAt != null),
@@ -107,7 +112,8 @@ class PracticeController {
     DiagLog.log(
       'pratica',
       'início modo=${mode.name} mão=${hand.name} '
-          'intervalo=${range == null ? '-' : '${range!.startMs}..${range!.endMs}'}',
+          'intervalo=${range == null ? '-' : '${range!.startMs}..${range!.endMs}'} '
+          'segura=${holdNotes ? 'sim' : 'não'}',
     );
   }
 
@@ -118,11 +124,13 @@ class PracticeController {
       final wait = WaitModeSession.forStaves(
         sessionTrack,
         staves: hand.studentStaves,
+        holdFraction: holdNotes ? kHoldFraction : null,
       );
       _wait = wait;
       _ownWait = wait;
       if (range != null) _tally = WaitTally();
       _verdictSub = wait.verdicts.listen(_onVerdict);
+      _releasesSub = wait.releases.listen(_onHoldRelease);
       wait.current.addListener(_onStepChanged);
       _paintStep();
       _syncGhostExpected();
@@ -159,10 +167,25 @@ class PracticeController {
       'acertos': _correctCount.value,
       'erros': _wrongCount.value,
       'teclasErradasApertadas': _wrongPitches.value.toList(),
+      'segurasCedo': _earlyReleases,
     };
   }
 
   final PracticeMode mode;
+
+  /// Notas com duração (ND00): no modo espera, o passo só fecha quando a nota
+  /// fica segurada pela cápsula ([kHoldFraction] da duração). A música anda
+  /// enquanto o aluno segura, e a soltura cedo volta ao começo da nota, sem
+  /// erro. Desligada, o modo espera é o de sempre.
+  final bool holdNotes;
+
+  /// Soltaram-se cedo as notas com duração desta sessão (ver [holdNotes]).
+  int _earlyReleases = 0;
+  int get earlyReleases => _earlyReleases;
+
+  /// Solturas cedo da sessão de espera, para a tela que anima a cápsula (ND08).
+  Stream<HoldRelease> get holdReleases =>
+      _wait?.releases ?? const Stream<HoldRelease>.empty();
 
   /// Converte a altura que chegou do teclado na **escrita** (a da partitura):
   /// com a música transposta, o teclado pode mandar a soada (fase Q,
@@ -370,6 +393,15 @@ class PracticeController {
   late final StreamSubscription<PlayedNote> _noteSub;
   late final StreamSubscription<SustainChange> _sustainSub;
   StreamSubscription<NoteVerdict>? _verdictSub;
+  StreamSubscription<HoldRelease>? _releasesSub;
+
+  /// O freio está no fim da cápsula de um passo segurado (e não no `onMs`).
+  /// Serve para voltar ao `onMs` quando a soltura cedo desarma a cápsula.
+  bool _holdBraked = false;
+
+  /// Relógio da cápsula (ND02): leva o tempo musical à sessão enquanto o aluno
+  /// segura, para ela fechar o passo no fim da cápsula (ver [_tickHold]).
+  Timer? _noteHoldTimer;
 
   /// A gravação da execução (EX07): cada tecla e cada movimento do pedal, em
   /// ms musicais, para os medidores. Não toca a conferência.
@@ -475,13 +507,13 @@ class PracticeController {
           _finishRange();
           return;
         }
-        _setBrake(wait.current.value?.onMs);
+        _armBrake(wait.current.value);
         scheduler.setStopAt(range.endMs - kRangeBoundaryToleranceMs);
         scheduler.setJumps(rangeJumps);
         scheduler.onJump = onRangeJump;
       } else {
         if (fromMs > 0) wait.resetTo(fromMs);
-        _setBrake(wait.current.value?.onMs);
+        _armBrake(wait.current.value);
       }
     } else {
       final startMs = range?.startMs ?? fromMs;
@@ -504,6 +536,7 @@ class PracticeController {
     }
     // Intervalo sem passo/evento (só pausa): o reset acima já terminou.
     if (_rangeDone) return;
+    if (holdNotes) _startHoldClock();
     scheduler.play(
       range == null ? fromMs : range.startMs - kRangeBoundaryToleranceMs,
       countIn: countIn,
@@ -544,6 +577,32 @@ class PracticeController {
     onWaitTarget?.call(onMs);
   }
 
+  /// Até onde o freio vai com o passo [step]: o `onMs` do passo, ou o fim da
+  /// cápsula quando o aluno a segura (o acompanhamento toca enquanto ele
+  /// segura). Com `range`, a cápsula não passa do fim do intervalo.
+  double? _brakeTargetOf(PracticeStep? step) {
+    final hold = step?.holdEndMs;
+    if (hold == null) return step?.onMs;
+    final range = this.range;
+    if (range == null) return hold;
+    final limit = range.endMs - kRangeBoundaryToleranceMs;
+    return hold < limit ? hold : limit;
+  }
+
+  /// Arma o freio no passo [step] (ver [_brakeTargetOf]). Anota a cápsula no
+  /// `DiagLog` na primeira vez que o passo passa a ser segurado.
+  void _armBrake(PracticeStep? step) {
+    final held = step?.holdEndMs != null;
+    if (held && !_holdBraked) {
+      DiagLog.log(
+        'segura',
+        'passo ${step!.index} segurado até ${step.holdEndMs!.toStringAsFixed(1)}ms',
+      );
+    }
+    _holdBraked = held;
+    _setBrake(_brakeTargetOf(step));
+  }
+
   bool _restarting = false;
 
   void _restartLoop() {
@@ -554,8 +613,54 @@ class PracticeController {
     scheduler.seek(start);
     wait.resetTo(start);
     _restarting = false;
-    _setBrake(wait.current.value?.onMs);
+    _armBrake(wait.current.value);
     onLoopRestart?.call(start);
+  }
+
+  /// Liga o relógio da cápsula (ND02) junto com a música. Fica fora de [start]
+  /// para ela não passar do limite de linhas do `just qualidade`.
+  void _startHoldClock() {
+    _noteHoldTimer ??= Timer.periodic(
+      const Duration(milliseconds: 30),
+      (_) => _tickHold(),
+    );
+  }
+
+  /// O relógio da cápsula, a cada [_noteHoldTimer] (30 ms): leva a posição da
+  /// música à sessão. Parado (pausa, aviso da escada, sem música rodando), nada
+  /// anda, então não há o que medir.
+  void _tickHold() {
+    final wait = _wait;
+    if (wait == null || _paused || _repeatHold || !scheduler.isRunning) return;
+    var ms = scheduler.positionMs;
+    // Com `range`, o freio para no fim do intervalo: uma nota que dura além dele
+    // nunca chega ao fim da cápsula, e o passo não fecharia. No fim do intervalo
+    // a cápsula é dada por cheia (a passagem acabou com a nota presa).
+    final range = this.range;
+    if (range != null &&
+        wait.current.value?.holdEndMs != null &&
+        ms >= range.endMs - kRangeBoundaryToleranceMs) {
+      ms = double.infinity;
+    }
+    wait.tick(ms);
+  }
+
+  /// Teste: um tique do relógio da cápsula, sem esperar o [Timer].
+  @visibleForTesting
+  void debugTickHold() => _tickHold();
+
+  /// Soltura cedo (ND00, decisão 6): a nota segurada voltou a faltar, então a
+  /// música volta ao começo da nota e o freio vai para lá. Não é erro: nada
+  /// entra em `hits`, `errors` nem no `WaitTally`.
+  void _onHoldRelease(HoldRelease release) {
+    _earlyReleases++;
+    DiagLog.log(
+      'segura',
+      'soltou cedo passo=${release.stepIndex} tocada=${release.pitch} '
+          'enchido=${(release.fraction * 100).round()}%',
+    );
+    scheduler.seek(release.onMs);
+    _setBrake(release.onMs);
   }
 
   // -------------------------------------------------------------------------
@@ -850,7 +955,9 @@ class PracticeController {
     _repeatHold = true;
     // Com o aviso em 0 s, nada aparece: o degrau começa na hora.
     _publish(
-      notice: repeatNoticeDuration == Duration.zero ? RepeatNotice.none : notice,
+      notice: repeatNoticeDuration == Duration.zero
+          ? RepeatNotice.none
+          : notice,
     );
     onRewind?.call(measure, startMs);
     _holdCountIn = countIn;
@@ -1085,6 +1192,8 @@ class PracticeController {
   void stop() {
     _tickTimer?.cancel();
     _tickTimer = null;
+    _noteHoldTimer?.cancel();
+    _noteHoldTimer = null;
     _cancelRepeat();
     scheduler.setGate(null);
     if (_wait != null) {
@@ -1116,6 +1225,11 @@ class PracticeController {
     );
     // Uma conversão só, no topo: daqui para baixo tudo é altura escrita.
     final pitch = writtenFromReceived(note.pitch);
+    // Com notas com duração, o relógio da sessão anda até agora antes de
+    // qualquer tecla, solta ou apertada: a soltura cedo mede a cápsula pelo
+    // último tique, e sem um tique ele ficaria em -infinito (ND01, pendência 2).
+    // Pausada, a posição está parada, e o tique só põe o relógio no lugar.
+    if (holdNotes) _wait?.tick(scheduler.positionMs);
     // A contagem da escada acabou entre dois ticks: a tecla já conta (senão a
     // primeira nota do compasso, tocada junto do clique, se perdia).
     if (_repeatHold && scheduler.isRunning) _clearCountIn();
@@ -1493,7 +1607,7 @@ class PracticeController {
       }
     }
     _paintStep();
-    _setBrake(wait.current.value?.onMs);
+    _armBrake(wait.current.value);
     _syncGhostExpected();
   }
 
@@ -1525,10 +1639,15 @@ class PracticeController {
       return;
     }
     _paintStep();
-    if (_tallyStep == step.index) return;
+    if (_tallyStep == step.index) {
+      // Mesmo passo republicado: a cápsula armou o freio, ou a soltura cedo
+      // desarmou-o (volta ao `onMs`). O resto do passo não muda.
+      if (step.holdEndMs != null || _holdBraked) _armBrake(step);
+      return;
+    }
     _tally?.stepStarted(step.index, measureIndexAt?.call(step.onMs) ?? 0);
     _tallyStep = step.index;
-    _setBrake(step.onMs);
+    _armBrake(step);
     _syncGhostExpected();
   }
 
@@ -1664,10 +1783,12 @@ class PracticeController {
     _diagOffState();
     _disposed = true;
     _tickTimer?.cancel();
+    _noteHoldTimer?.cancel();
     _holdTimer?.cancel();
     unawaited(_noteSub.cancel());
     unawaited(_sustainSub.cancel());
     unawaited(_verdictSub?.cancel());
+    unawaited(_releasesSub?.cancel());
     unawaited(_ownWaitVerdictSub?.cancel());
     _ownWait?.current.removeListener(_onStepChanged);
     _ownWait?.dispose();

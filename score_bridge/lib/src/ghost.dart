@@ -5,6 +5,7 @@
 library;
 
 import 'model.dart';
+import 'scene_walk.dart';
 
 const List<int> _semitones = [0, 2, 4, 5, 7, 9, 11];
 const String _letters = 'cdefgab';
@@ -186,22 +187,6 @@ int _floorDiv(int a, int b) => (a / b).floor();
 (int, int) _naturalOf(int midi) =>
     (_semitones.indexOf(midi % 12) + 1, _floorDiv(midi, 12) - 1);
 
-SceneGlyphUse? _firstGlyph(SceneNode node, {required bool inNotehead}) {
-  SceneGlyphUse? rec(SceneNode n, bool inHead) {
-    inHead = inHead || n.className.split(' ').contains('notehead');
-    for (final child in n.children) {
-      if (child is SceneGlyphUse && (inHead || !inNotehead)) return child;
-      if (child is SceneNode) {
-        final found = rec(child, inHead);
-        if (found != null) return found;
-      }
-    }
-    return null;
-  }
-
-  return rec(node, false);
-}
-
 (int, int, int) _spell(
   int w,
   int written,
@@ -280,7 +265,7 @@ extension VsbGhostNotes on VsbDocument {
           : located.staff;
       final geometry = staff?.staffGeometry;
       if (staff == null || geometry == null) continue;
-      final head = _firstGlyph(located.node, inNotehead: event.isNote);
+      final head = firstSceneGlyph(located.node, inNotehead: event.isNote);
       final int written;
       if (event.isNote) {
         written =

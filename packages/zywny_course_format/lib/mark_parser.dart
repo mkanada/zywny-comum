@@ -405,12 +405,10 @@ ExerciseSpec? _parseExercise(
   );
   final before = issues.errorCount;
   // `pass` é conferido mesmo se outra chave falhou: o autor vê tudo de uma vez.
-  _checkPass(
-    type,
-    f.get<Fields>('pass'),
-    issues,
+  _checkPass(type, f.get<Fields>('pass'), issues, (
     realtime: _isRealtime(type, f),
-  );
+    hasTempo: _hasTempo(type, f),
+  ));
   if (f.failed) return null;
   final spec = _buildExercise(type, f, mark, issues);
   return issues.errorCount > before ? null : spec;
@@ -459,6 +457,15 @@ bool _isRealtime(ExerciseType type, Fields f) =>
     type == ExerciseType.playLeadSheet ||
     ((type == ExerciseType.playScore || type == ExerciseType.playPattern) &&
         f.get<String>('mode') == 'realtime');
+
+/// Os tipos com andamento: o tempo real (`_isRealtime`) e o `play-score`/
+/// `play-pattern` com `mode: hold` (ND03). No `hold` a duração de cada nota no
+/// relógio depende do `speed`; os medidores (legato, pedal…) seguem só no
+/// tempo real, por isso `_checkPass` separa as duas perguntas.
+bool _hasTempo(ExerciseType type, Fields f) =>
+    _isRealtime(type, f) ||
+    ((type == ExerciseType.playScore || type == ExerciseType.playPattern) &&
+        f.get<String>('mode') == 'hold');
 
 PassCriteria _pass(Fields? pass) => PassCriteria(
   accuracy: pass?.get<int>('accuracy') ?? 90,
@@ -513,14 +520,14 @@ void _checkLadder(Fields pass, FileIssues issues) {
   }
 }
 
-/// `pass` só pode ter as chaves que valem no tipo (e `speed` só com tempo
-/// real).
+/// `pass` só pode ter as chaves que valem no tipo (e `speed` só com andamento:
+/// tempo real ou `hold`; os medidores só com tempo real).
 void _checkPass(
   ExerciseType type,
   Fields? pass,
-  FileIssues issues, {
-  required bool realtime,
-}) {
+  FileIssues issues,
+  ({bool realtime, bool hasTempo}) tempo,
+) {
   if (pass == null) return;
   _checkLadder(pass, issues);
   for (final key in pass.values.keys) {
@@ -531,12 +538,13 @@ void _checkPass(
         '`$key` não vale em `${type.wire}`: ${rule.note ?? 'ver a '
                 'especificação'}.',
       );
-    } else if (rule.realtimeOnly && !realtime) {
+    } else if (rule.realtimeOnly &&
+        !(key == 'speed' ? tempo.hasTempo : tempo.realtime)) {
       issues.error(
         pass.lineOf(key),
         key == 'speed'
             ? 'o modo espera não tem andamento: tire `speed` ou use '
-                  '`mode: realtime`.'
+                  '`mode: realtime` ou `mode: hold`.'
             : 'o modo espera não mede o tempo tocado: tire `$key` ou use '
                   '`mode: realtime`.',
       );

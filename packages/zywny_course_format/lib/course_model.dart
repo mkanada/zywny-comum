@@ -154,10 +154,23 @@ enum HandChoice implements WireEnum {
 
 enum PlayMode implements WireEnum {
   wait,
-  realtime;
+  realtime,
+
+  /// O modo espera em que cada nota tem de ficar apertada pelo tempo dela
+  /// (ND00, "notas com duração"): sem contagem nem metrônomo, como o `wait`,
+  /// mas a nota só fecha depois de segurada.
+  hold;
 
   @override
   String get wire => name;
+
+  /// O andamento (`speed` do `pass`) vale: o tempo real e o `hold` (a duração
+  /// de cada nota no relógio depende dele). O `wait` não tem relógio.
+  bool get hasTempo => this != PlayMode.wait;
+
+  /// O app espera cada nota antes de seguir (sem contagem nem metrônomo ligado
+  /// de início): o `wait` e o `hold`. O `realtime` anda sozinho.
+  bool get waitsForNotes => this != PlayMode.realtime;
 }
 
 /// `practice:` do `play-score` (EX22, Pike 27): a prática acumulativa. Hoje só

@@ -55,12 +55,49 @@ class PracticeStep {
     required this.onMs,
     required this.notes,
     required this.remaining,
+    this.holdStartMs,
+    this.holdEndMs,
   });
 
   final int index;
+
+  /// Sempre é o `onMs` do passo.
   final double onMs;
   final List<SoundEvent> notes;
   final Set<int> remaining;
+
+  /// Cápsula do modo "notas com duração" ([WaitModeSession] com
+  /// `holdFraction`), em ms musicais: começo e fim, enquanto o aluno segura o
+  /// passo. `null` quando ele não está segurando (ou o modo não está ligado).
+  final double? holdStartMs;
+  final double? holdEndMs;
+}
+
+/// Soltura cedo no modo "notas com duração": o aluno soltou uma nota certa do
+/// passo antes de a cápsula encher. Não é erro (não entra em `hits` nem em
+/// `errors`); a sessão só avisa, para quem quiser registrar.
+@immutable
+class HoldRelease {
+  const HoldRelease({
+    required this.stepIndex,
+    required this.pitch,
+    required this.onMs,
+    required this.atMs,
+    required this.fraction,
+  });
+
+  final int stepIndex;
+  final int pitch;
+
+  /// `onMs` do passo.
+  final double onMs;
+
+  /// Último ponto do relógio musical visto por [WaitModeSession.tick] quando
+  /// a nota foi solta.
+  final double atMs;
+
+  /// Quanto da cápsula já tinha enchido, de 0 a 1.
+  final double fraction;
 }
 
 /// Janela de parede, em ms, para as notas de um mesmo acorde no modo
@@ -69,6 +106,11 @@ class PracticeStep {
 /// se estourar, a tentativa recomeça — as notas ainda seguradas continuam
 /// valendo (estão soando junto com o ataque atual), o resto volta a faltar.
 const double kWaitChordWindowMs = 300;
+
+/// Quanto da nota o aluno segura no modo "notas com duração" (ND00, decisão 3):
+/// 80% da duração. Os 20% restantes a música anda sozinha até a nota seguinte,
+/// para a cápsula não encher só no último instante.
+const double kHoldFraction = 0.8;
 
 /// Modo espera (T01): o tempo não anda até o acorde certo ser tocado.
 /// Dirigido só por [noteOn]/[noteOff] — sem relógio interno.
@@ -83,6 +125,7 @@ class WaitModeSession {
   WaitModeSession(
     List<PracticeStep> steps, {
     this._chordWindowMs = kWaitChordWindowMs,
+    this.holdFraction,
   }) : _steps = steps {
     _startStep(0);
   }
@@ -96,6 +139,7 @@ class WaitModeSession {
     PerformanceTrack track, {
     required Set<int> staves,
     double chordWindowMs = kWaitChordWindowMs,
+    double? holdFraction,
   }) {
     final byOnMs = <double, List<SoundEvent>>{};
     for (final chord in track.chords(staves: staves)) {
@@ -114,18 +158,35 @@ class WaitModeSession {
           remaining: byOnMs[onMs]!.map((e) => e.pitch).toSet(),
         ),
     ];
-    return WaitModeSession(steps, chordWindowMs: chordWindowMs);
+    return WaitModeSession(
+      steps,
+      chordWindowMs: chordWindowMs,
+      holdFraction: holdFraction,
+    );
   }
 
   final List<PracticeStep> _steps;
 
   /// Ver [kWaitChordWindowMs].
   final double _chordWindowMs;
+
+  /// `null`: o passo fecha no aperto, como sempre. Com um valor (ver
+  /// [kHoldFraction]), o passo só fecha quando o relógio passa do fim da
+  /// cápsula, com as notas ainda presas (ver [tick]).
+  final double? holdFraction;
+
   int _index = 0;
   final Set<int> _held = {};
   Set<int> _remaining = {};
   Set<int> _blocked = {};
   double? _firstHitAtMs;
+
+  /// Fim da cápsula do passo atual enquanto o aluno segura; `null` fora disso.
+  double? _holdEndMs;
+
+  /// Último [tick]. Começa em -infinito: sem tique, a cápsula nunca enche (o
+  /// relógio ainda não andou).
+  double _lastTickMs = double.negativeInfinity;
 
   /// Notas certas do acorde pendente, ainda sem veredito: o `correct` só
   /// sai quando o acorde fecha, todas juntas — antes disso a UI continua
@@ -150,7 +211,28 @@ class WaitModeSession {
   /// aguardar uma volta de event loop por chamada sem trazer benefício.
   Stream<NoteVerdict> get verdicts => _verdicts.stream;
 
+  final StreamController<HoldRelease> _releases =
+      StreamController<HoldRelease>.broadcast(sync: true);
+
+  /// Solturas cedo da cápsula (só com [holdFraction]). Não é veredito: a nota
+  /// volta a faltar e nada é contado.
+  Stream<HoldRelease> get releases => _releases.stream;
+
   bool get done => _index >= _steps.length;
+
+  /// Relógio musical, para o modo "notas com duração": quem chama passa o
+  /// tempo musical atual. Sem [holdFraction] não faz nada.
+  ///
+  /// Com a cápsula armada (todas as notas do passo presas, nenhuma errada) e
+  /// `musicalMs` além do fim dela, o passo fecha. Guarda o tempo para que um
+  /// aperto que chegue depois do fim feche na hora.
+  void tick(double musicalMs) {
+    _lastTickMs = musicalMs;
+    if (done || _holdEndMs == null) return;
+    if (_remaining.isEmpty && _wrongHeld.isEmpty && musicalMs >= _holdEndMs!) {
+      _completeStep();
+    }
+  }
 
   /// Nota física apertada. `atMs` é o relógio de parede do app (mesma
   /// unidade em todas as chamadas de uma sessão) — usado só para o
@@ -204,10 +286,39 @@ class WaitModeSession {
   /// senão republica o que falta.
   void _completeOrPublish() {
     if (_remaining.isEmpty && _wrongHeld.isEmpty) {
-      _completeStep();
-    } else {
-      _publish(_steps[_index]);
+      if (holdFraction == null) {
+        _completeStep();
+        return;
+      }
+      _holdEndMs ??= _holdEndOf(_index);
+      final holdEnd = _holdEndMs;
+      // Sem duração, ou a música já passou do fim da cápsula antes do aperto
+      // (o `tick` já andou): fecha na hora.
+      if (holdEnd == null || _lastTickMs >= holdEnd) {
+        _completeStep();
+        return;
+      }
     }
+    _publish(_steps[_index]);
+  }
+
+  /// Fim da cápsula do passo [index]: [kHoldFraction] da duração, contada da
+  /// nota mais curta do acorde e sem passar do começo do passo seguinte (a
+  /// nota longa que continua presa depois disso não é cobrada). `null` se a
+  /// nota não tem duração.
+  double? _holdEndOf(int index) {
+    final step = _steps[index];
+    if (step.notes.isEmpty) return null;
+    final onMs = step.onMs;
+    var end = step.notes.first.offMs;
+    for (final note in step.notes) {
+      if (note.offMs < end) end = note.offMs;
+    }
+    if (index + 1 < _steps.length && _steps[index + 1].onMs < end) {
+      end = _steps[index + 1].onMs;
+    }
+    if (end <= onMs) return null;
+    return onMs + holdFraction! * (end - onMs);
   }
 
   /// O acorde fechou: um `correct` por nota, todos de uma vez, e o passo
@@ -242,12 +353,32 @@ class WaitModeSession {
     final wasWrong = _wrongHeld.remove(pitch);
     if (done) return;
     if (wasWrong) {
-      if (_remaining.isEmpty && _wrongHeld.isEmpty) _completeStep();
+      // Com a cápsula, a errada solta pode deixar o acorde pronto mas ainda sem
+      // fim: `_completeOrPublish` então republica a cápsula em vez de fechar.
+      if (_remaining.isEmpty && _wrongHeld.isEmpty) _completeOrPublish();
       return;
     }
     final step = _steps[_index];
     if (!_remaining.contains(pitch) &&
         step.notes.any((e) => e.pitch == pitch)) {
+      // Soltar uma nota certa com a cápsula armada é soltura cedo: a nota volta
+      // a faltar, e o aluno não é penalizado (ND00, decisão 6).
+      final holdEnd = _holdEndMs;
+      if (holdEnd != null) {
+        final span = holdEnd - step.onMs;
+        _releases.add(
+          HoldRelease(
+            stepIndex: step.index,
+            pitch: pitch,
+            onMs: step.onMs,
+            atMs: _lastTickMs,
+            fraction: ((_lastTickMs - step.onMs) / span)
+                .clamp(0.0, 1.0)
+                .toDouble(),
+          ),
+        );
+        _holdEndMs = null;
+      }
       _remaining.add(pitch);
       _hits.remove(pitch);
       if (_remaining.length == step.notes.map((e) => e.pitch).toSet().length) {
@@ -264,11 +395,14 @@ class WaitModeSession {
     final index = _steps.indexWhere(
       (s) => s.onMs >= onMs - kRangeBoundaryToleranceMs,
     );
+    // A posição voltou: o relógio que vale é o do próximo tique.
+    _lastTickMs = double.negativeInfinity;
     _startStep(index == -1 ? _steps.length : index);
   }
 
   void _startStep(int index) {
     _index = index;
+    _holdEndMs = null;
     if (done) {
       _remaining = {};
       _blocked = {};
@@ -302,21 +436,27 @@ class WaitModeSession {
         .difference(_held.difference(_blocked));
     _hits.removeWhere((pitch, _) => !_held.contains(pitch));
     _firstHitAtMs = null;
+    // A cápsula é recalculada (o mesmo valor) por `_completeOrPublish`.
+    _holdEndMs = null;
     _completeOrPublish();
   }
 
   void _publish(PracticeStep step) {
+    final holdEnd = _holdEndMs;
     _current.value = PracticeStep(
       index: step.index,
       onMs: step.onMs,
       notes: step.notes,
       remaining: Set.of(_remaining),
+      holdStartMs: holdEnd == null ? null : step.onMs,
+      holdEndMs: holdEnd,
     );
   }
 
   void dispose() {
     _current.dispose();
     unawaited(_verdicts.close());
+    unawaited(_releases.close());
   }
 }
 

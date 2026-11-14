@@ -31,6 +31,7 @@ List<String> _messages(CourseReadResult result) => [
 
 void main() {
   _parte10();
+  _parte11();
 }
 
 void _parte1() {
@@ -314,6 +315,32 @@ pattern: three-note
 ```
 ''');
     expect(_messages(result), isEmpty);
+  });
+}
+
+// ND03: `mode: hold` no play-pattern (notas com duração), com o andamento.
+void _parte11() {
+  group('play-pattern: mode: hold (ND03)', () {
+    test('mode: hold lê PlayMode.hold, com o andamento do pass', () async {
+      final result = await _read('''
+```zywny-exercise
+id: n5-escala
+type: play-pattern
+title: Escala segurada
+pattern: scale
+keys: [C]
+octaves: 1
+hand: right
+mode: hold
+pass: {speed: 60, accuracy: 90}
+```
+''');
+      expect(_messages(result), isEmpty);
+      final spec =
+          result.course!.lessons.single.exercises.single as PlayPatternSpec;
+      expect(spec.mode, PlayMode.hold);
+      expect(spec.pass.speed, 60);
+    });
   });
 }
 

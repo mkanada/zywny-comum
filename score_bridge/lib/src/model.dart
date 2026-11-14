@@ -365,7 +365,15 @@ class AlternateSequence {
   final String start;
   final List<ScenePage> pages;
 
-  AlternateSequence({required this.start, required this.pages});
+  /// Dicionário de glifos do documento (o mesmo de `VsbDocument.glyphs`), para
+  /// a cabeça da nota em [geometry] (`noteheadRectOf`).
+  final Map<String, GlyphDef> glyphs;
+
+  AlternateSequence({
+    required this.start,
+    required this.pages,
+    this.glyphs = const {},
+  });
 
   late final IdExpansion _expansion = IdExpansion({
     for (final page in pages) ...page.byId.keys,
@@ -374,6 +382,7 @@ class AlternateSequence {
   late final ScoreGeometry geometry = ScoreGeometry.forPages(
     pages,
     sceneIdOf: _expansion.sceneIdOf,
+    glyphs: glyphs,
   );
 }
 
