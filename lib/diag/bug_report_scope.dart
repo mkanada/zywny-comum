@@ -15,6 +15,7 @@ import 'audio_recording_service.dart';
 import 'bug_report_builder.dart';
 import 'bug_report_delivery.dart';
 import 'bug_report_page.dart';
+import 'bug_report_sender.dart';
 import 'diag_screens.dart';
 
 /// Quantos dedos, e por quanto tempo, abrem o relatório de bug.
@@ -40,6 +41,7 @@ class BugReportScope extends StatefulWidget {
     super.key,
     required this.appName,
     required this.child,
+    this.sender,
     @visibleForTesting this.deliver = deliverBugReport,
     @visibleForTesting this.recorder,
   });
@@ -47,6 +49,10 @@ class BugReportScope extends StatefulWidget {
   /// `aprendizado`, `musicas`: vai no nome do arquivo e no relatório.
   final String appName;
   final Widget child;
+
+  /// Para onde vai o **Enviar à equipe** (o app entrega uma). Sem ele, ou com
+  /// `isAvailable` falso, a tela só gera o arquivo.
+  final BugReportSender? sender;
 
   /// Entrega o arquivo; os testes trocam por um falso.
   final Future<BugReportDelivery> Function(String fileName, Uint8List bytes)
@@ -291,30 +297,70 @@ class BugReportScopeState extends State<BugReportScope>
     });
   }
 
+  BugReportInput _input(String doing, String happened, {bool shot = true}) =>
+      BugReportInput(
+        appName: widget.appName,
+        appVersion: _version.replaceFirst('Versão ', ''),
+        at: DateTime.now(),
+        doing: doing,
+        happened: happened,
+        device: _device,
+        routes: [
+          ...DiagScreens.screens.map((s) => 'tela: $s'),
+          ...DiagScreens.routes.map((r) => 'rota: $r'),
+        ],
+        stateJson: DiagLog.snapshotJson(),
+        logs: DiagLog.collect(),
+        screenshotPng: shot ? _shot : null,
+        attachments: DiagLog.attachments(),
+      );
+
   Future<BugReportDelivery> _submit(String doing, String happened) async {
-    final at = DateTime.now();
     DiagLog.log(
       'bug',
       'relatório gerado: fazia="$doing" aconteceu="$happened"',
     );
-    final input = BugReportInput(
-      appName: widget.appName,
-      appVersion: _version.replaceFirst('Versão ', ''),
-      at: at,
-      doing: doing,
-      happened: happened,
-      device: _device,
-      routes: [
-        ...DiagScreens.screens.map((s) => 'tela: $s'),
-        ...DiagScreens.routes.map((r) => 'rota: $r'),
-      ],
-      stateJson: DiagLog.snapshotJson(),
-      logs: DiagLog.collect(),
-      screenshotPng: _shot,
-      attachments: DiagLog.attachments(),
-    );
-    final name = bugReportFileName(widget.appName, at);
+    final input = _input(doing, happened);
+    final name = bugReportFileName(widget.appName, input.at);
     return widget.deliver(name, buildBugReportZip(input));
+  }
+
+  /// **Enviar à equipe**: o mesmo arquivo, pelo [BugReportScope.sender]. Se o
+  /// zip passa do limite, refaz sem a captura da tela (o que mais pesa).
+  Future<BugReportReceipt> _send(String doing, String happened) async {
+    final sender = widget.sender;
+    if (sender == null) {
+      throw const BugReportSendException('Este aparelho não envia relatórios.');
+    }
+    DiagLog.log(
+      'bug',
+      'relatório enviado: fazia="$doing" aconteceu="$happened"',
+    );
+    var input = _input(doing, happened);
+    var zip = buildBugReportZip(input);
+    if (zip.length > kBugReportMaxUploadBytes) {
+      input = _input(doing, happened, shot: false);
+      zip = buildBugReportZip(input);
+    }
+    if (zip.length > kBugReportMaxUploadBytes) {
+      throw const BugReportSendException(
+        'O relatório ficou grande demais para enviar. Gere o arquivo e '
+        'mande por outro meio.',
+      );
+    }
+    final receipt = await sender.send(
+      BugReportUpload(
+        appName: widget.appName,
+        appVersion: input.appVersion,
+        platform: input.device['plataforma'] ?? platformDescription(),
+        doing: doing,
+        happened: happened,
+        fileName: bugReportFileName(widget.appName, input.at),
+        zip: zip,
+      ),
+    );
+    DiagLog.log('bug', 'relatório recebido pela equipe: ${receipt.id}');
+    return receipt;
   }
 
   void _pointerDown(PointerDownEvent e) {
@@ -376,6 +422,9 @@ class BugReportScopeState extends State<BugReportScope>
                       screenshot: _shot,
                       onCancel: _cancel,
                       onSubmit: _submit,
+                      onSend: widget.sender?.isAvailable ?? false
+                          ? _send
+                          : null,
                     ),
                   ),
                 ],

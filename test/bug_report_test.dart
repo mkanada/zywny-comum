@@ -9,6 +9,7 @@ import 'package:zywny_comum/diag/audio_recording_service.dart';
 import 'package:zywny_comum/diag/bug_report_builder.dart';
 import 'package:zywny_comum/diag/bug_report_delivery.dart';
 import 'package:zywny_comum/diag/bug_report_scope.dart';
+import 'package:zywny_comum/diag/bug_report_sender.dart';
 import 'package:zywny_comum/diag/diag_screens.dart';
 import 'package:zywny_diag/diag_log.dart';
 
@@ -38,6 +39,34 @@ class _TickingState extends State<_Ticking>
     builder: (_, _) => Text('v=${c.value.toStringAsFixed(2)}'),
   );
 }
+
+class _FakeSender implements BugReportSender {
+  _FakeSender({this.available = true, this.failWith});
+
+  final bool available;
+  final Object? failWith;
+  BugReportUpload? got;
+
+  @override
+  bool get isAvailable => available;
+
+  @override
+  Future<BugReportReceipt> send(BugReportUpload upload) async {
+    if (failWith != null) throw failWith!;
+    got = upload;
+    return const BugReportReceipt('ABC123');
+  }
+}
+
+Widget _app(BugReportSender? sender) => MaterialApp(
+  builder: (context, child) => BugReportScope(
+    appName: 'teste',
+    sender: sender,
+    deliver: (name, data) async => BugReportDelivery(savedAt: '/x/$name'),
+    child: child!,
+  ),
+  home: const Scaffold(body: Center(child: Text('home'))),
+);
 
 class _FakeRecorder implements AudioRecordingService {
   int starts = 0;
@@ -298,5 +327,82 @@ void main() {
     expect(find.text('Reportar um bug'), findsNothing);
     await a.up();
     await b.up();
+  });
+
+  group('enviar à equipe', () {
+    setUp(() async {
+      await DiagLog.init(storage: MemoryDiagStorage(), installHandlers: false);
+    });
+
+    // A tela do relatório é uma lista: numa janela alta o botão está à vista.
+    void tall(WidgetTester tester) {
+      tester.view.physicalSize = const Size(800, 2000);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+    }
+
+    testWidgets('sem envio disponível, só gera o arquivo', (tester) async {
+      tall(tester);
+      await tester.pumpWidget(_app(_FakeSender(available: false)));
+      await tester.pump(const Duration(seconds: 1));
+      await openReport(tester);
+      expect(find.text('Gerar relatório'), findsOneWidget);
+      expect(find.text('Enviar à equipe'), findsNothing);
+    });
+
+    testWidgets('envia o zip e o texto e mostra o código', (tester) async {
+      final sender = _FakeSender();
+      tall(tester);
+      await tester.pumpWidget(_app(sender));
+      await tester.pump(const Duration(seconds: 1));
+      await openReport(tester);
+      expect(find.text('Só gerar o arquivo'), findsOneWidget);
+      await tester.enterText(
+        find.widgetWithText(TextField, 'O que você estava fazendo?'),
+        'tocando',
+      );
+      await tester.enterText(
+        find.widgetWithText(TextField, 'O que aconteceu (o erro)?'),
+        'travou',
+      );
+      await tester.tap(find.text('Enviar à equipe'));
+      await tester.pumpAndSettle();
+
+      final up = sender.got!;
+      expect(up.appName, 'teste');
+      expect(up.doing, 'tocando');
+      expect(up.happened, 'travou');
+      expect(up.fileName, startsWith('zywny-bug-teste-'));
+      final zip = ZipDecoder().decodeBytes(up.zip);
+      expect(zip.map((f) => f.name), contains('relatorio.txt'));
+      expect(up.zip.length, lessThanOrEqualTo(kBugReportMaxUploadBytes));
+      expect(find.text('Relatório enviado'), findsOneWidget);
+      expect(find.text('ABC123'), findsOneWidget);
+    });
+
+    testWidgets('o motivo da recusa vai para a tela e dá para tentar de novo', (
+      tester,
+    ) async {
+      tall(tester);
+      await tester.pumpWidget(
+        _app(_FakeSender(failWith: const BugReportSendException('Muitos.'))),
+      );
+      await tester.pump(const Duration(seconds: 1));
+      await openReport(tester);
+      await tester.tap(find.text('Enviar à equipe'));
+      await tester.pumpAndSettle();
+      expect(find.text('Muitos.'), findsOneWidget);
+      expect(find.text('Enviar à equipe'), findsOneWidget);
+    });
+
+    testWidgets('erro de rede dá a mensagem genérica', (tester) async {
+      tall(tester);
+      await tester.pumpWidget(_app(_FakeSender(failWith: StateError('x'))));
+      await tester.pump(const Duration(seconds: 1));
+      await openReport(tester);
+      await tester.tap(find.text('Enviar à equipe'));
+      await tester.pumpAndSettle();
+      expect(find.textContaining('Não consegui enviar agora'), findsOneWidget);
+    });
   });
 }

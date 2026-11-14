@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 
 import '../ui/theme.dart';
 import 'bug_report_delivery.dart';
+import 'bug_report_sender.dart';
 
 /// A tela do relatório de bug (ver `BugReportScope`): o aluno diz o que
 /// fazia e o que aconteceu, e recebe o arquivo para enviar.
@@ -16,6 +17,7 @@ class BugReportPage extends StatefulWidget {
     required this.screenshot,
     required this.onCancel,
     required this.onSubmit,
+    this.onSend,
   });
 
   /// A captura da tela como ela estava; `null` se não deu para tirar.
@@ -28,6 +30,11 @@ class BugReportPage extends StatefulWidget {
   final Future<BugReportDelivery> Function(String doing, String happened)
   onSubmit;
 
+  /// Envia o relatório à equipe; `null` quando este aparelho não envia (só o
+  /// arquivo).
+  final Future<BugReportReceipt> Function(String doing, String happened)?
+  onSend;
+
   @override
   State<BugReportPage> createState() => _BugReportPageState();
 }
@@ -38,6 +45,7 @@ class _BugReportPageState extends State<BugReportPage> {
   bool _busy = false;
   String? _error;
   BugReportDelivery? _done;
+  BugReportReceipt? _sent;
 
   @override
   void dispose() {
@@ -61,9 +69,34 @@ class _BugReportPageState extends State<BugReportPage> {
     }
   }
 
+  Future<void> _sendToTeam() async {
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    try {
+      final receipt = await widget.onSend!(_doing.text, _happened.text);
+      if (mounted) setState(() => _sent = receipt);
+    } on BugReportSendException catch (e) {
+      if (mounted) setState(() => _error = e.message);
+    } on Object {
+      if (mounted) {
+        setState(
+          () => _error =
+              'Não consegui enviar agora (sem rede?). Tente de novo ou '
+              'gere o arquivo.',
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final done = _done;
+    final sent = _sent;
+    final finished = done != null || sent != null;
     return Scaffold(
       backgroundColor: kLibraryBg,
       body: SafeArea(
@@ -82,7 +115,7 @@ class _BugReportPageState extends State<BugReportPage> {
                   style: TextStyle(color: kInkCaption),
                 ),
                 const SizedBox(height: 12),
-                if (done == null) ...[
+                if (!finished) ...[
                   if (widget.screenshot != null) _screenshotPreview(),
                   const SizedBox(height: 12),
                   ..._questions(),
@@ -96,7 +129,9 @@ class _BugReportPageState extends State<BugReportPage> {
                       style: const TextStyle(color: kBadColor),
                     ),
                   ),
-                if (done == null)
+                if (sent != null)
+                  _Sent(receipt: sent, onClose: widget.onCancel)
+                else if (done == null)
                   _actions()
                 else
                   _Done(delivery: done, onClose: widget.onCancel),
@@ -147,19 +182,46 @@ class _BugReportPageState extends State<BugReportPage> {
     ),
   ];
 
-  /// Cancelar e gerar o relatório (desligados enquanto ele é gerado).
-  Widget _actions() => Wrap(
-    alignment: WrapAlignment.end,
-    spacing: 8,
-    runSpacing: 8,
+  /// Cancelar, gerar o arquivo e (se o aparelho envia) enviar à equipe;
+  /// tudo desligado enquanto um deles roda.
+  Widget _actions() => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
     children: [
-      TextButton(
-        onPressed: _busy ? null : widget.onCancel,
-        child: const Text('Cancelar'),
-      ),
-      FilledButton(
-        onPressed: _busy ? null : () => unawaited(_generate()),
-        child: Text(_busy ? 'Gerando…' : 'Gerar relatório'),
+      if (widget.onSend != null) ...[
+        const Text(
+          'Enviar à equipe manda o texto acima, a imagem da tela e o '
+          'registro do app para a equipe do zywny, que o lê para consertar o '
+          'erro. Só a equipe vê. Ao apagar a conta, o que ainda não foi lido '
+          'é apagado junto.',
+          style: TextStyle(color: kInkCaption, fontSize: 13),
+        ),
+        const SizedBox(height: 12),
+      ],
+      Wrap(
+        alignment: WrapAlignment.end,
+        spacing: 8,
+        runSpacing: 8,
+        children: [
+          TextButton(
+            onPressed: _busy ? null : widget.onCancel,
+            child: const Text('Cancelar'),
+          ),
+          if (widget.onSend != null)
+            OutlinedButton(
+              onPressed: _busy ? null : () => unawaited(_generate()),
+              child: Text(_busy ? 'Aguarde…' : 'Só gerar o arquivo'),
+            )
+          else
+            FilledButton(
+              onPressed: _busy ? null : () => unawaited(_generate()),
+              child: Text(_busy ? 'Gerando…' : 'Gerar relatório'),
+            ),
+          if (widget.onSend != null)
+            FilledButton(
+              onPressed: _busy ? null : () => unawaited(_sendToTeam()),
+              child: Text(_busy ? 'Enviando…' : 'Enviar à equipe'),
+            ),
+        ],
       ),
     ],
   );
@@ -202,6 +264,45 @@ class _Done extends StatelessWidget {
           const SizedBox(height: 4),
           SelectableText(where, style: const TextStyle(color: kInkCaption)),
         ],
+        const SizedBox(height: 16),
+        Align(
+          alignment: Alignment.centerRight,
+          child: FilledButton(onPressed: onClose, child: const Text('Fechar')),
+        ),
+      ],
+    );
+  }
+}
+
+/// O relatório chegou à equipe.
+class _Sent extends StatelessWidget {
+  const _Sent({required this.receipt, required this.onClose});
+
+  final BugReportReceipt receipt;
+  final VoidCallback onClose;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Row(
+          children: [
+            Icon(Icons.check_circle, color: kGoodColor),
+            SizedBox(width: 8),
+            Text(
+              'Relatório enviado',
+              style: TextStyle(fontWeight: FontWeight.w600, fontSize: 16),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        const Text(
+          'Obrigado! A equipe lê os relatórios e abre um chamado para cada '
+          'um. Se precisar citar este, o código é:',
+        ),
+        const SizedBox(height: 4),
+        SelectableText(receipt.id, style: const TextStyle(color: kInkCaption)),
         const SizedBox(height: 16),
         Align(
           alignment: Alignment.centerRight,
