@@ -39,6 +39,11 @@ const kPracticeMissedHold = Duration(milliseconds: 500);
 /// fraco que o de perdida, para a outra pauta não parecer "toque esta".
 const kPracticeAppHandColor = Color(0xFFB8B8BD);
 
+/// A parte do aluno na leitura pela música (LP11): teal, longe do azul da nota
+/// esperada (era azul, e o aluno confundia o que já era dele com o que tinha de
+/// tocar). Configurável em Cores ("Notas do aluno", `AppSettings.studentPartColor`).
+const kPracticeStudentColor = Color(0xFF00838F);
+
 /// Os compassos que reprovaram num medidor (EX08): violeta, longe do vermelho
 /// da nota errada e do âmbar do tempo.
 const kPracticeMeterMarkColor = Color(0xFF7B4FB3);

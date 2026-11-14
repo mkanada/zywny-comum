@@ -582,6 +582,13 @@ class GeneralSettingsPanel extends StatelessWidget {
       defaultValue: kPracticeWrongColor,
       onChanged: (c) => settings.practiceWrongColor = c,
     ),
+    _ColorRow(
+      label: 'Notas do aluno',
+      hint: 'as notas que você toca, na leitura pela música',
+      value: settings.studentPartColor,
+      defaultValue: kPracticeStudentColor,
+      onChanged: (c) => settings.studentPartColor = c,
+    ),
     if (showPageBar)
       _ColorRow(
         label: 'Barra de virada de página',

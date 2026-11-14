@@ -10,7 +10,11 @@ import 'package:zywny_music/chord.dart' show ChordNotation;
 import 'package:zywny_music/note_names.dart' show NoteNaming;
 
 import '../practice/practice_colors.dart'
-    show kPracticeCorrectColor, kPracticePendingColor, kPracticeWrongColor;
+    show
+        kPracticeCorrectColor,
+        kPracticePendingColor,
+        kPracticeStudentColor,
+        kPracticeWrongColor;
 import '../practice/practice_mode.dart'
     show PracticeMode, kDefaultRhythmToleranceMs;
 import '../trail/trail_stage.dart'
@@ -91,6 +95,7 @@ typedef _Stored = ({
   int? highlight,
   int? pending,
   int? wrong,
+  int? student,
   double? halo,
   int? bar,
   int? trailMeasures,
@@ -139,6 +144,7 @@ class AppSettings extends ChangeNotifier {
   static const _kHighlightColor = 'ui_highlight_color';
   static const _kPracticePendingColor = 'ui_practice_pending_color';
   static const _kPracticeWrongColor = 'ui_practice_wrong_color';
+  static const _kStudentPartColor = 'ui_student_part_color';
   static const _kHaloWidth = 'ui_halo_width';
   static const _kBarColor = 'ui_bar_color';
   static const _kTrailMeasures = 'trail_measures';
@@ -174,6 +180,7 @@ class AppSettings extends ChangeNotifier {
   Color _highlightColor = kPracticeCorrectColor;
   Color _practicePendingColor = kPracticePendingColor;
   Color _practiceWrongColor = kPracticeWrongColor;
+  Color _studentPartColor = kPracticeStudentColor;
   double _haloWidth = 1.0;
   Color _barColor = kDefaultBarColor;
   int _trailMeasures = kTrailDefaultMeasures;
@@ -257,6 +264,15 @@ class AppSettings extends ChangeNotifier {
     if (value == _practiceWrongColor) return;
     _practiceWrongColor = value;
     _changed(_prefs.setInt(_kPracticeWrongColor, value.toARGB32()));
+  }
+
+  /// Leitura pela música: cor da parte do aluno (as notas dele e o aviso
+  /// "você"). Padrão: teal (`kPracticeStudentColor`).
+  Color get studentPartColor => _studentPartColor;
+  set studentPartColor(Color value) {
+    if (value == _studentPartColor) return;
+    _studentPartColor = value;
+    _changed(_prefs.setInt(_kStudentPartColor, value.toARGB32()));
   }
 
   /// Multiplicador do raio do halo da nota destacada; `0` desliga.
@@ -496,6 +512,7 @@ class AppSettings extends ChangeNotifier {
       'corDestaque': hex(_highlightColor),
       'corPendente': hex(_practicePendingColor),
       'corErro': hex(_practiceWrongColor),
+      'corAluno': hex(_studentPartColor),
       'brilho': _haloWidth,
       'corDaHaste': hex(_barColor),
       'margemDoRitmoMs': _rhythmToleranceMs,
@@ -566,6 +583,7 @@ class AppSettings extends ChangeNotifier {
     highlight: await _readPref(() => _prefs.getInt(_kHighlightColor)),
     pending: await _readPref(() => _prefs.getInt(_kPracticePendingColor)),
     wrong: await _readPref(() => _prefs.getInt(_kPracticeWrongColor)),
+    student: await _readPref(() => _prefs.getInt(_kStudentPartColor)),
     halo: await _readPref(() => _prefs.getDouble(_kHaloWidth)),
     bar: await _readPref(() => _prefs.getInt(_kBarColor)),
     trailMeasures: await _readPref(() => _prefs.getInt(_kTrailMeasures)),
@@ -613,6 +631,8 @@ class AppSettings extends ChangeNotifier {
     if (pending != null) _practicePendingColor = Color(pending);
     final wrong = stored.wrong;
     if (wrong != null) _practiceWrongColor = Color(wrong);
+    final student = stored.student;
+    if (student != null) _studentPartColor = Color(student);
     final halo = stored.halo;
     if (halo != null) _haloWidth = halo.clamp(0.0, 3.0);
     final bar = stored.bar;
