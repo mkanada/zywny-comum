@@ -68,6 +68,42 @@ void main() {
       },
     );
 
+    test('a fração padrão (kHoldFraction) é 60%, e o passo traz o fim da nota '
+        'para o freio, depois do fim da cápsula', () {
+      expect(kHoldFraction, 0.6);
+      final session = WaitModeSession([
+        _step(0, 0, [_note('c', 60, 0, 1000)]),
+        _step(1, 1000, [_note('d', 62, 1000, 1500)]),
+      ], holdFraction: kHoldFraction);
+      final verdicts = <NoteVerdict>[];
+      session.verdicts.listen(verdicts.add);
+
+      session.noteOn(60, atMs: 0);
+      expect(session.current.value!.holdEndMs, 600);
+      expect(session.current.value!.holdParkMs, 1000);
+
+      // Segurou 60% da nota (só um pouco mais): já vale.
+      session.tick(599);
+      expect(verdicts, isEmpty);
+      session.tick(601);
+      expect(verdicts.single.kind, PracticeVerdictKind.correct);
+      expect(session.current.value!.holdParkMs, isNull);
+    });
+
+    test('o fim da nota do freio é o da nota mais curta do acorde, sem passar '
+        'do passo seguinte', () {
+      final session = WaitModeSession([
+        _step(0, 0, [_note('c', 60, 0, 1000), _note('e', 64, 0, 400)]),
+        _step(1, 700, [_note('d', 62, 700, 1500)]),
+      ], holdFraction: 0.6);
+
+      session.noteOn(60, atMs: 0);
+      session.noteOn(64, atMs: 10);
+      // A nota mais curta acaba em 400 (antes do passo seguinte, em 700).
+      expect(session.current.value!.holdEndMs, 240);
+      expect(session.current.value!.holdParkMs, 400);
+    });
+
     test('soltar em tick(500) é soltura cedo: sem veredito, a nota volta', () {
       final session = WaitModeSession([
         _step(0, 0, [_note('c', 60, 0, 1000)]),

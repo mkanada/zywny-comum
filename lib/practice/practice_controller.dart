@@ -578,15 +578,19 @@ class PracticeController {
   }
 
   /// Até onde o freio vai com o passo [step]: o `onMs` do passo, ou o fim da
-  /// cápsula quando o aluno a segura (o acompanhamento toca enquanto ele
-  /// segura). Com `range`, a cápsula não passa do fim do intervalo.
+  /// nota quando o aluno a segura (o acompanhamento toca enquanto ele segura).
+  /// O freio **não** fica no fim da cápsula: o passo fecha no tique do relógio
+  /// dela (30 ms), e a música parada ali até o tique perdia 0 a 30 ms por nota,
+  /// atrasando tudo em relação ao tempo real. O fim da nota fica depois da
+  /// cápsula, então o freio só pega se o tique atrasar mais que o resto da nota.
+  /// Com `range`, a nota não passa do fim do intervalo.
   double? _brakeTargetOf(PracticeStep? step) {
-    final hold = step?.holdEndMs;
-    if (hold == null) return step?.onMs;
+    final park = step?.holdParkMs;
+    if (park == null) return step?.onMs;
     final range = this.range;
-    if (range == null) return hold;
+    if (range == null) return park;
     final limit = range.endMs - kRangeBoundaryToleranceMs;
-    return hold < limit ? hold : limit;
+    return park < limit ? park : limit;
   }
 
   /// Arma o freio no passo [step] (ver [_brakeTargetOf]). Anota a cápsula no

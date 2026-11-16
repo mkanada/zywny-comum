@@ -136,28 +136,33 @@ void main() {
       expect(rig.practice.earlyReleases, 0);
     });
 
-    test('segurando, o freio vai ao fim da cápsula e o passo só fecha '
-        'nele; a música do app toca enquanto o aluno segura', () async {
+    test('segurando, a cápsula enche em 60% da nota e o passo fecha no tique; '
+        'a música do app toca enquanto o aluno segura', () async {
       final rig = _Rig(holdNotes: true)..practice.start();
       addTearDown(rig.dispose);
 
       await rig.press(60);
-      // A cápsula da semínima de 0 a 500 vai de 0 a 400 (80%): o freio foi lá.
-      expect(rig.practice.currentStep.value!.holdEndMs, 400);
-      rig.advanceTo(400);
-      expect(rig.scheduler.positionMs, 400);
-      // Ainda no freio, o passo não fecha: o relógio parou no fim da cápsula.
+      // A cápsula da semínima de 0 a 500 vai de 0 a 300 (60%); o freio fica no
+      // fim da nota (500), não no fim da cápsula.
+      final held = rig.practice.currentStep.value!;
+      expect(held.holdEndMs, closeTo(300, 1e-6));
+      expect(held.holdParkMs, closeTo(500, 1e-6));
+      rig.advanceTo(300);
+      expect(rig.scheduler.positionMs, closeTo(300, 1e-6));
+      // Cápsula cheia, mas sem tique: o passo ainda não fechou, e a música não
+      // parou nela (seguiu pelo relógio livre).
       expect(rig.practice.currentStep.value!.index, 0);
-      rig.engine.now += 5;
+      rig.engine.now += 0.02;
       rig.scheduler.pump();
-      expect(rig.scheduler.positionMs, 400);
+      expect(rig.scheduler.positionMs, closeTo(320, 1e-6));
 
       // O relógio da cápsula chega ao fim: o passo fecha e o freio vai para o
-      // `onMs` do seguinte (500).
+      // `onMs` do seguinte (500), sem a música ter perdido tempo.
       rig.practice.debugTickHold();
       expect(rig.practice.report.correct, 1);
       expect(rig.practice.currentStep.value!.index, 1);
       expect(rig.practice.currentStep.value!.holdEndMs, isNull);
+      expect(rig.scheduler.positionMs, closeTo(320, 1e-6));
       rig.advanceTo(500);
       expect(rig.scheduler.positionMs, 500);
 
@@ -170,6 +175,29 @@ void main() {
       );
     });
 
+    test('o tique atrasado não atrasa a música: o passo seguinte chega no '
+        'relógio livre, mesmo que o passo feche bem depois da cápsula cheia '
+        '(sem a deriva de ~13 ms por nota do freio no fim da cápsula)', () async {
+      final rig = _Rig(holdNotes: true)..practice.start();
+      addTearDown(rig.dispose);
+
+      await rig.press(60);
+      // O tique de 70 ms: a cápsula enche em 300 e o passo só fecha em 350.
+      var ms = 0;
+      while (rig.practice.currentStep.value!.index == 0) {
+        rig.engine.now += 0.001;
+        rig.scheduler.pump();
+        if (++ms % 70 == 0) rig.practice.debugTickHold();
+        expect(ms, lessThan(1000));
+      }
+      expect(ms, 350);
+
+      // A semínima seguinte começa em 500 do relógio livre: 0,5 s depois do
+      // aperto, e não 0,55 s (os 50 ms que a música ficaria parada em 300).
+      rig.advanceTo(500);
+      expect(rig.engine.now, closeTo(0.5, 0.006));
+    });
+
     test('soltar cedo não é erro: a música volta ao começo da nota, a nota '
         'volta a faltar, e apertar de novo arma a cápsula', () async {
       final rig = _Rig(holdNotes: true)..practice.start();
@@ -178,12 +206,12 @@ void main() {
       rig.practice.holdReleases.listen(releases.add);
 
       await rig.press(60);
-      rig.advanceTo(300);
+      rig.advanceTo(200);
       await rig.release(60);
 
       expect(rig.practice.earlyReleases, 1);
       expect(releases.single.pitch, 60);
-      expect(releases.single.fraction, closeTo(0.75, 1e-9));
+      expect(releases.single.fraction, closeTo(2 / 3, 1e-9));
       expect(rig.scheduler.positionMs, 0);
       final step = rig.practice.currentStep.value!;
       expect(step.index, 0);
@@ -195,7 +223,7 @@ void main() {
       expect(rig.practice.wrongCount.value, 0);
 
       await rig.press(60);
-      expect(rig.practice.currentStep.value!.holdEndMs, 400);
+      expect(rig.practice.currentStep.value!.holdEndMs, 300);
     });
 
     test('a soltura antes do primeiro tique sai com o tempo certo (o '
@@ -211,23 +239,23 @@ void main() {
       await rig.release(60);
 
       expect(releases.single.atMs, 200);
-      expect(releases.single.fraction, closeTo(0.5, 1e-9));
+      expect(releases.single.fraction, closeTo(2 / 3, 1e-9));
     });
 
-    test('tecla errada no meio da cápsula (mais de 300 ms depois do aperto) '
+    test('tecla errada no meio da cápsula (250 ms depois do aperto) '
         'não fecha o passo; soltar a errada fecha depois do fim', () async {
       final rig = _Rig(holdNotes: true)..practice.start();
       addTearDown(rig.dispose);
 
       await rig.press(60);
-      rig.advanceTo(350);
+      rig.advanceTo(250);
       await rig.press(61);
       expect(rig.practice.report.wrong, 1);
       expect(rig.practice.report.correct, 0);
       expect(rig.practice.currentStep.value!.index, 0);
-      expect(rig.practice.currentStep.value!.holdEndMs, 400);
+      expect(rig.practice.currentStep.value!.holdEndMs, 300);
 
-      rig.advanceTo(400);
+      rig.advanceTo(300);
       rig.practice.debugTickHold();
       // A errada ainda está presa: a cápsula cheia não basta.
       expect(rig.practice.currentStep.value!.index, 0);
@@ -247,13 +275,13 @@ void main() {
       rig.practice.holdReleases.listen(releases.add);
 
       await rig.press(60);
-      rig.advanceTo(350);
+      rig.advanceTo(250);
       await rig.press(61);
-      rig.advanceTo(380);
+      rig.advanceTo(280);
       await rig.release(60);
 
       expect(rig.practice.earlyReleases, 1);
-      expect(releases.single.fraction, closeTo(0.95, 1e-9));
+      expect(releases.single.fraction, closeTo(280 / 300, 1e-9));
       final step = rig.practice.currentStep.value!;
       expect(step.index, 0);
       expect(step.remaining, contains(60));
@@ -297,7 +325,7 @@ void main() {
       addTearDown(rig.dispose);
 
       await rig.press(60);
-      // A cápsula iria a 800, mas o freio para em 499 (fim do intervalo).
+      // A cápsula iria a 600, mas o freio para em 499 (fim do intervalo).
       rig.advanceTo(499);
       expect(rig.scheduler.positionMs, 499);
       rig.practice.debugTickHold();

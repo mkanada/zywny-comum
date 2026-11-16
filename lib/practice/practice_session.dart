@@ -57,6 +57,7 @@ class PracticeStep {
     required this.remaining,
     this.holdStartMs,
     this.holdEndMs,
+    this.holdParkMs,
   });
 
   final int index;
@@ -71,6 +72,13 @@ class PracticeStep {
   /// passo. `null` quando ele não está segurando (ou o modo não está ligado).
   final double? holdStartMs;
   final double? holdEndMs;
+
+  /// Onde a música para se o passo não fechar: o fim da nota (a mais curta do
+  /// acorde, sem passar do passo seguinte), depois do [holdEndMs]. O freio não
+  /// fica no fim da cápsula: o passo só fecha no tique do relógio dela, e a
+  /// música parada ali até o tique perdia 0 a 30 ms a cada nota (a deriva se
+  /// somava, ~13 ms por nota). `null` junto com o [holdEndMs].
+  final double? holdParkMs;
 }
 
 /// Soltura cedo no modo "notas com duração": o aluno soltou uma nota certa do
@@ -108,9 +116,10 @@ class HoldRelease {
 const double kWaitChordWindowMs = 300;
 
 /// Quanto da nota o aluno segura no modo "notas com duração" (ND00, decisão 3):
-/// 80% da duração. Os 20% restantes a música anda sozinha até a nota seguinte,
-/// para a cápsula não encher só no último instante.
-const double kHoldFraction = 0.8;
+/// 60% da duração (eram 80%; a tolerância subiu porque soltar um pouco antes do
+/// fim da nota é o normal de quem toca). Os 40% restantes a música anda sozinha
+/// até a nota seguinte, para a cápsula não encher só no último instante.
+const double kHoldFraction = 0.6;
 
 /// Modo espera (T01): o tempo não anda até o acorde certo ser tocado.
 /// Dirigido só por [noteOn]/[noteOff] — sem relógio interno.
@@ -307,9 +316,16 @@ class WaitModeSession {
   /// nota longa que continua presa depois disso não é cobrada). `null` se a
   /// nota não tem duração.
   double? _holdEndOf(int index) {
+    final end = _noteEndOf(index);
+    if (end == null) return null;
+    return _steps[index].onMs + holdFraction! * (end - _steps[index].onMs);
+  }
+
+  /// Fim da nota do passo [index]: o da nota mais curta do acorde, sem passar do
+  /// começo do passo seguinte. `null` se a nota não tem duração.
+  double? _noteEndOf(int index) {
     final step = _steps[index];
     if (step.notes.isEmpty) return null;
-    final onMs = step.onMs;
     var end = step.notes.first.offMs;
     for (final note in step.notes) {
       if (note.offMs < end) end = note.offMs;
@@ -317,8 +333,7 @@ class WaitModeSession {
     if (index + 1 < _steps.length && _steps[index + 1].onMs < end) {
       end = _steps[index + 1].onMs;
     }
-    if (end <= onMs) return null;
-    return onMs + holdFraction! * (end - onMs);
+    return end <= step.onMs ? null : end;
   }
 
   /// O acorde fechou: um `correct` por nota, todos de uma vez, e o passo
@@ -450,6 +465,7 @@ class WaitModeSession {
       remaining: Set.of(_remaining),
       holdStartMs: holdEnd == null ? null : step.onMs,
       holdEndMs: holdEnd,
+      holdParkMs: holdEnd == null ? null : _noteEndOf(_index),
     );
   }
 
