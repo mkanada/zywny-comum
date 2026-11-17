@@ -122,6 +122,11 @@ class ScoreAudioScheduler {
   /// Metrônomo ligado: clica em cada batida enquanto toca.
   bool metronomeOn = false;
 
+  /// Silencia o metrônomo sem mexer em [metronomeOn] (a escolha do aluno): o
+  /// degrau "só notas" da escada de repetição não cobra tempo, então não clica.
+  /// A contagem de entrada não é afetada.
+  bool metronomeMuted = false;
+
   /// A altura que o motor recebe para a nota de altura **escrita** `w` (fase
   /// Q, `PitchFrame`): com a música transposta é a soada, e o agendador não
   /// sabe nada de transposição. Chamada a cada nota agendada, então vale o
@@ -619,7 +624,9 @@ class ScoreAudioScheduler {
         _click(midi, b, earliest);
       }
     }
-    if (metronomeOn) _metronomeClicks(midi, window, stopAt, floor);
+    if (metronomeOn && !metronomeMuted) {
+      _metronomeClicks(midi, window, stopAt, floor);
+    }
   }
 
   /// As notas que começam em [window] (com o `offMs` cortado em [cutMs]).

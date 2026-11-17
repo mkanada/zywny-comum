@@ -1009,6 +1009,8 @@ class PracticeController {
     final attempt = _rewindBook.rewind(measure);
     _dropAfter(measure);
     scheduler.setSpeed(rung.speed ?? _baseSpeed);
+    // O degrau "só notas" não cobra tempo: sem o clique do metrônomo.
+    scheduler.metronomeMuted = rung.isWait;
     // O compasso do degrau já "está pendente": se ele não tem nota do aluno
     // (pausa, nota ligada), o primeiro passo pendente já é de outro compasso e
     // o degrau acaba na hora (`_onRangeStep`). Com `null`, a escada nunca
@@ -1112,6 +1114,7 @@ class PracticeController {
     _holdTimer?.cancel();
     _holdTimer = null;
     _ladder = null;
+    scheduler.metronomeMuted = false;
     _repeatHold = false;
     _countInHold = false;
     _earlyPitches.clear();

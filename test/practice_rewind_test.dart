@@ -49,7 +49,8 @@ class _Rig {
     );
     scheduler
       ..setSpeed(speed)
-      ..beats = metronomeBeats(timeline);
+      ..beats = metronomeBeats(timeline)
+      ..metronomeOn = true;
     scoreController = ScoreController(document: doc);
     final measures = timeline.measures;
     final skip = skipMeasure;
@@ -327,6 +328,10 @@ void main() {
       expect(rig.status!.countingIn, isFalse);
       expect(rig.scheduler.isRunning, isTrue);
       expect(rig.practice.rewinds, {1: 1});
+      // O "só notas" não cobra tempo: o metrônomo calado, a escolha do aluno
+      // (`metronomeOn`) intacta.
+      expect(rig.scheduler.metronomeMuted, isTrue);
+      expect(rig.scheduler.metronomeOn, isTrue);
       await rig.playWaitMeasure();
       // Acertou num degrau que não é o último: aviso, e a contagem antes do 100%.
       expect(rig.status!.notice, RepeatNotice.passed);
@@ -343,10 +348,12 @@ void main() {
       expect(rig.practice.wrongMarks, isEmpty);
       rig.runCountIn();
       expect(rig.status!.countingIn, isFalse);
+      expect(rig.scheduler.metronomeMuted, isFalse);
       // Acertou no último degrau: a escada acaba e a música segue.
       await rig.playTimed(1);
       rig.passEnd(1);
       expect(rig.status, isNull);
+      expect(rig.scheduler.metronomeMuted, isFalse);
       expect(rig.practice.rewinds, {1: 2});
       await rig.playTimed(2);
       rig.passEnd(2);
