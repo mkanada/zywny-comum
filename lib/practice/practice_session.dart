@@ -10,6 +10,7 @@ import 'package:flutter/foundation.dart';
 
 import 'package:zywny_audio/performance_track.dart';
 
+import 'chord_demand.dart';
 import 'practice_verdict_kind.dart';
 
 export 'practice_verdict_kind.dart';
@@ -24,10 +25,12 @@ class NoteVerdict {
     required this.kind,
     required this.deltaMs,
     this.velocity = 0,
+    this.atMs,
   });
 
   /// Id do [SoundEvent] casado; `null` em [PracticeVerdictKind.wrong] (não
-  /// há candidato).
+  /// há candidato) e no veredito de um acorde da cifra (AC05), que não é nota
+  /// da partitura.
   final String? eventId;
   final int pitch;
   final PracticeVerdictKind kind;
@@ -39,6 +42,12 @@ class NoteVerdict {
   /// Guardada para uso futuro — não avaliada na 1.0 (D-TREINO).
   final int velocity;
 
+  /// O ataque do veredito, em ms musicais, quando não há [eventId] para
+  /// dizê-lo: o `onMs` do passo com acorde (AC05), o ataque do acorde no tempo
+  /// real (AC05b), ou o instante da tecla errada no tempo real. `null` nos
+  /// demais: o compasso sai do evento, ou do passo pendente, como sempre.
+  final double? atMs;
+
   @override
   String toString() =>
       'NoteVerdict($kind pitch=$pitch Δ=${deltaMs.toStringAsFixed(1)}ms'
@@ -48,6 +57,11 @@ class NoteVerdict {
 /// Um passo do modo espera: acordes de todas as pautas do aluno com o mesmo
 /// `onMs`, fundidos num só. `remaining` é republicado a cada nota certa
 /// tocada (mesmo `index`/`onMs`/`notes`), para a UI destacar só o que falta.
+///
+/// Com [chord] (AC05, tocar pela cifra), o passo também espera o acorde da
+/// cifra naquele instante: pode não ter nota de partitura nenhuma (um acorde
+/// sozinho), e fecha quando a melodia está tocada **e** o acorde cumpre o que a
+/// camada pede.
 @immutable
 class PracticeStep {
   const PracticeStep({
@@ -58,6 +72,7 @@ class PracticeStep {
     this.holdStartMs,
     this.holdEndMs,
     this.holdParkMs,
+    this.chord,
   });
 
   final int index;
@@ -66,6 +81,10 @@ class PracticeStep {
   final double onMs;
   final List<SoundEvent> notes;
   final Set<int> remaining;
+
+  /// A exigência do acorde da cifra neste instante, se há (AC05). Um passo tem
+  /// no máximo uma.
+  final ChordDemand? chord;
 
   /// Cápsula do modo "notas com duração" ([WaitModeSession] com
   /// `holdFraction`), em ms musicais: começo e fim, enquanto o aluno segura o
@@ -130,6 +149,14 @@ const double kHoldFraction = 0.6;
 /// todo seguro fecha o passo. Teclas que já estavam apertadas quando o passo
 /// começou (a mão ainda no acorde anterior, no legato) não contam como
 /// erradas: só as apertadas durante o passo.
+///
+/// Com um [PracticeStep.chord] (AC05), o passo também cobra o acorde da cifra:
+/// as teclas que ele aceita contam como as notas (sem janela de tempo, só
+/// com elas presas), e a tecla que ele não aceita é errada. O passo fecha com a
+/// melodia tocada **e** o acorde cumprido; o veredito do acorde sai num só, sem
+/// `eventId`, com o `atMs` do ataque. Como as notas, uma tecla já segurada
+/// quando o passo começa não conta para o acorde: é preciso soltá-la e
+/// apertá-la.
 class WaitModeSession {
   WaitModeSession(
     List<PracticeStep> steps, {
@@ -144,17 +171,28 @@ class WaitModeSession {
   /// só junta pautas diferentes que caem no mesmo instante). Notas de
   /// ornamento (`SoundEvent.ornament`) não entram nos passos — D-TREINO não
   /// cobra ornamento na 1.0, o aluno não precisa tocá-las.
+  ///
+  /// [chords] (AC05) são as exigências de acorde da rodada: cada uma vai para o
+  /// passo da melodia que cai a até [kRangeBoundaryToleranceMs] dela (o Verovio
+  /// arredonda os ataques), ou ganha um passo só seu. As que já valem sem
+  /// nenhuma tecla ([ChordDemand.satisfied] com vazio) não se cobram e ficam de
+  /// fora. Duas no mesmo passo são erro de quem monta a rodada.
   factory WaitModeSession.forStaves(
     PerformanceTrack track, {
     required Set<int> staves,
     double chordWindowMs = kWaitChordWindowMs,
     double? holdFraction,
+    List<ChordDemand> chords = const [],
   }) {
     final byOnMs = <double, List<SoundEvent>>{};
     for (final chord in track.chords(staves: staves)) {
       final notes = chord.notes.where((e) => !e.ornament).toList();
       if (notes.isEmpty) continue;
       byOnMs.putIfAbsent(chord.onMs, () => []).addAll(notes);
+    }
+    final chordAt = _chordsByOnset(chords, byOnMs.keys.toSet());
+    for (final onMs in chordAt.keys) {
+      byOnMs.putIfAbsent(onMs, () => []);
     }
     final onsets = byOnMs.keys.toList()..sort();
     var i = 0;
@@ -165,6 +203,7 @@ class WaitModeSession {
           onMs: onMs,
           notes: byOnMs[onMs]!,
           remaining: byOnMs[onMs]!.map((e) => e.pitch).toSet(),
+          chord: chordAt[onMs],
         ),
     ];
     return WaitModeSession(
@@ -172,6 +211,39 @@ class WaitModeSession {
       chordWindowMs: chordWindowMs,
       holdFraction: holdFraction,
     );
+  }
+
+  /// Onde cada exigência de acorde cai: no instante de uma nota de [onsets] que
+  /// está a até [kRangeBoundaryToleranceMs] dela (a mais perto), ou no próprio
+  /// ataque. As que já valem sem tecla não entram. [onsets] cresce com os
+  /// instantes novos, para que duas exigências próximas caiam no mesmo passo.
+  static Map<double, ChordDemand> _chordsByOnset(
+    List<ChordDemand> chords,
+    Set<double> onsets,
+  ) {
+    final at = <double, ChordDemand>{};
+    for (final chord in chords) {
+      if (chord.satisfied(const <int>{})) continue;
+      var onMs = chord.onMs;
+      var best = double.infinity;
+      for (final onset in onsets) {
+        final gap = (onset - chord.onMs).abs();
+        if (gap <= kRangeBoundaryToleranceMs && gap < best) {
+          best = gap;
+          onMs = onset;
+        }
+      }
+      if (at.containsKey(onMs)) {
+        throw ArgumentError.value(
+          chord.onMs,
+          'chords',
+          'duas exigências de acorde no mesmo passo',
+        );
+      }
+      at[onMs] = chord;
+      onsets.add(onMs);
+    }
+    return at;
   }
 
   final List<PracticeStep> _steps;
@@ -206,6 +278,11 @@ class WaitModeSession {
   /// houver alguma, o acorde não fecha.
   final Set<int> _wrongHeld = {};
 
+  /// As teclas que o passo aceitou e que o aluno segura agora, com o instante
+  /// em que foram apertadas: as notas da melodia e as do acorde (AC05). Só
+  /// entram as apertadas depois de o passo começar ([_startStep] limpa).
+  final Map<int, double> _chordHeld = {};
+
   final ValueNotifier<PracticeStep?> _current = ValueNotifier(null);
 
   /// Passo atual, com `remaining` sempre atualizado; `null` quando a peça
@@ -238,7 +315,7 @@ class WaitModeSession {
   void tick(double musicalMs) {
     _lastTickMs = musicalMs;
     if (done || _holdEndMs == null) return;
-    if (_remaining.isEmpty && _wrongHeld.isEmpty && musicalMs >= _holdEndMs!) {
+    if (_stepReady() && musicalMs >= _holdEndMs!) {
       _completeStep();
     }
   }
@@ -268,11 +345,24 @@ class WaitModeSession {
     }
     _held.add(pitch);
 
+    final step = _steps[_index];
     if (!_remaining.contains(pitch)) {
-      // Nota que já vale no acorde (repetida sem soltar) não é erro.
-      if (_steps[_index].notes.any((e) => e.pitch == pitch)) return;
+      // Nota que já vale no acorde (repetida sem soltar) não é erro. Com acorde
+      // da cifra, ela também conta para ele.
+      if (step.notes.any((e) => e.pitch == pitch)) {
+        _chordHeld[pitch] = atMs;
+        if (step.chord != null) _completeOrPublish();
+        return;
+      }
+      // Tecla do acorde da cifra (AC05): conta para ele, e não é erro.
+      if (step.chord?.allows(pitch) ?? false) {
+        _chordHeld[pitch] = atMs;
+        _completeOrPublish();
+        return;
+      }
       // Errada: o acorde não fecha enquanto ela estiver apertada. As certas
-      // já seguradas continuam valendo.
+      // já seguradas continuam valendo. Num passo com acorde, o veredito leva o
+      // ataque dele, para o compasso sair certo na escada.
       _wrongHeld.add(pitch);
       _verdicts.add(
         NoteVerdict(
@@ -280,6 +370,7 @@ class WaitModeSession {
           kind: PracticeVerdictKind.wrong,
           deltaMs: 0,
           velocity: velocity,
+          atMs: step.chord == null ? null : step.onMs,
         ),
       );
       return;
@@ -288,13 +379,36 @@ class WaitModeSession {
     _firstHitAtMs ??= atMs;
     _remaining.remove(pitch);
     _hits[pitch] = (atMs: atMs, velocity: velocity);
+    _chordHeld[pitch] = atMs;
     _completeOrPublish();
   }
 
-  /// Fecha o passo se o acorde está todo apertado e nenhuma errada está;
-  /// senão republica o que falta.
+  /// O passo pode fechar: as notas da melodia estão todas tocadas, nenhuma
+  /// tecla errada está segura, e o acorde da cifra (se há) cumpre o que a camada
+  /// pede.
+  bool _stepReady() {
+    if (_remaining.isNotEmpty || _wrongHeld.isNotEmpty) return false;
+    final step = _steps[_index];
+    final chord = step.chord;
+    return chord == null || chord.satisfied(_chordKeysOf(step));
+  }
+
+  /// As teclas que o acorde do [step] vê: as que o passo aceitou e o aluno segura,
+  /// menos as notas da melodia que o acorde não aceita (a nota de passagem não é
+  /// do acorde, e a melodia já se cobra pelos ids).
+  Set<int> _chordKeysOf(PracticeStep step) {
+    final chord = step.chord;
+    if (chord == null) return const <int>{};
+    final melody = {for (final e in step.notes) e.pitch};
+    return {
+      for (final pitch in _chordHeld.keys)
+        if (!melody.contains(pitch) || chord.allows(pitch)) pitch,
+    };
+  }
+
+  /// Fecha o passo se ele pode fechar ([_stepReady]); senão republica o que falta.
   void _completeOrPublish() {
-    if (_remaining.isEmpty && _wrongHeld.isEmpty) {
+    if (_stepReady()) {
       if (holdFraction == null) {
         _completeStep();
         return;
@@ -355,7 +469,27 @@ class WaitModeSession {
         ),
       );
     }
+    if (step.chord != null) _emitChordVerdict(step, first);
     _startStep(_index + 1);
+  }
+
+  /// O acorde do [step] fechou: um `correct` só, sem `eventId` (o acorde não é
+  /// nota da partitura), com o `atMs` do ataque. A tecla é a mais grave das que
+  /// cumpriram o acorde. `deltaMs` é a da primeira delas contra a primeira da
+  /// melodia ([melodyFirst]); sem melodia no passo, é 0.
+  void _emitChordVerdict(PracticeStep step, double melodyFirst) {
+    final keys = _chordKeysOf(step).toList()..sort();
+    final chordFirst = keys.isEmpty
+        ? 0.0
+        : keys.map((p) => _chordHeld[p]!).reduce((a, b) => a < b ? a : b);
+    _verdicts.add(
+      NoteVerdict(
+        pitch: keys.isEmpty ? 0 : keys.first,
+        kind: PracticeVerdictKind.correct,
+        deltaMs: _hits.isEmpty ? 0 : chordFirst - melodyFirst,
+        atMs: step.onMs,
+      ),
+    );
   }
 
   /// Tecla solta: limpa o bloqueio de "precisa soltar e apertar de novo"
@@ -365,12 +499,13 @@ class WaitModeSession {
   void noteOff(int pitch) {
     _held.remove(pitch);
     _blocked.remove(pitch);
+    _chordHeld.remove(pitch);
     final wasWrong = _wrongHeld.remove(pitch);
     if (done) return;
     if (wasWrong) {
       // Com a cápsula, a errada solta pode deixar o acorde pronto mas ainda sem
       // fim: `_completeOrPublish` então republica a cápsula em vez de fechar.
-      if (_remaining.isEmpty && _wrongHeld.isEmpty) _completeOrPublish();
+      if (_stepReady()) _completeOrPublish();
       return;
     }
     final step = _steps[_index];
@@ -428,8 +563,10 @@ class WaitModeSession {
     _remaining = step.notes.map((e) => e.pitch).toSet();
     _blocked = _held.intersection(_remaining);
     _hits.clear();
-    // O que ainda está apertado de antes não é erro deste passo.
+    // O que ainda está apertado de antes não é erro deste passo, e não conta para
+    // o acorde dele (só o apertado depois de o passo começar).
     _wrongHeld.clear();
+    _chordHeld.clear();
     _firstHitAtMs = null;
     _publish(step);
   }
@@ -466,6 +603,7 @@ class WaitModeSession {
       holdStartMs: holdEnd == null ? null : step.onMs,
       holdEndMs: holdEnd,
       holdParkMs: holdEnd == null ? null : _noteEndOf(_index),
+      chord: step.chord,
     );
   }
 
@@ -479,6 +617,15 @@ class WaitModeSession {
 /// Modo tempo real (T01): casa notas tocadas — já convertidas para ms
 /// musicais pela camada de cima (K04) — contra a janela de cada evento
 /// esperado. Dirigido por [noteOn] e por [tick] (que marca `missed`).
+///
+/// Com [chords] (AC05b, tocar pela cifra), cada exigência de acorde tem uma
+/// janela `[onMs − early, onMs + late]` com a mesma tolerância das notas. As
+/// teclas que ela aceita e que são apertadas dentro da janela contam para ela
+/// (sem ordem nem soltura: a janela é a simultaneidade). Ao fim da janela, o
+/// acorde vira `correct`, `early` ou `late` (pelo primeiro toque, como as
+/// notas) se essas teclas cumprem o acorde, ou `missed` se não. Sem `eventId`
+/// e com o `atMs` do ataque. Uma tecla já presa desde o ataque anterior não
+/// conta para o seguinte: é preciso apertá-la de novo dentro da janela.
 class RealtimeSession {
   RealtimeSession(
     List<SoundEvent> events, {
@@ -487,9 +634,12 @@ class RealtimeSession {
     this.windowMaxMs = 150,
     this.adaptiveWindow = false,
     this.forgiveSounding = false,
+    List<ChordDemand> chords = const [],
   }) : _all = List<SoundEvent>.of(events)
          ..sort((a, b) => a.onMs.compareTo(b.onMs)) {
     _pending = List<SoundEvent>.of(_all);
+    _chordsAll = _attacksOf(chords);
+    _chords = [for (final chord in _chordsAll) chord.fresh()];
     if (adaptiveWindow) _computeWindows();
     _computeGroups();
   }
@@ -504,6 +654,7 @@ class RealtimeSession {
     double windowMaxMs = 150,
     bool adaptiveWindow = false,
     bool forgiveSounding = false,
+    List<ChordDemand> chords = const [],
   }) {
     final events = track.events.where((e) => staves.contains(e.staff));
     return RealtimeSession(
@@ -513,6 +664,7 @@ class RealtimeSession {
       windowMaxMs: windowMaxMs,
       adaptiveWindow: adaptiveWindow,
       forgiveSounding: forgiveSounding,
+      chords: chords,
     );
   }
 
@@ -541,11 +693,28 @@ class RealtimeSession {
   final List<SoundEvent> _all;
   late List<SoundEvent> _pending;
 
-  /// O ataque do primeiro alvo ainda pendente (o mais cedo), ou `null`.
-  double? get firstPendingOnMs => _pending.isEmpty ? null : _pending.first.onMs;
+  /// Os ataques de cifra (AC05b) da sessão, na ordem de `onMs`, com a janela de
+  /// cada um; e os que ainda estão abertos (sem veredito), com as teclas que
+  /// contam para eles. [resetTo] refaz os abertos a partir dos de [_chordsAll].
+  late final List<_ChordAttack> _chordsAll;
+  late List<_ChordAttack> _chords;
+
+  /// O ataque do primeiro alvo ainda pendente (o mais cedo, nota ou acorde), ou
+  /// `null`.
+  double? get firstPendingOnMs {
+    final note = _pending.isEmpty ? null : _pending.first.onMs;
+    final chord = _chords.isEmpty ? null : _chords.first.onMs;
+    if (note == null) return chord;
+    if (chord == null) return note;
+    return note < chord ? note : chord;
+  }
 
   /// As notas depois do fim do trecho ([resetTo] com `untilMs`).
   List<SoundEvent> _beyond = const [];
+
+  /// Os ataques de cifra depois do fim do trecho (como [_beyond]): a tecla deles
+  /// tocada um pouco antes do fim não é `wrong` do compasso que repete.
+  List<_ChordAttack> _beyondChords = const [];
 
   /// T11, a *fioritura*: um grupo irregular longo ([SoundEvent.groupId], 3
   /// eventos ou mais) tem a primeira e a última notas com a janela normal; as
@@ -604,16 +773,55 @@ class RealtimeSession {
           final gap = group[j].onMs - e.onMs;
           if (gap > 0) after = gap;
         }
-        double cap(double? gap, double share, double limit) =>
-            gap == null || gap * share >= limit ? limit : gap * share;
-        final ok = cap(before, 0.5, cap(after, 0.5, windowOkMs));
+        final ok = _capGap(before, 0.5, _capGap(after, 0.5, windowOkMs));
         _windowOf[e] = (
-          early: cap(before, 0.5, windowMaxMs),
-          late: cap(after, 0.75, windowMaxMs),
+          early: _capGap(before, 0.5, windowMaxMs),
+          late: _capGap(after, 0.75, windowMaxMs),
           ok: ok,
         );
       }
     }
+  }
+
+  /// Os ataques de cifra da sessão (AC05b), na ordem de `onMs`. Um que já vale
+  /// sem tecla (o N.C.) não se cobra e fica de fora. Sem [adaptiveWindow], todos
+  /// têm a janela fixa das notas; com ela, o vizinho mais perto (outro ataque
+  /// de cifra) encolhe a janela, como as notas de mesmo tom.
+  List<_ChordAttack> _attacksOf(List<ChordDemand> chords) {
+    final demands = [
+      for (final chord in chords)
+        if (!chord.satisfied(const <int>{})) chord,
+    ]..sort((a, b) => a.onMs.compareTo(b.onMs));
+    return [
+      for (var i = 0; i < demands.length; i++) _chordAttackAt(demands, i),
+    ];
+  }
+
+  _ChordAttack _chordAttackAt(List<ChordDemand> demands, int i) {
+    final onMs = demands[i].onMs;
+    double? before, after;
+    for (var j = i - 1; j >= 0 && before == null; j--) {
+      final gap = onMs - demands[j].onMs;
+      if (gap > 0) before = gap;
+    }
+    for (var j = i + 1; j < demands.length && after == null; j++) {
+      final gap = demands[j].onMs - onMs;
+      if (gap > 0) after = gap;
+    }
+    if (!adaptiveWindow) {
+      return _ChordAttack(
+        demands[i],
+        early: windowMaxMs,
+        late: windowMaxMs,
+        ok: windowOkMs,
+      );
+    }
+    return _ChordAttack(
+      demands[i],
+      early: _capGap(before, 0.5, windowMaxMs),
+      late: _capGap(after, 0.75, windowMaxMs),
+      ok: _capGap(before, 0.5, _capGap(after, 0.5, windowOkMs)),
+    );
   }
 
   final StreamController<NoteVerdict> _verdicts =
@@ -648,6 +856,11 @@ class RealtimeSession {
   /// veredito (D-TREINO: não cobrados na 1.0).
   void noteOn(int pitch, double musicalMs, {int velocity = 0}) {
     if (adaptiveWindow) _expire(musicalMs, pitch: pitch);
+    // Os ataques de cifra que já fecharam decidem antes desta tecla (ela não é
+    // mais deles). Depois, a tecla conta para os que a janela dela cobre; ela
+    // pode ser também a nota da melodia (a de cima do hino), e conta para as duas.
+    _expireChords(musicalMs);
+    final chordKey = _pressChord(pitch, musicalMs);
     final found = _candidates(pitch, musicalMs);
     final best = found.best;
     if (best != null) {
@@ -676,6 +889,10 @@ class RealtimeSession {
       return;
     }
 
+    // Tecla do acorde da cifra que a janela aberta aceita: não é erro (o veredito
+    // do acorde sai no fim da janela).
+    if (chordKey) return;
+
     // A primeira nota do compasso seguinte, tocada um pouco antes do fim do
     // trecho ([resetTo] com `untilMs`), é do que vem depois: não é erro deste.
     for (final e in _beyond) {
@@ -686,6 +903,8 @@ class RealtimeSession {
         return;
       }
     }
+    // O mesmo para o acorde do compasso seguinte.
+    if (_beyondChordKey(pitch, musicalMs)) return;
 
     if (forgiveSounding && _sounding(pitch, musicalMs)) return;
 
@@ -695,6 +914,79 @@ class RealtimeSession {
         kind: PracticeVerdictKind.wrong,
         deltaMs: 0,
         velocity: velocity,
+        atMs: musicalMs,
+      ),
+    );
+  }
+
+  /// [t] cai na janela de [a] (a de [_inWindow] para as notas, com a do ataque).
+  bool _inChordWindow(_ChordAttack a, double t) {
+    final delta = t - a.onMs;
+    return delta < 0 ? -delta <= a.early : delta <= a.late;
+  }
+
+  /// A tecla [pitch], apertada em [musicalMs], conta para cada ataque de cifra
+  /// aberto (a janela dele cobre o instante) que a aceita. Só conta a apertada
+  /// dentro da janela: a que chegou antes dela é errada, e a que ficou presa
+  /// desde o ataque anterior precisa ser solta e apertada de novo. `true` se
+  /// algum ataque a aceitou.
+  bool _pressChord(int pitch, double musicalMs) {
+    var accepted = false;
+    for (final a in _chords) {
+      if (!_inChordWindow(a, musicalMs) || !a.demand.allows(pitch)) continue;
+      accepted = true;
+      a.pressed.putIfAbsent(pitch, () => musicalMs);
+    }
+    return accepted;
+  }
+
+  /// A tecla [pitch] é de um acorde do compasso seguinte ([_beyondChords]) e
+  /// foi tocada perto dele: não é `wrong` deste compasso.
+  bool _beyondChordKey(int pitch, double musicalMs) => _beyondChords.any(
+    (a) =>
+        a.demand.allows(pitch) &&
+        musicalMs >= a.onMs - _maxMs &&
+        musicalMs <= a.onMs + _maxMs,
+  );
+
+  /// Decide os ataques de cifra cuja janela já fechou em [now] (ver
+  /// [_decideChord]).
+  void _expireChords(double now) {
+    _chords.removeWhere((a) {
+      if (now <= a.endMs) return false;
+      _decideChord(a);
+      return true;
+    });
+  }
+
+  /// O ataque de cifra [a] fechou. `correct`, `early` ou `late` (pelo primeiro
+  /// toque das teclas que contam, como as notas) se essas teclas cumprem o
+  /// acorde; senão `missed`. Não tem `eventId` (o acorde não é nota da partitura),
+  /// e leva o ataque em `atMs`, para o compasso sair dele e não do último toque.
+  void _decideChord(_ChordAttack a) {
+    final keys = a.pressed;
+    if (keys.isEmpty || !a.demand.satisfied(keys.keys.toSet())) {
+      _verdicts.add(
+        NoteVerdict(
+          pitch: 0,
+          kind: PracticeVerdictKind.missed,
+          deltaMs: 0,
+          atMs: a.onMs,
+        ),
+      );
+      return;
+    }
+    final first = keys.values.reduce((x, y) => x < y ? x : y);
+    final delta = first - a.onMs;
+    final kind = delta.abs() <= a.ok
+        ? PracticeVerdictKind.correct
+        : (delta < 0 ? PracticeVerdictKind.early : PracticeVerdictKind.late);
+    _verdicts.add(
+      NoteVerdict(
+        pitch: keys.keys.reduce((x, y) => x < y ? x : y),
+        kind: kind,
+        deltaMs: delta,
+        atMs: a.onMs,
       ),
     );
   }
@@ -797,14 +1089,19 @@ class RealtimeSession {
 
   /// Avança o relógio musical: eventos cuja janela (`onMs + janelaMax`) já
   /// passou sem casar viram `missed` — exceto ornamentos, que somem em
-  /// silêncio (não cobrados na 1.0).
-  void tick(double musicalNowMs) => _expire(musicalNowMs);
+  /// silêncio (não cobrados na 1.0). Os ataques de cifra cuja janela fechou
+  /// viram `correct`/`early`/`late` ou `missed` (ver [_decideChord]).
+  void tick(double musicalNowMs) {
+    _expire(musicalNowMs);
+    _expireChords(musicalNowMs);
+  }
 
-  /// Há nota do aluno ainda sem veredito cujo ataque cai em
+  /// Há nota do aluno, ou ataque de cifra, ainda sem veredito cujo ataque cai em
   /// `[startMs, endMs)` (ornamentos não contam: somem em silêncio). É o que a
   /// volta na hora consulta para saber se um compasso já está decidido.
   bool hasPendingIn(double startMs, double endMs) =>
-      _pending.any((e) => !e.ornament && e.onMs >= startMs && e.onMs < endMs);
+      _pending.any((e) => !e.ornament && e.onMs >= startMs && e.onMs < endMs) ||
+      _chords.any((a) => a.onMs >= startMs && a.onMs < endMs);
 
   /// O [tick], só para [pitch] quando dado.
   void _expire(double musicalNowMs, {int? pitch}) {
@@ -841,6 +1138,16 @@ class RealtimeSession {
               (untilMs == null || e.onMs < untilMs),
         )
         .toList();
+    // Os acordes do trecho voltam abertos, sem as teclas da tentativa anterior.
+    _beyondChords = untilMs == null
+        ? const []
+        : _chordsAll.where((a) => a.onMs >= untilMs).toList();
+    _chords = [
+      for (final a in _chordsAll)
+        if (a.onMs >= musicalMs - kRangeBoundaryToleranceMs &&
+            (untilMs == null || a.onMs < untilMs))
+          a.fresh(),
+    ];
   }
 
   void dispose() => unawaited(_verdicts.close());
@@ -854,4 +1161,38 @@ class _Fioritura {
   final double startMs;
   final double endMs;
   final List<SoundEvent> order = [];
+}
+
+/// A janela que sobra do vizinho: [share] do intervalo até ele, se for menor que
+/// [limit]; sem vizinho, [limit].
+double _capGap(double? gap, double share, double limit) =>
+    gap == null || gap * share >= limit ? limit : gap * share;
+
+/// Um ataque de cifra na [RealtimeSession] (AC05b): a exigência, a janela dela
+/// (antes do ataque, [early]; depois, [late]; a de certo, [ok]) e as teclas que
+/// o aluno apertou nela, com o instante do primeiro toque de cada uma.
+class _ChordAttack {
+  _ChordAttack(
+    this.demand, {
+    required this.early,
+    required this.late,
+    required this.ok,
+  });
+
+  final ChordDemand demand;
+  final double early;
+  final double late;
+  final double ok;
+
+  /// As teclas que a exigência aceita, apertadas dentro da janela (tecla → ms).
+  final Map<int, double> pressed = {};
+
+  double get onMs => demand.onMs;
+
+  /// O fim da janela: o ataque decide-se aqui.
+  double get endMs => onMs + late;
+
+  /// O mesmo ataque, sem teclas (a sessão refaz os abertos a cada [resetTo]).
+  _ChordAttack fresh() =>
+      _ChordAttack(demand, early: early, late: late, ok: ok);
 }

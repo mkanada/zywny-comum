@@ -19,6 +19,7 @@ import 'package:zywny_diag/diag_log.dart';
 import 'package:zywny_audio/performance_track.dart';
 
 import 'stage_result.dart';
+import 'chord_demand.dart';
 import 'hand.dart';
 import 'measure_rewind.dart';
 import 'performance_capture.dart';
@@ -79,6 +80,7 @@ class PracticeController {
     this.repeatNoticeDuration = kRepeatNoticeDuration,
     this.restColors = const {},
     this.holdNotes = false,
+    this.chordDemands = const [],
   }) : _midiInput = midiInput, // ignore: prefer_initializing_formals
        _track = track {
     if (range != null) {
@@ -117,6 +119,23 @@ class PracticeController {
     );
   }
 
+  /// As exigências de acorde que as sessões veem: as que caem no intervalo e
+  /// não num salto dele (a sessão não tem as notas de fora, como em
+  /// `rangeView`, que usa o mesmo corte).
+  List<ChordDemand> get _sessionChords {
+    final range = this.range;
+    return [
+      for (final chord in chordDemands)
+        if ((range == null ||
+                (chord.onMs >= range.startMs - kRangeBoundaryToleranceMs &&
+                    chord.onMs < range.endMs - kRangeBoundaryToleranceMs)) &&
+            !rangeJumps.any(
+              (jump) => chord.onMs >= jump.startMs && chord.onMs < jump.endMs,
+            ))
+          chord,
+    ];
+  }
+
   /// Abre a sessão de avaliação do modo ([WaitModeSession] ou
   /// [RealtimeSession]) sobre [sessionTrack] e liga os veredictos.
   void _openSession(PerformanceTrack sessionTrack) {
@@ -125,6 +144,7 @@ class PracticeController {
         sessionTrack,
         staves: hand.studentStaves,
         holdFraction: holdNotes ? kHoldFraction : null,
+        chords: _sessionChords,
       );
       _wait = wait;
       _ownWait = wait;
@@ -143,6 +163,7 @@ class PracticeController {
         windowMaxMs: rhythmToleranceMs * 2,
         adaptiveWindow: adaptiveWindow,
         forgiveSounding: forgiveSounding,
+        chords: _sessionChords,
       );
       _rt = rt;
       _verdictSub = rt.verdicts.listen(_onVerdict);
@@ -178,6 +199,12 @@ class PracticeController {
   /// enquanto o aluno segura, e a soltura cedo volta ao começo da nota, sem
   /// erro. Desligada, o modo espera é o de sempre.
   final bool holdNotes;
+
+  /// As exigências de acorde da rodada (AC05, tocar pela cifra): um passo a
+  /// mais no modo espera, e uma janela por ataque no tempo real (AC05b), em cada
+  /// ataque de cifra. As que caem fora do intervalo ou num salto dele ficam de
+  /// fora ([_sessionChords]).
+  final List<ChordDemand> chordDemands;
 
   /// Soltaram-se cedo as notas com duração desta sessão (ver [holdNotes]).
   int _earlyReleases = 0;
@@ -1096,6 +1123,7 @@ class PracticeController {
     final created = WaitModeSession.forStaves(
       _sessionTrack,
       staves: hand.studentStaves,
+      chords: _sessionChords,
     );
     _ownWait = created;
     created.current.addListener(_onStepChanged);
@@ -1375,9 +1403,11 @@ class PracticeController {
   }
 
   void _record(NoteVerdict verdict) {
-    final ms = verdict.eventId != null
-        ? _eventOnMs(verdict.eventId!)
-        : (_wait?.current.value?.onMs ?? _lastPlayedMusicalMs);
+    final ms =
+        verdict.atMs ??
+        (verdict.eventId != null
+            ? _eventOnMs(verdict.eventId!)
+            : (_wait?.current.value?.onMs ?? _lastPlayedMusicalMs));
     final index = _measureAt(ms);
     _entries.add(ReportEntry(verdict, index, pass: passOf?.call(index) ?? 1));
     if (rewindOnError &&
@@ -1433,7 +1463,8 @@ class PracticeController {
     _unwatchShift(verdict);
     _correctCount.value++;
     if (_waitLook) {
-      _closeHit(verdict.pitch);
+      // O acorde da cifra (sem `eventId`) não acende nota da partitura.
+      if (verdict.eventId != null) _closeHit(verdict.pitch);
     } else if (verdict.eventId != null) {
       controller.highlightAll(
         _chainOf(verdict.eventId!),
