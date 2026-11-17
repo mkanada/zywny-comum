@@ -140,12 +140,24 @@ List<ScoreBandRect> scoreBandRects(
         entry.value.refs,
         _firstGeometry(entry.value.staves.values),
       );
+      final base = _groupRect(entry.value, labelSize: null);
+      final fitted = hasLabel ? _fittingLabelSize(base.top, space) : null;
+      // Sem folga nem para uma letra legível, o aviso não se desenha.
+      final showLabel = hasLabel && fitted != null;
+      final labelSize = fitted ?? 2.5 * space;
       out.add((
         entry.key,
         ScoreBandRect(
-          _groupRect(entry.value, label: hasLabel),
-          label: hasLabel ? band.label : null,
-          labelSize: 2.5 * space,
+          showLabel
+              ? ui.Rect.fromLTRB(
+                  base.left,
+                  base.top - scoreBandLabelReserve(labelSize),
+                  base.right,
+                  base.bottom,
+                )
+              : base,
+          label: showLabel ? band.label : null,
+          labelSize: labelSize,
           fill: band.fill,
         ),
       ));
@@ -222,12 +234,24 @@ double _spaceOf(List<ElementRef> refs, StaffGeometry? staff) {
 /// retângulo, acima das pautas.
 double scoreBandLabelReserve(double labelSize) => labelSize * 1.6;
 
+/// O tamanho da letra do aviso: o de sempre (2,5 espaços de pauta), mas, se a
+/// folga acima do sistema ([topY], na página, que começa em 0) não comporta a
+/// reserva dele (o primeiro sistema da página), a letra encolhe até caber, sem
+/// passar de metade do tamanho normal para baixo. Antes o retângulo subia para
+/// fora da página e o aviso caía sobre as notas.
+double? _fittingLabelSize(double topY, double space) {
+  final normal = 2.5 * space;
+  if (topY >= scoreBandLabelReserve(normal)) return normal;
+  final fits = math.max(topY, 0) / 1.6;
+  return fits < 0.6 * space ? null : fits;
+}
+
 /// O retângulo de um sistema: da nota mais à esquerda à mais à direita, com uma
 /// distância de folga de cada lado. Em cima e embaixo, as pautas que as notas
 /// usam (com uma folga), unidas às notas (a linha suplementar sai da pauta).
 /// Sem pauta: só as bbox das notas, com folga de metade da altura delas. Com
-/// [label], o topo sobe a altura do aviso, que fica dentro da faixa.
-ui.Rect _groupRect(_BandGroup group, {required bool label}) {
+/// [labelSize], o topo sobe a altura do aviso, que fica dentro da faixa.
+ui.Rect _groupRect(_BandGroup group, {required double? labelSize}) {
   final refs = group.refs;
   var left = double.infinity;
   var right = double.negativeInfinity;
@@ -258,7 +282,7 @@ ui.Rect _groupRect(_BandGroup group, {required bool label}) {
     top = math.min(top, staffTop);
     bottom = math.max(bottom, staffBottom);
   }
-  if (label) top -= scoreBandLabelReserve(2.5 * space);
+  if (labelSize != null) top -= scoreBandLabelReserve(labelSize);
   return ui.Rect.fromLTRB(left - space, top, right + space, bottom);
 }
 

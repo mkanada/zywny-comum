@@ -1,9 +1,10 @@
 // T04: batidas do metrônomo e da contagem inicial, derivadas do timemap do
 // `.vsb` — que não traz fórmula de compasso, só `qstamp` (semínimas desde o
 // início) e `measureOn` (abre a ocorrência de um compasso). Uma batida por
-// semínima, a 1ª do compasso é o tempo forte. Em 6/8 (ou qualquer fórmula
-// composta) isso dá batidas de semínima, não de colcheia pontuada — aceito
-// para a 1.0 (T04, "fora de escopo": fórmulas compostas perfeitas).
+// semínima, a 1ª do compasso é o tempo forte. Quando a fórmula desenhada tem
+// colcheia (ou menos) por unidade (6/8, 3/8, 12/8), a batida é a colcheia: o
+// 6/8 dá 6 cliques por compasso (issue 29). A fórmula vem dos glifos da
+// `meterSig` que o Verovio desenhou (`beatQuartersOf`), nunca do XML.
 //
 // O `qstamp` só existe nas entradas do timemap, então o instante de uma
 // semínima sem entrada (o tempo 2 de um compasso 3/4 com uma nota longa) sai
@@ -37,6 +38,7 @@ const int kMetronomeNote = 77;
 
 /// Batidas de todos os compassos de [timeline], em ordem de execução.
 List<Beat> metronomeBeats(ScoreTimeline timeline) {
+  final beatQuarters = beatQuartersOf(timeline.document);
   final beats = <Beat>[];
   final entries = timeline.entries;
   final measures = timeline.measures;
@@ -48,7 +50,7 @@ List<Beat> metronomeBeats(ScoreTimeline timeline) {
     }
     final anchors = _anchorsOf(entries, e, info.endMs);
     if (anchors.pts.isEmpty) continue;
-    beats.addAll(_beatsInMeasure(anchors.pts, anchors.tempo, info, m));
+    beats.addAll(_beatsInMeasure(anchors, info, m, beatQuarters));
   }
   return beats;
 }
@@ -73,15 +75,17 @@ List<Beat> metronomeBeats(ScoreTimeline timeline) {
   return (pts: pts, tempo: tempo);
 }
 
-/// As batidas de um compasso a partir das âncoras [pts]: a primeira no começo
+/// As batidas de um compasso a partir das [anchors] (`pts`): a primeira no começo
 /// do compasso e, depois, uma a cada quarto (pelo tempo de cada trecho entre
 /// âncoras; o [tempo] escrito, se só há uma).
 List<Beat> _beatsInMeasure(
-  List<(double, double)> pts,
-  double? tempo,
+  ({List<(double, double)> pts, double? tempo}) anchors,
   MeasureInfo info,
   int m,
+  double beatQuarters,
 ) {
+  final pts = anchors.pts;
+  final tempo = anchors.tempo;
   final beats = <Beat>[];
   final q0 = pts.first.$2;
   final t0 = pts.first.$1;
@@ -93,7 +97,7 @@ List<Beat> _beatsInMeasure(
   }
   var seg = 0;
   for (var k = 0; ; k++) {
-    final q = q0 + k;
+    final q = q0 + k * beatQuarters;
     while (seg + 1 < pts.length && pts[seg + 1].$2 <= q) {
       seg++;
     }
@@ -111,6 +115,41 @@ List<Beat> _beatsInMeasure(
     beats.add(Beat(ms, accent: k == 0, measure: m));
   }
   return beats;
+}
+
+/// Quantas semínimas dura a batida do metrônomo no [document]: 1, ou, se a
+/// primeira fórmula de compasso desenhada tem unidade de colcheia ou menor,
+/// `4 / unidade` (0,5 no 6/8). Sem fórmula legível, 1.
+double beatQuartersOf(VsbDocument document) {
+  if (document.pages.isEmpty) return 1;
+  final unit = _firstMeterUnit(document.pages.first.root);
+  if (unit == null || unit < 8) return 1;
+  return 4 / unit;
+}
+
+/// O denominador da primeira `meterSig` sob [node] (os algarismos da fileira de
+/// baixo, SMuFL `E080`–`E089`), ou `null`.
+int? _firstMeterUnit(SceneNode node) {
+  if (node.className.split(' ').contains('meterSig')) {
+    final digits = <({double x, double y, int digit})>[];
+    for (final child in node.children) {
+      if (child is! SceneGlyphUse) continue;
+      final code = int.tryParse(child.glyphId.split(':').last, radix: 16);
+      if (code == null || code < 0xE080 || code > 0xE089) continue;
+      digits.add((x: child.x, y: child.y, digit: code - 0xE080));
+    }
+    if (digits.isEmpty) return null;
+    final bottomY = digits.map((d) => d.y).reduce((a, b) => a > b ? a : b);
+    final row = digits.where((d) => d.y == bottomY).toList()
+      ..sort((a, b) => a.x.compareTo(b.x));
+    return int.tryParse(row.map((d) => d.digit).join());
+  }
+  for (final child in node.children) {
+    if (child is! SceneNode) continue;
+    final unit = _firstMeterUnit(child);
+    if (unit != null) return unit;
+  }
+  return null;
 }
 
 /// Menor contagem inicial: com menos de 3 tempos não dá para sentir o

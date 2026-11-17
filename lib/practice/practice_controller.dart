@@ -327,6 +327,10 @@ class PracticeController {
   /// soltura, que segue para a sessão para não deixar nota presa.
   bool _repeatHold = false;
 
+  /// O último degrau abriu o portão do compasso seguinte antes do veredito
+  /// (issue 26): ao acabar a escada, a música não volta com `seek`.
+  bool _gateAhead = false;
+
   /// O [_repeatHold] é a contagem de um degrau de tempo real (não o aviso): a
   /// tecla adiantada, dentro da janela da primeira nota, ainda vale.
   bool _countInHold = false;
@@ -963,6 +967,7 @@ class PracticeController {
     final startMs = _measureStartMs(measure);
     scheduler.pause();
     scheduler.seek(startMs - kRangeBoundaryToleranceMs);
+    _gateAhead = false;
     _repeatHold = true;
     _countInHold = false;
     // Com o aviso em 0 s, nada aparece: o degrau começa na hora.
@@ -1026,7 +1031,16 @@ class PracticeController {
       wait.resetTo(startMs);
     } else {
       _wait = null;
-      scheduler.setGate(_gateOf(measure));
+      // No último degrau (o andamento da etapa), um compasso limpo segue direto:
+      // o portão já fica no fim do compasso seguinte, como no tempo real normal,
+      // e o áudio e o metrônomo dele são agendados antes do veredito. Com o
+      // portão no fim deste compasso, o seguinte só era agendado depois do
+      // veredito (e do `seek`), e a primeira batida dele saía atrasada pela
+      // antecedência do agendador e pela latência de saída (issue 26). Com erro,
+      // o `_hold` pausa e volta como sempre.
+      final following = _measureAfter(measure, endMs);
+      _gateAhead = ladder.index == ladder.length - 1 && following != null;
+      scheduler.setGate(_gateAhead ? _gateOf(following!) : _gateOf(measure));
       _rt?.resetTo(startMs, untilMs: endMs);
       _lastPositionMs = startMs;
       _setBrake(null);
@@ -1067,7 +1081,11 @@ class PracticeController {
     _watchMeasure = _measureAfter(measure, endMs);
     final next = _watchMeasure;
     scheduler.setGate(next == null ? null : _gateOf(next));
-    scheduler.seek(endMs - kRangeBoundaryToleranceMs);
+    // Com o portão adiantado (`_gateAhead`) a música já segue tocando o compasso
+    // seguinte: voltar com o `seek` o reagendaria e atrasaria a batida.
+    final ahead = _gateAhead;
+    _gateAhead = false;
+    if (!ahead) scheduler.seek(endMs - kRangeBoundaryToleranceMs);
   }
 
   /// A sessão de modo espera do degrau "só notas": a da própria rodada no modo

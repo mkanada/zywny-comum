@@ -39,6 +39,20 @@ void main() {
   List<ScoreBandRect> rectsOf(List<String> ids, {String? label}) =>
       scoreBandRects(page, 0, geometry, [ScoreBand(ids, label: label)]);
 
+  test('o aviso nunca sobe para fora da página (issue 28)', () {
+    final ids = doc.midi!.notes
+        .map((n) => n.id)
+        .where((id) => doc.geometry.elementOf(id)?.page == 0);
+    for (final id in ids) {
+      for (final r in rectsOf([id], label: _doros)) {
+        expect(r.rect.top, greaterThanOrEqualTo(0), reason: id);
+        if (r.label != null) {
+          expect(r.labelSize, greaterThan(0), reason: id);
+        }
+      }
+    }
+  });
+
   test('duas colunas de uma pauta dão um retângulo com a conta da pauta', () {
     const ids = ['e11eog5', 'xej0b6o'];
     final rects = rectsOf(ids, label: _doros);
