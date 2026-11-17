@@ -327,6 +327,13 @@ class PracticeController {
   /// soltura, que segue para a sessão para não deixar nota presa.
   bool _repeatHold = false;
 
+  /// O [_repeatHold] é a contagem de um degrau de tempo real (não o aviso): a
+  /// tecla adiantada, dentro da janela da primeira nota, ainda vale.
+  bool _countInHold = false;
+
+  /// Teclas aceitas na contagem: a soltura delas também segue para a sessão.
+  final Set<int> _earlyPitches = {};
+
   /// O aviso da escada, até o compasso repetir, e a contagem que o degrau
   /// seguinte pede.
   Timer? _holdTimer;
@@ -957,6 +964,7 @@ class PracticeController {
     scheduler.pause();
     scheduler.seek(startMs - kRangeBoundaryToleranceMs);
     _repeatHold = true;
+    _countInHold = false;
     // Com o aviso em 0 s, nada aparece: o degrau começa na hora.
     _publish(
       notice: repeatNoticeDuration == Duration.zero
@@ -1030,6 +1038,8 @@ class PracticeController {
           'em ${startMs.toStringAsFixed(1)}ms',
     );
     _repeatHold = withCount;
+    _countInHold = withCount && !rung.isWait;
+    _earlyPitches.clear();
     _publish(notice: RepeatNotice.none, countingIn: withCount);
     scheduler.play(startMs - kRangeBoundaryToleranceMs, countIn: withCount);
   }
@@ -1103,6 +1113,8 @@ class PracticeController {
     _holdTimer = null;
     _ladder = null;
     _repeatHold = false;
+    _countInHold = false;
+    _earlyPitches.clear();
     _pendingRung = null;
     _repeat.value = null;
   }
@@ -1240,8 +1252,10 @@ class PracticeController {
     // Pausada ou no aviso da escada: a tecla não conta, nem como erro nem como
     // acerto. A soltura chega à sessão de espera, para não deixar a nota presa.
     if (_paused || _repeatHold) {
-      if (!note.on) _wait?.noteOff(pitch);
-      return;
+      if (!_acceptsEarly(note, pitch)) {
+        if (!note.on) _wait?.noteOff(pitch);
+        return;
+      }
     }
     // A mesma hora musical para a gravação e para o tempo real (EX07).
     final musicalMs = scheduler.musicalAtDevice(
@@ -1273,6 +1287,24 @@ class PracticeController {
         _wrongPitches.value = Set.of(_wrongPitches.value)..remove(pitch);
       }
     }
+  }
+
+  /// Na contagem de um degrau de tempo real, a tecla cujo carimbo cai dentro da
+  /// janela adiantada da primeira nota do compasso conta (a pessoa tocou no
+  /// clique, uns ms antes do fim da contagem: o app a descartava e a nota virava
+  /// `missed`). Fora da janela, ou no aviso e na pausa, segue descartada.
+  bool _acceptsEarly(PlayedNote note, int pitch) {
+    if (_paused) return false;
+    if (!note.on) return _earlyPitches.remove(pitch);
+    final rt = _rt;
+    if (!_countInHold || rt == null || _ladder == null) return false;
+    final musicalMs = scheduler.musicalAtDevice(
+      note.atSeconds - inputLatencyMs / 1000,
+    );
+    final target = rt.firstPendingOnMs;
+    if (target == null || musicalMs < target - rt.windowMaxMs) return false;
+    _earlyPitches.add(pitch);
+    return true;
   }
 
   void _onSustain(SustainChange change) {

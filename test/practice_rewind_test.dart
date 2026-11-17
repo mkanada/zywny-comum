@@ -465,6 +465,47 @@ void main() {
       expect(rig.practice.report.correct, before + 1);
     });
 
+    // O compasso 5 do Satie tem nota no primeiro tempo (o 1 começa 790 ms depois).
+    test('degrau de tempo real: a primeira nota tocada uns ms antes do fim da '
+        'contagem (na janela adiantada) conta, não vira perdida', () async {
+      rig = _Rig(mode: PracticeMode.realtime, firstMeasure: 5, endMeasure: 7);
+      rig.practice.start();
+      await rig.playTimed(5, miss: 0);
+      rig.advanceTo(rig.timeline.measures[5].endMs + 400);
+      await rig.settle();
+      await rig.playWaitMeasure();
+      await rig.settle();
+      expect(rig.scheduler.isCountingIn, isTrue);
+      final first = rig.notesOf(5).first;
+      while (rig.scheduler.musicalAtDevice(rig.engine.now) < first.onMs - 15) {
+        rig.engine.now += 0.001;
+        rig.scheduler.pump();
+      }
+      expect(rig.scheduler.isCountingIn, isTrue, reason: 'ainda na contagem');
+      final before = rig.practice.report.correct;
+      rig.midi.press(first.pitch, atSeconds: rig.engine.now);
+      await pumpEventQueue();
+      expect(rig.practice.report.correct, before + 1);
+    });
+
+    test(
+      'a tecla tocada muito antes do fim da contagem segue descartada',
+      () async {
+        rig = _Rig(mode: PracticeMode.realtime, firstMeasure: 5, endMeasure: 7);
+        rig.practice.start();
+        await rig.playTimed(5, miss: 0);
+        rig.advanceTo(rig.timeline.measures[5].endMs + 400);
+        await rig.settle();
+        await rig.playWaitMeasure();
+        await rig.settle();
+        expect(rig.scheduler.isCountingIn, isTrue);
+        final before = rig.practice.report.correct;
+        rig.midi.press(rig.notesOf(5).first.pitch, atSeconds: rig.engine.now);
+        await pumpEventQueue();
+        expect(rig.practice.report.correct, before);
+      },
+    );
+
     test('degrau de tempo real: a primeira nota do compasso seguinte, tocada '
         'um pouco antes, não é erro do compasso que repete', () async {
       rig = _Rig(mode: PracticeMode.realtime, firstMeasure: 1, endMeasure: 3);

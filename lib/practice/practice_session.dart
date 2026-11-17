@@ -541,6 +541,9 @@ class RealtimeSession {
   final List<SoundEvent> _all;
   late List<SoundEvent> _pending;
 
+  /// O ataque do primeiro alvo ainda pendente (o mais cedo), ou `null`.
+  double? get firstPendingOnMs => _pending.isEmpty ? null : _pending.first.onMs;
+
   /// As notas depois do fim do trecho ([resetTo] com `untilMs`).
   List<SoundEvent> _beyond = const [];
 
