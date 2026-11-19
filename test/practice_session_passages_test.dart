@@ -179,14 +179,18 @@ void main() {
     test('a nota de cima do trilo, além das escritas, não é errada', () {
       // O trilo de ré5 em fusas (100 ms), de cima: mi, ré, mi, ré.
       final trill = PerformanceTrack.fromEvents([_ev('t', 74, 0, length: 400)])
-          .withOrnaments(plan: OrnamentPlan(expand: {
-              't': const [
-                OrnamentNote(76, 0, .25),
-                OrnamentNote(74, .25, .5),
-                OrnamentNote(76, .5, .75),
-                OrnamentNote(74, .75, 1),
-              ],
-            }));
+          .withOrnaments(
+            plan: OrnamentPlan(
+              expand: {
+                't': const [
+                  OrnamentNote(76, 0, .25),
+                  OrnamentNote(74, .25, .5),
+                  OrnamentNote(76, .5, .75),
+                  OrnamentNote(74, .75, 1),
+                ],
+              },
+            ),
+          );
       final session = RealtimeSession(
         trill.events,
         speed: 1,
@@ -214,14 +218,18 @@ void main() {
     ]);
 
     test('o ornamento por extenso: só a nota principal é cobrada', () {
-      final out = track.withOrnaments(plan: OrnamentPlan(expand: {
-          'n': const [
-            OrnamentNote(76, 0, .125),
-            OrnamentNote(74, .125, .25),
-            OrnamentNote(76, .25, .375),
-            OrnamentNote(74, .375, 1),
-          ],
-        }));
+      final out = track.withOrnaments(
+        plan: OrnamentPlan(
+          expand: {
+            'n': const [
+              OrnamentNote(76, 0, .125),
+              OrnamentNote(74, .125, .25),
+              OrnamentNote(76, .25, .375),
+              OrnamentNote(74, .375, 1),
+            ],
+          },
+        ),
+      );
       final notes = out.events.where((e) => e.id == 'n').toList();
       expect([for (final e in notes) e.pitch], [76, 74, 76, 74]);
       expect([for (final e in notes) e.onMs], [1000, 1100, 1200, 1300]);

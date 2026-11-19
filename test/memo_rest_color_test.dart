@@ -11,7 +11,9 @@ import 'package:zywny_comum/practice/practice_colors.dart';
 double _distance(Color a, Color b) {
   double d(double x, double y) => (x - y) * 255;
   return math.sqrt(
-    math.pow(d(a.r, b.r), 2) + math.pow(d(a.g, b.g), 2) + math.pow(d(a.b, b.b), 2),
+    math.pow(d(a.r, b.r), 2) +
+        math.pow(d(a.g, b.g), 2) +
+        math.pow(d(a.b, b.b), 2),
   );
 }
 

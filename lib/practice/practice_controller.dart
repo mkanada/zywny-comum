@@ -33,11 +33,24 @@ import 'wrong_mark.dart';
 
 export 'practice_mode.dart';
 export 'wrong_mark.dart';
-export 'repeat_ladder.dart' show RepeatNotice, RepeatRung, RepeatStatus;
+export 'repeat_ladder.dart'
+    show
+        RepeatKey,
+        RepeatListen,
+        RepeatMiss,
+        RepeatNotice,
+        RepeatRung,
+        RepeatStatus;
 
 /// Quanto tempo o aviso da escada de repetição ("Errou" ou "Acertou") fica na
 /// tela antes de o compasso repetir (LP25).
 const kRepeatNoticeDuration = Duration(seconds: 2);
+
+/// Na escuta do erro: o maior intervalo entre duas teclas (e a maior duração de
+/// uma) no modo espera, onde o aluno pode ter demorado, e a menor duração de uma
+/// tecla ainda apertada quando o erro é decidido.
+const kReplayMaxGapMs = 1500.0;
+const kReplayMinHoldMs = 120.0;
 
 /// Modo espera (T02): o aluno escolhe [hand], o app agenda a outra no
 /// [scheduler] (freio incluso) e cada nota tocada no [midiInput] alimenta o
@@ -78,6 +91,7 @@ class PracticeController {
     this.onRewind,
     this.repeatSpeeds = const [],
     this.repeatNoticeDuration = kRepeatNoticeDuration,
+    this.onMissReplay,
     this.restColors = const {},
     this.holdNotes = false,
     this.chordDemands = const [],
@@ -163,6 +177,9 @@ class PracticeController {
         windowMaxMs: rhythmToleranceMs * 2,
         adaptiveWindow: adaptiveWindow,
         forgiveSounding: forgiveSounding,
+        // Com a escada, a nota do app fora da janela do compasso que repete não
+        // é erro dele (ver `RealtimeSession.forStaves`).
+        absorbAppNotes: rewindOnError,
         chords: _sessionChords,
       );
       _rt = rt;
@@ -342,6 +359,13 @@ class PracticeController {
   /// Quanto tempo o aviso ("Errou" ou "Acertou") fica antes de o compasso repetir.
   final Duration repeatNoticeDuration;
 
+  /// A escuta do erro (o Eco): depois do aviso "Errou", o host toca o que o
+  /// aluno tocou e o que era para tocar, e o degrau só começa quando o `Future`
+  /// completa. Durante a escuta a tecla é ignorada, como no aviso, e a tela lê a
+  /// fase em [RepeatStatus.listen] (o host a atualiza por [RepeatMiss.setPhase]).
+  /// Sem ele, nada muda. Não vale no "Acertou".
+  final Future<void> Function(RepeatMiss miss)? onMissReplay;
+
   final MeasureRewinds _rewindBook = MeasureRewinds();
 
   /// A escada do compasso que repete agora (`null` quando não repete).
@@ -373,6 +397,20 @@ class PracticeController {
   /// Um degrau esperou a retomada (a rodada estava pausada quando o aviso
   /// acabou): a contagem dele, para [resume].
   bool? _pendingRung;
+
+  /// O aviso em curso é o de "Errou" (só ele tem escuta), a escuta em curso
+  /// ([onMissReplay]) e a fase dela; [_replayRun] separa uma escuta da seguinte
+  /// (uma parada no meio não deixa a antiga mexer no degrau novo).
+  bool _holdMissed = false;
+  bool _replaying = false;
+  RepeatListen _listen = RepeatListen.none;
+  int _replayRun = 0;
+
+  /// As teclas aceitas desde o começo da tentativa do compasso (zera em
+  /// [_beginRung]; fora da escada guarda as do compasso que toca, para o
+  /// primeiro erro), com o compasso, o instante musical, o relógio de parede e
+  /// se a música estava parada à espera (modo espera).
+  final List<_KeyLog> _keyLog = [];
 
   /// A escada na tela (`null` quando não repete).
   final ValueNotifier<RepeatStatus?> _repeat = ValueNotifier(null);
@@ -997,6 +1035,7 @@ class PracticeController {
     _gateAhead = false;
     _repeatHold = true;
     _countInHold = false;
+    _holdMissed = notice == RepeatNotice.missed;
     // Com o aviso em 0 s, nada aparece: o degrau começa na hora.
     _publish(
       notice: repeatNoticeDuration == Duration.zero
@@ -1012,7 +1051,87 @@ class PracticeController {
   /// O aviso acabou: o degrau começa (ou espera a retomada, se pausada).
   void _endHold() {
     _holdTimer = null;
+    if (onMissReplay != null && _holdMissed && !_disposed) {
+      unawaited(_replayMiss());
+      return;
+    }
     _beginRung(countIn: _holdCountIn);
+  }
+
+  /// A escuta do erro: entrega o compasso ao host ([onMissReplay]) e espera;
+  /// depois o degrau começa. Pausada, o degrau espera a retomada
+  /// ([_beginRung]); parada ou descartada, nada mais acontece.
+  Future<void> _replayMiss() async {
+    final run = ++_replayRun;
+    final measure = _repeatMeasure;
+    final rung = _ladder?.current;
+    final miss = RepeatMiss(
+      measure: measure,
+      startMs: _measureStartMs(measure),
+      endMs: _measureEndMs(measure),
+      speed: rung?.speed ?? _baseSpeed,
+      played: _playedKeysOf(measure, rung?.speed ?? _baseSpeed),
+      setPhase: (phase) {
+        if (run != _replayRun || !_replaying) return;
+        _listen = phase;
+        _publish(notice: RepeatNotice.none);
+      },
+    );
+    final watch = Stopwatch()..start();
+    _replaying = true;
+    _listen = RepeatListen.played;
+    _publish(notice: RepeatNotice.none);
+    try {
+      await onMissReplay!(miss);
+    } on Object catch (error) {
+      // A escuta é um extra: falhar nela não pode travar o degrau.
+      DiagLog.log('volta', 'compasso=$measure escuta falhou: $error');
+    }
+    if (run != _replayRun || _disposed) return;
+    DiagLog.log(
+      'volta',
+      'compasso=$measure escuta: ${miss.played.length} teclas tocadas, '
+          '${watch.elapsedMilliseconds}ms',
+    );
+    _replaying = false;
+    _listen = RepeatListen.none;
+    _beginRung(countIn: _holdCountIn);
+  }
+
+  /// As teclas da tentativa do [measure], em ms de relógio. Tempo real: o
+  /// instante musical menos o começo do compasso, no andamento [speed]. Modo
+  /// espera (a música parada): o relógio de parede, com cada intervalo limitado
+  /// a [kReplayMaxGapMs] para a escuta não demorar.
+  List<RepeatKey> _playedKeysOf(int measure, double speed) {
+    final keys = _keyLog.where((k) => k.measure == measure).toList();
+    if (keys.isEmpty) return const [];
+    final startMs = _measureStartMs(measure);
+    final waiting = keys.first.waiting;
+    final out = <RepeatKey>[];
+    var offset = 0.0;
+    var lastAt = keys.first.wallMs;
+    for (final k in keys) {
+      double on;
+      double len;
+      if (waiting) {
+        offset += (k.wallMs - lastAt).clamp(0, kReplayMaxGapMs).toDouble();
+        lastAt = k.wallMs;
+        on = offset;
+        len = k.heldWallMs;
+      } else {
+        on = ((k.musicalMs - startMs) / speed).clamp(0, double.infinity);
+        len = k.heldMusicalMs / speed;
+      }
+      out.add(
+        RepeatKey(
+          pitch: k.pitch,
+          velocity: k.velocity,
+          offsetMs: on,
+          durationMs: len.clamp(kReplayMinHoldMs, kReplayMaxGapMs).toDouble(),
+        ),
+      );
+    }
+    return out;
   }
 
   /// Os testes: o aviso acaba agora (como o `Timer` dele, sem esperar).
@@ -1039,6 +1158,7 @@ class PracticeController {
     final startMs = _measureStartMs(measure);
     final endMs = _measureEndMs(measure);
     final attempt = _rewindBook.rewind(measure);
+    _keyLog.clear();
     _dropAfter(measure);
     scheduler.setSpeed(rung.speed ?? _baseSpeed);
     // O degrau "só notas" não cobra tempo: sem o clique do metrônomo.
@@ -1145,6 +1265,7 @@ class PracticeController {
       rungCount: ladder.length,
       notice: notice,
       countingIn: countingIn,
+      listen: _listen,
     );
   }
 
@@ -1159,6 +1280,9 @@ class PracticeController {
   void _cancelRepeat() {
     _holdTimer?.cancel();
     _holdTimer = null;
+    _replaying = false;
+    _listen = RepeatListen.none;
+    _replayRun++;
     _ladder = null;
     scheduler.metronomeMuted = false;
     _repeatHold = false;
@@ -1248,7 +1372,8 @@ class PracticeController {
       return;
     }
     // O aviso da escada corre: o fim dele é que começa o degrau.
-    if (_holdTimer != null) return;
+    // A escuta do erro também corre: o fim dela é que começa o degrau.
+    if (_holdTimer != null || _replaying) return;
     scheduler.play(scheduler.positionMs);
   }
 
@@ -1298,6 +1423,9 @@ class PracticeController {
     // A contagem da escada acabou entre dois ticks: a tecla já conta (senão a
     // primeira nota do compasso, tocada junto do clique, se perdia).
     if (_repeatHold && scheduler.isRunning) _clearCountIn();
+    // A escuta do erro (Eco): a soltura fecha a duração da tecla logada, mesmo
+    // no aviso (a tecla que errou ainda pode estar apertada).
+    if (!note.on) _logKeyOff(pitch, note);
     // Pausada ou no aviso da escada: a tecla não conta, nem como erro nem como
     // acerto. A soltura chega à sessão de espera, para não deixar a nota presa.
     if (_paused || _repeatHold) {
@@ -1327,6 +1455,7 @@ class PracticeController {
         _lastPlayedMusicalMs = musicalMs;
         _rt!.noteOn(pitch, musicalMs, velocity: note.velocity);
       }
+      _logKeyOn(pitch, note, musicalMs);
     } else {
       _capture.noteOff(pitch, musicalMs);
       wait?.noteOff(pitch);
@@ -1335,6 +1464,42 @@ class PracticeController {
       if (_wrongPitches.value.contains(pitch)) {
         _wrongPitches.value = Set.of(_wrongPitches.value)..remove(pitch);
       }
+    }
+  }
+
+  /// Guarda a tecla aceita para a escuta do erro ([onMissReplay]).
+  /// A tecla absorvida por nota do app (`RealtimeSession.lastNoteAbsorbed`) não
+  /// é do aluno: fica fora.
+  void _logKeyOn(int pitch, PlayedNote note, double musicalMs) {
+    if (onMissReplay == null || (_wait == null && _rt!.lastNoteAbsorbed)) {
+      return;
+    }
+    if (_keyLog.length > 400) _keyLog.removeRange(0, 200);
+    final waiting = _wait != null;
+    _keyLog.add(
+      _KeyLog(
+        pitch: pitch,
+        velocity: note.velocity,
+        measure: _measureAt(_wait?.current.value?.onMs ?? musicalMs),
+        musicalMs: musicalMs,
+        wallMs: note.atSeconds * 1000,
+        waiting: waiting,
+      ),
+    );
+  }
+
+  /// A soltura de [pitch]: fecha o tempo que a tecla ficou apertada.
+  void _logKeyOff(int pitch, PlayedNote note) {
+    if (onMissReplay == null) return;
+    for (var i = _keyLog.length - 1; i >= 0; i--) {
+      final k = _keyLog[i];
+      if (k.pitch != pitch || !k.open) continue;
+      k.open = false;
+      k.heldWallMs = note.atSeconds * 1000 - k.wallMs;
+      k.heldMusicalMs =
+          scheduler.musicalAtDevice(note.atSeconds - inputLatencyMs / 1000) -
+          k.musicalMs;
+      return;
     }
   }
 
@@ -1886,4 +2051,30 @@ class PracticeController {
     _correctCount.dispose();
     _wrongCount.dispose();
   }
+}
+
+/// Uma tecla do aluno para a escuta do erro (ver [PracticeController.onMissReplay]).
+class _KeyLog {
+  _KeyLog({
+    required this.pitch,
+    required this.velocity,
+    required this.measure,
+    required this.musicalMs,
+    required this.wallMs,
+    required this.waiting,
+  });
+
+  final int pitch;
+  final int velocity;
+  final int measure;
+  final double musicalMs;
+  final double wallMs;
+
+  /// A música estava parada à espera (modo espera): vale o relógio de parede.
+  final bool waiting;
+
+  /// Ainda apertada; ao soltar, quanto ficou (a de antes de soltar vale o mínimo).
+  bool open = true;
+  double heldMusicalMs = 0;
+  double heldWallMs = 0;
 }

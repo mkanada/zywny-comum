@@ -175,28 +175,31 @@ void main() {
       );
     });
 
-    test('o tique atrasado não atrasa a música: o passo seguinte chega no '
-        'relógio livre, mesmo que o passo feche bem depois da cápsula cheia '
-        '(sem a deriva de ~13 ms por nota do freio no fim da cápsula)', () async {
-      final rig = _Rig(holdNotes: true)..practice.start();
-      addTearDown(rig.dispose);
+    test(
+      'o tique atrasado não atrasa a música: o passo seguinte chega no '
+      'relógio livre, mesmo que o passo feche bem depois da cápsula cheia '
+      '(sem a deriva de ~13 ms por nota do freio no fim da cápsula)',
+      () async {
+        final rig = _Rig(holdNotes: true)..practice.start();
+        addTearDown(rig.dispose);
 
-      await rig.press(60);
-      // O tique de 70 ms: a cápsula enche em 300 e o passo só fecha em 350.
-      var ms = 0;
-      while (rig.practice.currentStep.value!.index == 0) {
-        rig.engine.now += 0.001;
-        rig.scheduler.pump();
-        if (++ms % 70 == 0) rig.practice.debugTickHold();
-        expect(ms, lessThan(1000));
-      }
-      expect(ms, 350);
+        await rig.press(60);
+        // O tique de 70 ms: a cápsula enche em 300 e o passo só fecha em 350.
+        var ms = 0;
+        while (rig.practice.currentStep.value!.index == 0) {
+          rig.engine.now += 0.001;
+          rig.scheduler.pump();
+          if (++ms % 70 == 0) rig.practice.debugTickHold();
+          expect(ms, lessThan(1000));
+        }
+        expect(ms, 350);
 
-      // A semínima seguinte começa em 500 do relógio livre: 0,5 s depois do
-      // aperto, e não 0,55 s (os 50 ms que a música ficaria parada em 300).
-      rig.advanceTo(500);
-      expect(rig.engine.now, closeTo(0.5, 0.006));
-    });
+        // A semínima seguinte começa em 500 do relógio livre: 0,5 s depois do
+        // aperto, e não 0,55 s (os 50 ms que a música ficaria parada em 300).
+        rig.advanceTo(500);
+        expect(rig.engine.now, closeTo(0.5, 0.006));
+      },
+    );
 
     test('soltar cedo não é erro: a música volta ao começo da nota, a nota '
         'volta a faltar, e apertar de novo arma a cápsula', () async {

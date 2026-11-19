@@ -35,18 +35,22 @@ void main() {
     expect(simple.number, base.number);
     expect(simple.fifths, 2);
     // Progresso e ajustes ficam em chaves separadas da completa.
-    expect(trailKeyFor('hinos', progressIdFor(simple.id, null)), isNot(
-      trailKeyFor('hinos', progressIdFor(base.id, null)),
-    ));
+    expect(
+      trailKeyFor('hinos', progressIdFor(simple.id, null)),
+      isNot(trailKeyFor('hinos', progressIdFor(base.id, null))),
+    );
   });
 
-  test('a escolha da versão é lembrada por música; sem escolha, completa', () async {
-    final store = PieceSettingsStore(prefs: SharedPreferencesAsync());
-    expect(await store.loadSimplified('hinos', '001'), isFalse);
-    await store.saveSimplified('hinos', '001', true);
-    expect(await store.loadSimplified('hinos', '001'), isTrue);
-    expect(await store.loadSimplified('hinos', '002'), isFalse);
-    await store.saveSimplified('hinos', '001', false);
-    expect(await store.loadSimplified('hinos', '001'), isFalse);
-  });
+  test(
+    'a escolha da versão é lembrada por música; sem escolha, completa',
+    () async {
+      final store = PieceSettingsStore(prefs: SharedPreferencesAsync());
+      expect(await store.loadSimplified('hinos', '001'), isFalse);
+      await store.saveSimplified('hinos', '001', true);
+      expect(await store.loadSimplified('hinos', '001'), isTrue);
+      expect(await store.loadSimplified('hinos', '002'), isFalse);
+      await store.saveSimplified('hinos', '001', false);
+      expect(await store.loadSimplified('hinos', '001'), isFalse);
+    },
+  );
 }

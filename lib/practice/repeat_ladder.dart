@@ -54,6 +54,76 @@ enum RepeatNotice {
   passed,
 }
 
+/// A escuta do erro (`PracticeController.onMissReplay`): o que o host está
+/// tocando para o aluno ouvir, só de ouvido.
+enum RepeatListen {
+  /// Sem escuta: o aviso, o degrau ou a contagem.
+  none,
+
+  /// O que o aluno tocou nessa tentativa.
+  played,
+
+  /// O que era para tocar (depois do que o aluno tocou).
+  expected,
+
+  /// O aluno não tocou nada: só se ouve o que era para tocar.
+  expectedOnly,
+}
+
+/// Uma tecla que o aluno tocou na tentativa do compasso que errou.
+@immutable
+class RepeatKey {
+  const RepeatKey({
+    required this.pitch,
+    required this.velocity,
+    required this.offsetMs,
+    required this.durationMs,
+  });
+
+  /// A altura escrita (a mesma da avaliação) e a força.
+  final int pitch;
+  final int velocity;
+
+  /// Quando apertou, em ms de relógio desde o começo da tentativa, e quanto
+  /// segurou, também em ms de relógio.
+  final double offsetMs;
+  final double durationMs;
+
+  @override
+  String toString() => 'RepeatKey($pitch, +${offsetMs.round()}ms)';
+}
+
+/// O compasso que errou, entregue ao host para a escuta ([onMissReplay]).
+@immutable
+class RepeatMiss {
+  const RepeatMiss({
+    required this.measure,
+    required this.startMs,
+    required this.endMs,
+    required this.speed,
+    required this.played,
+    required this.setPhase,
+  });
+
+  /// O compasso (ocorrência) e o começo e o fim dele na linha do tempo da
+  /// partitura, em ms musicais.
+  final int measure;
+  final double startMs;
+  final double endMs;
+
+  /// O andamento do degrau que errou (no degrau "só notas", o da etapa), como
+  /// fração do escrito.
+  final double speed;
+
+  /// As teclas da tentativa, na ordem em que foram apertadas, sem as notas do
+  /// app que o aluno tocou junto (absorvidas pela sessão).
+  final List<RepeatKey> played;
+
+  /// O host diz em que fase da escuta está; o controlador a publica em
+  /// [RepeatStatus.listen] para a tela.
+  final void Function(RepeatListen phase) setPhase;
+}
+
 /// O que vem depois do degrau que acabou.
 @immutable
 class RepeatOutcome {
@@ -88,6 +158,7 @@ class RepeatStatus {
     required this.rungCount,
     this.notice = RepeatNotice.none,
     this.countingIn = false,
+    this.listen = RepeatListen.none,
   });
 
   /// O compasso (ocorrência de `ScoreTimeline.measures`) que repete.
@@ -105,6 +176,9 @@ class RepeatStatus {
 
   /// A contagem de um compasso corre antes deste degrau.
   final bool countingIn;
+
+  /// A escuta do erro em curso (`none` quando não há).
+  final RepeatListen listen;
 }
 
 /// A escada de um compasso com erro: os degraus na ordem e o degrau atual.

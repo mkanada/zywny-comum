@@ -2,7 +2,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:zywny_comum/practice/hand.dart';
-import 'package:zywny_comum/practice/practice_controller.dart' show PracticeMode;
+import 'package:zywny_comum/practice/practice_controller.dart'
+    show PracticeMode;
 import 'package:zywny_comum/practice/study_mode.dart';
 import 'package:zywny_comum/ui/phone_chrome.dart';
 

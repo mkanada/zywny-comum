@@ -634,9 +634,11 @@ class RealtimeSession {
     this.windowMaxMs = 150,
     this.adaptiveWindow = false,
     this.forgiveSounding = false,
+    List<SoundEvent> appNotes = const [],
     List<ChordDemand> chords = const [],
   }) : _all = List<SoundEvent>.of(events)
-         ..sort((a, b) => a.onMs.compareTo(b.onMs)) {
+         ..sort((a, b) => a.onMs.compareTo(b.onMs)),
+       _appNotes = List<SoundEvent>.of(appNotes) {
     _pending = List<SoundEvent>.of(_all);
     _chordsAll = _attacksOf(chords);
     _chords = [for (final chord in _chordsAll) chord.fresh()];
@@ -654,6 +656,7 @@ class RealtimeSession {
     double windowMaxMs = 150,
     bool adaptiveWindow = false,
     bool forgiveSounding = false,
+    bool absorbAppNotes = false,
     List<ChordDemand> chords = const [],
   }) {
     final events = track.events.where((e) => staves.contains(e.staff));
@@ -664,6 +667,14 @@ class RealtimeSession {
       windowMaxMs: windowMaxMs,
       adaptiveWindow: adaptiveWindow,
       forgiveSounding: forgiveSounding,
+      // As notas do app de toda a peça, e não só das pautas do aluno: a do app
+      // costuma estar na pauta que o aluno não toca.
+      appNotes: absorbAppNotes
+          ? [
+              for (final e in track.events)
+                if (e.byApp) e,
+            ]
+          : const [],
       chords: chords,
     );
   }
@@ -692,6 +703,21 @@ class RealtimeSession {
 
   final List<SoundEvent> _all;
   late List<SoundEvent> _pending;
+
+  /// As notas do app (`byApp`, não cobradas) da peça, que absorvem um toque cada
+  /// quando ficam **fora da janela** do [resetTo] (antes do começo, com a
+  /// tolerância, ou a partir do fim): a volta na hora (LP25) decide o compasso, e
+  /// a nota do app da folga da barra já saiu da janela, mas o aluno que toca junto
+  /// ainda a acerta. Vazia, nada muda (ver [forStaves]).
+  final List<SoundEvent> _appNotes;
+
+  /// A última tecla de [noteOn] foi absorvida por uma nota do app fora da janela
+  /// (não é do aluno: o controlador não a conta na escuta do erro).
+  bool lastNoteAbsorbed = false;
+
+  /// As notas de [_appNotes] fora da janela atual, que ainda absorvem um toque; cada
+  /// uma absorve no máximo um, e sai da lista ([_absorbApp]).
+  List<SoundEvent> _absorbers = const [];
 
   /// Os ataques de cifra (AC05b) da sessão, na ordem de `onMs`, com a janela de
   /// cada um; e os que ainda estão abertos (sem veredito), com as teclas que
@@ -855,6 +881,7 @@ class RealtimeSession {
   /// só para a nota tocada não virar `wrong`: se casarem, são consumidos sem
   /// veredito (D-TREINO: não cobrados na 1.0).
   void noteOn(int pitch, double musicalMs, {int velocity = 0}) {
+    lastNoteAbsorbed = false;
     if (adaptiveWindow) _expire(musicalMs, pitch: pitch);
     // Os ataques de cifra que já fecharam decidem antes desta tecla (ela não é
     // mais deles). Depois, a tecla conta para os que a janela dela cobre; ela
@@ -889,22 +916,8 @@ class RealtimeSession {
       return;
     }
 
-    // Tecla do acorde da cifra que a janela aberta aceita: não é erro (o veredito
-    // do acorde sai no fim da janela).
-    if (chordKey) return;
-
-    // A primeira nota do compasso seguinte, tocada um pouco antes do fim do
-    // trecho ([resetTo] com `untilMs`), é do que vem depois: não é erro deste.
-    for (final e in _beyond) {
-      if (e.pitch == pitch &&
-          !e.ornament &&
-          musicalMs >= e.onMs - _maxMs &&
-          musicalMs <= e.onMs + _maxMs) {
-        return;
-      }
-    }
-    // O mesmo para o acorde do compasso seguinte.
-    if (_beyondChordKey(pitch, musicalMs)) return;
+    // A tecla não é erro deste compasso se for de outra coisa ([_belongsElsewhere]).
+    if (_belongsElsewhere(pitch, musicalMs, chordKey)) return;
 
     if (forgiveSounding && _sounding(pitch, musicalMs)) return;
 
@@ -917,6 +930,32 @@ class RealtimeSession {
         atMs: musicalMs,
       ),
     );
+  }
+
+  /// A tecla [pitch], tocada em [musicalMs], é de outra coisa e não vira `wrong`
+  /// deste compasso. Na ordem: o acorde da cifra que a janela aberta aceita
+  /// ([chordKey], já apurado em [noteOn]; o veredito do acorde sai no fim da
+  /// janela); a nota do app fora da janela ([_absorbApp]), que é de quem toca junto
+  /// com o app; a primeira nota do compasso seguinte, tocada um pouco antes do fim
+  /// do trecho ([resetTo] com `untilMs`); e o acorde do compasso seguinte. Fica
+  /// fora de [noteOn] só para caber no limite de linhas do `dart_code_linter`; a
+  /// ordem é a mesma, e [_absorbApp] só gasta a nota do app se as anteriores não
+  /// casaram.
+  bool _belongsElsewhere(int pitch, double musicalMs, bool chordKey) {
+    if (chordKey) return true;
+    // Nota do app fora da janela ([_appNotes]): a tecla que casa com ela é de
+    // quem toca junto com o app, não erro deste compasso.
+    if (_absorbApp(pitch, musicalMs)) return true;
+    for (final e in _beyond) {
+      if (e.pitch == pitch &&
+          !e.ornament &&
+          musicalMs >= e.onMs - _maxMs &&
+          musicalMs <= e.onMs + _maxMs) {
+        return true;
+      }
+    }
+    // O mesmo para o acorde do compasso seguinte.
+    return _beyondChordKey(pitch, musicalMs);
   }
 
   /// [t] cai na janela de [a] (a de [_inWindow] para as notas, com a do ataque).
@@ -938,6 +977,20 @@ class RealtimeSession {
       a.pressed.putIfAbsent(pitch, () => musicalMs);
     }
     return accepted;
+  }
+
+  /// Uma nota do app de altura [pitch] fora da janela ([_absorbers]) que a tecla
+  /// casa em [_maxMs]: absorve a tecla e sai da lista. `true` se absorveu.
+  bool _absorbApp(int pitch, double musicalMs) {
+    for (var i = 0; i < _absorbers.length; i++) {
+      final e = _absorbers[i];
+      if (e.pitch == pitch && (musicalMs - e.onMs).abs() <= _maxMs) {
+        _absorbers.removeAt(i);
+        lastNoteAbsorbed = true;
+        return true;
+      }
+    }
+    return false;
   }
 
   /// A tecla [pitch] é de um acorde do compasso seguinte ([_beyondChords]) e
@@ -1138,6 +1191,14 @@ class RealtimeSession {
               (untilMs == null || e.onMs < untilMs),
         )
         .toList();
+    // As notas do app fora dessa janela (antes do começo, com a tolerância, ou a
+    // partir do fim) absorvem um toque cada. A da folga da barra cai antes do fim
+    // do compasso que repete, mas é do que vem depois.
+    final windowStart = musicalMs - kRangeBoundaryToleranceMs;
+    _absorbers = [
+      for (final e in _appNotes)
+        if (e.onMs < windowStart || (untilMs != null && e.onMs >= untilMs)) e,
+    ];
     // Os acordes do trecho voltam abertos, sem as teclas da tentativa anterior.
     _beyondChords = untilMs == null
         ? const []

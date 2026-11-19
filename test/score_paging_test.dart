@@ -11,12 +11,14 @@ void main() {
     expect(turn.maxSweepDuration, kDefaultMaxSweepDuration);
   });
 
-  test('ScorePageTurn: no treino com tempo, sem desfoque e 300 ms × andamento',
-      () {
-    const turn = ScorePageTurn(barWidth: 10, timed: true, speed: 0.5);
-    expect(turn.revealBlurSigma, 0);
-    expect(turn.maxSweepDuration, const Duration(milliseconds: 150));
-  });
+  test(
+    'ScorePageTurn: no treino com tempo, sem desfoque e 300 ms × andamento',
+    () {
+      const turn = ScorePageTurn(barWidth: 10, timed: true, speed: 0.5);
+      expect(turn.revealBlurSigma, 0);
+      expect(turn.maxSweepDuration, const Duration(milliseconds: 150));
+    },
+  );
 
   testWidgets('ScorePager: uma página ou tocando, nada à vista', (t) async {
     final c = ScoreViewController();
@@ -29,7 +31,9 @@ void main() {
     }
   });
 
-  testWidgets('ScorePager: antes de a vista ligar, "próxima" já vale', (t) async {
+  testWidgets('ScorePager: antes de a vista ligar, "próxima" já vale', (
+    t,
+  ) async {
     // A vista liga ao controller depois do primeiro build, sem avisar.
     await t.pumpWidget(
       MaterialApp(

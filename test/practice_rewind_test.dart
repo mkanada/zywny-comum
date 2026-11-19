@@ -5,6 +5,7 @@
 // test/practice_controller_test.dart: agendador de verdade sobre um motor falso,
 // o relógio andado à mão.
 
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
@@ -38,9 +39,15 @@ class _Rig {
     this.speed = 1.0,
     this.repeatSpeeds = const [],
     this.noticeDuration = const Duration(hours: 1),
+    this.appIds = const {},
+    this.onMissReplay,
   }) {
     final doc = _loadDoc();
-    track = PerformanceTrack.fromDocument(doc);
+    final plain = PerformanceTrack.fromDocument(doc);
+    // As notas de [appIds] são do app (`byApp`, não cobradas), como no eco.
+    track = appIds.isEmpty
+        ? plain
+        : plain.withOrnaments(plan: OrnamentPlan(app: appIds));
     timeline = ScoreTimeline(doc);
     scheduler = ScoreAudioScheduler(
       engine: engine,
@@ -86,6 +93,7 @@ class _Rig {
       },
       repeatSpeeds: repeatSpeeds,
       repeatNoticeDuration: noticeDuration,
+      onMissReplay: onMissReplay,
     );
     // Cada nota do app que o agendador manda ao motor, com o instante musical
     // dela (lido com a âncora de agora, que vale para este lote).
@@ -109,6 +117,8 @@ class _Rig {
   final double speed;
   final List<double> repeatSpeeds;
   final Duration noticeDuration;
+  final Set<String> appIds;
+  final Future<void> Function(RepeatMiss miss)? onMissReplay;
   final FakeSoundEngine engine = FakeSoundEngine();
   final FakeMidiInput midi = FakeMidiInput();
   late final PerformanceTrack track;
@@ -799,6 +809,158 @@ void main() {
     });
   });
 
+  group('a escuta do erro (onMissReplay)', () {
+    late _Rig rig;
+    tearDown(() => rig.dispose());
+
+    test('chama a cada "Errou", com as teclas da tentativa; o degrau só '
+        'começa depois do Future; "Acertou" não chama', () async {
+      final misses = <RepeatMiss>[];
+      final done = <Completer<void>>[];
+      rig = _Rig(
+        mode: PracticeMode.realtime,
+        firstMeasure: 1,
+        endMeasure: 3,
+        onMissReplay: (miss) {
+          misses.add(miss);
+          final c = Completer<void>();
+          done.add(c);
+          return c.future;
+        },
+      );
+      final notes = rig.notesOf(1);
+      rig.practice.start();
+      await rig.playTimed(1, miss: 0);
+      rig.advanceTo(rig.timeline.measures[1].endMs + 400);
+      expect(rig.status!.notice, RepeatNotice.missed);
+      await rig.settle();
+      // A escuta: o aviso saiu, o degrau não começou.
+      expect(misses, hasLength(1));
+      expect(rig.status!.listen, RepeatListen.played);
+      expect(rig.status!.notice, RepeatNotice.none);
+      expect(rig.practice.rewinds, isEmpty);
+      final miss = misses.single;
+      expect(miss.measure, 1);
+      expect(miss.speed, 1.0);
+      expect(miss.startMs, rig.timeline.measures[1].startMs.toDouble());
+      // As teclas tocadas (sem a que faltou), na ordem, com o tempo de relógio.
+      expect(miss.played.map((k) => k.pitch), [
+        for (var i = 1; i < notes.length; i++) notes[i].pitch,
+      ]);
+      expect(
+        miss.played.first.offsetMs,
+        closeTo(notes[1].onMs - miss.startMs, 40),
+      );
+      // A tecla na escuta é ignorada.
+      rig.midi.press(20, atSeconds: rig.engine.now);
+      await pumpEventQueue();
+      rig.midi.release(20, atSeconds: rig.engine.now);
+      await pumpEventQueue();
+      expect(rig.practice.wrongMarks, isEmpty);
+      miss.setPhase(RepeatListen.expected);
+      expect(rig.status!.listen, RepeatListen.expected);
+      done.single.complete();
+      await pumpEventQueue();
+      expect(rig.status!.listen, RepeatListen.none);
+      expect(rig.status!.rung.isWait, isTrue);
+      expect(rig.practice.rewinds, {1: 1});
+      // O degrau "só notas" certo: "Acertou", sem escuta.
+      await rig.playWaitMeasure();
+      expect(rig.status!.notice, RepeatNotice.passed);
+      await rig.settle();
+      expect(misses, hasLength(1));
+      expect(rig.status!.listen, RepeatListen.none);
+    });
+
+    test('o erro no degrau "só notas" (modo espera) chama a escuta com as '
+        'teclas dessa tentativa, de relógio de parede', () async {
+      final misses = <RepeatMiss>[];
+      rig = _Rig(
+        mode: PracticeMode.wait,
+        firstMeasure: 1,
+        endMeasure: 3,
+        onMissReplay: (miss) async => misses.add(miss),
+      );
+      rig.practice.start();
+      await rig.playWaitMeasure(wrongAt: 0);
+      await rig.settle();
+      await pumpEventQueue();
+      expect(misses, hasLength(1));
+      // A tecla errada (20) e depois a certa do primeiro passo.
+      expect(misses.single.played.first.pitch, 20);
+      expect(misses.single.played.first.offsetMs, 0);
+      // Segunda tentativa, também errada: a escuta traz só as teclas dela.
+      await rig.playWaitMeasure(wrongAt: 0);
+      await rig.settle();
+      await pumpEventQueue();
+      expect(misses, hasLength(2));
+      expect(
+        misses.last.played.length,
+        lessThanOrEqualTo(misses.first.played.length),
+      );
+      expect(misses.last.played.first.pitch, 20);
+    });
+
+    test('pausa durante a escuta: o degrau espera a retomada', () async {
+      final done = Completer<void>();
+      rig = _Rig(
+        mode: PracticeMode.realtime,
+        firstMeasure: 1,
+        endMeasure: 3,
+        onMissReplay: (_) => done.future,
+      );
+      rig.practice.start();
+      await rig.playTimed(1, miss: 0);
+      rig.advanceTo(rig.timeline.measures[1].endMs + 400);
+      await rig.settle();
+      rig.practice.pause();
+      done.complete();
+      await pumpEventQueue();
+      expect(rig.scheduler.isRunning, isFalse);
+      expect(rig.practice.rewinds, isEmpty);
+      rig.practice.resume();
+      expect(rig.practice.rewinds, {1: 1});
+      expect(rig.scheduler.isRunning, isTrue);
+    });
+
+    test('resume durante a escuta não toca a música', () async {
+      final done = Completer<void>();
+      rig = _Rig(
+        mode: PracticeMode.realtime,
+        firstMeasure: 1,
+        endMeasure: 3,
+        onMissReplay: (_) => done.future,
+      );
+      rig.practice.start();
+      await rig.playTimed(1, miss: 0);
+      rig.advanceTo(rig.timeline.measures[1].endMs + 400);
+      await rig.settle();
+      rig.practice.pause();
+      rig.practice.resume();
+      expect(rig.scheduler.isRunning, isFalse);
+      done.complete();
+    });
+
+    test('parar durante a escuta: o fim dela não começa degrau', () async {
+      final done = Completer<void>();
+      rig = _Rig(
+        mode: PracticeMode.realtime,
+        firstMeasure: 1,
+        endMeasure: 3,
+        onMissReplay: (_) => done.future,
+      );
+      rig.practice.start();
+      await rig.playTimed(1, miss: 0);
+      rig.advanceTo(rig.timeline.measures[1].endMs + 400);
+      await rig.settle();
+      rig.practice.stop();
+      done.complete();
+      await pumpEventQueue();
+      expect(rig.practice.rewinds, isEmpty);
+      expect(rig.status, isNull);
+    });
+  });
+
   group('o log da volta', () {
     tearDown(DiagLog.reset);
 
@@ -838,6 +1000,61 @@ void main() {
         );
         expect(lines.where((l) => l.contains('50%')), isNotEmpty);
         expect(lines.where((l) => l.contains('contagem=true')), isNotEmpty);
+      },
+    );
+  });
+
+  // A nota do app na folga da fronteira (`kRangeBoundaryToleranceMs`). O timemap
+  // põe o começo de um compasso em um ms inteiro, e a nota do app da barra dele
+  // sai meio ms antes: cai na janela do compasso que repete, mas é do que vem
+  // depois. O aluno que toca junto com o app (o eco, com o pianista tocando o
+  // ouça) a acerta, e ela virava erro do compasso que repete, sem fim.
+  group('a folga da fronteira, na escada de repetição', () {
+    late _Rig rig;
+    tearDown(() => rig.dispose());
+
+    test(
+      'a nota do app da folga, tocada depois de a escada decidir o compasso, '
+      'é absorvida e não é erro do compasso que repete',
+      () async {
+        // A nota do app (pauta 2) na folga do compasso 6, que o compasso 7 começa.
+        final app = PerformanceTrack.fromDocument(_loadDoc()).events
+            .firstWhere((e) => e.id == 'jn9hm5t');
+        rig = _Rig(
+          mode: PracticeMode.realtime,
+          firstMeasure: 6,
+          endMeasure: 8,
+          appIds: {app.id},
+        );
+        final end6 = rig.timeline.measures[6].endMs.toDouble();
+        rig.practice.start();
+        await rig.playTimed(6, miss: 0);
+        rig.advanceTo(end6 + 400);
+        await rig.settle();
+        await rig.playWaitMeasure();
+        await rig.settle();
+        rig.runCountIn();
+        await rig.playTimed(6);
+        rig.advanceTo(end6 + 1);
+        expect(rig.status, isNull, reason: 'a escada decidiu o compasso 6');
+        // Os avisos da escada até aqui (o "Errou" e a passagem do só notas): o
+        // toque da nota do app não pode acrescentar nenhum.
+        final avisos = rig.rewound.length;
+        // O aluno toca a nota do app depois da decisão, no instante dela.
+        rig.midi.press(
+          app.pitch,
+          atSeconds:
+              rig.engine.now + (app.onMs - rig.scheduler.positionMs) / 1000,
+        );
+        await pumpEventQueue();
+        rig.midi.release(app.pitch, atSeconds: rig.engine.now);
+        await pumpEventQueue();
+        expect(
+          rig.rewound,
+          hasLength(avisos),
+          reason: 'a nota do app não repete o compasso 6',
+        );
+        expect(rig.practice.wrongMarks, isEmpty);
       },
     );
   });

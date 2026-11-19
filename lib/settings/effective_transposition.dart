@@ -46,5 +46,8 @@ Transposition? effectiveTransposition(
   final fifths = piece.fifths;
   if (!appSettings.transposeByDefault || fifths == null) return null;
   final r = range ?? kCatalogMidiRange;
-  return Transposition.toNoAccidentals(fifths, range: (lowest: r.lowest, highest: r.highest));
+  return Transposition.toNoAccidentals(
+    fifths,
+    range: (lowest: r.lowest, highest: r.highest),
+  );
 }
