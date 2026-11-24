@@ -7,7 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:shared_preferences_platform_interface/in_memory_shared_preferences_async.dart';
 import 'package:shared_preferences_platform_interface/shared_preferences_async_platform_interface.dart';
 import 'package:zywny_comum/practice/practice_colors.dart';
-import 'package:zywny_comum/settings/app_settings.dart';
+import 'package:zywny_comum/settings/settings_cubit.dart';
 
 void main() {
   setUp(() {
@@ -17,15 +17,15 @@ void main() {
 
   test('padrão é o teal da paleta, e a escolha volta ao recarregar', () async {
     final prefs = SharedPreferencesAsync();
-    final settings = AppSettings(prefs: prefs);
-    expect(settings.studentPartColor, kPracticeStudentColor);
+    final settings = SettingsCubit(prefs: prefs);
+    expect(settings.state.studentPartColor, kPracticeStudentColor);
 
     const purple = Color(0xFF6A1B9A);
-    settings.studentPartColor = purple;
+    settings.setStudentPartColor(purple);
     await Future<void>.delayed(Duration.zero);
-    final again = AppSettings(prefs: prefs);
+    final again = SettingsCubit(prefs: prefs);
     await again.load();
-    expect(again.studentPartColor, purple);
-    expect(again.diagSnapshot()['corAluno'], '#ff6a1b9a');
+    expect(again.state.studentPartColor, purple);
+    expect(again.state.diagSnapshot()['corAluno'], '#ff6a1b9a');
   });
 }

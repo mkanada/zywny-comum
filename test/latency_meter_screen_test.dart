@@ -11,7 +11,7 @@ import 'package:zywny_comum/app/general_settings_panel.dart';
 import 'package:zywny_comum/practice/latency_meter_runner.dart';
 import 'package:zywny_comum/practice/latency_meter_screen.dart';
 import 'package:zywny_comum/practice/mic_capture.dart';
-import 'package:zywny_comum/settings/app_settings.dart';
+import 'package:zywny_comum/settings/settings_cubit.dart';
 import 'package:zywny_comum/ui/theme.dart';
 import 'package:zywny_midi/midi_device_manager.dart';
 
@@ -120,7 +120,7 @@ void main() {
             width: 360,
             height: 2900,
             child: GeneralSettingsPanel(
-              settings: AppSettings(),
+              settings: SettingsCubit(),
               midiDeviceManager: manager,
               customSoundFont: false,
               onChooseSoundFont: () {},

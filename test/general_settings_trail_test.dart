@@ -10,7 +10,7 @@ import 'package:shared_preferences_platform_interface/in_memory_shared_preferenc
 import 'package:shared_preferences_platform_interface/shared_preferences_async_platform_interface.dart';
 import 'package:zywny_midi/midi_device_manager.dart';
 import 'package:zywny_comum/app/general_settings_panel.dart';
-import 'package:zywny_comum/settings/app_settings.dart';
+import 'package:zywny_comum/settings/settings_cubit.dart';
 import 'package:zywny_comum/ui/theme.dart';
 
 class _NoDevicesMidi implements MidiCommand {
@@ -54,7 +54,7 @@ void main() {
             width: 360,
             height: 5900,
             child: GeneralSettingsPanel(
-              settings: AppSettings(),
+              settings: SettingsCubit(),
               midiDeviceManager: manager,
               customSoundFont: false,
               onChooseSoundFont: () {},

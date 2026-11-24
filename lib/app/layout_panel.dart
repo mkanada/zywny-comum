@@ -6,7 +6,7 @@ import 'package:zywny_library/library_term_scope.dart';
 
 /// Floating panel with the score layout: the Verovio options of
 /// [kLayoutGroups] (notation size first) and the on-screen zoom. The layout is
-/// the same for every piece (`AppSettings.scoreLayout`); what is only one
+/// the same for every piece (`SettingsState.scoreLayout`); what is only one
 /// piece's — speed, hand, trail — stays in the piece's drawer, and sound,
 /// MIDI, colors live in `GeneralSettingsPanel`.
 ///

@@ -9,7 +9,7 @@ import 'package:shared_preferences_platform_interface/in_memory_shared_preferenc
 import 'package:shared_preferences_platform_interface/shared_preferences_async_platform_interface.dart';
 import 'package:zywny_comum/practice/transpose_check.dart';
 import 'package:zywny_music/transposition.dart';
-import 'package:zywny_comum/settings/app_settings.dart';
+import 'package:zywny_comum/settings/settings_cubit.dart';
 
 import 'support/practice_fakes.dart';
 
@@ -398,21 +398,21 @@ void main() {
     });
 
     test('depois da conferência o teclado conta como conferido', () async {
-      final settings = AppSettings(prefs: SharedPreferencesAsync());
-      expect(settings.keyboardTransposeOf('Yamaha').isChecked, isFalse);
+      final settings = SettingsCubit(prefs: SharedPreferencesAsync());
+      expect(settings.state.keyboardTransposeOf('Yamaha').isChecked, isFalse);
       settings.setKeyboardTranspose(
         'Yamaha',
         const KeyboardTransposeBehavior(shiftsOut: false),
       );
-      expect(settings.keyboardTransposeOf('Yamaha').isChecked, isTrue);
-      expect(settings.keyboardTransposeOf('Casio').isChecked, isFalse);
+      expect(settings.state.keyboardTransposeOf('Yamaha').isChecked, isTrue);
+      expect(settings.state.keyboardTransposeOf('Casio').isChecked, isFalse);
       // E a conferência não reabre sozinha para quem já foi conferido.
       expect(
         shouldAutoCheckTranspose(
           state: AutoCheckState(
             transposition: Transposition.parse('-m3'),
             deviceName: 'Yamaha',
-            behavior: settings.keyboardTransposeOf('Yamaha'),
+            behavior: settings.state.keyboardTransposeOf('Yamaha'),
             appIsSound: false,
             alreadyAsked: false,
           ),

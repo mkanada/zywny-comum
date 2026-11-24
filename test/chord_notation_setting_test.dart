@@ -4,7 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:shared_preferences_platform_interface/in_memory_shared_preferences_async.dart';
 import 'package:shared_preferences_platform_interface/shared_preferences_async_platform_interface.dart';
-import 'package:zywny_comum/settings/app_settings.dart';
+import 'package:zywny_comum/settings/settings_cubit.dart';
 import 'package:zywny_music/chord.dart';
 
 void main() {
@@ -15,23 +15,23 @@ void main() {
 
   test('cifra: padrão brasileira, e a escolha volta ao recarregar', () async {
     final prefs = SharedPreferencesAsync();
-    final settings = AppSettings(prefs: prefs);
-    expect(settings.chordNotation, ChordNotation.brazilian);
+    final settings = SettingsCubit(prefs: prefs);
+    expect(settings.state.chordNotation, ChordNotation.brazilian);
 
-    settings.chordNotation = ChordNotation.american;
+    settings.setChordNotation(ChordNotation.american);
     await Future<void>.delayed(Duration.zero);
 
-    final again = AppSettings(prefs: prefs);
+    final again = SettingsCubit(prefs: prefs);
     await again.load();
-    expect(again.chordNotation, ChordNotation.american);
-    expect(again.diagSnapshot()['cifra'], 'american');
+    expect(again.state.chordNotation, ChordNotation.american);
+    expect(again.state.diagSnapshot()['cifra'], 'american');
   });
 
   test('cifra estragada vale o padrão', () async {
     final prefs = SharedPreferencesAsync();
     await prefs.setString('ui_chord_notation', 'alema');
-    final settings = AppSettings(prefs: prefs);
+    final settings = SettingsCubit(prefs: prefs);
     await settings.load();
-    expect(settings.chordNotation, ChordNotation.brazilian);
+    expect(settings.state.chordNotation, ChordNotation.brazilian);
   });
 }

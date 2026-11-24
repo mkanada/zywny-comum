@@ -23,7 +23,7 @@ import 'package:zywny_audio/performance_track.dart';
 import 'package:zywny_music/pitch_frame.dart';
 import 'package:zywny_comum/practice/hand.dart';
 import 'package:zywny_comum/practice/practice_controller.dart';
-import 'package:zywny_comum/settings/app_settings.dart';
+import 'package:zywny_comum/settings/settings_cubit.dart';
 
 class _Engine implements SoundEngine {
   double now = 0;
@@ -455,18 +455,18 @@ void main() {
     test(
       'teclado não conferido: desconhecido (o app supõe que não transpõe)',
       () {
-        final settings = AppSettings(prefs: SharedPreferencesAsync());
+        final settings = SettingsCubit(prefs: SharedPreferencesAsync());
         expect(
-          settings.keyboardTransposeOf('Yamaha P-45'),
+          settings.state.keyboardTransposeOf('Yamaha P-45'),
           KeyboardTransposeBehavior.unknown,
         );
-        expect(settings.keyboardTransposeOf(null).shiftsOut, isNull);
+        expect(settings.state.keyboardTransposeOf(null).shiftsOut, isNull);
       },
     );
 
     test('guarda por nome e relê', () async {
       final prefs = SharedPreferencesAsync();
-      final settings = AppSettings(prefs: prefs);
+      final settings = SettingsCubit(prefs: prefs);
       settings.setKeyboardTranspose(
         'Yamaha P-45',
         const KeyboardTransposeBehavior(shiftsOut: true, shiftsIn: false),
@@ -477,16 +477,16 @@ void main() {
       );
       await Future<void>.delayed(Duration.zero);
 
-      final again = AppSettings(prefs: prefs);
+      final again = SettingsCubit(prefs: prefs);
       await again.load();
       expect(
-        again.keyboardTransposeOf('Yamaha P-45'),
+        again.state.keyboardTransposeOf('Yamaha P-45'),
         const KeyboardTransposeBehavior(shiftsOut: true, shiftsIn: false),
       );
-      expect(again.keyboardTransposeOf('Casio CT-S1').shiftsOut, isFalse);
-      expect(again.keyboardTransposeOf('Casio CT-S1').shiftsIn, isNull);
+      expect(again.state.keyboardTransposeOf('Casio CT-S1').shiftsOut, isFalse);
+      expect(again.state.keyboardTransposeOf('Casio CT-S1').shiftsIn, isNull);
       expect(
-        again.keyboardTransposeOf('Outro'),
+        again.state.keyboardTransposeOf('Outro'),
         KeyboardTransposeBehavior.unknown,
       );
     });
@@ -494,10 +494,10 @@ void main() {
     test('valor estragado vale o padrão', () async {
       final prefs = SharedPreferencesAsync();
       await prefs.setString('midi_keyboard_transpose', '{"x": 3, ');
-      final settings = AppSettings(prefs: prefs);
+      final settings = SettingsCubit(prefs: prefs);
       await settings.load();
       expect(
-        settings.keyboardTransposeOf('x'),
+        settings.state.keyboardTransposeOf('x'),
         KeyboardTransposeBehavior.unknown,
       );
     });

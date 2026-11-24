@@ -1,4 +1,4 @@
-// O estado das configurações gerais que não é valor do AppSettings (esse
+// O estado das configurações gerais que não é valor do SettingsCubit (esse
 // continua no próprio store): se o timbre do piano é o próprio, a falha da
 // última troca, e a última medida de latência de cada teclado.
 

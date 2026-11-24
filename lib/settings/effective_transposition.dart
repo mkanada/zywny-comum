@@ -2,7 +2,7 @@ import 'package:zywny_library/piece.dart';
 
 import 'package:zywny_music/transposition.dart';
 
-import 'app_settings.dart';
+import 'settings_cubit.dart';
 import 'piece_settings.dart';
 
 /// A nota mais grave e a mais aguda do catálogo de hinos, em MIDI (Q01: 27 a
@@ -25,7 +25,7 @@ const MidiRange kCatalogMidiRange = (
 ///
 ///  1. a escolha da música ([PieceSettings.transpose]) vale sempre: um
 ///     intervalo transpõe, [kTransposeNone] ("Não") vence a chave geral;
-///  2. sem escolha, a chave geral ([AppSettings.transposeByDefault]) leva a
+///  2. sem escolha, a chave geral ([SettingsState.transposeByDefault]) leva a
 ///     armadura da música ([Piece.fifths]) para sem acidentes — e não age
 ///     numa música sem armadura conhecida, nem numa que já não a tem.
 ///
@@ -36,7 +36,7 @@ const MidiRange kCatalogMidiRange = (
 Transposition? effectiveTransposition(
   Piece piece,
   PieceSettings pieceSettings,
-  AppSettings appSettings, {
+  SettingsCubit appSettings, {
   MidiRange? range,
 }) {
   final chosen = pieceSettings.transpose;
@@ -44,7 +44,7 @@ Transposition? effectiveTransposition(
     return chosen == kTransposeNone ? null : Transposition.parse(chosen);
   }
   final fifths = piece.fifths;
-  if (!appSettings.transposeByDefault || fifths == null) return null;
+  if (!appSettings.state.transposeByDefault || fifths == null) return null;
   final r = range ?? kCatalogMidiRange;
   return Transposition.toNoAccidentals(
     fifths,

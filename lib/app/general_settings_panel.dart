@@ -34,7 +34,7 @@ import 'package:zywny_library/library_term_scope.dart';
 
 import '../ui/device_kind.dart';
 import '../ui/theme.dart';
-import '../settings/app_settings.dart';
+import '../settings/settings_cubit.dart';
 import '../settings/color_picker.dart';
 import 'general_settings_cubit.dart';
 import 'libraries_section.dart';
@@ -105,7 +105,7 @@ class GeneralSettingsPanel extends StatelessWidget {
     this.showPageBar = true,
   });
 
-  final AppSettings settings;
+  final SettingsCubit settings;
   final MidiDeviceManager midiDeviceManager;
 
   /// O usuário escolheu um `.sf2` próprio (senão vale o TimGM6mb embutido).
@@ -185,12 +185,12 @@ class GeneralSettingsPanel extends StatelessWidget {
           ),
           const Divider(height: 1),
           Expanded(
-            child: ListenableBuilder(
-              listenable: Listenable.merge([
-                settings,
-                midiDeviceManager.connected,
-              ]),
-              builder: (context, _) => ListView(children: _rows(context)),
+            child: BlocBuilder<SettingsCubit, SettingsState>(
+              bloc: settings,
+              builder: (context, _) => ListenableBuilder(
+                listenable: midiDeviceManager.connected,
+                builder: (context, _) => ListView(children: _rows(context)),
+              ),
             ),
           ),
         ],
@@ -220,15 +220,15 @@ class GeneralSettingsPanel extends StatelessWidget {
   /// O som: se toca, por onde sai (o app ou o teclado) e o timbre do piano.
   List<Widget> _soundRows(BuildContext context) {
     final busy = live?.busy ?? false;
-    final toMidi = settings.output == SoundOutput.midiKeyboard;
+    final toMidi = settings.state.output == SoundOutput.midiKeyboard;
     return [
       const _Header('Som'),
       SwitchListTile(
         dense: true,
         title: const Text('Som'),
         subtitle: const Text('o app toca a música'),
-        value: settings.soundOn,
-        onChanged: busy ? null : (v) => settings.soundOn = v,
+        value: settings.state.soundOn,
+        onChanged: busy ? null : (v) => settings.setSoundOn(v),
       ),
       const Padding(
         padding: EdgeInsets.fromLTRB(16, 4, 16, 0),
@@ -253,8 +253,8 @@ class GeneralSettingsPanel extends StatelessWidget {
               label: Text('Teclado'),
             ),
           ],
-          selected: {settings.output},
-          onSelectionChanged: busy ? null : (s) => settings.output = s.first,
+          selected: {settings.state.output},
+          onSelectionChanged: busy ? null : (s) => settings.setOutput(s.first),
         ),
       ),
       if (toMidi)
@@ -262,8 +262,8 @@ class GeneralSettingsPanel extends StatelessWidget {
           dense: true,
           title: const Text('Trocar o timbre do teclado'),
           subtitle: const Text('usa o instrumento da partitura'),
-          value: settings.useScoreInstruments,
-          onChanged: (v) => settings.useScoreInstruments = v,
+          value: settings.state.useScoreInstruments,
+          onChanged: (v) => settings.setUseScoreInstruments(v),
         ),
       ..._soundFontRows(busy),
     ];
@@ -382,8 +382,8 @@ class GeneralSettingsPanel extends StatelessWidget {
           ButtonSegment(value: NoteNaming.latin, label: Text('Dó-Ré-Mi')),
           ButtonSegment(value: NoteNaming.letters, label: Text('C-D-E')),
         ],
-        selected: {settings.noteNaming},
-        onSelectionChanged: (s) => settings.noteNaming = s.first,
+        selected: {settings.state.noteNaming},
+        onSelectionChanged: (s) => settings.setNoteNaming(s.first),
       ),
     ],
   );
@@ -409,8 +409,8 @@ class GeneralSettingsPanel extends StatelessWidget {
             label: Text('Cmaj7 · Cm7b5'),
           ),
         ],
-        selected: {settings.chordNotation},
-        onSelectionChanged: (s) => settings.chordNotation = s.first,
+        selected: {settings.state.chordNotation},
+        onSelectionChanged: (s) => settings.setChordNotation(s.first),
       ),
       const SizedBox(height: 6),
       const Text(
@@ -427,8 +427,8 @@ class GeneralSettingsPanel extends StatelessWidget {
       dense: true,
       title: const Text('Abrir as músicas já sem acidentes'),
       subtitle: const Text('Cada música pode voltar ao original na gaveta'),
-      value: settings.transposeByDefault,
-      onChanged: (v) => settings.transposeByDefault = v,
+      value: settings.state.transposeByDefault,
+      onChanged: (v) => settings.setTransposeByDefault(v),
     ),
   ];
 
@@ -437,12 +437,12 @@ class GeneralSettingsPanel extends StatelessWidget {
     const _Header('Ritmo'),
     _SliderRow(
       label: 'Margem do tempo (no andamento original)',
-      value: settings.rhythmToleranceMs,
+      value: settings.state.rhythmToleranceMs,
       min: kMinRhythmToleranceMs,
       max: kMaxRhythmToleranceMs,
       step: 5,
       formatValue: (v) => '±${v.round()} ms',
-      onChanged: (v) => settings.rhythmToleranceMs = v,
+      onChanged: (v) => settings.setRhythmToleranceMs(v),
     ),
     const Padding(
       padding: EdgeInsets.symmetric(horizontal: 16),
@@ -454,14 +454,14 @@ class GeneralSettingsPanel extends StatelessWidget {
     ),
     _SliderRow(
       label: 'Aviso de erro e acerto da repetição',
-      value: settings.repeatNoticeSeconds,
+      value: settings.state.repeatNoticeSeconds,
       min: kMinRepeatNoticeSeconds,
       max: kMaxRepeatNoticeSeconds,
       step: 0.1,
       formatValue: (v) => v < 0.05
           ? 'sem aviso'
           : '${v.toStringAsFixed(1).replaceAll('.', ',')} s',
-      onChanged: (v) => settings.repeatNoticeSeconds = v,
+      onChanged: (v) => settings.setRepeatNoticeSeconds(v),
     ),
     const Padding(
       padding: EdgeInsets.symmetric(horizontal: 16),
@@ -481,7 +481,7 @@ class GeneralSettingsPanel extends StatelessWidget {
     Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: TrailNSelector(
-        value: settings.trailMeasures,
+        value: settings.state.trailMeasures,
         max: 20,
         onChanged: (v) => unawaited(_changeTrailN(context, settings, v)),
       ),
@@ -505,26 +505,28 @@ class GeneralSettingsPanel extends StatelessWidget {
         physics: const NeverScrollableScrollPhysics(),
         buildDefaultDragHandles: false,
         onReorderItem: (from, to) {
-          final order = [...settings.trailPhaseOrder];
+          final order = [...settings.state.trailPhaseOrder];
           order.insert(to, order.removeAt(from));
-          settings.trailPhaseOrder = order;
+          settings.setTrailPhaseOrder(order);
         },
         children: [
-          for (final (i, phase) in settings.trailPhaseOrder.indexed)
+          for (final (i, phase) in settings.state.trailPhaseOrder.indexed)
             CheckboxListTile(
               key: ValueKey(phase),
               dense: true,
               controlAffinity: ListTileControlAffinity.leading,
               title: Text(phase.label),
-              value: settings.trailPhases.contains(phase),
+              value: settings.state.trailPhases.contains(phase),
               // A última marcada não sai: a trilha precisa de alguma etapa.
               onChanged:
-                  settings.trailPhases.length == 1 &&
-                      settings.trailPhases.contains(phase)
+                  settings.state.trailPhases.length == 1 &&
+                      settings.state.trailPhases.contains(phase)
                   ? null
-                  : (on) => settings.trailPhases = on == true
-                        ? {...settings.trailPhases, phase}
-                        : ({...settings.trailPhases}..remove(phase)),
+                  : (on) => settings.setTrailPhases(
+                      on == true
+                          ? {...settings.state.trailPhases, phase}
+                          : ({...settings.state.trailPhases}..remove(phase)),
+                    ),
               secondary: ReorderableDragStartListener(
                 index: i,
                 child: const Icon(Icons.drag_handle, color: kInkCaption),
@@ -547,14 +549,16 @@ class GeneralSettingsPanel extends StatelessWidget {
         for (final speed in kTrailSpeeds)
           FilterChip(
             label: Text('${(speed * 100).round()}%'),
-            selected: settings.trailSpeeds.contains(speed),
+            selected: settings.state.trailSpeeds.contains(speed),
             onSelected:
-                settings.trailSpeeds.length == 1 &&
-                    settings.trailSpeeds.contains(speed)
+                settings.state.trailSpeeds.length == 1 &&
+                    settings.state.trailSpeeds.contains(speed)
                 ? null
-                : (on) => settings.trailSpeeds = on
-                      ? {...settings.trailSpeeds, speed}
-                      : ({...settings.trailSpeeds}..remove(speed)),
+                : (on) => settings.setTrailSpeeds(
+                    on
+                        ? {...settings.state.trailSpeeds, speed}
+                        : ({...settings.state.trailSpeeds}..remove(speed)),
+                  ),
           ),
       ],
     ),
@@ -566,46 +570,46 @@ class GeneralSettingsPanel extends StatelessWidget {
     _ColorRow(
       label: 'Nota certa',
       hint: 'e a nota que soa ao ouvir',
-      value: settings.highlightColor,
+      value: settings.state.highlightColor,
       defaultValue: kPracticeCorrectColor,
-      onChanged: (c) => settings.highlightColor = c,
+      onChanged: (c) => settings.setHighlightColor(c),
     ),
     _ColorRow(
       label: 'Nota esperada',
       hint: 'a que o app aguarda você tocar',
-      value: settings.practicePendingColor,
+      value: settings.state.practicePendingColor,
       defaultValue: kPracticePendingColor,
-      onChanged: (c) => settings.practicePendingColor = c,
+      onChanged: (c) => settings.setPracticePendingColor(c),
     ),
     _ColorRow(
       label: 'Nota errada',
       hint: 'pisca na nota esperada mais próxima',
-      value: settings.practiceWrongColor,
+      value: settings.state.practiceWrongColor,
       defaultValue: kPracticeWrongColor,
-      onChanged: (c) => settings.practiceWrongColor = c,
+      onChanged: (c) => settings.setPracticeWrongColor(c),
     ),
     _ColorRow(
       label: 'Notas do aluno',
       hint: 'as notas que você toca, na leitura pela música',
-      value: settings.studentPartColor,
+      value: settings.state.studentPartColor,
       defaultValue: kPracticeStudentColor,
-      onChanged: (c) => settings.studentPartColor = c,
+      onChanged: (c) => settings.setStudentPartColor(c),
     ),
     if (showPageBar)
       _ColorRow(
         label: 'Barra de virada de página',
         hint: 'a barra que varre a página',
-        value: settings.barColor,
+        value: settings.state.barColor,
         defaultValue: kDefaultBarColor,
-        onChanged: (c) => settings.barColor = c,
+        onChanged: (c) => settings.setBarColor(c),
       ),
     _SliderRow(
       label: 'Brilho em volta da nota',
-      value: settings.haloWidth,
+      value: settings.state.haloWidth,
       min: 0,
       max: 3,
       formatValue: (v) => v <= 0 ? 'desligado' : '${v.toStringAsFixed(1)}×',
-      onChanged: (v) => settings.haloWidth = v,
+      onChanged: (v) => settings.setHaloWidth(v),
     ),
   ];
 
@@ -725,10 +729,10 @@ class _RowAction extends StatelessWidget {
 /// (cada um é descartado ao abrir, em `_setupTrail`).
 Future<void> _changeTrailN(
   BuildContext context,
-  AppSettings settings,
+  SettingsCubit settings,
   int value,
 ) async {
-  if (value == settings.trailMeasures) return;
+  if (value == settings.state.trailMeasures) return;
   final term = LibraryTermScope.of(context);
   final ok = await confirmTrailReset(
     context,
@@ -739,7 +743,7 @@ Future<void> _changeTrailN(
     confirmLabel: 'Mudar',
   );
   if (!ok) return;
-  settings.trailMeasures = value;
+  settings.setTrailMeasures(value);
 }
 
 /// As configurações gerais abertas pela biblioteca, em tela cheia: sem
@@ -762,7 +766,7 @@ class GeneralSettingsScreen extends StatelessWidget {
     this.showPageBar = true,
   });
 
-  final AppSettings settings;
+  final SettingsCubit settings;
   final MidiDeviceManager midiDeviceManager;
   final SoundFontStore soundFonts;
 

@@ -7,7 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:shared_preferences_platform_interface/in_memory_shared_preferences_async.dart';
 import 'package:shared_preferences_platform_interface/shared_preferences_async_platform_interface.dart';
 import 'package:zywny_midi/midi_device_manager.dart';
-import 'package:zywny_comum/settings/app_settings.dart';
+import 'package:zywny_comum/settings/settings_cubit.dart';
 import 'package:zywny_comum/app/general_settings_panel.dart';
 import 'package:zywny_comum/ui/theme.dart';
 
@@ -34,7 +34,7 @@ void main() {
     tester.view.physicalSize = const Size(360, 4000);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
-    final settings = AppSettings()..output = SoundOutput.midiKeyboard;
+    final settings = SettingsCubit()..setOutput(SoundOutput.midiKeyboard);
     final manager = MidiDeviceManager(
       midi: _NoDevicesMidi(),
       prefs: SharedPreferencesAsync(),

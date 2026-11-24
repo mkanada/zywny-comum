@@ -2,7 +2,7 @@
 // de ouvido e o da entrada, guarda o que descobre e para a escuta no close.
 import 'package:flutter_test/flutter_test.dart';
 import 'package:zywny_comum/practice/transpose_check.dart';
-import 'package:zywny_comum/settings/app_settings.dart';
+import 'package:zywny_comum/settings/settings_cubit.dart';
 import 'package:zywny_music/transposition.dart';
 
 import '../support/practice_fakes.dart';

@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 /// espera, e a certa acende por cima dela enquanto a tecla está apertada; no
 /// tempo real a pendente acende pelo player, como a mão que o app
 /// está tocando. Pendente, certa e errada são configuráveis em
-/// Cores (`AppSettings.practicePendingColor`, `highlightColor` — a certa é a
+/// Cores (`SettingsState.practicePendingColor`, `highlightColor` — a certa é a
 /// mesma do destaque da reprodução — e `practiceWrongColor`); as daqui são
 /// os padrões.
 
@@ -15,7 +15,7 @@ const kPracticeCorrectRelease = Duration(milliseconds: 400);
 
 /// Nota pendente ("esperado agora") durante o treino: azul — distinta do
 /// vermelho de errada e do verde de certa. Fora do treino vale a cor de
-/// destaque da reprodução (`AppSettings.highlightColor`).
+/// destaque da reprodução (`SettingsState.highlightColor`).
 const kPracticePendingColor = Color(0xFF1E88E5);
 
 /// Nota errada: pisca em vermelho na nota esperada mais próxima (a nota
@@ -41,7 +41,7 @@ const kPracticeAppHandColor = Color(0xFFB8B8BD);
 
 /// A parte do aluno na leitura pela música (LP11): teal, longe do azul da nota
 /// esperada (era azul, e o aluno confundia o que já era dele com o que tinha de
-/// tocar). Configurável em Cores ("Notas do aluno", `AppSettings.studentPartColor`).
+/// tocar). Configurável em Cores ("Notas do aluno", `SettingsState.studentPartColor`).
 const kPracticeStudentColor = Color(0xFF00838F);
 
 /// Os compassos que reprovaram num medidor (EX08): violeta, longe do vermelho

@@ -397,7 +397,7 @@ Map<String, Object> layoutOptionsToSend(Map<String, Object> values) {
   return out;
 }
 
-/// Lê as opções que a pessoa mudou (`AppSettings.scoreLayout`), descartando o
+/// Lê as opções que a pessoa mudou (`SettingsState.scoreLayout`), descartando o
 /// que não serve mais: opção que o app deixou de ter, valor de outro tipo,
 /// escolha que saiu da lista. Os números são trazidos para a faixa da opção,
 /// então um valor gravado por outra versão do app nunca chega torto ao Verovio.

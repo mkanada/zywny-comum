@@ -13,7 +13,7 @@ import '../midi/piano_keyboard.dart';
 import 'package:zywny_music/note_names.dart' show NoteNaming;
 import 'package:zywny_music/transposition.dart';
 
-import '../settings/app_settings.dart' show KeyboardTransposeBehavior;
+import '../settings/settings_cubit.dart' show KeyboardTransposeBehavior;
 import '../ui/theme.dart';
 
 /// O Dó central, a tecla que a conferência pede (altura **escrita**).

@@ -21,8 +21,8 @@ const double kSpeedMax = 1.5;
 const String kTransposeNone = 'P1';
 
 /// Configuração **de um hino**: como ele é estudado (andamento, mão, trilha e
-/// tom). Cada hino tem a sua. O que vale para todos fica em `AppSettings`,
-/// inclusive o layout da partitura (`AppSettings.scoreLayout`).
+/// tom). Cada hino tem a sua. O que vale para todos fica em `SettingsCubit`,
+/// inclusive o layout da partitura (`SettingsState.scoreLayout`).
 @immutable
 class PieceSettings {
   const PieceSettings({
@@ -41,7 +41,7 @@ class PieceSettings {
 
   /// Transpor este hino (fase Q), o intervalo na sintaxe do Verovio (`-m3`).
   /// Três estados: `null` (a pessoa não escolheu: vale a chave geral
-  /// `AppSettings.transposeByDefault`), [kTransposeNone] (escolheu "Não") e um
+  /// `SettingsState.transposeByDefault`), [kTransposeNone] (escolheu "Não") e um
   /// intervalo que `Transposition.parse` aceita, já no texto canônico.
   final String? transpose;
 
@@ -62,7 +62,7 @@ class PieceSettings {
   /// Lê o que foi guardado, descartando o que não serve mais: valor de outro
   /// tipo, escolha que saiu da lista. Assim um JSON gravado por outra versão
   /// do app nunca chega torto ao andamento ou à trilha. (Um `layout` gravado
-  /// antes, por hino, é ignorado: agora ele é de todos, `AppSettings`.)
+  /// antes, por hino, é ignorado: agora ele é de todos, `SettingsCubit`.)
   factory PieceSettings.fromJson(Map<String, dynamic> json) {
     final speed = json['speed'];
     Hand? hand;

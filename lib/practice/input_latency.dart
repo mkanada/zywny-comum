@@ -4,7 +4,7 @@
 
 import 'package:zywny_midi/midi_device_manager.dart';
 
-import '../settings/app_settings.dart';
+import '../settings/settings_cubit.dart';
 
 /// A chave da latência calibrada por par (dispositivo, saída): `'app'` ou
 /// `'midi'` — o mesmo `_outputKey` de `main.dart`.

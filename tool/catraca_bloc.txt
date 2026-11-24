@@ -13,7 +13,6 @@ lib/practice/practice_controller.dart S=0 CN=0 VN=6 VLB=0 SW=0 L=2
 lib/practice/practice_session.dart S=0 CN=0 VN=1 VLB=0 SW=0 L=0
 lib/practice/shift_banner.dart S=0 CN=0 VN=1 VLB=0 SW=0 L=1
 lib/practice/transpose_check.dart S=0 CN=0 VN=0 VLB=1 SW=0 L=0
-lib/settings/app_settings.dart S=0 CN=1 VN=0 VLB=0 SW=0 L=0
 lib/settings/color_picker.dart S=0 CN=0 VN=0 VLB=0 SW=1 L=0 # framework: TextEditingController
 lib/trail/trail_controller.dart S=0 CN=1 VN=0 VLB=0 SW=0 L=0
 lib/trail/trail_progress.dart S=0 CN=1 VN=0 VLB=0 SW=0 L=0

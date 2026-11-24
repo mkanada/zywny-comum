@@ -4,7 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:shared_preferences_platform_interface/in_memory_shared_preferences_async.dart';
 import 'package:shared_preferences_platform_interface/shared_preferences_async_platform_interface.dart';
 import 'package:zywny_audio/performance_track.dart';
-import 'package:zywny_comum/settings/app_settings.dart';
+import 'package:zywny_comum/settings/settings_cubit.dart';
 import 'package:zywny_comum/settings/piece_settings.dart';
 import 'package:zywny_comum/trail/stage_result.dart';
 import 'package:zywny_comum/trail/trail_path.dart';
@@ -253,19 +253,19 @@ void main() {
     });
 
     test('geral persiste; fora da faixa volta para >= 3', () async {
-      final first = AppSettings();
+      final first = SettingsCubit();
       await first.load();
-      expect(first.trailMeasures, kTrailDefaultMeasures);
-      first.trailMeasures = 7;
+      expect(first.state.trailMeasures, kTrailDefaultMeasures);
+      first.setTrailMeasures(7);
       await pumpEventQueue();
-      final second = AppSettings();
+      final second = SettingsCubit();
       await second.load();
-      expect(second.trailMeasures, 7);
+      expect(second.state.trailMeasures, 7);
 
       await SharedPreferencesAsync().setInt('trail_measures', 1);
-      final third = AppSettings();
+      final third = SettingsCubit();
       await third.load();
-      expect(third.trailMeasures, kTrailMinMeasures);
+      expect(third.state.trailMeasures, kTrailMinMeasures);
     });
 
     test('por hino persiste; fora da faixa volta para >= 3', () async {

@@ -1,4 +1,4 @@
-// R03 — o modo do treino num arquivo-folha, para `AppSettings` e a trilha
+// R03 — o modo do treino num arquivo-folha, para `SettingsCubit` e a trilha
 // não dependerem do controller (que puxa áudio e MIDI).
 
 /// Margem padrão do tempo real (ver `PracticeController.rhythmToleranceMs`).

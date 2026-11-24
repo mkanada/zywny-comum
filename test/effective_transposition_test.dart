@@ -6,7 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences_platform_interface/in_memory_shared_preferences_async.dart';
 import 'package:shared_preferences_platform_interface/shared_preferences_async_platform_interface.dart';
 import 'package:zywny_library/piece.dart';
-import 'package:zywny_comum/settings/app_settings.dart';
+import 'package:zywny_comum/settings/settings_cubit.dart';
 import 'package:zywny_comum/settings/effective_transposition.dart';
 import 'package:zywny_comum/settings/piece_settings.dart';
 
@@ -26,8 +26,8 @@ void main() {
         InMemorySharedPreferencesAsync.empty();
   });
 
-  AppSettings general({required bool byDefault}) =>
-      AppSettings()..transposeByDefault = byDefault;
+  SettingsCubit general({required bool byDefault}) =>
+      SettingsCubit()..setTransposeByDefault(byDefault);
 
   String? interval(
     int? fifths, {
