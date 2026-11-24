@@ -85,7 +85,7 @@ void _parte4() {
     final store = makeStore(fakeServer());
     await store.signInWithProvider(SocialProvider.google);
 
-    expect(store.value.status, AuthStatus.authenticated);
+    expect(store.state.status, AuthStatus.authenticated);
     expect(store.currentUser?.uid, 'uid-123');
     expect(store.currentUser?.email, 'aluno@zywny.app');
     expect(store.currentUser?.providerId, 'google.com');
@@ -111,7 +111,7 @@ void _parte4() {
     // O app fecha e abre de novo: a sessão volta do aparelho.
     final outro = makeStore(client);
     await outro.restore();
-    expect(outro.value.status, AuthStatus.authenticated);
+    expect(outro.state.status, AuthStatus.authenticated);
     expect(outro.currentUser?.uid, 'uid-123');
   });
 }
@@ -128,7 +128,7 @@ void _parte5() {
     expect(store.currentUser?.idToken, 'token-renovado');
     expect(store.currentUser?.refreshToken, 'refresh-renovado');
     expect(store.currentUser?.lastServerCheckAt, now);
-    expect(store.value.status, AuthStatus.authenticated);
+    expect(store.state.status, AuthStatus.authenticated);
   });
   test('passados 7 dias sem rede, a sessão guardada não vale', () async {
     final client = fakeServer();
@@ -138,8 +138,8 @@ void _parte5() {
     final store = makeStore(client);
     await store.restore();
 
-    expect(store.value.status, AuthStatus.offlineExpired);
-    expect(store.value.errorMessage, contains('7 dias'));
+    expect(store.state.status, AuthStatus.offlineExpired);
+    expect(store.state.errorMessage, contains('7 dias'));
     // A pessoa continua no estado: é o app que pede a conexão.
     expect(store.currentUser?.uid, 'uid-123');
   });
@@ -151,7 +151,7 @@ void _parte5() {
     final store = makeStore(client);
     await store.restore();
 
-    expect(store.value.status, AuthStatus.authenticated);
+    expect(store.state.status, AuthStatus.authenticated);
   });
   test('relógio do aparelho atrasado: a sessão não vale', () async {
     final client = fakeServer();
@@ -161,8 +161,8 @@ void _parte5() {
     final store = makeStore(client);
     await store.restore();
 
-    expect(store.value.status, AuthStatus.offlineExpired);
-    expect(store.value.errorMessage, contains('relógio'));
+    expect(store.state.status, AuthStatus.offlineExpired);
+    expect(store.state.errorMessage, contains('relógio'));
   });
 }
 
@@ -194,8 +194,8 @@ void _parte6() {
 
       await store.refreshSession();
 
-      expect(store.value.status, AuthStatus.authenticated);
-      expect(store.value.errorMessage, isNotNull);
+      expect(store.state.status, AuthStatus.authenticated);
+      expect(store.state.errorMessage, isNotNull);
       expect(store.currentUser?.uid, 'uid-123');
     },
   );
@@ -226,7 +226,7 @@ void _parte7() {
     now = now.add(const Duration(days: 8));
     await store.refreshSession();
 
-    expect(store.value.status, AuthStatus.offlineExpired);
+    expect(store.state.status, AuthStatus.offlineExpired);
   });
   test('sair da conta apaga a sessão guardada', () async {
     final client = fakeServer();
@@ -235,7 +235,7 @@ void _parte7() {
 
     await store.signOut();
 
-    expect(store.value.status, AuthStatus.unauthenticated);
+    expect(store.state.status, AuthStatus.unauthenticated);
     expect(store.currentUser, isNull);
     final prefs = SharedPreferencesAsync();
     expect(await prefs.getString(SessionStorage.uidKey), isNull);
@@ -255,7 +255,7 @@ void _parte8() {
 
     await store.deleteAccount();
 
-    expect(store.value.status, AuthStatus.unauthenticated);
+    expect(store.state.status, AuthStatus.unauthenticated);
     final delete = requests.firstWhere(
       (r) => r.url.toString().contains('accounts:delete'),
     );
@@ -278,8 +278,8 @@ void _parte8() {
     final store = makeStore(fakeServer());
     await store.signInWithProvider(SocialProvider.apple);
 
-    expect(store.value.status, AuthStatus.unauthenticated);
-    expect(store.value.errorMessage, contains('Google'));
+    expect(store.state.status, AuthStatus.unauthenticated);
+    expect(store.state.errorMessage, contains('Google'));
   });
 }
 
@@ -301,8 +301,8 @@ void _parte9() {
 
     await store.signInWithProvider(SocialProvider.google);
 
-    expect(store.value.status, AuthStatus.unauthenticated);
-    expect(store.value.errorMessage, contains('navegador'));
+    expect(store.state.status, AuthStatus.unauthenticated);
+    expect(store.state.errorMessage, contains('navegador'));
   });
 }
 

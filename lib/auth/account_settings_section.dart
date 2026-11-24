@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:zywny_auth/zywny_auth.dart';
+import 'package:zywny_bloc/zywny_bloc.dart';
 
 import '../ui/theme.dart';
 
@@ -100,8 +101,8 @@ class AccountSettingsSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ListenableBuilder(
-      listenable: store,
+    return BlocBuilder<AuthStore, AuthState>(
+      bloc: store,
       builder: (context, _) {
         final user = store.currentUser;
         if (user == null) return const SizedBox.shrink();

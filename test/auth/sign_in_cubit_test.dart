@@ -69,7 +69,7 @@ void main() {
     blocTest<SignInCubit, SignInState>(
       'um aviso novo do store chega à tela',
       build: () => SignInCubit(store: storeDoAviso),
-      act: (_) => storeDoAviso.setState(
+      act: (_) => storeDoAviso.mudar(
         const AuthState.unauthenticated(errorMessage: 'Faz 7 dias.'),
       ),
       expect: () => [const SignInState(storeMessage: 'Faz 7 dias.')],
@@ -146,7 +146,7 @@ void main() {
 
       // Sem a assinatura, o aviso novo não chega ao Cubit fechado (o emit lançaria).
       expect(
-        () => store.setState(
+        () => store.mudar(
           const AuthState.unauthenticated(errorMessage: 'Faz 7 dias.'),
         ),
         returnsNormally,

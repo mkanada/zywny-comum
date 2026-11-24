@@ -1,5 +1,5 @@
 // J05 — Faixa da trilha e resumo da etapa (só apresentação; o estado mora
-// em `TrailController`, e quem tem player/MIDI/motor é `lib/main.dart`).
+// em `TrailCubit`, e quem tem player/MIDI/motor é `lib/main.dart`).
 //
 // A faixa é fina e de altura fixa: sobre a partitura ela não muda a caixa
 // (que dispararia re-render) — ver o comentário sobre `_onBoxSize` em
@@ -16,7 +16,7 @@ import '../practice/review_button.dart';
 import '../ui/side_panel.dart';
 import '../ui/theme.dart';
 import 'stage_result.dart' show StagePass, StageResult, kTrailPassAccuracy;
-import 'trail_controller.dart' show ReinforcementView;
+import 'trail_cubit.dart' show ReinforcementView;
 import 'trail_plan.dart';
 import 'trail_progress.dart' show StageState, TrailProgress, TrailResume;
 import 'trail_stage.dart' show kTrailMinMeasures;

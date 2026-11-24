@@ -8,6 +8,7 @@ import 'package:zywny_library/piece.dart';
 import 'package:zywny_library/piece_progress.dart';
 import 'package:zywny_comum/settings/piece_settings.dart';
 import 'package:zywny_comum/trail/trail_progress.dart';
+import 'package:zywny_comum/trail/trail_progress_cubit.dart';
 
 Piece _piece(String lib, String id, String title, {int? number}) => Piece(
   libraryId: lib,
@@ -36,25 +37,25 @@ void main() {
 
   group('cada biblioteca tem o seu progresso', () {
     test('mesmo id em duas bibliotecas não se mistura', () async {
-      final store = PieceProgressStore(prefs: prefs);
+      final store = PieceProgressCubit(prefs: prefs);
       await store.load('a');
       await store.recordScore('1', 70);
       await store.load('b');
-      expect(store['1'], isNull);
+      expect(store.state['1'], isNull);
       await store.recordScore('1', 40);
       await store.load('a');
-      expect(store['1']!.bestScore, 70);
-      expect(store.libraryId, 'a');
+      expect(store.state['1']!.bestScore, 70);
+      expect(store.state.libraryId, 'a');
       expect(await prefs.getString('lib_progress_a'), isNotNull);
       expect(await prefs.getString('lib_progress_b'), isNotNull);
     });
 
     test('a trilha carrega as músicas do catálogo, não 1..600', () async {
-      final trail = TrailProgressStore(prefs: prefs);
+      final trail = TrailProgressCubit(prefs: prefs);
       await trail.load(const ['x'], 'lib');
       await trail.save('x', const TrailProgress(n: 5, total: 9));
       await trail.save('y', const TrailProgress(n: 5, total: 4));
-      final again = TrailProgressStore(prefs: prefs);
+      final again = TrailProgressCubit(prefs: prefs);
       await again.load(const ['x', 'z'], 'lib');
       expect(again['x'].total, 9);
       expect(again['y'], TrailProgress.empty); // y não está no catálogo
@@ -71,14 +72,14 @@ void main() {
     });
 
     test('remover a biblioteca (store) não apaga o progresso', () async {
-      // O LibraryStore só mexe no pacote e na lista (library_store_test);
+      // O LibraryCubit só mexe no pacote e na lista (library_store_test);
       // aqui, que as chaves de progresso não dependem dela.
-      final store = PieceProgressStore(prefs: prefs);
+      final store = PieceProgressCubit(prefs: prefs);
       await store.load('hinos');
       await store.recordScore('001', 88);
-      final again = PieceProgressStore(prefs: prefs);
+      final again = PieceProgressCubit(prefs: prefs);
       await again.load('hinos');
-      expect(again['001']!.bestScore, 88);
+      expect(again.state['001']!.bestScore, 88);
     });
   });
 
@@ -93,7 +94,7 @@ void main() {
       final sorted = sortedPieces(
         pieces,
         const SortState(),
-        PieceProgressStore(prefs: prefs),
+        PieceProgressCubit(prefs: prefs).state,
       );
       expect(sorted.map((p) => p.id), ['op100-1', 'op100-2', 'op100-10']);
     });
@@ -104,13 +105,13 @@ void main() {
     });
 
     test('o progresso é pelo id', () async {
-      final progress = PieceProgressStore(prefs: prefs);
+      final progress = PieceProgressCubit(prefs: prefs);
       await progress.load('c');
       await progress.recordScore('op100-2', 80);
       final sorted = sortedPieces(
         pieces,
         const SortState(key: SortKey.score, ascending: false),
-        progress,
+        progress.state,
       );
       expect(sorted.first.id, 'op100-2');
     });

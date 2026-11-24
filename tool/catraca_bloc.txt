@@ -1,8 +1,5 @@
 lib/app/general_settings_panel.dart S=0 CN=0 VN=0 VLB=0 SW=0 L=1
-lib/app/libraries_section.dart S=0 CN=0 VN=0 VLB=0 SW=0 L=1
-lib/auth/account_settings_section.dart S=0 CN=0 VN=0 VLB=0 SW=1 L=1 # framework: TextEditingController
-lib/auth/auth_gate_cubit.dart S=0 CN=0 VN=0 VLB=0 SW=0 L=1
-lib/auth/sign_in_cubit.dart S=0 CN=0 VN=0 VLB=0 SW=0 L=1
+lib/auth/account_settings_section.dart S=0 CN=0 VN=0 VLB=0 SW=1 L=0 # framework: TextEditingController
 lib/diag/bug_report_page.dart S=0 CN=0 VN=0 VLB=0 SW=1 L=0 # framework: TextEditingController
 lib/diag/bug_report_scope.dart S=0 CN=0 VN=0 VLB=0 SW=1 L=0 # framework: WidgetsBindingObserver, GlobalKey, Timer dos três dedos (dono do BugReportFlowCubit por causa dos estáticos)
 lib/diag/diag_score_watch.dart S=0 CN=0 VN=0 VLB=0 SW=0 L=1
@@ -14,13 +11,8 @@ lib/practice/practice_session.dart S=0 CN=0 VN=1 VLB=0 SW=0 L=0
 lib/practice/shift_banner.dart S=0 CN=0 VN=1 VLB=0 SW=0 L=1
 lib/practice/transpose_check.dart S=0 CN=0 VN=0 VLB=1 SW=0 L=0
 lib/settings/color_picker.dart S=0 CN=0 VN=0 VLB=0 SW=1 L=0 # framework: TextEditingController
-lib/trail/trail_controller.dart S=0 CN=1 VN=0 VLB=0 SW=0 L=0
-lib/trail/trail_progress.dart S=0 CN=1 VN=0 VLB=0 SW=0 L=0
 lib/ui/score_paging.dart S=0 CN=0 VN=0 VLB=0 SW=0 L=1
-packages/zywny_auth/lib/auth_store.dart S=0 CN=0 VN=1 VLB=0 SW=0 L=0
 packages/zywny_bloc/lib/src/bloc_repaint.dart S=0 CN=0 VN=0 VLB=0 SW=0 L=1
-packages/zywny_library/lib/library_store.dart S=0 CN=1 VN=0 VLB=0 SW=0 L=0
-packages/zywny_library/lib/piece_progress.dart S=0 CN=1 VN=0 VLB=0 SW=0 L=0
 packages/zywny_midi/lib/midi_device_manager.dart S=0 CN=0 VN=5 VLB=0 SW=0 L=1
 packages/zywny_midi/lib/midi_input_service.dart S=0 CN=0 VN=1 VLB=0 SW=0 L=0
 score_bridge/lib/src/band.dart S=0 CN=1 VN=0 VLB=0 SW=0 L=0

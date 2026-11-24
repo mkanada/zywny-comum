@@ -2,13 +2,14 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
-import 'package:zywny_library/library_store.dart';
+import 'package:zywny_bloc/zywny_bloc.dart';
+import 'package:zywny_library/library_cubit.dart';
 
 import '../ui/theme.dart';
 
 /// A seção **Bibliotecas** das configurações gerais (B06): as instaladas, a
 /// em uso marcada, trocar de uma para outra, remover e ver os créditos. Fala
-/// com o [LibraryStore]; [onInstall] é o instalador, quando a tela oferece um
+/// com o [LibraryCubit]; [onInstall] é o instalador, quando a tela oferece um
 /// botão para isso (o zywny-musicas não oferece: o `.zywny` chega pelo
 /// "Abrir com…" do sistema).
 ///
@@ -17,16 +18,16 @@ import '../ui/theme.dart';
 class LibrariesSection extends StatelessWidget {
   const LibrariesSection({super.key, required this.store, this.onInstall});
 
-  final LibraryStore store;
+  final LibraryCubit store;
 
   /// `null` não mostra "Instalar outra…" (a instalação vem de fora do app).
   final VoidCallback? onInstall;
 
   @override
   Widget build(BuildContext context) {
-    return ListenableBuilder(
-      listenable: store,
-      builder: (context, _) => Column(
+    return BlocBuilder<LibraryCubit, LibraryState>(
+      bloc: store,
+      builder: (context, state) => Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Padding(
@@ -36,7 +37,7 @@ class LibrariesSection extends StatelessWidget {
               style: Theme.of(context).textTheme.labelLarge,
             ),
           ),
-          if (store.installed.isEmpty)
+          if (state.installed.isEmpty)
             const Padding(
               padding: EdgeInsets.fromLTRB(16, 4, 16, 4),
               child: Text(
@@ -44,11 +45,11 @@ class LibrariesSection extends StatelessWidget {
                 style: TextStyle(fontSize: 13, color: kInkCaption),
               ),
             ),
-          for (final library in store.installed)
+          for (final library in state.installed)
             _LibraryRow(
               library: library,
-              active: library.id == store.activeId,
-              selectable: store.installed.length > 1,
+              active: library.id == state.activeId,
+              selectable: state.installed.length > 1,
               onUse: () => unawaited(store.setActive(library.id)),
               onAbout: () => _about(context, library),
               onRemove: () => unawaited(_remove(context, library)),

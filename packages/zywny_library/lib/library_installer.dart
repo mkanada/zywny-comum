@@ -5,7 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import 'library_package.dart';
-import 'library_store.dart';
+import 'library_cubit.dart';
 
 /// Abre o seletor de arquivos para um `.zywny` e devolve os bytes; `null` se
 /// o usuário cancelou. No Android o filtro por extensão vira filtro por MIME,
@@ -29,7 +29,7 @@ Future<Uint8List?> pickLibraryBytes() async {
 /// foi gravado. Usado pela tela vazia (B05) e pelas configurações (B06).
 Future<InstalledLibrary?> installLibraryFromFile(
   BuildContext context,
-  LibraryStore store, {
+  LibraryCubit store, {
   Future<Uint8List?> Function() pick = pickLibraryBytes,
 }) async {
   final messenger = ScaffoldMessenger.of(context);
@@ -73,7 +73,7 @@ Future<InstalledLibrary?> installLibraryFromFile(
 /// biblioteca, explica e devolve `null`.
 Future<LibraryPackage?> _inspectOrReport(
   NavigatorState navigator,
-  LibraryStore store,
+  LibraryCubit store,
   Uint8List bytes,
 ) async {
   try {
@@ -92,10 +92,10 @@ Future<LibraryPackage?> _inspectOrReport(
 /// substitui (ou se a tela já saiu).
 Future<bool> _confirmReplace(
   NavigatorState navigator,
-  LibraryStore store,
+  LibraryCubit store,
   LibraryPackage package,
 ) async {
-  final installed = store[package.manifest.id];
+  final installed = store.state[package.manifest.id];
   if (installed == null) return true;
   if (!navigator.mounted) return false;
   final replace = await showDialog<bool>(
@@ -110,7 +110,7 @@ Future<bool> _confirmReplace(
 /// devolve `null`.
 Future<InstalledLibrary?> _installOrReport(
   NavigatorState navigator,
-  LibraryStore store,
+  LibraryCubit store,
   Uint8List bytes,
   LibraryPackage package,
 ) async {

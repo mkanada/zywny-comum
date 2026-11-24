@@ -10,6 +10,7 @@ import 'package:zywny_comum/trail/stage_result.dart';
 import 'package:zywny_comum/trail/trail_path.dart';
 import 'package:zywny_comum/trail/trail_plan.dart';
 import 'package:zywny_comum/trail/trail_progress.dart';
+import 'package:zywny_comum/trail/trail_progress_cubit.dart';
 import 'package:zywny_comum/trail/trail_stage.dart';
 
 TrailPath _path(int measures) => TrailPath(
@@ -211,21 +212,21 @@ void main() {
     });
 
     test('grava e volta igual; JSON estragado vira trilha vazia', () async {
-      final store = TrailProgressStore();
+      final store = TrailProgressCubit();
       await store.load(const ['012']);
       var progress = const TrailProgress(n: 5, total: 27);
       progress = progress.recordResult('t0.notasD', _pct(9, 10));
       progress = progress.skip('t0.notasE');
       await store.save('012', progress);
 
-      final second = TrailProgressStore();
+      final second = TrailProgressCubit();
       await second.load(const ['012']);
       expect(second['012'], progress);
       expect(second.summary('012').done, 2);
       expect(second.summary('012').total, 27);
 
       await SharedPreferencesAsync().setString('trail_hinos_007', '{quebrado');
-      final third = TrailProgressStore();
+      final third = TrailProgressCubit();
       await third.load(const ['007']);
       expect(third['007'], TrailProgress.empty);
     });

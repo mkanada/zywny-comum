@@ -5,12 +5,14 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:shared_preferences_platform_interface/in_memory_shared_preferences_async.dart';
 import 'package:shared_preferences_platform_interface/shared_preferences_async_platform_interface.dart';
 import 'package:zywny_audio/performance_track.dart';
+import 'package:zywny_bloc/zywny_bloc.dart';
 import 'package:zywny_comum/settings/piece_settings.dart';
 import 'package:zywny_comum/trail/stage_result.dart';
-import 'package:zywny_comum/trail/trail_controller.dart';
+import 'package:zywny_comum/trail/trail_cubit.dart';
 import 'package:zywny_comum/trail/trail_path.dart';
 import 'package:zywny_comum/trail/trail_plan.dart';
 import 'package:zywny_comum/trail/trail_progress.dart';
+import 'package:zywny_comum/trail/trail_progress_cubit.dart';
 import 'package:zywny_comum/trail/trail_widgets.dart';
 
 TrailPath _path(int measures) => TrailPath(
@@ -228,8 +230,8 @@ void main() {
   group('refazer com a gaveta (critério 2)', () {
     testWidgets('pior mantém, melhor sobe', (tester) async {
       final plan = _plan();
-      final store = TrailProgressStore();
-      final controller = TrailController(
+      final store = TrailProgressCubit();
+      final controller = TrailCubit(
         path: _path(6),
         plan: plan,
         progress: TrailProgress(n: 5, total: plan.stages.length),
@@ -242,8 +244,8 @@ void main() {
       controller.next();
       await tester.pumpWidget(
         _app(
-          ListenableBuilder(
-            listenable: controller,
+          BlocBuilder<TrailCubit, TrailState>(
+            bloc: controller,
             builder: (context, _) => TrailDrawer(
               plan: plan,
               progress: controller.progress,
@@ -351,7 +353,7 @@ void main() {
 
   group('N e reinício (critérios 3-5)', () {
     test('reiniciar zera só aquele hino', () async {
-      final store = TrailProgressStore();
+      final store = TrailProgressCubit();
       const full = TrailProgress(
         n: 5,
         total: 24,

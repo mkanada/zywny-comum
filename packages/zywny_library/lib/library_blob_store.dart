@@ -6,7 +6,7 @@ export 'library_blob_store_native.dart'
 
 /// Onde os bytes de cada `.zywny` ficam, um por `id` de biblioteca. Só guarda
 /// bytes: quem valida e quem lembra a lista e a biblioteca em uso é o
-/// `LibraryStore`.
+/// `LibraryCubit`.
 abstract interface class LibraryBlobStore {
   Future<bool> contains(String id);
 

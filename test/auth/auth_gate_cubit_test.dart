@@ -24,7 +24,7 @@ void main() {
       final cubit = AuthGateCubit(store: store);
       addTearDown(cubit.close);
 
-      expect(cubit.state, store.value);
+      expect(cubit.state, store.state);
       expect(cubit.state.status, AuthStatus.offlineExpired);
     });
 
@@ -33,8 +33,8 @@ void main() {
       'espelha cada mudança do store',
       build: () => AuthGateCubit(store: storeDoEspelho),
       act: (_) {
-        storeDoEspelho.setState(const AuthState.initializing());
-        storeDoEspelho.setState(
+        storeDoEspelho.mudar(const AuthState.initializing());
+        storeDoEspelho.mudar(
           const AuthState.unauthenticated(errorMessage: 'Saiu'),
         );
       },
@@ -75,7 +75,7 @@ void main() {
 
       // Sem a assinatura, a mudança não chega ao Cubit fechado (o emit lançaria).
       expect(
-        () => store.setState(const AuthState.initializing()),
+        () => store.mudar(const AuthState.initializing()),
         returnsNormally,
       );
       expect(cubit.state, const AuthState.unauthenticated());

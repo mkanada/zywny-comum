@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:zywny_bloc/zywny_bloc.dart';
 
 import 'legacy_migration.dart';
 import 'library_blob_store.dart';
@@ -68,18 +69,56 @@ class InstalledLibrary {
   };
 }
 
-/// As bibliotecas instaladas e qual está em uso (D-BIB-UMA). Os bytes dos
-/// pacotes ficam num [LibraryBlobStore] (arquivo, IndexedDB ou memória); a
-/// lista e o `id` em uso, em `shared_preferences` (`library_installed`,
-/// `library_active`). Avisa quem escuta a cada mudança.
-class LibraryStore extends ChangeNotifier {
-  LibraryStore({
+/// As bibliotecas instaladas e qual está em uso (D-BIB-UMA). Imutável: cada
+/// mudança é outro estado.
+class LibraryState extends Equatable {
+  const LibraryState({this.installed = const [], this.activeId});
+
+  /// Em ordem de instalação.
+  final List<InstalledLibrary> installed;
+
+  /// O `id` da biblioteca em uso, ou `null` se não há nenhuma.
+  final String? activeId;
+
+  InstalledLibrary? get active => this[activeId];
+
+  InstalledLibrary? operator [](String? id) {
+    for (final lib in installed) {
+      if (lib.id == id) return lib;
+    }
+    return null;
+  }
+
+  /// Troca só o que vier (`null` mantém). Para tirar a em uso, use o
+  /// construtor.
+  LibraryState copyWith({
+    List<InstalledLibrary>? installed,
+    String? activeId,
+  }) => LibraryState(
+    installed: installed == null
+        ? this.installed
+        : List.unmodifiable(installed),
+    activeId: activeId ?? this.activeId,
+  );
+
+  @override
+  List<Object?> get props => [installed, activeId];
+}
+
+/// As bibliotecas instaladas e qual está em uso. Os bytes dos pacotes ficam
+/// num [LibraryBlobStore] (arquivo, IndexedDB ou memória); a lista e o `id` em
+/// uso, em `shared_preferences` (`library_installed`, `library_active`). Cada
+/// mudança é gravada antes de ser emitida: o estado não anda na frente do
+/// disco.
+class LibraryCubit extends Cubit<LibraryState> {
+  LibraryCubit({
     LibraryBlobStore? blobs,
     SharedPreferencesAsync? prefs,
     Uint8List? publicKey,
   }) : _blobs = blobs ?? createLibraryBlobStore(),
        _prefs = prefs ?? SharedPreferencesAsync(),
-       _publicKey = publicKey ?? libraryKeyFromEnvironment();
+       _publicKey = publicKey ?? libraryKeyFromEnvironment(),
+       super(const LibraryState());
 
   static const installedKey = 'library_installed';
   static const activeKey = 'library_active';
@@ -87,50 +126,36 @@ class LibraryStore extends ChangeNotifier {
   final LibraryBlobStore _blobs;
   final SharedPreferencesAsync _prefs;
   final Uint8List? _publicKey;
-  final List<InstalledLibrary> _installed = [];
-  String? _active;
-
-  /// Em ordem de instalação.
-  List<InstalledLibrary> get installed => List.unmodifiable(_installed);
 
   /// A chave pública que abre os pacotes (`null` sem chave no build): o
   /// despacho do instalador usa esta ou a dos cursos (a mesma pessoa assina
   /// os dois, D-LIC-CONFIANCA).
   Uint8List? get publicKey => _publicKey;
 
-  /// O `id` da biblioteca em uso, ou `null` se não há nenhuma.
-  String? get activeId => _active;
-
-  InstalledLibrary? get active => this[_active];
-
-  InstalledLibrary? operator [](String? id) {
-    for (final lib in _installed) {
-      if (lib.id == id) return lib;
-    }
-    return null;
-  }
-
   /// Lê a lista e a em uso das preferências. O que está na lista mas não tem
   /// pacote (arquivo apagado, dados do site limpos) sai dela.
   Future<void> load() async {
-    _installed.clear();
+    final installed = <InstalledLibrary>[];
     final text = await _prefs.getString(installedKey);
     if (text != null) {
       try {
         for (final e in jsonDecode(text) as List<dynamic>) {
           final lib = InstalledLibrary.fromJson(e as Map<String, dynamic>);
-          if (await _blobs.contains(lib.id)) _installed.add(lib);
+          if (await _blobs.contains(lib.id)) installed.add(lib);
         }
       } on Object {
         // Lista estragada: recomeça vazia em vez de travar o app.
-        _installed.clear();
+        installed.clear();
       }
     }
-    final active = await _prefs.getString(activeKey);
-    _active = this[active] != null
-        ? active
-        : (_installed.isEmpty ? null : _installed.first.id);
-    notifyListeners();
+    final saved = await _prefs.getString(activeKey);
+    final activeId = installed.any((e) => e.id == saved)
+        ? saved
+        : (installed.isEmpty ? null : installed.first.id);
+    if (isClosed) return;
+    emit(
+      LibraryState(installed: List.unmodifiable(installed), activeId: activeId),
+    );
   }
 
   /// Abre o pacote de [id] (assinatura, cifra e conteúdo) ou `null` se não
@@ -164,51 +189,55 @@ class LibraryStore extends ChangeNotifier {
     final package = inspected ?? await inspect(bytes);
     final lib = InstalledLibrary.fromPackage(package);
     await _blobs.put(lib.id, bytes);
-    final i = _installed.indexWhere((e) => e.id == lib.id);
+    final lista = [...state.installed];
+    final i = lista.indexWhere((e) => e.id == lib.id);
     if (i >= 0) {
-      _installed[i] = lib;
+      lista[i] = lib;
     } else {
-      _installed.add(lib);
+      lista.add(lib);
     }
-    await _saveList();
+    if (isClosed) return lib;
+    emit(
+      LibraryState(
+        installed: List.unmodifiable(lista),
+        activeId: activate ? lib.id : state.activeId,
+      ),
+    );
+    await _saveList(lista);
     if (lib.id == kHymnsLibraryId) await migrateLegacyHymnKeys(_prefs);
     if (activate) await _setActive(lib.id);
-    notifyListeners();
     return lib;
   }
 
   /// Apaga o pacote e tira da lista; o progresso fica (D-BIB-REMOVER). Se era
   /// a em uso, passa a ser a primeira que sobrar, ou nenhuma.
   Future<void> remove(String id) async {
-    if (this[id] == null) return;
+    if (state[id] == null) return;
     await _blobs.delete(id);
-    _installed.removeWhere((e) => e.id == id);
-    await _saveList();
-    if (_active == id) {
-      await _setActive(_installed.isEmpty ? null : _installed.first.id);
-    }
-    notifyListeners();
+    final lista = [...state.installed]..removeWhere((e) => e.id == id);
+    final eraAtiva = state.activeId == id;
+    final activeId = eraAtiva
+        ? (lista.isEmpty ? null : lista.first.id)
+        : state.activeId;
+    if (isClosed) return;
+    emit(LibraryState(installed: List.unmodifiable(lista), activeId: activeId));
+    await _saveList(lista);
+    if (eraAtiva) await _setActive(activeId);
   }
 
   Future<void> setActive(String id) async {
-    if (this[id] == null) throw ArgumentError.value(id, 'id', 'não instalada');
-    if (_active == id) return;
+    if (state[id] == null) throw ArgumentError.value(id, 'id', 'não instalada');
+    if (state.activeId == id) return;
+    emit(state.copyWith(activeId: id));
     await _setActive(id);
-    notifyListeners();
   }
 
-  Future<void> _setActive(String? id) async {
-    _active = id;
-    if (id == null) {
-      await _prefs.remove(activeKey);
-    } else {
-      await _prefs.setString(activeKey, id);
-    }
-  }
+  Future<void> _setActive(String? id) =>
+      id == null ? _prefs.remove(activeKey) : _prefs.setString(activeKey, id);
 
-  Future<void> _saveList() => _prefs.setString(
+  Future<void> _saveList(List<InstalledLibrary> lista) => _prefs.setString(
     installedKey,
-    jsonEncode([for (final lib in _installed) lib.toJson()]),
+    jsonEncode([for (final lib in lista) lib.toJson()]),
   );
 
   Uint8List _requireKey() =>

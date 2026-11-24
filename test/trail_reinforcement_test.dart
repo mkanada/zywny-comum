@@ -4,10 +4,11 @@ import 'package:shared_preferences_platform_interface/in_memory_shared_preferenc
 import 'package:shared_preferences_platform_interface/shared_preferences_async_platform_interface.dart';
 import 'package:zywny_audio/performance_track.dart';
 import 'package:zywny_comum/trail/stage_result.dart';
-import 'package:zywny_comum/trail/trail_controller.dart';
+import 'package:zywny_comum/trail/trail_cubit.dart';
 import 'package:zywny_comum/trail/trail_path.dart';
 import 'package:zywny_comum/trail/trail_plan.dart';
 import 'package:zywny_comum/trail/trail_progress.dart';
+import 'package:zywny_comum/trail/trail_progress_cubit.dart';
 
 TrailPath _path(int measures) => TrailPath(
   logical: [
@@ -62,13 +63,13 @@ TrailPlan _plan() => TrailPlan.build(
 StageResult _pct(int hits, int total, [Set<int> bad = const {}]) =>
     StageResult(hits: hits, total: total, badMeasures: bad);
 
-TrailController _controller({TrailProgress? progress}) {
+TrailCubit _controller({TrailProgress? progress}) {
   final plan = _plan();
-  return TrailController(
+  return TrailCubit(
     path: _path(20),
     plan: plan,
     progress: progress ?? TrailProgress(n: 5, total: plan.stages.length),
-    store: TrailProgressStore(),
+    store: TrailProgressCubit(),
     pieceId: '012',
   );
 }
@@ -80,7 +81,7 @@ void main() {
   });
 
   /// Aprova todos os trechos para a fase final abrir.
-  Future<void> passSegments(TrailController c) async {
+  Future<void> passSegments(TrailCubit c) async {
     while (c.selected != null && c.selected!.segment != null) {
       await c.recordDone(_pct(19, 20));
     }

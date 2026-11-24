@@ -29,7 +29,7 @@ import '../trail/trail_stage.dart' show kTrailSpeeds;
 import '../trail/trail_widgets.dart';
 
 import 'package:zywny_library/library_installer.dart';
-import 'package:zywny_library/library_store.dart';
+import 'package:zywny_library/library_cubit.dart';
 import 'package:zywny_library/library_term_scope.dart';
 
 import '../ui/device_kind.dart';
@@ -772,7 +772,7 @@ class GeneralSettingsScreen extends StatelessWidget {
 
   /// As bibliotecas instaladas (a seção Bibliotecas); `null` não mostra a
   /// seção.
-  final LibraryStore? libraryStore;
+  final LibraryCubit? libraryStore;
   final Future<Uint8List?> Function() pickLibraryFile;
 
   /// Como o app instala uma biblioteca pela seção Bibliotecas; `null` usa o

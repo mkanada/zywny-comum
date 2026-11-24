@@ -9,6 +9,7 @@ import 'package:zywny_library/library_keys.dart';
 import 'package:zywny_library/piece_progress.dart';
 import 'package:zywny_comum/settings/piece_settings.dart';
 import 'package:zywny_comum/trail/trail_progress.dart';
+import 'package:zywny_comum/trail/trail_progress_cubit.dart';
 
 void main() {
   late SharedPreferencesAsync prefs;
@@ -45,17 +46,20 @@ void main() {
     await seedOld();
     expect(await migrateLegacyHymnKeys(prefs), isTrue);
 
-    final progress = PieceProgressStore(prefs: prefs);
+    final progress = PieceProgressCubit(prefs: prefs);
     await progress.load('hinos');
-    expect(progress['005']!.bestScore, 78);
-    expect(progress['005']!.lastOpened!.millisecondsSinceEpoch, 1700000000000);
-    expect(progress['244']!.bestScore, 90);
+    expect(progress.state['005']!.bestScore, 78);
+    expect(
+      progress.state['005']!.lastOpened!.millisecondsSinceEpoch,
+      1700000000000,
+    );
+    expect(progress.state['244']!.bestScore, 90);
 
     final settings = await PieceSettingsStore(prefs: prefs)
         .load('hinos', '005');
     expect(settings.speed, 0.8);
 
-    final trail = TrailProgressStore(prefs: prefs);
+    final trail = TrailProgressCubit(prefs: prefs);
     await trail.load(const ['005', '244'], 'hinos');
     expect(trail['005'].total, 20);
     expect(trail['244'].total, 30);
@@ -96,11 +100,11 @@ void main() {
       jsonEncode(const TrailProgress(n: 4, total: 77).toJson()),
     );
     await migrateLegacyHymnKeys(prefs);
-    final progress = PieceProgressStore(prefs: prefs);
+    final progress = PieceProgressCubit(prefs: prefs);
     await progress.load('hinos');
-    expect(progress['005']!.bestScore, 99); // novo vence
-    expect(progress['244']!.bestScore, 90); // o resto veio do antigo
-    final trail = TrailProgressStore(prefs: prefs);
+    expect(progress.state['005']!.bestScore, 99); // novo vence
+    expect(progress.state['244']!.bestScore, 90); // o resto veio do antigo
+    final trail = TrailProgressCubit(prefs: prefs);
     await trail.load(const ['005'], 'hinos');
     expect(trail['005'].total, 77);
     expect(await prefs.getString('trail_5'), isNull);

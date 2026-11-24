@@ -58,12 +58,12 @@ class FirebaseSdkAuthStore extends AuthStoreBase implements AuthStore {
   Future<void> restore() async {
     final user = await _storage.read();
     if (user == null) {
-      setState(const AuthState.unauthenticated());
+      mudar(const AuthState.unauthenticated());
       return;
     }
     final now = _clock();
     if (!SessionFreshness.isFresh(user.lastServerCheckAt, now)) {
-      setState(
+      mudar(
         AuthState.offlineExpired(
           user: user,
           errorMessage: SessionFreshness.messageFor(
@@ -74,7 +74,7 @@ class FirebaseSdkAuthStore extends AuthStoreBase implements AuthStore {
       );
       return;
     }
-    setState(AuthState.authenticated(user));
+    mudar(AuthState.authenticated(user));
   }
 
   @override
@@ -88,13 +88,13 @@ class FirebaseSdkAuthStore extends AuthStoreBase implements AuthStore {
         ),
       };
       await _storage.write(user);
-      setState(AuthState.authenticated(user));
+      mudar(AuthState.authenticated(user));
     } on AuthException catch (e) {
-      setState(AuthState.unauthenticated(errorMessage: e.message));
+      mudar(AuthState.unauthenticated(errorMessage: e.message));
     } on fb.FirebaseAuthException catch (e) {
-      setState(AuthState.unauthenticated(errorMessage: e.message));
+      mudar(AuthState.unauthenticated(errorMessage: e.message));
     } on Object catch (e) {
-      setState(
+      mudar(
         AuthState.unauthenticated(errorMessage: 'Não consegui entrar: $e'),
       );
     }
@@ -104,7 +104,7 @@ class FirebaseSdkAuthStore extends AuthStoreBase implements AuthStore {
   Future<void> refreshSession() async {
     final user = currentUser;
     if (user == null) {
-      setState(
+      mudar(
         const AuthState.unauthenticated(
           errorMessage: 'Não há sessão para renovar.',
         ),
@@ -120,7 +120,7 @@ class FirebaseSdkAuthStore extends AuthStoreBase implements AuthStore {
         // nunca vai dar certo; apaga a sessão e pede o login de novo, em vez
         // de a tela de reconexão repetir a mesma mensagem.
         await _storage.clear();
-        setState(
+        mudar(
           const AuthState.unauthenticated(
             errorMessage:
                 'Sua sessão não está mais neste aparelho. Entre de novo.',
@@ -140,11 +140,11 @@ class FirebaseSdkAuthStore extends AuthStoreBase implements AuthStore {
         lastServerCheckAt: now,
       );
       await _storage.write(updated);
-      setState(AuthState.authenticated(updated));
+      mudar(AuthState.authenticated(updated));
     } on Object catch (e) {
       // A rede falhou: a sessão guardada continua valendo enquanto estiver
       // fresca (D-NEG-OFFLINE).
-      setState(renewFailureState(user, e, _clock()));
+      mudar(renewFailureState(user, e, _clock()));
     }
   }
 
@@ -157,7 +157,7 @@ class FirebaseSdkAuthStore extends AuthStoreBase implements AuthStore {
       );
     }
     final updated = await saveNickname(_storage, user, nickname);
-    setState(AuthState.authenticated(updated));
+    mudar(AuthState.authenticated(updated));
   }
 
   @override
@@ -170,7 +170,7 @@ class FirebaseSdkAuthStore extends AuthStoreBase implements AuthStore {
       // Sem rede (ou sem o plugin): a sessão local é apagada assim mesmo.
     }
     await _storage.clear();
-    setState(const AuthState.unauthenticated());
+    mudar(const AuthState.unauthenticated());
   }
 
   @override
@@ -181,7 +181,7 @@ class FirebaseSdkAuthStore extends AuthStoreBase implements AuthStore {
       await firebaseUser.delete();
     }
     await _storage.clear();
-    setState(const AuthState.unauthenticated());
+    mudar(const AuthState.unauthenticated());
   }
 
   /// Entra com o Google: na Web, o popup do Firebase; no Android, o seletor

@@ -1,14 +1,16 @@
-// J05 — TrailController: seleção, registro, pulo e modos.
+// J05 — TrailCubit: seleção, registro, pulo e modos.
+import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:shared_preferences_platform_interface/in_memory_shared_preferences_async.dart';
 import 'package:shared_preferences_platform_interface/shared_preferences_async_platform_interface.dart';
 import 'package:zywny_audio/performance_track.dart';
 import 'package:zywny_comum/trail/stage_result.dart';
-import 'package:zywny_comum/trail/trail_controller.dart';
+import 'package:zywny_comum/trail/trail_cubit.dart';
 import 'package:zywny_comum/trail/trail_path.dart';
 import 'package:zywny_comum/trail/trail_plan.dart';
 import 'package:zywny_comum/trail/trail_progress.dart';
+import 'package:zywny_comum/trail/trail_progress_cubit.dart';
 
 TrailPath _path(int measures) => TrailPath(
   logical: [
@@ -62,13 +64,13 @@ void main() {
         InMemorySharedPreferencesAsync.empty();
   });
 
-  TrailController controller({String? piece = '012', TrailProgress? progress}) {
+  TrailCubit controller({String? piece = '012', TrailProgress? progress}) {
     final plan = _plan();
-    return TrailController(
+    return TrailCubit(
       path: _path(6),
       plan: plan,
       progress: progress ?? TrailProgress(n: 5, total: plan.stages.length),
-      store: TrailProgressStore(),
+      store: TrailProgressCubit(),
       pieceId: piece,
     );
   }
@@ -155,13 +157,77 @@ void main() {
     expect(await SharedPreferencesAsync().getString('trail_12'), isNull);
   });
 
-  test('freeMode e running avisam', () {
-    final c = controller();
-    var calls = 0;
-    c.addListener(() => calls++);
-    c.setFreeMode(true);
-    c.setRunning(true);
-    c.setRunning(true);
-    expect(calls, 2);
-  });
+  blocTest<TrailCubit, TrailState>(
+    'freeMode e running avisam, e só quando mudam',
+    build: () => controller(),
+    act: (c) {
+      c.setFreeMode(true);
+      c.setRunning(true);
+      c.setRunning(true);
+    },
+    expect: () => [
+      isA<TrailState>().having((s) => s.freeMode, 'freeMode', true),
+      isA<TrailState>().having((s) => s.running, 'running', true),
+    ],
+  );
+
+  blocTest<TrailCubit, TrailState>(
+    'select de etapa aberta põe a escolhida no estado',
+    build: () => controller(),
+    act: (c) => c.select('t0.notasD'),
+    expect: () => [
+      isA<TrailState>().having((s) => s.selectedId, 'selectedId', 't0.notasD'),
+    ],
+  );
+
+  blocTest<TrailCubit, TrailState>(
+    'next sem seleção não avisa',
+    build: () => controller(),
+    act: (c) => c.next(),
+    expect: () => <TrailState>[],
+  );
+
+  blocTest<TrailCubit, TrailState>(
+    'recordDone aprovada emite o progresso e o resultado',
+    build: () => controller(),
+    act: (c) => c.recordDone(_pct(9, 10)),
+    expect: () => [
+      isA<TrailState>()
+          .having(
+            (s) => s.progress.stateOf('t0.notasD'),
+            'estado',
+            StageState.aprovada,
+          )
+          .having((s) => s.lastResult?.percent, 'percent', 90)
+          .having((s) => s.lastStage?.id, 'etapa', 't0.notasD'),
+    ],
+  );
+
+  blocTest<TrailCubit, TrailState>(
+    'clearResult tira o resultado do resumo',
+    build: () => controller(),
+    act: (c) async {
+      await c.recordDone(_pct(9, 10));
+      c.clearResult();
+    },
+    expect: () => [
+      isA<TrailState>(),
+      isA<TrailState>()
+          .having((s) => s.lastResult, 'resultado', isNull)
+          .having((s) => s.lastStage, 'etapa', isNull),
+    ],
+  );
+
+  blocTest<TrailCubit, TrailState>(
+    'skipSelected emite a etapa pulada',
+    build: () => controller(),
+    act: (c) => c.skipSelected(),
+    expect: () => [
+      isA<TrailState>().having(
+        (s) => s.progress.stateOf('t0.notasD'),
+        'estado',
+        StageState.pulada,
+      ),
+    ],
+  );
 }

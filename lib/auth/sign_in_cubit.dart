@@ -1,6 +1,8 @@
-// A tela de entrada (BL04): quem está entrando agora, o erro do último login
-// e o aviso que o store guarda (o login recusado, a sessão vencida). O
-// Cubit assina o store com addListener e tira a assinatura no close().
+// A tela de entrada (BL04, BL09): quem está entrando agora, o erro do último
+// login e o aviso que o store guarda (o login recusado, a sessão vencida). O
+// Cubit assina o `stream` do store e cancela a assinatura no close().
+
+import 'dart:async';
 
 import 'package:zywny_auth/zywny_auth.dart';
 import 'package:zywny_bloc/zywny_bloc.dart';
@@ -28,20 +30,24 @@ class SignInState extends Equatable {
 /// busy e o erro voltam a nulo, então não cabe um `copyWith` simples).
 class SignInCubit extends Cubit<SignInState> {
   SignInCubit({required this.store})
-    : super(SignInState(storeMessage: store.value.errorMessage)) {
-    store.addListener(_aoMudarStore);
+    : super(SignInState(storeMessage: store.state.errorMessage)) {
+    _assinatura = store.stream.listen(_aoMudarStore);
   }
 
   /// Quem faz o login e guarda a sessão (D01).
   final AuthStore store;
 
-  void _aoMudarStore() => _emitir(busy: state.busy, error: state.error);
+  late final StreamSubscription<AuthState> _assinatura;
+
+  void _aoMudarStore(AuthState _) {
+    if (!isClosed) _emitir(busy: state.busy, error: state.error);
+  }
 
   void _emitir({SocialProvider? busy, String? error}) => emit(
     SignInState(
       busy: busy,
       error: error,
-      storeMessage: store.value.errorMessage,
+      storeMessage: store.state.errorMessage,
     ),
   );
 
@@ -63,8 +69,8 @@ class SignInCubit extends Cubit<SignInState> {
   }
 
   @override
-  Future<void> close() {
-    store.removeListener(_aoMudarStore);
+  Future<void> close() async {
+    await _assinatura.cancel();
     return super.close();
   }
 }

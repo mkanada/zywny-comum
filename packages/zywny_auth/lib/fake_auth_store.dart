@@ -7,7 +7,7 @@ import 'auth_user.dart';
 /// injetar um usuário já conectado.
 class FakeAuthStore extends AuthStoreBase implements AuthStore {
   FakeAuthStore([AuthState? initial]) {
-    setState(initial ?? const AuthState.unauthenticated());
+    mudar(initial ?? const AuthState.unauthenticated());
   }
 
   /// Já conectado: o [AuthGate] (D02) deixa o app passar.
@@ -79,7 +79,7 @@ class FakeAuthStore extends AuthStoreBase implements AuthStore {
   Future<void> signInWithProvider(SocialProvider provider) async {
     signInCalls++;
     lastProvider = provider;
-    setState(
+    mudar(
       AuthState.authenticated(
         AuthUser(
           uid: 'fake-uid',
@@ -99,7 +99,7 @@ class FakeAuthStore extends AuthStoreBase implements AuthStore {
     refreshCalls++;
     final user = currentUser;
     if (user == null) return;
-    setState(
+    mudar(
       AuthState.authenticated(user.copyWith(lastServerCheckAt: DateTime.now())),
     );
   }
@@ -115,7 +115,7 @@ class FakeAuthStore extends AuthStoreBase implements AuthStore {
       );
     }
     final trimmed = nickname.trim();
-    setState(
+    mudar(
       AuthState.authenticated(
         user.copyWith(nickname: trimmed.isEmpty ? null : trimmed),
       ),
@@ -125,12 +125,12 @@ class FakeAuthStore extends AuthStoreBase implements AuthStore {
   @override
   Future<void> signOut() async {
     signOutCalls++;
-    setState(const AuthState.unauthenticated());
+    mudar(const AuthState.unauthenticated());
   }
 
   @override
   Future<void> deleteAccount() async {
     deleteAccountCalls++;
-    setState(const AuthState.unauthenticated());
+    mudar(const AuthState.unauthenticated());
   }
 }

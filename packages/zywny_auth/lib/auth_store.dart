@@ -1,12 +1,13 @@
-import 'package:flutter/foundation.dart';
+import 'package:zywny_bloc/zywny_bloc.dart';
 
 import 'auth_state.dart';
 import 'auth_user.dart';
 
 /// O contrato de autenticação do zywny (D01). Os dois caminhos de login
 /// (SDK do Firebase no Android/Web e REST no desktop) e o [FakeAuthStore] dos
-/// testes cumprem este mesmo contrato.
-abstract interface class AuthStore extends ValueListenable<AuthState> {
+/// testes cumprem este mesmo contrato. O estado é lido com `state` e ouvido
+/// pelo `stream` (BL09: o store é um Cubit).
+abstract interface class AuthStore implements StateStreamable<AuthState> {
   /// Quem está conectado agora (ou `null`).
   AuthUser? get currentUser;
 
@@ -34,17 +35,16 @@ abstract interface class AuthStore extends ValueListenable<AuthState> {
   Future<void> deleteAccount();
 }
 
-/// A base dos dois stores: um [ValueNotifier] com o estado e a regra de só
-/// avisar quando o estado muda.
-abstract class AuthStoreBase extends ValueNotifier<AuthState>
-    implements AuthStore {
+/// A base dos stores (e do fake dos testes): um Cubit com o estado da
+/// autenticação. O `emit` já ignora o estado igual ao atual, então quem ouve
+/// o `stream` só recebe mudança de verdade.
+abstract class AuthStoreBase extends Cubit<AuthState> implements AuthStore {
   AuthStoreBase() : super(const AuthState.initializing());
 
   @override
-  AuthUser? get currentUser => value.user;
+  AuthUser? get currentUser => state.user;
 
-  /// Troca o estado e avisa quem escuta (só quando o estado é outro).
-  void setState(AuthState next) {
-    if (next != value) value = next;
-  }
+  /// Troca o estado e avisa quem escuta. (Não se chama `setState`: o nome
+  /// seria confundido com o do widget.)
+  void mudar(AuthState next) => emit(next);
 }

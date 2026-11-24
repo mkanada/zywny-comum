@@ -74,7 +74,7 @@ int _naturalCompare(String a, String b) {
 List<Piece> sortedPieces(
   Iterable<Piece> pieces,
   SortState sort,
-  PieceProgressStore progress, {
+  PieceProgressState progress, {
   PieceProgress? Function(Piece piece)? progressOf,
 }) {
   // A biblioteca ordena pelo progresso do tom em uso de cada música (fase Q).
