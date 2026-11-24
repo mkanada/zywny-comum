@@ -3,6 +3,14 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:zywny_auth/zywny_auth.dart';
 
 void main() {
+  _grupoEstados();
+  _grupoAcoes();
+  _grupoComoCubit();
+  _grupoComoCubitSemEmitir();
+}
+
+/// Os fabricantes de estado (o que o app mostra em cada situação).
+void _grupoEstados() {
   group('FakeAuthStore (D01)', () {
     test('loggedIn: o app passa, com alguém conectado', () {
       final store = FakeAuthStore.loggedIn();
@@ -27,7 +35,12 @@ void main() {
       final store = FakeAuthStore.initializing();
       expect(store.state.status, AuthStatus.initializing);
     });
+  });
+}
 
+/// As ações do store falso (entrar, sair, renovar, apelido).
+void _grupoAcoes() {
+  group('FakeAuthStore (D01)', () {
     test('entrar, sair e apagar a conta', () async {
       final store = FakeAuthStore.loggedOut();
 
@@ -59,7 +72,10 @@ void main() {
       expect(store.currentUser?.nickname, 'Tucano');
     });
   });
+}
 
+/// O store falso como Cubit: as transições que emitem estado.
+void _grupoComoCubit() {
   group('FakeAuthStore como Cubit (BL09)', () {
     blocTest<FakeAuthStore, AuthState>(
       'entrar emite a sessão conectada com o provedor escolhido',
@@ -87,7 +103,12 @@ void main() {
       expect: () => [const AuthState.unauthenticated()],
       verify: (store) => expect(store.signOutCalls, 1),
     );
+  });
+}
 
+/// O store falso como Cubit: o que não emite estado novo.
+void _grupoComoCubitSemEmitir() {
+  group('FakeAuthStore como Cubit (BL09)', () {
     blocTest<FakeAuthStore, AuthState>(
       'um erro (apelido sem ninguém conectado) não emite estado novo',
       build: () => FakeAuthStore.loggedOut(),

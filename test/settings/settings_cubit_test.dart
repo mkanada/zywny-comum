@@ -20,7 +20,9 @@ void main() {
   group('SettingsState', () {
     test('copyWith troca só o campo pedido', () {
       final estado = SettingsState();
-      final mudado = estado.copyWith(soundOn: false);
+      final mudado = estado.copyWith(
+        sound: estado.sound.copyWith(soundOn: false),
+      );
 
       expect(mudado.soundOn, isFalse);
       expect(mudado.output, estado.output);
@@ -29,17 +31,22 @@ void main() {
 
     test('é igual pelo valor (Equatable), inclusive os conjuntos', () {
       expect(
-        SettingsState(trailSpeeds: {0.5, 1.0}),
-        equals(SettingsState(trailSpeeds: {1.0, 0.5})),
+        SettingsState(trail: TrailSettings(trailSpeeds: {0.5, 1.0})),
+        equals(SettingsState(trail: TrailSettings(trailSpeeds: {1.0, 0.5}))),
       );
-      expect(SettingsState(soundOn: false), isNot(equals(SettingsState())));
+      expect(
+        SettingsState(sound: const SoundSettings(soundOn: false)),
+        isNot(equals(SettingsState())),
+      );
     });
 
     test('trailPlanPhases segue a ordem e tira as etapas desmarcadas', () {
       final ordem = [TrailPhase.junto, TrailPhase.notasD, TrailPhase.notasE];
       final estado = SettingsState(
-        trailPhaseOrder: ordem,
-        trailPhases: {TrailPhase.notasD, TrailPhase.junto},
+        trail: TrailSettings(
+          trailPhaseOrder: ordem,
+          trailPhases: {TrailPhase.notasD, TrailPhase.junto},
+        ),
       );
 
       expect(estado.trailPlanPhases, [TrailPhase.junto, TrailPhase.notasD]);
@@ -54,8 +61,8 @@ void main() {
 
     test('diagSnapshot traz as chaves do log e as cores em hexadecimal', () {
       final snapshot = SettingsState(
-        studentPartColor: const Color(0xFF6A1B9A),
-        repeatNoticeSeconds: 4,
+        colors: const ColorSettings(studentPartColor: Color(0xFF6A1B9A)),
+        practice: const PracticeSettings(repeatNoticeSeconds: 4),
       ).diagSnapshot();
 
       expect(snapshot['corAluno'], '#ff6a1b9a');
@@ -91,10 +98,14 @@ void main() {
       expect: () => [
         SettingsState(
           loaded: true,
-          output: SoundOutput.midiKeyboard,
-          soundOn: false,
-          studentPartColor: const Color(0xFFAA0000),
-          repeatNoticeSeconds: kMaxRepeatNoticeSeconds,
+          sound: const SoundSettings(
+            output: SoundOutput.midiKeyboard,
+            soundOn: false,
+          ),
+          colors: const ColorSettings(studentPartColor: Color(0xFFAA0000)),
+          practice: const PracticeSettings(
+            repeatNoticeSeconds: kMaxRepeatNoticeSeconds,
+          ),
         ),
       ],
     );

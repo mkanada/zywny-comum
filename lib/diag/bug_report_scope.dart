@@ -443,18 +443,7 @@ class BugReportScopeState extends State<BugReportScope>
         child: BlocBuilder<BugReportFlowCubit, BugReportFlowState>(
           builder: (context, fluxo) => Stack(
             children: [
-              Positioned.fill(
-                child: Listener(
-                  onPointerDown: _pointerDown,
-                  onPointerMove: _touchMove,
-                  onPointerUp: _pointerUp,
-                  onPointerCancel: _pointerUp,
-                  child: TickerMode(
-                    enabled: !fluxo.parada,
-                    child: RepaintBoundary(key: _boundary, child: widget.child),
-                  ),
-                ),
-              ),
+              _conteudo(fluxo),
               Positioned.fill(
                 child: AudioRecordingCorner(
                   service: widget.recorder,
@@ -462,27 +451,44 @@ class BugReportScopeState extends State<BugReportScope>
                   onStopped: () => unawaited(start()),
                 ),
               ),
-              if (fluxo.formulario)
-                Positioned.fill(
-                  child: Overlay(
-                    initialEntries: [
-                      OverlayEntry(
-                        builder: (_) => BugReportPage(
-                          screenshot: fluxo.captura,
-                          onCancel: _cancel,
-                          onSubmit: _submit,
-                          onSend: canSend ? _send : null,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
+              if (fluxo.formulario) _relatorio(fluxo),
             ],
           ),
         ),
       ),
     );
   }
+
+  /// O app em si: os toques (para o log e os três dedos) e a tela parada
+  /// quando o relatório está aberto.
+  Widget _conteudo(BugReportFlowState fluxo) => Positioned.fill(
+    child: Listener(
+      onPointerDown: _pointerDown,
+      onPointerMove: _touchMove,
+      onPointerUp: _pointerUp,
+      onPointerCancel: _pointerUp,
+      child: TickerMode(
+        enabled: !fluxo.parada,
+        child: RepaintBoundary(key: _boundary, child: widget.child),
+      ),
+    ),
+  );
+
+  /// A tela do relatório, por cima de tudo.
+  Widget _relatorio(BugReportFlowState fluxo) => Positioned.fill(
+    child: Overlay(
+      initialEntries: [
+        OverlayEntry(
+          builder: (_) => BugReportPage(
+            screenshot: fluxo.captura,
+            onCancel: _cancel,
+            onSubmit: _submit,
+            onSend: canSend ? _send : null,
+          ),
+        ),
+      ],
+    ),
+  );
 }
 
 /// Um dedo na tela, do toque ao levantar, para o log.

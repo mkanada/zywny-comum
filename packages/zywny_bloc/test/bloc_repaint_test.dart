@@ -36,103 +36,125 @@ class _Counter extends Cubit<int> {
 }
 
 void main() {
-  test('assina o stream com o primeiro ouvinte e cancela com o último', () {
-    final source = _FakeSource();
-    final repaint = BlocRepaint(source);
-    void a() {}
-    void b() {}
+  _grupoAssinatura();
+  _grupoAvisos();
+  _grupoOuvintes();
+}
 
-    expect(source.listens, 0, reason: 'sem ouvinte, não assina');
+/// Quando a fonte é assinada e quando a assinatura é cancelada.
+void _grupoAssinatura() {
+  group('BlocRepaint assina a fonte', () {
+    test('assina o stream com o primeiro ouvinte e cancela com o último', () {
+      final source = _FakeSource();
+      final repaint = BlocRepaint(source);
+      void a() {}
+      void b() {}
 
-    repaint.addListener(a);
-    expect(source.listens, 1);
-    repaint.addListener(b);
-    expect(source.listens, 1, reason: 'o segundo ouvinte não assina de novo');
+      expect(source.listens, 0, reason: 'sem ouvinte, não assina');
 
-    repaint.removeListener(a);
-    expect(source.cancels, 0, reason: 'ainda há um ouvinte');
-    repaint.removeListener(b);
-    expect(source.cancels, 1, reason: 'saiu o último: cancela');
+      repaint.addListener(a);
+      expect(source.listens, 1);
+      repaint.addListener(b);
+      expect(source.listens, 1, reason: 'o segundo ouvinte não assina de novo');
 
-    repaint.addListener(a);
-    expect(source.listens, 2, reason: 'volta a assinar com um novo ouvinte');
-    repaint.dispose();
+      repaint.removeListener(a);
+      expect(source.cancels, 0, reason: 'ainda há um ouvinte');
+      repaint.removeListener(b);
+      expect(source.cancels, 1, reason: 'saiu o último: cancela');
+
+      repaint.addListener(a);
+      expect(source.listens, 2, reason: 'volta a assinar com um novo ouvinte');
+      repaint.dispose();
+    });
+
+    test('dispose cancela a assinatura e nenhum aviso sai depois', () {
+      final source = _FakeSource();
+      final repaint = BlocRepaint(source);
+      var avisos = 0;
+      void ouvinte() => avisos++;
+      repaint.addListener(ouvinte);
+
+      repaint.dispose();
+      expect(source.cancels, 1);
+
+      source.emit(1);
+      expect(avisos, 0);
+    });
   });
+}
 
-  test('avisa os ouvintes a cada estado novo do Cubit', () async {
-    final cubit = _Counter();
-    addTearDown(cubit.close);
-    final repaint = BlocRepaint(cubit);
-    var avisos = 0;
-    void ouvinte() => avisos++;
-    repaint.addListener(ouvinte);
+/// Quais estados avisam os ouvintes.
+void _grupoAvisos() {
+  group('BlocRepaint avisa os ouvintes', () {
+    test('avisa os ouvintes a cada estado novo do Cubit', () async {
+      final cubit = _Counter();
+      addTearDown(cubit.close);
+      final repaint = BlocRepaint(cubit);
+      var avisos = 0;
+      void ouvinte() => avisos++;
+      repaint.addListener(ouvinte);
 
-    cubit.increment();
-    cubit.increment();
-    cubit.increment();
-    await pumpEventQueue();
+      cubit.increment();
+      cubit.increment();
+      cubit.increment();
+      await pumpEventQueue();
 
-    expect(avisos, 3);
-    expect(cubit.state, 3, reason: 'o pintor lê o estado, não o aviso');
-    repaint.dispose();
-  });
+      expect(avisos, 3);
+      expect(cubit.state, 3, reason: 'o pintor lê o estado, não o aviso');
+      repaint.dispose();
+    });
 
-  test('when decide quais estados avisam, com o estado anterior certo', () async {
-    final cubit = _Counter();
-    addTearDown(cubit.close);
-    final pares = <(int, int)>[];
-    final repaint = BlocRepaint<int>(
-      cubit,
-      when: (anterior, novo) {
-        pares.add((anterior, novo));
-        return novo.isEven;
+    test(
+      'when decide quais estados avisam, com o estado anterior certo',
+      () async {
+        final cubit = _Counter();
+        addTearDown(cubit.close);
+        final pares = <(int, int)>[];
+        final repaint = BlocRepaint<int>(
+          cubit,
+          when: (anterior, novo) {
+            pares.add((anterior, novo));
+            return novo.isEven;
+          },
+        );
+        var avisos = 0;
+        void ouvinte() => avisos++;
+        repaint.addListener(ouvinte);
+
+        for (var i = 0; i < 4; i++) {
+          cubit.increment();
+        }
+        await pumpEventQueue();
+
+        expect(pares, [(0, 1), (1, 2), (2, 3), (3, 4)]);
+        expect(avisos, 2, reason: 'só os pares 2 e 4 avisam');
+        repaint.dispose();
       },
     );
-    var avisos = 0;
-    void ouvinte() => avisos++;
-    repaint.addListener(ouvinte);
-
-    for (var i = 0; i < 4; i++) {
-      cubit.increment();
-    }
-    await pumpEventQueue();
-
-    expect(pares, [(0, 1), (1, 2), (2, 3), (3, 4)]);
-    expect(avisos, 2, reason: 'só os pares 2 e 4 avisam');
-    repaint.dispose();
   });
+}
 
-  test('dispose cancela a assinatura e nenhum aviso sai depois', () {
-    final source = _FakeSource();
-    final repaint = BlocRepaint(source);
-    var avisos = 0;
-    void ouvinte() => avisos++;
-    repaint.addListener(ouvinte);
+/// Um ouvinte que sai durante o aviso não atrapalha os outros.
+void _grupoOuvintes() {
+  group('BlocRepaint ouvintes', () {
+    test('um ouvinte pode sair durante o aviso sem quebrar os outros', () {
+      final source = _FakeSource();
+      final repaint = BlocRepaint(source);
+      final chamados = <String>[];
+      void primeiro() {
+        chamados.add('primeiro');
+        repaint.removeListener(primeiro);
+      }
 
-    repaint.dispose();
-    expect(source.cancels, 1);
+      void segundo() => chamados.add('segundo');
+      repaint.addListener(primeiro);
+      repaint.addListener(segundo);
 
-    source.emit(1);
-    expect(avisos, 0);
-  });
+      source.emit(1);
+      source.emit(2);
 
-  test('um ouvinte pode sair durante o aviso sem quebrar os outros', () {
-    final source = _FakeSource();
-    final repaint = BlocRepaint(source);
-    final chamados = <String>[];
-    void primeiro() {
-      chamados.add('primeiro');
-      repaint.removeListener(primeiro);
-    }
-
-    void segundo() => chamados.add('segundo');
-    repaint.addListener(primeiro);
-    repaint.addListener(segundo);
-
-    source.emit(1);
-    source.emit(2);
-
-    expect(chamados, ['primeiro', 'segundo', 'segundo']);
-    repaint.dispose();
+      expect(chamados, ['primeiro', 'segundo', 'segundo']);
+      repaint.dispose();
+    });
   });
 }

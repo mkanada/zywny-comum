@@ -40,6 +40,15 @@ VsbDocument _doc() {
   );
 }
 
+/// Uma medição da partitura "hino 001" numa caixa de [box] e [dpr] pixels por
+/// ponto, com o documento [doc].
+ScoreSizeMeasure _medida({
+  String label = 'hino 001',
+  VsbDocument? doc,
+  Size box = const Size(800, 600),
+  double dpr = 2,
+}) => (label: label, doc: doc ?? _doc(), box: box, dpr: dpr, continuous: false);
+
 void main() {
   late MemoryDiagStorage store;
 
@@ -70,13 +79,7 @@ void main() {
     blocTest<ScoreSizeCubit, ScoreSizeState>(
       'a primeira medição vira o estado',
       build: ScoreSizeCubit.new,
-      act: (cubit) => cubit.medir(
-        label: 'hino 001',
-        doc: _doc(),
-        box: const Size(800, 600),
-        dpr: 2,
-        continuous: false,
-      ),
+      act: (cubit) => cubit.medir(_medida()),
       expect: () => [
         isA<ScoreSizeState>().having(
           (s) => s.box,
@@ -90,13 +93,7 @@ void main() {
       final cubit = ScoreSizeCubit();
       addTearDown(cubit.close);
 
-      cubit.medir(
-        label: 'hino 001',
-        doc: _doc(),
-        box: const Size(800, 600),
-        dpr: 2,
-        continuous: false,
-      );
+      cubit.medir(_medida());
 
       expect(linhas(), 1);
       expect(store.read('app'), contains('ZYWNY_TAMANHO hino 001'));
@@ -108,13 +105,7 @@ void main() {
       final doc = _doc();
 
       for (var i = 0; i < 3; i++) {
-        cubit.medir(
-          label: 'hino 001',
-          doc: doc,
-          box: const Size(800, 600),
-          dpr: 2,
-          continuous: false,
-        );
+        cubit.medir(_medida(doc: doc));
       }
 
       expect(linhas(), 1);
@@ -125,20 +116,8 @@ void main() {
       addTearDown(cubit.close);
       final doc = _doc();
 
-      cubit.medir(
-        label: 'hino 001',
-        doc: doc,
-        box: const Size(800, 600),
-        dpr: 2,
-        continuous: false,
-      );
-      cubit.medir(
-        label: 'hino 001',
-        doc: doc,
-        box: const Size(400, 600),
-        dpr: 2,
-        continuous: false,
-      );
+      cubit.medir(_medida(doc: doc));
+      cubit.medir(_medida(doc: doc, box: const Size(400, 600)));
 
       expect(linhas(), 2);
     });
@@ -147,20 +126,8 @@ void main() {
       final cubit = ScoreSizeCubit();
       addTearDown(cubit.close);
 
-      cubit.medir(
-        label: 'hino 001',
-        doc: _doc(),
-        box: const Size(800, 600),
-        dpr: 2,
-        continuous: false,
-      );
-      cubit.medir(
-        label: 'hino 002',
-        doc: _doc(),
-        box: const Size(800, 600),
-        dpr: 2,
-        continuous: false,
-      );
+      cubit.medir(_medida());
+      cubit.medir(_medida(label: 'hino 002'));
 
       expect(linhas(), 2);
     });
@@ -169,13 +136,7 @@ void main() {
       final cubit = ScoreSizeCubit();
       addTearDown(cubit.close);
 
-      cubit.medir(
-        label: 'hino 001',
-        doc: _doc(),
-        box: const Size(double.infinity, 600),
-        dpr: 2,
-        continuous: false,
-      );
+      cubit.medir(_medida(box: const Size(double.infinity, 600)));
 
       expect(linhas(), 0);
       expect(cubit.state.box, isNull);
@@ -186,20 +147,8 @@ void main() {
       addTearDown(cubit.close);
       final doc = _doc();
 
-      cubit.medir(
-        label: 'hino 001',
-        doc: doc,
-        box: const Size(800, 600),
-        dpr: 2,
-        continuous: false,
-      );
-      cubit.medir(
-        label: 'hino 001',
-        doc: doc,
-        box: const Size(800, 600),
-        dpr: 3,
-        continuous: false,
-      );
+      cubit.medir(_medida(doc: doc));
+      cubit.medir(_medida(doc: doc, dpr: 3));
 
       expect(linhas(), 1);
     });

@@ -414,16 +414,7 @@ class _TransposeCheckDialog extends StatelessWidget {
 
   Widget _caixa(BuildContext context, TransposeCheckState state) {
     final cubit = context.read<TransposeCheckCubit>();
-    final t = transposition;
-    final target = signedTranspose(t.keyboard);
-    final (:body, :actions) = _passo(
-      context,
-      cubit,
-      state,
-      t,
-      target,
-      _nomeDaTecla,
-    );
+    final (:body, :actions) = _passo(context, cubit, state);
     return AlertDialog(
       title: const Text('Conferir o teclado'),
       // `maxFinite`: o teclado desenhado mede a largura que o diálogo der, e um
@@ -460,26 +451,28 @@ class _TransposeCheckDialog extends StatelessWidget {
   String get _nomeDaTecla =>
       naming == NoteNaming.latin ? 'Dó central' : 'C central';
 
-  /// O conteúdo de um passo: os textos e os botões.
+  /// O conteúdo de um passo: os textos e os botões. O alvo (`+2`, `−5`…) e o
+  /// nome da tecla saem da própria transposição deste diálogo.
   ({List<Widget> body, List<Widget> actions}) _passo(
     BuildContext context,
     TransposeCheckCubit cubit,
     TransposeCheckState state,
-    Transposition t,
-    String target,
-    String key,
-  ) => switch (state.step) {
-    TransposeStep.instruction => _instrucao(cubit, t, target),
-    TransposeStep.listening => _escutando(key),
-    TransposeStep.noKey => _semTecla(cubit),
-    TransposeStep.wrongOctave => _outraOitava(cubit, key),
-    TransposeStep.offset => _deslocado(cubit, state, target),
-    TransposeStep.ear => _ouvido(cubit),
-    TransposeStep.earNoSound => _ouvidoSemSom(cubit, target),
-    TransposeStep.earNo => _ouvidoNao(cubit, target),
-    TransposeStep.inputTest => _testeDaEntrada(cubit, state),
-    TransposeStep.done => _concluido(context, cubit, state),
-  };
+  ) {
+    final target = signedTranspose(transposition.keyboard);
+    final key = _nomeDaTecla;
+    return switch (state.step) {
+      TransposeStep.instruction => _instrucao(cubit, transposition, target),
+      TransposeStep.listening => _escutando(key),
+      TransposeStep.noKey => _semTecla(cubit),
+      TransposeStep.wrongOctave => _outraOitava(cubit, key),
+      TransposeStep.offset => _deslocado(cubit, state, target),
+      TransposeStep.ear => _ouvido(cubit),
+      TransposeStep.earNoSound => _ouvidoSemSom(cubit, target),
+      TransposeStep.earNo => _ouvidoNao(cubit, target),
+      TransposeStep.inputTest => _testeDaEntrada(cubit, state),
+      TransposeStep.done => _concluido(context, cubit, state),
+    };
+  }
 
   /// O passo 1: ajustar o TRANSPOSE do teclado para a [target].
   ({List<Widget> body, List<Widget> actions}) _instrucao(

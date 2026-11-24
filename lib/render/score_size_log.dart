@@ -22,6 +22,17 @@ class ScoreSizeState extends Equatable {
   List<Object?> get props => [doc, box];
 }
 
+/// Uma medição da partitura: de onde ela é, o documento, a caixa em que
+/// cabe, a densidade de pixels e se a página rola (ver
+/// [ScoreSizeCubit.medir]).
+typedef ScoreSizeMeasure = ({
+  String label,
+  VsbDocument doc,
+  Size box,
+  double dpr,
+  bool continuous,
+});
+
 /// Grava uma linha por (partitura, tamanho de caixa). Guarda a última
 /// medição e só grava quando a partitura ou a caixa mudam.
 class ScoreSizeCubit extends Cubit<ScoreSizeState> {
@@ -29,13 +40,8 @@ class ScoreSizeCubit extends Cubit<ScoreSizeState> {
 
   /// Chamado a cada layout da caixa (`LayoutBuilder`). Não faz nada se a
   /// caixa não tem tamanho finito ou se é a mesma medição de antes.
-  void medir({
-    required String label,
-    required VsbDocument doc,
-    required Size box,
-    required double dpr,
-    required bool continuous,
-  }) {
+  void medir(ScoreSizeMeasure medida) {
+    final (:label, :doc, :box, :dpr, :continuous) = medida;
     if (!box.isFinite) return;
     if (identical(doc, state.doc) && box == state.box) return;
     emit(ScoreSizeState(doc: doc, box: box));
@@ -73,13 +79,13 @@ class ScoreSizeLog extends StatelessWidget {
     create: (_) => ScoreSizeCubit(),
     child: LayoutBuilder(
       builder: (context, constraints) {
-        context.read<ScoreSizeCubit>().medir(
+        context.read<ScoreSizeCubit>().medir((
           label: label,
           doc: document,
           box: constraints.biggest,
           dpr: MediaQuery.devicePixelRatioOf(context),
           continuous: continuous,
-        );
+        ));
         return child;
       },
     ),

@@ -69,49 +69,14 @@ class KeyboardTransposeBehavior {
 /// conectado, tocando no som próprio do piano digital do usuário.
 enum SoundOutput { appSynth, midiKeyboard }
 
-/// Configurações **gerais** do app — valem para qualquer hino: som, saída,
-/// metrônomo, cores, e o layout da partitura (tamanho da notação e as demais
-/// opções do Verovio). O que é de um hino só — andamento, mão, trilha, tom —
-/// fica em `PieceSettingsStore`.
-///
-/// Estado imutável do `SettingsCubit` (BL08, antes `AppSettings`). Cada valor
-/// persistido é uma chave própria em `SharedPreferencesAsync` (ver
-/// `settings_cubit.dart`); a tela recebe o estado pelo `BlocBuilder`.
-class SettingsState extends Equatable {
-  SettingsState({
+/// Som e saída (K03, M03, U04): o que toca, em que saída, e o metrônomo.
+class SoundSettings extends Equatable {
+  const SoundSettings({
     this.output = SoundOutput.appSynth,
     this.useScoreInstruments = false,
     this.soundOn = true,
     this.metronomeOn = false,
-    this.practiceMode = PracticeMode.wait,
-    // Verde, não o vermelho padrão do player: é também a cor da nota certa
-    // no treino, e vermelho lá é a errada.
-    this.highlightColor = kPracticeCorrectColor,
-    this.practicePendingColor = kPracticePendingColor,
-    this.practiceWrongColor = kPracticeWrongColor,
-    this.studentPartColor = kPracticeStudentColor,
-    this.haloWidth = 1.0,
-    this.barColor = kDefaultBarColor,
-    this.trailMeasures = kTrailDefaultMeasures,
-    Set<TrailPhase>? trailPhases,
-    List<TrailPhase>? trailPhaseOrder,
-    Set<double>? trailSpeeds,
-    this.rhythmToleranceMs = kDefaultRhythmToleranceMs,
-    this.repeatNoticeSeconds = kDefaultRepeatNoticeSeconds,
-    this.noteNaming = NoteNaming.latin,
-    this.chordNotation = ChordNotation.brazilian,
-    this.courseTextScale = 1.0,
-    this.transposeByDefault = false,
-    this.keyboardTranspose = const {},
-    this.scoreLayout = const {},
-    this.scorePageFitsBox = true,
-    this.loaded = false,
-  }) : trailPhases = trailPhases ?? {...TrailPhase.values},
-       trailPhaseOrder = trailPhaseOrder ?? TrailPhase.values,
-       trailSpeeds = trailSpeeds ?? {...kTrailSpeeds};
-
-  /// `true` depois do primeiro `load` — antes disso valem os padrões.
-  final bool loaded;
+  });
 
   final SoundOutput output;
 
@@ -125,8 +90,78 @@ class SettingsState extends Equatable {
 
   final bool metronomeOn;
 
+  SoundSettings copyWith({
+    SoundOutput? output,
+    bool? useScoreInstruments,
+    bool? soundOn,
+    bool? metronomeOn,
+  }) => SoundSettings(
+    output: output ?? this.output,
+    useScoreInstruments: useScoreInstruments ?? this.useScoreInstruments,
+    soundOn: soundOn ?? this.soundOn,
+    metronomeOn: metronomeOn ?? this.metronomeOn,
+  );
+
+  @override
+  List<Object?> get props => [
+    output,
+    useScoreInstruments,
+    soundOn,
+    metronomeOn,
+  ];
+}
+
+/// Espera e tempo real: o tipo de treino, a margem do ritmo e o aviso da volta.
+class PracticeSettings extends Equatable {
+  const PracticeSettings({
+    this.practiceMode = PracticeMode.wait,
+    this.rhythmToleranceMs = kDefaultRhythmToleranceMs,
+    this.repeatNoticeSeconds = kDefaultRepeatNoticeSeconds,
+  });
+
   /// Espera ou tempo real — o tipo de treino que "Espera" arma.
   final PracticeMode practiceMode;
+
+  /// Margem do tempo real em ms no andamento original (ver
+  /// `PracticeController.rhythmToleranceMs`), entre
+  /// [kMinRhythmToleranceMs] e [kMaxRhythmToleranceMs].
+  final double rhythmToleranceMs;
+
+  /// Quanto tempo o aviso da volta na hora fica na tela, em segundos, entre
+  /// [kMinRepeatNoticeSeconds] e [kMaxRepeatNoticeSeconds].
+  final double repeatNoticeSeconds;
+
+  PracticeSettings copyWith({
+    PracticeMode? practiceMode,
+    double? rhythmToleranceMs,
+    double? repeatNoticeSeconds,
+  }) => PracticeSettings(
+    practiceMode: practiceMode ?? this.practiceMode,
+    rhythmToleranceMs: rhythmToleranceMs ?? this.rhythmToleranceMs,
+    repeatNoticeSeconds: repeatNoticeSeconds ?? this.repeatNoticeSeconds,
+  );
+
+  @override
+  List<Object?> get props => [
+    practiceMode,
+    rhythmToleranceMs,
+    repeatNoticeSeconds,
+  ];
+}
+
+/// Cores e brilho: as da nota destacada, do treino, da parte do aluno e da
+/// haste da virada.
+class ColorSettings extends Equatable {
+  const ColorSettings({
+    // Verde, não o vermelho padrão do player: é também a cor da nota certa
+    // no treino, e vermelho lá é a errada.
+    this.highlightColor = kPracticeCorrectColor,
+    this.practicePendingColor = kPracticePendingColor,
+    this.practiceWrongColor = kPracticeWrongColor,
+    this.studentPartColor = kPracticeStudentColor,
+    this.haloWidth = 1.0,
+    this.barColor = kDefaultBarColor,
+  });
 
   /// Cor da nota destacada durante a execução — e, no treino, da nota que
   /// o aluno tocou certa.
@@ -149,6 +184,44 @@ class SettingsState extends Equatable {
   /// Cor da haste que varre a página na virada.
   final Color barColor;
 
+  ColorSettings copyWith({
+    Color? highlightColor,
+    Color? practicePendingColor,
+    Color? practiceWrongColor,
+    Color? studentPartColor,
+    double? haloWidth,
+    Color? barColor,
+  }) => ColorSettings(
+    highlightColor: highlightColor ?? this.highlightColor,
+    practicePendingColor: practicePendingColor ?? this.practicePendingColor,
+    practiceWrongColor: practiceWrongColor ?? this.practiceWrongColor,
+    studentPartColor: studentPartColor ?? this.studentPartColor,
+    haloWidth: haloWidth ?? this.haloWidth,
+    barColor: barColor ?? this.barColor,
+  );
+
+  @override
+  List<Object?> get props => [
+    highlightColor,
+    practicePendingColor,
+    practiceWrongColor,
+    studentPartColor,
+    haloWidth,
+    barColor,
+  ];
+}
+
+/// A trilha: o tamanho do trecho, as etapas (e a ordem) e os andamentos.
+class TrailSettings extends Equatable {
+  TrailSettings({
+    this.trailMeasures = kTrailDefaultMeasures,
+    Set<TrailPhase>? trailPhases,
+    List<TrailPhase>? trailPhaseOrder,
+    Set<double>? trailSpeeds,
+  }) : trailPhases = trailPhases ?? {...TrailPhase.values},
+       trailPhaseOrder = trailPhaseOrder ?? TrailPhase.values,
+       trailSpeeds = trailSpeeds ?? {...kTrailSpeeds};
+
   /// Compassos lógicos por trecho da trilha (J03): padrão 5, mínimo 3.
   final int trailMeasures;
 
@@ -163,14 +236,35 @@ class SettingsState extends Equatable {
   /// (padrão: todos). Nunca vazio.
   final Set<double> trailSpeeds;
 
-  /// Margem do tempo real em ms no andamento original (ver
-  /// `PracticeController.rhythmToleranceMs`), entre
-  /// [kMinRhythmToleranceMs] e [kMaxRhythmToleranceMs].
-  final double rhythmToleranceMs;
+  TrailSettings copyWith({
+    int? trailMeasures,
+    Set<TrailPhase>? trailPhases,
+    List<TrailPhase>? trailPhaseOrder,
+    Set<double>? trailSpeeds,
+  }) => TrailSettings(
+    trailMeasures: trailMeasures ?? this.trailMeasures,
+    trailPhases: trailPhases ?? this.trailPhases,
+    trailPhaseOrder: trailPhaseOrder ?? this.trailPhaseOrder,
+    trailSpeeds: trailSpeeds ?? this.trailSpeeds,
+  );
 
-  /// Quanto tempo o aviso da volta na hora fica na tela, em segundos, entre
-  /// [kMinRepeatNoticeSeconds] e [kMaxRepeatNoticeSeconds].
-  final double repeatNoticeSeconds;
+  @override
+  List<Object?> get props => [
+    trailMeasures,
+    trailPhases,
+    trailPhaseOrder,
+    trailSpeeds,
+  ];
+}
+
+/// A notação e o texto: os nomes das notas, a cifra e o tamanho do texto dos
+/// cursos.
+class NotationSettings extends Equatable {
+  const NotationSettings({
+    this.noteNaming = NoteNaming.latin,
+    this.chordNotation = ChordNotation.brazilian,
+    this.courseTextScale = 1.0,
+  });
 
   /// Nomes das notas na tela (I05, D-LIC-NOMES): `latin` (Dó–Ré–Mi, padrão)
   /// ou `letters` (C–D–E). O arquivo do curso usa sempre `C4`.
@@ -185,6 +279,30 @@ class SettingsState extends Equatable {
   /// exercício), por cima do tamanho de fonte do sistema; entre
   /// [kMinCourseTextScale] e [kMaxCourseTextScale].
   final double courseTextScale;
+
+  NotationSettings copyWith({
+    NoteNaming? noteNaming,
+    ChordNotation? chordNotation,
+    double? courseTextScale,
+  }) => NotationSettings(
+    noteNaming: noteNaming ?? this.noteNaming,
+    chordNotation: chordNotation ?? this.chordNotation,
+    courseTextScale: courseTextScale ?? this.courseTextScale,
+  );
+
+  @override
+  List<Object?> get props => [noteNaming, chordNotation, courseTextScale];
+}
+
+/// A partitura e a transposição: a transposição padrão, o que se sabe de cada
+/// teclado, o layout que a pessoa mudou e a página que acompanha a caixa.
+class ScoreSettings extends Equatable {
+  const ScoreSettings({
+    this.transposeByDefault = false,
+    this.keyboardTranspose = const {},
+    this.scoreLayout = const {},
+    this.scorePageFitsBox = true,
+  });
 
   /// "Abrir as músicas já sem acidentes" (fase Q): as que não têm escolha
   /// própria (`PieceSettings.transpose`) abrem transpostas para a armadura
@@ -205,6 +323,96 @@ class SettingsState extends Equatable {
   /// A página acompanha a área da partitura (padrão) ou usa `pageWidth` e
   /// `pageHeight`. Vale para todos os hinos.
   final bool scorePageFitsBox;
+
+  ScoreSettings copyWith({
+    bool? transposeByDefault,
+    Map<String, KeyboardTransposeBehavior>? keyboardTranspose,
+    Map<String, Object?>? scoreLayout,
+    bool? scorePageFitsBox,
+  }) => ScoreSettings(
+    transposeByDefault: transposeByDefault ?? this.transposeByDefault,
+    keyboardTranspose: keyboardTranspose ?? this.keyboardTranspose,
+    scoreLayout: scoreLayout ?? this.scoreLayout,
+    scorePageFitsBox: scorePageFitsBox ?? this.scorePageFitsBox,
+  );
+
+  @override
+  List<Object?> get props => [
+    transposeByDefault,
+    keyboardTranspose,
+    scoreLayout,
+    scorePageFitsBox,
+  ];
+}
+
+/// Configurações **gerais** do app — valem para qualquer hino: som, saída,
+/// metrônomo, cores, e o layout da partitura (tamanho da notação e as demais
+/// opções do Verovio). O que é de um hino só — andamento, mão, trilha, tom —
+/// fica em `PieceSettingsStore`.
+///
+/// Estado imutável do `SettingsCubit` (BL08, antes `AppSettings`). Cada valor
+/// persistido é uma chave própria em `SharedPreferencesAsync` (ver
+/// `settings_cubit.dart`); a tela recebe o estado pelo `BlocBuilder`.
+///
+/// O estado tem um sub-estado por assunto ([sound], [practice], [colors],
+/// [trail], [notation], [score]). Os getters com os nomes de antes (`soundOn`,
+/// `studentPartColor`…) continuam valendo e leem o sub-estado.
+class SettingsState extends Equatable {
+  SettingsState({
+    this.loaded = false,
+    SoundSettings? sound,
+    PracticeSettings? practice,
+    ColorSettings? colors,
+    TrailSettings? trail,
+    NotationSettings? notation,
+    ScoreSettings? score,
+  }) : sound = sound ?? const SoundSettings(),
+       practice = practice ?? const PracticeSettings(),
+       colors = colors ?? const ColorSettings(),
+       trail = trail ?? TrailSettings(),
+       notation = notation ?? const NotationSettings(),
+       score = score ?? const ScoreSettings();
+
+  /// `true` depois do primeiro `load` — antes disso valem os padrões.
+  final bool loaded;
+
+  final SoundSettings sound;
+  final PracticeSettings practice;
+  final ColorSettings colors;
+  final TrailSettings trail;
+  final NotationSettings notation;
+  final ScoreSettings score;
+
+  SoundOutput get output => sound.output;
+  bool get useScoreInstruments => sound.useScoreInstruments;
+  bool get soundOn => sound.soundOn;
+  bool get metronomeOn => sound.metronomeOn;
+
+  PracticeMode get practiceMode => practice.practiceMode;
+  double get rhythmToleranceMs => practice.rhythmToleranceMs;
+  double get repeatNoticeSeconds => practice.repeatNoticeSeconds;
+
+  Color get highlightColor => colors.highlightColor;
+  Color get practicePendingColor => colors.practicePendingColor;
+  Color get practiceWrongColor => colors.practiceWrongColor;
+  Color get studentPartColor => colors.studentPartColor;
+  double get haloWidth => colors.haloWidth;
+  Color get barColor => colors.barColor;
+
+  int get trailMeasures => trail.trailMeasures;
+  Set<TrailPhase> get trailPhases => trail.trailPhases;
+  List<TrailPhase> get trailPhaseOrder => trail.trailPhaseOrder;
+  Set<double> get trailSpeeds => trail.trailSpeeds;
+
+  NoteNaming get noteNaming => notation.noteNaming;
+  ChordNotation get chordNotation => notation.chordNotation;
+  double get courseTextScale => notation.courseTextScale;
+
+  bool get transposeByDefault => score.transposeByDefault;
+  Map<String, KeyboardTransposeBehavior> get keyboardTranspose =>
+      score.keyboardTranspose;
+  Map<String, Object?> get scoreLayout => score.scoreLayout;
+  bool get scorePageFitsBox => score.scorePageFitsBox;
 
   /// As etapas que entram na trilha, na ordem escolhida.
   List<TrailPhase> get trailPlanPhases => [
@@ -245,84 +453,30 @@ class SettingsState extends Equatable {
 
   SettingsState copyWith({
     bool? loaded,
-    SoundOutput? output,
-    bool? useScoreInstruments,
-    bool? soundOn,
-    bool? metronomeOn,
-    PracticeMode? practiceMode,
-    Color? highlightColor,
-    Color? practicePendingColor,
-    Color? practiceWrongColor,
-    Color? studentPartColor,
-    double? haloWidth,
-    Color? barColor,
-    int? trailMeasures,
-    Set<TrailPhase>? trailPhases,
-    List<TrailPhase>? trailPhaseOrder,
-    Set<double>? trailSpeeds,
-    double? rhythmToleranceMs,
-    double? repeatNoticeSeconds,
-    NoteNaming? noteNaming,
-    ChordNotation? chordNotation,
-    double? courseTextScale,
-    bool? transposeByDefault,
-    Map<String, KeyboardTransposeBehavior>? keyboardTranspose,
-    Map<String, Object?>? scoreLayout,
-    bool? scorePageFitsBox,
+    SoundSettings? sound,
+    PracticeSettings? practice,
+    ColorSettings? colors,
+    TrailSettings? trail,
+    NotationSettings? notation,
+    ScoreSettings? score,
   }) => SettingsState(
     loaded: loaded ?? this.loaded,
-    output: output ?? this.output,
-    useScoreInstruments: useScoreInstruments ?? this.useScoreInstruments,
-    soundOn: soundOn ?? this.soundOn,
-    metronomeOn: metronomeOn ?? this.metronomeOn,
-    practiceMode: practiceMode ?? this.practiceMode,
-    highlightColor: highlightColor ?? this.highlightColor,
-    practicePendingColor: practicePendingColor ?? this.practicePendingColor,
-    practiceWrongColor: practiceWrongColor ?? this.practiceWrongColor,
-    studentPartColor: studentPartColor ?? this.studentPartColor,
-    haloWidth: haloWidth ?? this.haloWidth,
-    barColor: barColor ?? this.barColor,
-    trailMeasures: trailMeasures ?? this.trailMeasures,
-    trailPhases: trailPhases ?? this.trailPhases,
-    trailPhaseOrder: trailPhaseOrder ?? this.trailPhaseOrder,
-    trailSpeeds: trailSpeeds ?? this.trailSpeeds,
-    rhythmToleranceMs: rhythmToleranceMs ?? this.rhythmToleranceMs,
-    repeatNoticeSeconds: repeatNoticeSeconds ?? this.repeatNoticeSeconds,
-    noteNaming: noteNaming ?? this.noteNaming,
-    chordNotation: chordNotation ?? this.chordNotation,
-    courseTextScale: courseTextScale ?? this.courseTextScale,
-    transposeByDefault: transposeByDefault ?? this.transposeByDefault,
-    keyboardTranspose: keyboardTranspose ?? this.keyboardTranspose,
-    scoreLayout: scoreLayout ?? this.scoreLayout,
-    scorePageFitsBox: scorePageFitsBox ?? this.scorePageFitsBox,
+    sound: sound ?? this.sound,
+    practice: practice ?? this.practice,
+    colors: colors ?? this.colors,
+    trail: trail ?? this.trail,
+    notation: notation ?? this.notation,
+    score: score ?? this.score,
   );
 
   @override
   List<Object?> get props => [
     loaded,
-    output,
-    useScoreInstruments,
-    soundOn,
-    metronomeOn,
-    practiceMode,
-    highlightColor,
-    practicePendingColor,
-    practiceWrongColor,
-    studentPartColor,
-    haloWidth,
-    barColor,
-    trailMeasures,
-    trailPhases,
-    trailPhaseOrder,
-    trailSpeeds,
-    rhythmToleranceMs,
-    repeatNoticeSeconds,
-    noteNaming,
-    chordNotation,
-    courseTextScale,
-    transposeByDefault,
-    keyboardTranspose,
-    scoreLayout,
-    scorePageFitsBox,
+    sound,
+    practice,
+    colors,
+    trail,
+    notation,
+    score,
   ];
 }

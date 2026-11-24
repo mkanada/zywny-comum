@@ -84,56 +84,57 @@ class _BugReportView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return BlocBuilder<BugReportFormCubit, BugReportFormState>(
-      builder: (context, form) {
-        final gerado = form.gerado;
-        final enviado = form.enviado;
-        final acabou = gerado != null || enviado != null;
-        return Scaffold(
-          backgroundColor: kLibraryBg,
-          body: SafeArea(
-            child: Center(
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 560),
-                child: ListView(
-                  padding: const EdgeInsets.all(16),
-                  children: [
-                    Text('Reportar um bug', style: serifDisplay(fontSize: 24)),
-                    const SizedBox(height: 4),
-                    const Text(
-                      'A tela, o som e o metrônomo estão parados. Conte o que '
-                      'aconteceu; o arquivo leva também uma imagem da tela e o '
-                      'registro dos últimos exercícios.',
-                      style: TextStyle(color: kInkCaption),
-                    ),
-                    const SizedBox(height: 12),
-                    if (!acabou) ...[
-                      if (screenshot != null) _screenshotPreview(),
-                      const SizedBox(height: 12),
-                      ..._questions(),
-                    ],
-                    const SizedBox(height: 16),
-                    if (form.erro != null)
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 12),
-                        child: Text(
-                          form.erro!,
-                          style: const TextStyle(color: kBadColor),
-                        ),
-                      ),
-                    if (enviado != null)
-                      _Sent(receipt: enviado, onClose: onCancel)
-                    else if (gerado == null)
-                      _actions(context, form.ocupado)
-                    else
-                      _Done(delivery: gerado, onClose: onCancel),
-                  ],
-                ),
+      builder: (context, form) => Scaffold(
+        backgroundColor: kLibraryBg,
+        body: SafeArea(
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 560),
+              child: ListView(
+                padding: const EdgeInsets.all(16),
+                children: _filhos(context, form),
               ),
             ),
           ),
-        );
-      },
+        ),
+      ),
     );
+  }
+
+  /// O conteúdo da tela: o texto de apresentação, as perguntas (até o relatório
+  /// ficar pronto ou enviado), o erro e o botão ou o resultado.
+  List<Widget> _filhos(BuildContext context, BugReportFormState form) {
+    final gerado = form.gerado;
+    final enviado = form.enviado;
+    final acabou = gerado != null || enviado != null;
+    return [
+      Text('Reportar um bug', style: serifDisplay(fontSize: 24)),
+      const SizedBox(height: 4),
+      const Text(
+        'A tela, o som e o metrônomo estão parados. Conte o que '
+        'aconteceu; o arquivo leva também uma imagem da tela e o '
+        'registro dos últimos exercícios.',
+        style: TextStyle(color: kInkCaption),
+      ),
+      const SizedBox(height: 12),
+      if (!acabou) ...[
+        if (screenshot != null) _screenshotPreview(),
+        const SizedBox(height: 12),
+        ..._questions(),
+      ],
+      const SizedBox(height: 16),
+      if (form.erro != null)
+        Padding(
+          padding: const EdgeInsets.only(bottom: 12),
+          child: Text(form.erro!, style: const TextStyle(color: kBadColor)),
+        ),
+      if (enviado != null)
+        _Sent(receipt: enviado, onClose: onCancel)
+      else if (gerado == null)
+        _actions(context, form.ocupado)
+      else
+        _Done(delivery: gerado, onClose: onCancel),
+    ];
   }
 
   /// A imagem da tela, pequena, para o aluno conferir o que vai no arquivo.

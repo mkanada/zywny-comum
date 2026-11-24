@@ -111,6 +111,9 @@ Set<double>? _andamentosLidos(List<String>? nomes) => nomes == null
           if (nomes.contains('${(s * 100).round()}')) s,
       };
 
+/// A cor de um inteiro ARGB gravado; `null` se não há.
+Color? _corLida(int? argb) => argb == null ? null : Color(argb);
+
 /// Configurações **gerais** do app (BL08, antes `AppSettings`, um
 /// `ChangeNotifier`). Cada valor é uma chave própria em
 /// [SharedPreferencesAsync], que no Android/Linux/Windows sobrevive a fechar o
@@ -208,7 +211,7 @@ class SettingsCubit extends Cubit<SettingsState> {
   void setOutput(SoundOutput value) {
     if (value == state.output) return;
     _mudou(
-      state.copyWith(output: value),
+      state.copyWith(sound: state.sound.copyWith(output: value)),
       _prefs.setString(_kOutput, value.name),
     );
   }
@@ -217,20 +220,23 @@ class SettingsCubit extends Cubit<SettingsState> {
   void setUseScoreInstruments(bool value) {
     if (value == state.useScoreInstruments) return;
     _mudou(
-      state.copyWith(useScoreInstruments: value),
+      state.copyWith(sound: state.sound.copyWith(useScoreInstruments: value)),
       _prefs.setBool(_kUseScoreInstruments, value),
     );
   }
 
   void setSoundOn(bool value) {
     if (value == state.soundOn) return;
-    _mudou(state.copyWith(soundOn: value), _prefs.setBool(_kSoundOn, value));
+    _mudou(
+      state.copyWith(sound: state.sound.copyWith(soundOn: value)),
+      _prefs.setBool(_kSoundOn, value),
+    );
   }
 
   void setMetronomeOn(bool value) {
     if (value == state.metronomeOn) return;
     _mudou(
-      state.copyWith(metronomeOn: value),
+      state.copyWith(sound: state.sound.copyWith(metronomeOn: value)),
       _prefs.setBool(_kMetronome, value),
     );
   }
@@ -238,7 +244,7 @@ class SettingsCubit extends Cubit<SettingsState> {
   void setPracticeMode(PracticeMode value) {
     if (value == state.practiceMode) return;
     _mudou(
-      state.copyWith(practiceMode: value),
+      state.copyWith(practice: state.practice.copyWith(practiceMode: value)),
       _prefs.setString(_kPracticeMode, value.name),
     );
   }
@@ -248,7 +254,7 @@ class SettingsCubit extends Cubit<SettingsState> {
   void setHighlightColor(Color value) {
     if (value == state.highlightColor) return;
     _mudou(
-      state.copyWith(highlightColor: value),
+      state.copyWith(colors: state.colors.copyWith(highlightColor: value)),
       _prefs.setInt(_kHighlightColor, value.toARGB32()),
     );
   }
@@ -256,7 +262,9 @@ class SettingsCubit extends Cubit<SettingsState> {
   void setPracticePendingColor(Color value) {
     if (value == state.practicePendingColor) return;
     _mudou(
-      state.copyWith(practicePendingColor: value),
+      state.copyWith(
+        colors: state.colors.copyWith(practicePendingColor: value),
+      ),
       _prefs.setInt(_kPracticePendingColor, value.toARGB32()),
     );
   }
@@ -264,7 +272,7 @@ class SettingsCubit extends Cubit<SettingsState> {
   void setPracticeWrongColor(Color value) {
     if (value == state.practiceWrongColor) return;
     _mudou(
-      state.copyWith(practiceWrongColor: value),
+      state.copyWith(colors: state.colors.copyWith(practiceWrongColor: value)),
       _prefs.setInt(_kPracticeWrongColor, value.toARGB32()),
     );
   }
@@ -272,7 +280,7 @@ class SettingsCubit extends Cubit<SettingsState> {
   void setStudentPartColor(Color value) {
     if (value == state.studentPartColor) return;
     _mudou(
-      state.copyWith(studentPartColor: value),
+      state.copyWith(colors: state.colors.copyWith(studentPartColor: value)),
       _prefs.setInt(_kStudentPartColor, value.toARGB32()),
     );
   }
@@ -280,7 +288,7 @@ class SettingsCubit extends Cubit<SettingsState> {
   void setHaloWidth(double value) {
     if (value == state.haloWidth) return;
     _mudou(
-      state.copyWith(haloWidth: value),
+      state.copyWith(colors: state.colors.copyWith(haloWidth: value)),
       _prefs.setDouble(_kHaloWidth, value),
     );
   }
@@ -288,7 +296,7 @@ class SettingsCubit extends Cubit<SettingsState> {
   void setBarColor(Color value) {
     if (value == state.barColor) return;
     _mudou(
-      state.copyWith(barColor: value),
+      state.copyWith(colors: state.colors.copyWith(barColor: value)),
       _prefs.setInt(_kBarColor, value.toARGB32()),
     );
   }
@@ -299,7 +307,7 @@ class SettingsCubit extends Cubit<SettingsState> {
     final clamped = value < kTrailMinMeasures ? kTrailMinMeasures : value;
     if (clamped == state.trailMeasures) return;
     _mudou(
-      state.copyWith(trailMeasures: clamped),
+      state.copyWith(trail: state.trail.copyWith(trailMeasures: clamped)),
       _prefs.setInt(_kTrailMeasures, clamped),
     );
   }
@@ -308,7 +316,7 @@ class SettingsCubit extends Cubit<SettingsState> {
   void setTrailPhases(Set<TrailPhase> value) {
     if (value.isEmpty || setEquals(value, state.trailPhases)) return;
     _mudou(
-      state.copyWith(trailPhases: {...value}),
+      state.copyWith(trail: state.trail.copyWith(trailPhases: {...value})),
       _prefs.setStringList(_kTrailPhases, [
         for (final p in TrailPhase.values)
           if (value.contains(p)) p.name,
@@ -320,7 +328,7 @@ class SettingsCubit extends Cubit<SettingsState> {
     final order = _completeOrder(value);
     if (listEquals(order, state.trailPhaseOrder)) return;
     _mudou(
-      state.copyWith(trailPhaseOrder: order),
+      state.copyWith(trail: state.trail.copyWith(trailPhaseOrder: order)),
       _prefs.setStringList(_kTrailPhaseOrder, [for (final p in order) p.name]),
     );
   }
@@ -330,7 +338,7 @@ class SettingsCubit extends Cubit<SettingsState> {
     final valid = value.where(kTrailSpeeds.contains).toSet();
     if (valid.isEmpty || setEquals(valid, state.trailSpeeds)) return;
     _mudou(
-      state.copyWith(trailSpeeds: valid),
+      state.copyWith(trail: state.trail.copyWith(trailSpeeds: valid)),
       _prefs.setStringList(_kTrailSpeeds, [
         for (final s in kTrailSpeeds)
           if (valid.contains(s)) '${(s * 100).round()}',
@@ -344,7 +352,7 @@ class SettingsCubit extends Cubit<SettingsState> {
     final v = value.clamp(kMinRhythmToleranceMs, kMaxRhythmToleranceMs);
     if (v == state.rhythmToleranceMs) return;
     _mudou(
-      state.copyWith(rhythmToleranceMs: v),
+      state.copyWith(practice: state.practice.copyWith(rhythmToleranceMs: v)),
       _prefs.setDouble(_kRhythmTolerance, v),
     );
   }
@@ -353,7 +361,7 @@ class SettingsCubit extends Cubit<SettingsState> {
     final v = value.clamp(kMinRepeatNoticeSeconds, kMaxRepeatNoticeSeconds);
     if (v == state.repeatNoticeSeconds) return;
     _mudou(
-      state.copyWith(repeatNoticeSeconds: v),
+      state.copyWith(practice: state.practice.copyWith(repeatNoticeSeconds: v)),
       _prefs.setDouble(_kRepeatNotice, v),
     );
   }
@@ -361,7 +369,7 @@ class SettingsCubit extends Cubit<SettingsState> {
   void setNoteNaming(NoteNaming value) {
     if (value == state.noteNaming) return;
     _mudou(
-      state.copyWith(noteNaming: value),
+      state.copyWith(notation: state.notation.copyWith(noteNaming: value)),
       _prefs.setString(_kNoteNaming, value.wire),
     );
   }
@@ -369,7 +377,7 @@ class SettingsCubit extends Cubit<SettingsState> {
   void setChordNotation(ChordNotation value) {
     if (value == state.chordNotation) return;
     _mudou(
-      state.copyWith(chordNotation: value),
+      state.copyWith(notation: state.notation.copyWith(chordNotation: value)),
       _prefs.setString(_kChordNotation, value.name),
     );
   }
@@ -378,7 +386,7 @@ class SettingsCubit extends Cubit<SettingsState> {
     final v = value.clamp(kMinCourseTextScale, kMaxCourseTextScale);
     if (v == state.courseTextScale) return;
     _mudou(
-      state.copyWith(courseTextScale: v),
+      state.copyWith(notation: state.notation.copyWith(courseTextScale: v)),
       _prefs.setDouble(_kCourseTextScale, v),
     );
   }
@@ -386,7 +394,7 @@ class SettingsCubit extends Cubit<SettingsState> {
   void setTransposeByDefault(bool value) {
     if (value == state.transposeByDefault) return;
     _mudou(
-      state.copyWith(transposeByDefault: value),
+      state.copyWith(score: state.score.copyWith(transposeByDefault: value)),
       _prefs.setBool(_kTransposeByDefault, value),
     );
   }
@@ -400,7 +408,7 @@ class SettingsCubit extends Cubit<SettingsState> {
     if (state.keyboardTransposeOf(deviceName) == behavior) return;
     final mapa = {...state.keyboardTranspose, deviceName: behavior};
     _mudou(
-      state.copyWith(keyboardTranspose: mapa),
+      state.copyWith(score: state.score.copyWith(keyboardTranspose: mapa)),
       _prefs.setString(
         _kKeyboardTranspose,
         jsonEncode({
@@ -414,7 +422,9 @@ class SettingsCubit extends Cubit<SettingsState> {
   void setScoreLayout(Map<String, Object> value) {
     if (mapEquals(value, state.scoreLayout)) return;
     _mudou(
-      state.copyWith(scoreLayout: Map.unmodifiable(value)),
+      state.copyWith(
+        score: state.score.copyWith(scoreLayout: Map.unmodifiable(value)),
+      ),
       value.isEmpty
           ? _prefs.remove(_kScoreLayout)
           : _prefs.setString(_kScoreLayout, jsonEncode(value)),
@@ -424,7 +434,7 @@ class SettingsCubit extends Cubit<SettingsState> {
   void setScorePageFitsBox(bool value) {
     if (value == state.scorePageFitsBox) return;
     _mudou(
-      state.copyWith(scorePageFitsBox: value),
+      state.copyWith(score: state.score.copyWith(scorePageFitsBox: value)),
       _prefs.setBool(_kScorePageFitsBox, value),
     );
   }
@@ -475,73 +485,99 @@ class SettingsCubit extends Cubit<SettingsState> {
   );
 
   /// O estado que sai do que foi lido: o que não veio fica como estava no
-  /// estado atual (o padrão, na carga inicial). Cada grupo com a regra dele.
+  /// estado atual (o padrão, na carga inicial). Cada grupo tem a sua função.
   SettingsState _lido(_Stored s) {
     final a = state;
-    final fases = _fasesLidas(s.trailPhases);
-    final ordem = s.phaseOrder;
-    final velocidades = _andamentosLidos(s.trailSpeeds);
-    final medidas = s.trailMeasures;
-    final halo = s.halo;
-    final tolerancia = s.tolerance;
-    final aviso = s.repeatNotice;
-    final escala = s.textScale;
     return a.copyWith(
       loaded: true,
-      // O som (a saída, o timbre do teclado, se toca e o metrônomo) e o modo.
-      output: _byName(SoundOutput.values, s.output) ?? a.output,
-      useScoreInstruments: s.instruments ?? a.useScoreInstruments,
-      soundOn: s.soundOn ?? a.soundOn,
-      metronomeOn: s.metronome ?? a.metronomeOn,
-      practiceMode: _byName(PracticeMode.values, s.mode) ?? a.practiceMode,
-      // As cores da partitura e do treino, e o brilho em volta da nota.
-      highlightColor: s.highlight == null
-          ? a.highlightColor
-          : Color(s.highlight!),
-      practicePendingColor: s.pending == null
-          ? a.practicePendingColor
-          : Color(s.pending!),
-      practiceWrongColor: s.wrong == null
-          ? a.practiceWrongColor
-          : Color(s.wrong!),
-      studentPartColor: s.student == null
-          ? a.studentPartColor
-          : Color(s.student!),
-      haloWidth: halo == null ? a.haloWidth : halo.clamp(0.0, 3.0),
-      barColor: s.bar == null ? a.barColor : Color(s.bar!),
-      // A trilha: o tamanho do trecho, as etapas (e a ordem) e os andamentos.
-      // O que não é reconhecido fica de fora.
-      trailMeasures: medidas == null
-          ? a.trailMeasures
-          : (medidas < kTrailMinMeasures ? kTrailMinMeasures : medidas),
-      trailPhases: fases != null && fases.isNotEmpty ? fases : a.trailPhases,
-      trailPhaseOrder: ordem == null
-          ? a.trailPhaseOrder
-          : _completeOrder([
-              for (final name in ordem) ?_byName(TrailPhase.values, name),
-            ]),
-      trailSpeeds: velocidades != null && velocidades.isNotEmpty
-          ? velocidades
-          : a.trailSpeeds,
-      // O texto e o resto: a margem do tempo, o aviso da volta, o nome das
-      // notas, a cifra, o texto dos cursos, a transposição, o teclado e a
-      // partitura.
-      rhythmToleranceMs: tolerancia == null
-          ? a.rhythmToleranceMs
-          : tolerancia.clamp(kMinRhythmToleranceMs, kMaxRhythmToleranceMs),
-      repeatNoticeSeconds: aviso == null
-          ? a.repeatNoticeSeconds
-          : aviso.clamp(kMinRepeatNoticeSeconds, kMaxRepeatNoticeSeconds),
-      noteNaming: NoteNaming.fromWire(s.noteNaming),
-      chordNotation:
-          _byName(ChordNotation.values, s.chordNotation) ?? a.chordNotation,
-      courseTextScale: escala == null
-          ? a.courseTextScale
-          : escala.clamp(kMinCourseTextScale, kMaxCourseTextScale),
-      transposeByDefault: s.transposeByDefault ?? a.transposeByDefault,
-      keyboardTranspose: _decodeKeyboardTranspose(s.keyboardTranspose),
-      scoreLayout: _decodeScoreLayout(s.scoreLayout),
-      scorePageFitsBox: s.scorePageFitsBox ?? a.scorePageFitsBox,
+      sound: _somLido(s, a.sound),
+      practice: _praticaLida(s, a.practice),
+      colors: _coresLidas(s, a.colors),
+      trail: _trilhaLida(s, a.trail),
+      notation: _notacaoLida(s, a.notation),
+      score: _partituraLida(s, a.score),
     );
   }
 }
+
+/// O som (a saída, o timbre do teclado, se toca e o metrônomo).
+SoundSettings _somLido(_Stored s, SoundSettings a) => a.copyWith(
+  output: _byName(SoundOutput.values, s.output) ?? a.output,
+  useScoreInstruments: s.instruments ?? a.useScoreInstruments,
+  soundOn: s.soundOn ?? a.soundOn,
+  metronomeOn: s.metronome ?? a.metronomeOn,
+);
+
+/// O modo de treino, a margem do tempo real e o aviso da volta, cortados nos
+/// limites.
+PracticeSettings _praticaLida(_Stored s, PracticeSettings a) {
+  final tolerancia = s.tolerance;
+  final aviso = s.repeatNotice;
+  return a.copyWith(
+    practiceMode: _byName(PracticeMode.values, s.mode) ?? a.practiceMode,
+    rhythmToleranceMs: tolerancia == null
+        ? a.rhythmToleranceMs
+        : tolerancia.clamp(kMinRhythmToleranceMs, kMaxRhythmToleranceMs),
+    repeatNoticeSeconds: aviso == null
+        ? a.repeatNoticeSeconds
+        : aviso.clamp(kMinRepeatNoticeSeconds, kMaxRepeatNoticeSeconds),
+  );
+}
+
+/// As cores da partitura e do treino, e o brilho em volta da nota.
+ColorSettings _coresLidas(_Stored s, ColorSettings a) {
+  final halo = s.halo;
+  return a.copyWith(
+    highlightColor: _corLida(s.highlight) ?? a.highlightColor,
+    practicePendingColor: _corLida(s.pending) ?? a.practicePendingColor,
+    practiceWrongColor: _corLida(s.wrong) ?? a.practiceWrongColor,
+    studentPartColor: _corLida(s.student) ?? a.studentPartColor,
+    haloWidth: halo == null ? a.haloWidth : halo.clamp(0.0, 3.0),
+    barColor: _corLida(s.bar) ?? a.barColor,
+  );
+}
+
+/// A trilha: o tamanho do trecho, as etapas (e a ordem) e os andamentos. O que
+/// não é reconhecido fica de fora.
+TrailSettings _trilhaLida(_Stored s, TrailSettings a) {
+  final fases = _fasesLidas(s.trailPhases);
+  final ordem = s.phaseOrder;
+  final velocidades = _andamentosLidos(s.trailSpeeds);
+  final medidas = s.trailMeasures;
+  return a.copyWith(
+    trailMeasures: medidas == null
+        ? a.trailMeasures
+        : (medidas < kTrailMinMeasures ? kTrailMinMeasures : medidas),
+    trailPhases: fases != null && fases.isNotEmpty ? fases : a.trailPhases,
+    trailPhaseOrder: ordem == null
+        ? a.trailPhaseOrder
+        : _completeOrder([
+            for (final name in ordem) ?_byName(TrailPhase.values, name),
+          ]),
+    trailSpeeds: velocidades != null && velocidades.isNotEmpty
+        ? velocidades
+        : a.trailSpeeds,
+  );
+}
+
+/// Os nomes das notas, a cifra e o texto dos cursos (cortado nos limites).
+NotationSettings _notacaoLida(_Stored s, NotationSettings a) {
+  final escala = s.textScale;
+  return a.copyWith(
+    noteNaming: NoteNaming.fromWire(s.noteNaming),
+    chordNotation:
+        _byName(ChordNotation.values, s.chordNotation) ?? a.chordNotation,
+    courseTextScale: escala == null
+        ? a.courseTextScale
+        : escala.clamp(kMinCourseTextScale, kMaxCourseTextScale),
+  );
+}
+
+/// A transposição padrão, o que se sabe de cada teclado e a partitura (o
+/// layout que a pessoa mudou e a página que cabe na caixa).
+ScoreSettings _partituraLida(_Stored s, ScoreSettings a) => a.copyWith(
+  transposeByDefault: s.transposeByDefault ?? a.transposeByDefault,
+  keyboardTranspose: _decodeKeyboardTranspose(s.keyboardTranspose),
+  scoreLayout: _decodeScoreLayout(s.scoreLayout),
+  scorePageFitsBox: s.scorePageFitsBox ?? a.scorePageFitsBox,
+);
