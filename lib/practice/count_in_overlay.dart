@@ -13,6 +13,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 
 import 'package:zywny_audio/metronome.dart';
+import 'package:zywny_bloc/zywny_bloc.dart';
 
 /// Azul da contagem.
 const kCountInColor = Color(0xFF1F4FD8);
@@ -31,7 +32,7 @@ const kCountInPhoneMaxOpacity = 0.5;
 double countInOpacityAt(double progress) =>
     (1 - math.pow(progress, 1.4)).clamp(0.0, 1.0).toDouble();
 
-class CountInOverlay extends StatefulWidget {
+class CountInOverlay extends StatelessWidget {
   const CountInOverlay({
     super.key,
     required this.active,
@@ -52,13 +53,57 @@ class CountInOverlay extends StatefulWidget {
   final CountInTick? Function() read;
 
   @override
-  State<CountInOverlay> createState() => _CountInOverlayState();
+  Widget build(BuildContext context) => BlocProvider(
+    create: (_) => CountInCubit(),
+    child: _CountInDriver(active: active, read: read, phone: phone),
+  );
 }
 
-class _CountInOverlayState extends State<CountInOverlay>
+/// A contagem que a tela mostra agora (`null` fora dela).
+class CountInState extends Equatable {
+  const CountInState({this.tick});
+
+  final CountInTick? tick;
+
+  @override
+  List<Object?> get props => [tick];
+}
+
+/// Guarda a contagem que a tela mostra. Quem a manda é o [_CountInDriver], a
+/// cada quadro; um valor igual ao anterior não avisa a tela.
+class CountInCubit extends Cubit<CountInState> {
+  CountInCubit() : super(const CountInState());
+
+  /// Mostra a contagem [tick] (ou tira, com `null`).
+  void mostrar(CountInTick? tick) {
+    if (isClosed) return;
+    emit(CountInState(tick: tick));
+  }
+}
+
+/// Dono do [Ticker] (o quadro): com a contagem ligada, pergunta
+/// [CountInOverlay.read] a cada quadro e manda o resultado ao [CountInCubit].
+/// Não guarda estado; o Ticker é objeto do framework.
+class _CountInDriver extends StatefulWidget {
+  const _CountInDriver({
+    required this.active,
+    required this.read,
+    required this.phone,
+  });
+
+  final bool active;
+  final CountInTick? Function() read;
+  final bool phone;
+
+  @override
+  State<_CountInDriver> createState() => _CountInDriverState();
+}
+
+class _CountInDriverState extends State<_CountInDriver>
     with SingleTickerProviderStateMixin {
-  final _tick = ValueNotifier<CountInTick?>(null);
-  late final Ticker _ticker = createTicker((_) => _tick.value = widget.read());
+  late final Ticker _ticker = createTicker(
+    (_) => context.read<CountInCubit>().mostrar(widget.read()),
+  );
 
   @override
   void initState() {
@@ -67,43 +112,50 @@ class _CountInOverlayState extends State<CountInOverlay>
   }
 
   @override
-  void didUpdateWidget(CountInOverlay oldWidget) {
+  void didUpdateWidget(_CountInDriver oldWidget) {
     super.didUpdateWidget(oldWidget);
     _sync();
   }
 
   void _sync() {
     if (widget.active == _ticker.isActive) return;
+    final cubit = context.read<CountInCubit>();
     if (widget.active) {
-      _tick.value = widget.read();
+      cubit.mostrar(widget.read());
       _ticker.start();
     } else {
       _ticker.stop();
-      _tick.value = null;
+      cubit.mostrar(null);
     }
   }
 
   @override
   void dispose() {
     _ticker.dispose();
-    _tick.dispose();
     super.dispose();
   }
 
   @override
-  Widget build(BuildContext context) {
-    return IgnorePointer(
-      child: ValueListenableBuilder<CountInTick?>(
-        valueListenable: _tick,
-        builder: (context, tick, _) {
-          if (tick == null) return const SizedBox.shrink();
-          return LayoutBuilder(
-            builder: (context, box) => _number(tick, box.biggest),
-          );
-        },
-      ),
-    );
-  }
+  Widget build(BuildContext context) =>
+      IgnorePointer(child: _CountInView(phone: widget.phone));
+}
+
+/// O número da contagem, desenhado a partir do [CountInCubit].
+class _CountInView extends StatelessWidget {
+  const _CountInView({required this.phone});
+
+  final bool phone;
+
+  @override
+  Widget build(BuildContext context) => BlocBuilder<CountInCubit, CountInState>(
+    builder: (context, state) {
+      final tick = state.tick;
+      if (tick == null) return const SizedBox.shrink();
+      return LayoutBuilder(
+        builder: (context, box) => _number(tick, box.biggest),
+      );
+    },
+  );
 
   Widget _phoneNumber(CountInTick tick, Size box) {
     final fontSize = math.min(box.height * 0.45, box.width * 0.25);
@@ -127,7 +179,7 @@ class _CountInOverlayState extends State<CountInOverlay>
   }
 
   Widget _number(CountInTick tick, Size box) {
-    if (widget.phone) return _phoneNumber(tick, box);
+    if (phone) return _phoneNumber(tick, box);
     final p = tick.progress;
     final fontSize = math.min(box.height * 0.62, box.width * 0.5);
     final sigma = fontSize * kCountInBlur * p;

@@ -5,6 +5,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import 'package:zywny_bloc/zywny_bloc.dart';
 import 'package:zywny_midi/midi_input_service.dart';
 
 import '../midi/piano_keyboard.dart';
@@ -169,25 +170,8 @@ Future<KeyboardTransposeBehavior?> showTransposeCheck(
   );
 }
 
-/// O conteúdo de um passo da conferência: os textos e os botões.
-typedef _StepContent = ({List<Widget> body, List<Widget> actions});
-
-/// Um parágrafo do passo (em negrito, se [bold]).
-Widget _stepText(String s, {bool bold = false}) => Padding(
-  padding: const EdgeInsets.only(bottom: 8),
-  child: Text(
-    s,
-    style: bold ? const TextStyle(fontWeight: FontWeight.w600) : null,
-  ),
-);
-
-/// A legenda discreta de um passo.
-Widget _stepCaption(String s) => Padding(
-  padding: const EdgeInsets.only(bottom: 8),
-  child: Text(s, style: const TextStyle(fontSize: 13, color: kInkCaption)),
-);
-
-enum _Step {
+/// Os passos da conferência (o que a caixa mostra).
+enum TransposeStep {
   instruction,
   listening,
   noKey,
@@ -200,7 +184,196 @@ enum _Step {
   done,
 }
 
-class _TransposeCheckDialog extends StatefulWidget {
+/// O que a conferência sabe: o passo, e o que já se descobriu nele.
+class TransposeCheckState extends Equatable {
+  const TransposeCheckState({
+    this.step = TransposeStep.instruction,
+    this.out,
+    this.offset = 0,
+    this.inShifts,
+    this.inputPlayed = 0,
+  });
+
+  final TransposeStep step;
+
+  /// O teclado transpõe a saída? Preenchido no passo da tecla / do ouvido.
+  final bool? out;
+
+  /// O TRANSPOSE em que o teclado parece estar ([TransposeStep.offset]).
+  final int offset;
+
+  /// A resposta do passo 4 (`null` = não se perguntou).
+  final bool? inShifts;
+
+  /// Quantas notas do teste da entrada já soaram (0 = ainda não começou).
+  final int inputPlayed;
+
+  TransposeCheckState copyWith({
+    TransposeStep? step,
+    bool? out,
+    int? offset,
+    bool? inShifts,
+    int? inputPlayed,
+  }) => TransposeCheckState(
+    step: step ?? this.step,
+    out: out ?? this.out,
+    offset: offset ?? this.offset,
+    inShifts: inShifts ?? this.inShifts,
+    inputPlayed: inputPlayed ?? this.inputPlayed,
+  );
+
+  @override
+  List<Object?> get props => [step, out, offset, inShifts, inputPlayed];
+}
+
+/// A conferência do TRANSPOSE: ouve a tecla do Dó central (com prazo), faz o
+/// teste de ouvido e o da entrada, e diz o que o teclado faz. Os Timers e a
+/// escuta do MIDI param no [close].
+class TransposeCheckCubit extends Cubit<TransposeCheckState> {
+  TransposeCheckCubit({
+    required this.transposition,
+    required this.input,
+    required this.previous,
+    this.playOwnSound,
+    this.playOnKeyboard,
+    required this.keyTimeout,
+    required this.inputGap,
+  }) : super(const TransposeCheckState());
+
+  final Transposition transposition;
+  final MidiInputService input;
+  final KeyboardTransposeBehavior previous;
+  final Future<bool> Function(int pitch)? playOwnSound;
+  final Future<void> Function(int pitch)? playOnKeyboard;
+  final Duration keyTimeout;
+  final Duration inputGap;
+
+  StreamSubscription<PlayedNote>? _sub;
+  Timer? _prazo;
+  bool _testeDaEntradaRodando = false;
+
+  int get _k => transposition.semitones;
+  int get _tomSoando => kCheckKeyMidi - _k;
+
+  /// Passo 1 → 2: espera a tecla do Dó central, até o prazo.
+  void ouvirTecla() {
+    _pararEscuta();
+    _ir(TransposeStep.listening);
+    _sub = input.notes.listen((n) {
+      if (n.on) _aoApertar(n.pitch);
+    });
+    _prazo = Timer(keyTimeout, () {
+      _pararEscuta();
+      _ir(TransposeStep.noKey);
+    });
+  }
+
+  /// "Tentar de novo": volta ao passo 1.
+  void tentarDeNovo() => _ir(TransposeStep.instruction);
+
+  /// Passo do ouvido: "Ouvir de novo".
+  Future<void> repetirEscuta() async {
+    await playOwnSound?.call(_tomSoando);
+  }
+
+  /// Passo do ouvido, "Sim", ou o "Já ajustei" sem som: o teclado só muda o
+  /// som, e o app segue.
+  void soSomNoTeclado() {
+    _atualizar(state.copyWith(out: false));
+    _depoisDaSaida();
+  }
+
+  /// Passo do ouvido, "Não": o teclado não soou igual ao app.
+  void ouvidoDiferente() => _ir(TransposeStep.earNo);
+
+  /// Passo 4, "A 1ª" ou "A 2ª": qual das duas notas soou igual ao Dó.
+  void respostaEntrada({required bool shiftsIn}) =>
+      _atualizar(state.copyWith(inShifts: shiftsIn, step: TransposeStep.done));
+
+  /// Passo 4: toca de novo as duas notas do teste da entrada.
+  Future<void> repetirEntrada() async {
+    final play = playOnKeyboard;
+    if (play == null || _testeDaEntradaRodando) return;
+    _testeDaEntradaRodando = true;
+    _atualizar(state.copyWith(inputPlayed: 0));
+    await play(kCheckKeyMidi);
+    _atualizar(state.copyWith(inputPlayed: 1));
+    await Future<void>.delayed(inputGap);
+    if (isClosed) return;
+    await play(_tomSoando);
+    _atualizar(state.copyWith(inputPlayed: 2));
+    _testeDaEntradaRodando = false;
+  }
+
+  /// O que se descobriu do teclado, sobre o que já se sabia.
+  KeyboardTransposeBehavior resultado() => KeyboardTransposeBehavior(
+    shiftsOut: state.out,
+    shiftsIn: state.inShifts ?? previous.shiftsIn,
+  );
+
+  void _aoApertar(int pitch) {
+    _pararEscuta();
+    final leitura = classifyCheckKey(pitch, _k);
+    switch (leitura.kind) {
+      case CheckKeyKind.shiftsOut:
+        _atualizar(state.copyWith(out: true));
+        _depoisDaSaida();
+      case CheckKeyKind.ambiguous:
+        unawaited(_testeDeOuvido());
+      case CheckKeyKind.offset:
+        // Só quem transpõe a saída manda deslocado.
+        _atualizar(
+          state.copyWith(
+            out: true,
+            offset: leitura.offset,
+            step: TransposeStep.offset,
+          ),
+        );
+      case CheckKeyKind.wrongOctave:
+        _ir(TransposeStep.wrongOctave);
+    }
+  }
+
+  Future<void> _testeDeOuvido() async {
+    final play = playOwnSound;
+    final tocou = play == null ? false : await play(_tomSoando);
+    _ir(tocou ? TransposeStep.ear : TransposeStep.earNoSound);
+  }
+
+  /// Passo 4: só se o app toca pelo teclado.
+  void _depoisDaSaida() {
+    if (playOnKeyboard != null) {
+      _ir(TransposeStep.inputTest);
+      unawaited(repetirEntrada());
+    } else {
+      _ir(TransposeStep.done);
+    }
+  }
+
+  void _pararEscuta() {
+    _prazo?.cancel();
+    _prazo = null;
+    unawaited(_sub?.cancel());
+    _sub = null;
+  }
+
+  void _ir(TransposeStep step) => _atualizar(state.copyWith(step: step));
+
+  void _atualizar(TransposeCheckState next) {
+    if (isClosed) return;
+    emit(next);
+  }
+
+  @override
+  Future<void> close() {
+    _pararEscuta();
+    return super.close();
+  }
+}
+
+/// A caixa da conferência: o texto de cada passo e os botões. O estado é do
+/// [TransposeCheckCubit], que a caixa cria e fecha.
+class _TransposeCheckDialog extends StatelessWidget {
   const _TransposeCheckDialog({
     required this.transposition,
     required this.deviceName,
@@ -224,128 +397,33 @@ class _TransposeCheckDialog extends StatefulWidget {
   final Duration inputGap;
 
   @override
-  State<_TransposeCheckDialog> createState() => _TransposeCheckDialogState();
-}
+  Widget build(BuildContext context) => BlocProvider(
+    create: (_) => TransposeCheckCubit(
+      transposition: transposition,
+      input: input,
+      previous: previous,
+      playOwnSound: playOwnSound,
+      playOnKeyboard: playOnKeyboard,
+      keyTimeout: keyTimeout,
+      inputGap: inputGap,
+    ),
+    child: BlocBuilder<TransposeCheckCubit, TransposeCheckState>(
+      builder: (context, state) => _caixa(context, state),
+    ),
+  );
 
-class _TransposeCheckDialogState extends State<_TransposeCheckDialog> {
-  _Step _step = _Step.instruction;
-  StreamSubscription<PlayedNote>? _sub;
-  Timer? _deadline;
-
-  /// O teclado transpõe a saída? Preenchido no passo da tecla / do ouvido.
-  bool? _out;
-
-  /// O TRANSPOSE em que o teclado parece estar ([_Step.offset]).
-  int _offset = 0;
-
-  /// A resposta do passo 4 (`null` = não se perguntou).
-  bool? _inShifts;
-
-  /// Quantas notas do teste da entrada já soaram (0 = ainda não começou).
-  int _inputPlayed = 0;
-  bool _inputTestRunning = false;
-
-  int get _k => widget.transposition.semitones;
-  int get _soundingKey => kCheckKeyMidi - _k;
-
-  @override
-  void dispose() {
-    _stopListening();
-    super.dispose();
-  }
-
-  void _go(_Step step) {
-    if (!mounted) return;
-    setState(() => _step = step);
-  }
-
-  void _listen() {
-    _stopListening();
-    _go(_Step.listening);
-    _sub = widget.input.notes.listen((n) {
-      if (n.on) _onKey(n.pitch);
-    });
-    _deadline = Timer(widget.keyTimeout, () {
-      _stopListening();
-      _go(_Step.noKey);
-    });
-  }
-
-  void _stopListening() {
-    _deadline?.cancel();
-    _deadline = null;
-    unawaited(_sub?.cancel());
-    _sub = null;
-  }
-
-  void _onKey(int pitch) {
-    _stopListening();
-    final reading = classifyCheckKey(pitch, _k);
-    switch (reading.kind) {
-      case CheckKeyKind.shiftsOut:
-        _out = true;
-        _afterOut();
-      case CheckKeyKind.ambiguous:
-        _startEarTest();
-      case CheckKeyKind.offset:
-        // Só quem transpõe a saída manda deslocado.
-        _out = true;
-        _offset = reading.offset;
-        _go(_Step.offset);
-      case CheckKeyKind.wrongOctave:
-        _go(_Step.wrongOctave);
-    }
-  }
-
-  Future<void> _startEarTest() async {
-    final play = widget.playOwnSound;
-    final played = play == null ? false : await play(_soundingKey);
-    _go(played ? _Step.ear : _Step.earNoSound);
-  }
-
-  Future<void> _replayEar() async {
-    await widget.playOwnSound?.call(_soundingKey);
-  }
-
-  /// Passo 4: só se o app toca pelo teclado.
-  void _afterOut() {
-    if (widget.playOnKeyboard != null) {
-      _go(_Step.inputTest);
-      unawaited(_playInputTest());
-    } else {
-      _go(_Step.done);
-    }
-  }
-
-  Future<void> _playInputTest() async {
-    final play = widget.playOnKeyboard;
-    if (play == null || _inputTestRunning) return;
-    _inputTestRunning = true;
-    if (mounted) setState(() => _inputPlayed = 0);
-    await play(kCheckKeyMidi);
-    if (mounted) setState(() => _inputPlayed = 1);
-    await Future<void>.delayed(widget.inputGap);
-    if (!mounted) return;
-    await play(_soundingKey);
-    if (mounted) setState(() => _inputPlayed = 2);
-    _inputTestRunning = false;
-  }
-
-  void _finish(KeyboardTransposeBehavior behavior) =>
-      Navigator.pop(context, behavior);
-
-  /// O que se descobriu, sobre o que já se sabia do teclado.
-  KeyboardTransposeBehavior _result({bool? shiftsIn}) =>
-      KeyboardTransposeBehavior(
-        shiftsOut: _out,
-        shiftsIn: shiftsIn ?? widget.previous.shiftsIn,
-      );
-
-  @override
-  Widget build(BuildContext context) {
-    final t = widget.transposition;
+  Widget _caixa(BuildContext context, TransposeCheckState state) {
+    final cubit = context.read<TransposeCheckCubit>();
+    final t = transposition;
     final target = signedTranspose(t.keyboard);
-    final (:body, :actions) = _content(t, target, _keyName);
+    final (:body, :actions) = _passo(
+      context,
+      cubit,
+      state,
+      t,
+      target,
+      _nomeDaTecla,
+    );
     return AlertDialog(
       title: const Text('Conferir o teclado'),
       // `maxFinite`: o teclado desenhado mede a largura que o diálogo der, e um
@@ -358,9 +436,10 @@ class _TransposeCheckDialogState extends State<_TransposeCheckDialog> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               ...body,
-              if (_step == _Step.listening || _step == _Step.instruction) ...[
+              if (state.step == TransposeStep.listening ||
+                  state.step == TransposeStep.instruction) ...[
                 const SizedBox(height: 12),
-                _KeyboardHint(input: widget.input, naming: widget.naming),
+                _KeyboardHint(input: input, naming: naming),
               ],
             ],
           ),
@@ -369,55 +448,63 @@ class _TransposeCheckDialogState extends State<_TransposeCheckDialog> {
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context),
-          child: Text(_step == _Step.done ? 'Descartar' : 'Cancelar'),
+          child: Text(
+            state.step == TransposeStep.done ? 'Descartar' : 'Cancelar',
+          ),
         ),
         ...actions,
       ],
     );
   }
 
-  String get _keyName =>
-      widget.naming == NoteNaming.latin ? 'Dó central' : 'C central';
+  String get _nomeDaTecla =>
+      naming == NoteNaming.latin ? 'Dó central' : 'C central';
 
-  void _answerInput({required bool shiftsIn}) {
-    _inShifts = shiftsIn;
-    _go(_Step.done);
-  }
-
-  ({List<Widget> body, List<Widget> actions}) _content(
+  /// O conteúdo de um passo: os textos e os botões.
+  ({List<Widget> body, List<Widget> actions}) _passo(
+    BuildContext context,
+    TransposeCheckCubit cubit,
+    TransposeCheckState state,
     Transposition t,
     String target,
     String key,
-  ) => switch (_step) {
-    _Step.instruction => _instructionStep(t, target),
-    _Step.listening => _listeningStep(key),
-    _Step.noKey => _noKeyStep(),
-    _Step.wrongOctave => _wrongOctaveStep(key),
-    _Step.offset => _offsetStep(target),
-    _Step.ear => _earStep(),
-    _Step.earNoSound => _earNoSoundStep(target),
-    _Step.earNo => _earNoStep(target),
-    _Step.inputTest => _inputTestStep(),
-    _Step.done => _doneStep(),
+  ) => switch (state.step) {
+    TransposeStep.instruction => _instrucao(cubit, t, target),
+    TransposeStep.listening => _escutando(key),
+    TransposeStep.noKey => _semTecla(cubit),
+    TransposeStep.wrongOctave => _outraOitava(cubit, key),
+    TransposeStep.offset => _deslocado(cubit, state, target),
+    TransposeStep.ear => _ouvido(cubit),
+    TransposeStep.earNoSound => _ouvidoSemSom(cubit, target),
+    TransposeStep.earNo => _ouvidoNao(cubit, target),
+    TransposeStep.inputTest => _testeDaEntrada(cubit, state),
+    TransposeStep.done => _concluido(context, cubit, state),
   };
 
   /// O passo 1: ajustar o TRANSPOSE do teclado para a [target].
-  _StepContent _instructionStep(Transposition t, String target) => (
+  ({List<Widget> body, List<Widget> actions}) _instrucao(
+    TransposeCheckCubit cubit,
+    Transposition t,
+    String target,
+  ) => (
     body: [
       _stepText('No seu teclado, ajuste o TRANSPOSE para $target.', bold: true),
-      _stepText('Assim ${t.soundsLike(kCheckKeyMidi, naming: widget.naming)}.'),
+      _stepText('Assim ${t.soundsLike(kCheckKeyMidi, naming: naming)}.'),
       _stepCaption(
         'Costuma ser um botão TRANSPOSE ou uma função no menu; veja o '
         'manual do seu teclado.',
       ),
     ],
     actions: [
-      FilledButton(onPressed: _listen, child: const Text('Já ajustei')),
+      FilledButton(
+        onPressed: cubit.ouvirTecla,
+        child: const Text('Já ajustei'),
+      ),
     ],
   );
 
   /// Toque a tecla [key] (o Dó) e espera.
-  _StepContent _listeningStep(String key) => (
+  ({List<Widget> body, List<Widget> actions}) _escutando(String key) => (
     body: [
       _stepText('Toque o $key.', bold: true),
       _stepCaption('A tecla marcada, no meio do teclado.'),
@@ -426,51 +513,65 @@ class _TransposeCheckDialogState extends State<_TransposeCheckDialog> {
   );
 
   /// Nenhuma tecla chegou: confira a conexão.
-  _StepContent _noKeyStep() => (
+  ({List<Widget> body, List<Widget> actions}) _semTecla(
+    TransposeCheckCubit cubit,
+  ) => (
     body: [_stepText('Não chegou nada do teclado. Ele está conectado?')],
-    actions: [_retryButton()],
+    actions: [_botaoTentarDeNovo(cubit)],
   );
 
   /// A tecla veio, mas numa outra oitava.
-  _StepContent _wrongOctaveStep(String key) => (
+  ({List<Widget> body, List<Widget> actions}) _outraOitava(
+    TransposeCheckCubit cubit,
+    String key,
+  ) => (
     body: [_stepText('Essa não é o $key. Toque o Dó do meio do teclado.')],
     actions: [
-      FilledButton(onPressed: _listen, child: const Text('Tentar de novo')),
+      FilledButton(
+        onPressed: cubit.ouvirTecla,
+        child: const Text('Tentar de novo'),
+      ),
     ],
   );
 
   /// O teclado está deslocado de [target] por alguns semitons.
-  _StepContent _offsetStep(String target) => (
+  ({List<Widget> body, List<Widget> actions}) _deslocado(
+    TransposeCheckCubit cubit,
+    TransposeCheckState state,
+    String target,
+  ) => (
     body: [
       _stepText(
-        'Seu teclado parece estar em ${signedTranspose(_offset)}. '
+        'Seu teclado parece estar em ${signedTranspose(state.offset)}. '
         'Ajuste para $target.',
       ),
     ],
-    actions: [_retryButton()],
+    actions: [_botaoTentarDeNovo(cubit)],
   );
 
   /// O teste de ouvido: a nota do app soa igual à tecla Dó?
-  _StepContent _earStep() => (
+  ({List<Widget> body, List<Widget> actions}) _ouvido(
+    TransposeCheckCubit cubit,
+  ) => (
     body: [
       _stepText('O app tocou essa nota pelo som dele.'),
       _stepText('Soou igual à sua tecla Dó?', bold: true),
     ],
     actions: [
-      TextButton(onPressed: _replayEar, child: const Text('Ouvir de novo')),
-      TextButton(onPressed: () => _go(_Step.earNo), child: const Text('Não')),
-      FilledButton(
-        onPressed: () {
-          _out = false;
-          _afterOut();
-        },
-        child: const Text('Sim'),
+      TextButton(
+        onPressed: cubit.repetirEscuta,
+        child: const Text('Ouvir de novo'),
       ),
+      TextButton(onPressed: cubit.ouvidoDiferente, child: const Text('Não')),
+      FilledButton(onPressed: cubit.soSomNoTeclado, child: const Text('Sim')),
     ],
   );
 
   /// O app não tem som aqui: a pessoa diz se já ajustou o teclado.
-  _StepContent _earNoSoundStep(String target) => (
+  ({List<Widget> body, List<Widget> actions}) _ouvidoSemSom(
+    TransposeCheckCubit cubit,
+    String target,
+  ) => (
     body: [
       _stepText(
         'Não deu para tocar aqui. Você ajustou o TRANSPOSE para $target?',
@@ -478,55 +579,67 @@ class _TransposeCheckDialogState extends State<_TransposeCheckDialog> {
     ],
     actions: [
       FilledButton(
-        onPressed: () {
-          _out = false;
-          _afterOut();
-        },
+        onPressed: cubit.soSomNoTeclado,
         child: const Text('Já ajustei'),
       ),
     ],
   );
 
   /// No teste de ouvido, a nota não soou igual: confira o TRANSPOSE.
-  _StepContent _earNoStep(String target) => (
+  ({List<Widget> body, List<Widget> actions}) _ouvidoNao(
+    TransposeCheckCubit cubit,
+    String target,
+  ) => (
     body: [_stepText('Confira o TRANSPOSE: precisa ser $target.')],
-    actions: [_retryButton()],
+    actions: [_botaoTentarDeNovo(cubit)],
   );
 
   /// O teste da entrada: duas notas, e a pessoa diz qual soou igual ao Dó.
-  _StepContent _inputTestStep() => (
-    body: [
-      _stepText(
-        _inputPlayed < 2
-            ? 'Vão soar duas notas no teclado, uma de cada vez…'
-            : 'Qual soou igual à sua tecla Dó: a 1ª ou a 2ª?',
-        bold: _inputPlayed >= 2,
-      ),
-    ],
-    actions: [
-      TextButton(
-        onPressed: _inputPlayed < 2 ? null : _playInputTest,
-        child: const Text('Ouvir de novo'),
-      ),
-      TextButton(
-        onPressed: _inputPlayed < 2
-            ? null
-            : () => _answerInput(shiftsIn: false),
-        child: const Text('A 2ª'),
-      ),
-      FilledButton(
-        onPressed: _inputPlayed < 2 ? null : () => _answerInput(shiftsIn: true),
-        child: const Text('A 1ª'),
-      ),
-    ],
-  );
+  ({List<Widget> body, List<Widget> actions}) _testeDaEntrada(
+    TransposeCheckCubit cubit,
+    TransposeCheckState state,
+  ) {
+    final tocadas = state.inputPlayed;
+    return (
+      body: [
+        _stepText(
+          tocadas < 2
+              ? 'Vão soar duas notas no teclado, uma de cada vez…'
+              : 'Qual soou igual à sua tecla Dó: a 1ª ou a 2ª?',
+          bold: tocadas >= 2,
+        ),
+      ],
+      actions: [
+        TextButton(
+          onPressed: tocadas < 2 ? null : cubit.repetirEntrada,
+          child: const Text('Ouvir de novo'),
+        ),
+        TextButton(
+          onPressed: tocadas < 2
+              ? null
+              : () => cubit.respostaEntrada(shiftsIn: false),
+          child: const Text('A 2ª'),
+        ),
+        FilledButton(
+          onPressed: tocadas < 2
+              ? null
+              : () => cubit.respostaEntrada(shiftsIn: true),
+          child: const Text('A 1ª'),
+        ),
+      ],
+    );
+  }
 
   /// O fim: o que o teclado faz, e concluir.
-  _StepContent _doneStep() => (
+  ({List<Widget> body, List<Widget> actions}) _concluido(
+    BuildContext context,
+    TransposeCheckCubit cubit,
+    TransposeCheckState state,
+  ) => (
     body: [
       _stepText('Pronto.', bold: true),
       _stepText(
-        _out == true
+        state.out == true
             ? 'Este teclado manda a nota já transposta; o app cuida do '
                   'resto.'
             : 'Este teclado só muda o som; o app cuida do resto.',
@@ -534,18 +647,33 @@ class _TransposeCheckDialogState extends State<_TransposeCheckDialog> {
     ],
     actions: [
       FilledButton(
-        onPressed: () => _finish(_result(shiftsIn: _inShifts)),
+        onPressed: () => Navigator.pop(context, cubit.resultado()),
         child: const Text('Concluir'),
       ),
     ],
   );
 
   /// "Tentar de novo": volta ao passo 1.
-  Widget _retryButton() => TextButton(
-    onPressed: () => _go(_Step.instruction),
+  Widget _botaoTentarDeNovo(TransposeCheckCubit cubit) => TextButton(
+    onPressed: cubit.tentarDeNovo,
     child: const Text('Tentar de novo'),
   );
 }
+
+/// Um parágrafo do passo (em negrito, se [bold]).
+Widget _stepText(String s, {bool bold = false}) => Padding(
+  padding: const EdgeInsets.only(bottom: 8),
+  child: Text(
+    s,
+    style: bold ? const TextStyle(fontWeight: FontWeight.w600) : null,
+  ),
+);
+
+/// A legenda discreta de um passo.
+Widget _stepCaption(String s) => Padding(
+  padding: const EdgeInsets.only(bottom: 8),
+  child: Text(s, style: const TextStyle(fontSize: 13, color: kInkCaption)),
+);
 
 /// O teclado desenhado do passo 2: duas oitavas em volta do Dó central, com a
 /// tecla pedida marcada e a que a pessoa aperta acesa.

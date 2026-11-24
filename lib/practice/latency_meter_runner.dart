@@ -14,6 +14,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 
 import 'package:zywny_audio/sound_engine.dart';
+import 'package:zywny_bloc/zywny_bloc.dart';
 import 'package:zywny_diag/diag_log.dart';
 import 'package:zywny_midi/midi_out_sound_engine.dart' show MidiSender;
 
@@ -59,12 +60,59 @@ enum MeterFailure {
 
 /// O que a tela mostra durante a rodada.
 @immutable
-class MeterProgress {
+class MeterProgress extends Equatable {
   const MeterProgress(this.phase, {this.done = 0, this.total = 0});
 
   final MeterPhase phase;
   final int done;
   final int total;
+
+  @override
+  List<Object?> get props => [phase, done, total];
+}
+
+/// O que a tela do medidor observa da rodada: o andamento e o volume que o
+/// microfone ouve agora (0..1).
+class LatencyMeterState extends Equatable {
+  const LatencyMeterState({
+    this.progress = const MeterProgress(MeterPhase.idle),
+    this.level = 0,
+  });
+
+  final MeterProgress progress;
+  final double level;
+
+  LatencyMeterState copyWith({MeterProgress? progress, double? level}) =>
+      LatencyMeterState(
+        progress: progress ?? this.progress,
+        level: level ?? this.level,
+      );
+
+  @override
+  List<Object?> get props => [progress, level];
+}
+
+/// Quem a rodada avisa do andamento e do volume. A rodada chama os métodos na
+/// hora (são síncronos); a tela só lê o estado. O dono é o [LatencyMeterRunner],
+/// que o fecha no [LatencyMeterRunner.dispose].
+class LatencyMeterCubit extends Cubit<LatencyMeterState> {
+  LatencyMeterCubit() : super(const LatencyMeterState());
+
+  /// Põe o andamento da rodada (fase, e quantas notas de quantas).
+  void progresso(MeterPhase phase, {int done = 0, int total = 0}) {
+    if (isClosed) return;
+    emit(
+      state.copyWith(
+        progress: MeterProgress(phase, done: done, total: total),
+      ),
+    );
+  }
+
+  /// Põe o volume que o microfone ouve agora.
+  void nivel(double level) {
+    if (isClosed) return;
+    emit(state.copyWith(level: level));
+  }
 }
 
 /// Como foi a referência do alto-falante.
@@ -159,30 +207,19 @@ class LatencyMeterRunner {
   final double Function() _clock;
   final Future<void> Function(Duration) _wait;
 
-  final ValueNotifier<MeterProgress> progress = ValueNotifier(
-    const MeterProgress(MeterPhase.idle),
-  );
-
-  /// O volume que o microfone ouve agora (0..1), para a tela.
-  final ValueNotifier<double> level = ValueNotifier(0);
+  /// O que a tela observa: o andamento e o volume do microfone.
+  final LatencyMeterCubit meter = LatencyMeterCubit();
 
   bool _cancelled = false;
 
   /// Para a rodada no próximo passo; [run] devolve o que tiver.
   void cancel() => _cancelled = true;
 
-  bool _disposed = false;
+  /// Fecha o que a tela observa (depois de [run] ter acabado).
+  void dispose() => unawaited(meter.close());
 
-  void dispose() {
-    _disposed = true;
-    progress.dispose();
-    level.dispose();
-  }
-
-  void _set(MeterPhase phase, [int done = 0, int total = 0]) {
-    if (_disposed) return;
-    progress.value = MeterProgress(phase, done: done, total: total);
-  }
+  void _set(MeterPhase phase, [int done = 0, int total = 0]) =>
+      meter.progresso(phase, done: done, total: total);
 
   Future<void> _pause(double seconds) async {
     if (_cancelled) throw const _Cancelled();
@@ -195,7 +232,7 @@ class LatencyMeterRunner {
     final timeline = MicTimeline(sampleRate: mic.sampleRate);
     final sub = mic.chunks.listen((pcm) {
       timeline.add(pcm, _clock());
-      if (!_disposed) level.value = timeline.level();
+      meter.nivel(timeline.level());
     });
     try {
       final failure = await mic.start();

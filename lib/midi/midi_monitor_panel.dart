@@ -1,11 +1,11 @@
-import 'dart:async';
-
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:zywny_bloc/zywny_bloc.dart';
 
 import 'package:zywny_midi/midi_device_manager.dart';
 
 import 'midi_device_picker.dart';
+import 'midi_monitor_cubit.dart';
 
 import 'package:zywny_midi/midi_input_service.dart';
 
@@ -18,7 +18,10 @@ const int kMidiMonitorHistory = 20;
 /// [input] e um teclado de 88 teclas acendendo as notas seguradas. Quem liga
 /// o dispositivo é [showMidiDevicePicker] (o mesmo diálogo do ícone da
 /// AppBar) — este painel só mostra.
-class MidiMonitorPanel extends StatefulWidget {
+///
+/// As mensagens ficam no [MidiMonitorCubit], criado aqui; o painel em si não
+/// guarda estado.
+class MidiMonitorPanel extends StatelessWidget {
   const MidiMonitorPanel({
     super.key,
     required this.deviceManager,
@@ -43,47 +46,26 @@ class MidiMonitorPanel extends StatefulWidget {
   final int Function(int received)? heldPitchOf;
 
   @override
-  State<MidiMonitorPanel> createState() => _MidiMonitorPanelState();
-}
-
-class _MidiMonitorPanelState extends State<MidiMonitorPanel> {
-  final List<PlayedNote> _messages = [];
-  StreamSubscription<PlayedNote>? _sub;
-
-  @override
-  void initState() {
-    super.initState();
-    _sub = widget.input.notes.listen((note) {
-      setState(() {
-        _messages.insert(0, note);
-        if (_messages.length > kMidiMonitorHistory) _messages.removeLast();
-      });
-    });
-  }
-
-  @override
-  void dispose() {
-    _sub?.cancel();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
-    return Card(
-      margin: EdgeInsets.zero,
-      elevation: 6,
-      clipBehavior: Clip.antiAlias,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          _header(context),
-          const Divider(height: 1),
-          _deviceLine(context),
-          _keyboardPaint(context),
-          const SizedBox(height: 8),
-          const Divider(height: 1),
-          Expanded(child: _messagesArea(context)),
-        ],
+    return BlocProvider(
+      create: (_) =>
+          MidiMonitorCubit(notes: input.notes, limite: kMidiMonitorHistory),
+      child: Card(
+        margin: EdgeInsets.zero,
+        elevation: 6,
+        clipBehavior: Clip.antiAlias,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _header(context),
+            const Divider(height: 1),
+            _deviceLine(context),
+            _keyboardPaint(context),
+            const SizedBox(height: 8),
+            const Divider(height: 1),
+            Expanded(child: _messagesArea(context)),
+          ],
+        ),
       ),
     );
   }
@@ -100,13 +82,12 @@ class _MidiMonitorPanelState extends State<MidiMonitorPanel> {
           ),
           IconButton(
             tooltip: 'Trocar dispositivo',
-            onPressed: () =>
-                showMidiDevicePicker(context, widget.deviceManager),
+            onPressed: () => showMidiDevicePicker(context, deviceManager),
             icon: const Icon(Icons.piano, size: 20),
           ),
           IconButton(
             tooltip: 'Fechar',
-            onPressed: widget.onClose,
+            onPressed: onClose,
             icon: const Icon(Icons.close, size: 20),
           ),
         ],
@@ -120,9 +101,9 @@ class _MidiMonitorPanelState extends State<MidiMonitorPanel> {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: ListenableBuilder(
-        listenable: widget.deviceManager.connected,
+        listenable: deviceManager.connected,
         builder: (context, _) {
-          final device = widget.deviceManager.connected.value;
+          final device = deviceManager.connected.value;
           return Text(
             device == null
                 ? 'nenhum dispositivo conectado'
@@ -142,13 +123,12 @@ class _MidiMonitorPanelState extends State<MidiMonitorPanel> {
       padding: const EdgeInsets.symmetric(horizontal: 8),
       child: LayoutBuilder(
         builder: (context, constraints) => ValueListenableBuilder<Set<int>>(
-          valueListenable: widget.input.held,
+          valueListenable: input.held,
           builder: (context, received, _) {
-            final convert = widget.heldPitchOf;
+            final convert = heldPitchOf;
             final held = convert == null
                 ? received
                 : {for (final p in received) convert(p)};
-            final wrong = widget.wrong;
             Widget paint(Set<int> wrongPitches) => CustomPaint(
               size: Size(constraints.maxWidth, 64),
               painter: PianoKeyboardPainter(
@@ -157,9 +137,10 @@ class _MidiMonitorPanelState extends State<MidiMonitorPanel> {
                 wrong: wrongPitches,
               ),
             );
-            if (wrong == null) return paint(const {});
+            final erradas = wrong;
+            if (erradas == null) return paint(const {});
             return ValueListenableBuilder<Set<int>>(
-              valueListenable: wrong,
+              valueListenable: erradas,
               builder: (context, wrongPitches, _) => paint(wrongPitches),
             );
           },
@@ -170,17 +151,22 @@ class _MidiMonitorPanelState extends State<MidiMonitorPanel> {
 
   /// As mensagens das teclas (ou a dica de tocar uma nota, sem nenhuma).
   Widget _messagesArea(BuildContext context) {
-    if (_messages.isEmpty) {
-      return Center(
-        child: Text(
-          'toque uma nota para ver aqui',
-          style: Theme.of(context).textTheme.bodySmall,
-        ),
-      );
-    }
-    return ListView.builder(
-      itemCount: _messages.length,
-      itemBuilder: (context, i) => _MessageRow(_messages[i]),
+    return BlocSelector<MidiMonitorCubit, MidiMonitorState, List<PlayedNote>>(
+      selector: (state) => state.messages,
+      builder: (context, messages) {
+        if (messages.isEmpty) {
+          return Center(
+            child: Text(
+              'toque uma nota para ver aqui',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+          );
+        }
+        return ListView.builder(
+          itemCount: messages.length,
+          itemBuilder: (context, i) => _MessageRow(messages[i]),
+        );
+      },
     );
   }
 }

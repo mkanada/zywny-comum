@@ -65,10 +65,15 @@ void main() {
     expect(find.byType(Text), findsNothing);
 
     await tester.pumpWidget(host(active: true, read: read));
+    // A contagem chega à tela pelo stream do Cubit: a tela a desenha no quadro
+    // seguinte à mudança.
+    await tester.pump();
     expect(find.text('2'), findsOneWidget);
 
-    // Pausa no meio da contagem: o número some na hora.
+    // Pausa no meio da contagem: o número some no quadro seguinte (o Cubit
+    // avisa a tela pelo stream).
     await tester.pumpWidget(host(active: false, read: read));
+    await tester.pump();
     expect(find.byType(Text), findsNothing);
   });
 

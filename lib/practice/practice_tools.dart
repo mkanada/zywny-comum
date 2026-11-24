@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 
 import 'package:zywny_audio/sound_engine.dart';
 
+import 'package:zywny_bloc/zywny_bloc.dart';
 import 'package:zywny_midi/midi_input_service.dart';
 
 import '../ui/side_panel.dart';
@@ -37,8 +38,57 @@ Future<({int a, int b})?> showLoopSheet(
   );
 }
 
+/// Os dois compassos da escolha, 0-based: o início (`a`) e o fim (`b`).
+class LoopSheetState extends Equatable {
+  const LoopSheetState({required this.a, required this.b});
+
+  final int a;
+  final int b;
+
+  LoopSheetState copyWith({int? a, int? b}) =>
+      LoopSheetState(a: a ?? this.a, b: b ?? this.b);
+
+  @override
+  List<Object?> get props => [a, b];
+}
+
+/// A folha do loop: o início e o fim, presos entre 0 e o último compasso. O
+/// fim nunca fica antes do início, nem o início depois do fim.
+class LoopSheetCubit extends Cubit<LoopSheetState> {
+  LoopSheetCubit(this.choice)
+    : super(
+        LoopSheetState(
+          a: choice.initial?.a ?? choice.current,
+          b:
+              choice.initial?.b ??
+              (choice.current + 1 < choice.total
+                  ? choice.current + 1
+                  : choice.current),
+        ),
+      );
+
+  /// O que a folha sabe antes de abrir (ver [LoopChoice]).
+  final LoopChoice choice;
+
+  int get _ultimo => choice.total - 1;
+
+  /// Põe o início no compasso [v] (preso ao intervalo).
+  void inicio(int v) {
+    final a = v.clamp(0, _ultimo);
+    if (isClosed) return;
+    emit(state.copyWith(a: a, b: state.b < a ? a : state.b));
+  }
+
+  /// Põe o fim no compasso [v] (preso ao intervalo).
+  void fim(int v) {
+    final b = v.clamp(0, _ultimo);
+    if (isClosed) return;
+    emit(state.copyWith(a: state.a > b ? b : state.a, b: b));
+  }
+}
+
 /// A folha de [showLoopSheet]: o início e o fim do trecho, e os botões.
-class _LoopSheet extends StatefulWidget {
+class _LoopSheet extends StatelessWidget {
   const _LoopSheet({
     required this.choice,
     required this.onClear,
@@ -50,69 +100,52 @@ class _LoopSheet extends StatefulWidget {
   final bool sidePanel;
 
   @override
-  State<_LoopSheet> createState() => _LoopSheetState();
-}
+  Widget build(BuildContext context) => BlocProvider(
+    create: (_) => LoopSheetCubit(choice),
+    child: BlocBuilder<LoopSheetCubit, LoopSheetState>(
+      builder: (context, state) => _corpo(context, state),
+    ),
+  );
 
-class _LoopSheetState extends State<_LoopSheet> {
-  late int _a = widget.choice.initial?.a ?? widget.choice.current;
-  late int _b =
-      widget.choice.initial?.b ??
-      (widget.choice.current + 1 < widget.choice.total
-          ? widget.choice.current + 1
-          : widget.choice.current);
-
-  int get _last => widget.choice.total - 1;
-
-  void _setA(int v) => setState(() {
-    _a = v.clamp(0, _last);
-    if (_b < _a) _b = _a;
-  });
-
-  void _setB(int v) => setState(() {
-    _b = v.clamp(0, _last);
-    if (_a > _b) _a = _b;
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final choice = widget.choice;
+  Widget _corpo(BuildContext context, LoopSheetState state) {
+    final cubit = context.read<LoopSheetCubit>();
     return sheetBody(
-      sidePanel: widget.sidePanel,
+      sidePanel: sidePanel,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Text(
-            _a == _b
-                ? 'Repetir o compasso ${_a + 1}'
-                : 'Repetir do compasso ${_a + 1} ao ${_b + 1}',
+            state.a == state.b
+                ? 'Repetir o compasso ${state.a + 1}'
+                : 'Repetir do compasso ${state.a + 1} ao ${state.b + 1}',
             style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
           ),
           if (choice.total > 1) ...[
             _LoopSlider(
               label: 'Início',
-              value: _a,
+              value: state.a,
               total: choice.total,
-              onChanged: _setA,
-              onCurrent: () => _setA(choice.current),
+              onChanged: cubit.inicio,
+              onCurrent: () => cubit.inicio(choice.current),
             ),
             _LoopSlider(
               label: 'Fim',
-              value: _b,
+              value: state.b,
               total: choice.total,
-              onChanged: _setB,
-              onCurrent: () => _setB(choice.current),
+              onChanged: cubit.fim,
+              onCurrent: () => cubit.fim(choice.current),
             ),
           ],
           const SizedBox(height: 8),
           FilledButton(
-            onPressed: () => Navigator.pop(context, (a: _a, b: _b)),
+            onPressed: () => Navigator.pop(context, (a: state.a, b: state.b)),
             child: const Text('Repetir este trecho'),
           ),
           if (choice.initial != null)
             TextButton(
               onPressed: () {
-                widget.onClear();
+                onClear();
                 Navigator.pop(context);
               },
               child: const Text('Desligar o loop'),
@@ -179,7 +212,84 @@ Future<double?> showCalibrationDialog(
   );
 }
 
-class _CalibrationDialog extends StatefulWidget {
+/// As fases da calibração: antes dos cliques, tocando, e com o resultado.
+enum CalibrationPhase { idle, running, done }
+
+/// O que a caixa de calibração mostra: a fase, quantos cliques já soaram e o
+/// atraso medido (só na fase `done`; `null` se não deu para medir).
+class CalibrationState extends Equatable {
+  const CalibrationState({
+    this.phase = CalibrationPhase.idle,
+    this.clicksPlayed = 0,
+    this.result,
+  });
+
+  final CalibrationPhase phase;
+  final int clicksPlayed;
+  final double? result;
+
+  CalibrationState copyWith({
+    CalibrationPhase? phase,
+    int? clicksPlayed,
+    double? result,
+  }) => CalibrationState(
+    phase: phase ?? this.phase,
+    clicksPlayed: clicksPlayed ?? this.clicksPlayed,
+    result: result ?? this.result,
+  );
+
+  @override
+  List<Object?> get props => [phase, clicksPlayed, result];
+}
+
+/// A rodada da calibração: [comecar] agenda os cliques, uma tarefa periódica
+/// conta os que já soaram para a barra, e o resultado sai quando a rodada
+/// acaba. [close] para a rodada e a contagem.
+class CalibrationCubit extends Cubit<CalibrationState> {
+  CalibrationCubit({required this.engine, required this.input})
+    : super(const CalibrationState());
+
+  final SoundEngine engine;
+  final MidiInputService input;
+
+  LatencyCalibration? _rodada;
+  Timer? _contador;
+
+  /// Começa (ou recomeça) a rodada.
+  void comecar() {
+    final rodada = LatencyCalibration(engine: engine, input: input);
+    _rodada = rodada;
+    emit(state.copyWith(phase: CalibrationPhase.running, clicksPlayed: 0));
+    rodada.start();
+    _contador = Timer.periodic(
+      const Duration(milliseconds: 100),
+      (_) => _contar(),
+    );
+    unawaited(
+      rodada.result.then((ms) {
+        _contador?.cancel();
+        if (isClosed) return;
+        emit(state.copyWith(phase: CalibrationPhase.done, result: ms));
+      }),
+    );
+  }
+
+  void _contar() {
+    if (isClosed) return;
+    emit(state.copyWith(clicksPlayed: _rodada?.clicksPlayed ?? 0));
+  }
+
+  @override
+  Future<void> close() {
+    _contador?.cancel();
+    _rodada?.cancel();
+    return super.close();
+  }
+}
+
+/// Calibração de latência (ver [showCalibrationDialog]): a caixa com o botão
+/// de começar, a barra dos cliques e o resultado.
+class _CalibrationDialog extends StatelessWidget {
   const _CalibrationDialog({
     required this.engine,
     required this.input,
@@ -191,49 +301,15 @@ class _CalibrationDialog extends StatefulWidget {
   final String deviceName;
 
   @override
-  State<_CalibrationDialog> createState() => _CalibrationDialogState();
-}
+  Widget build(BuildContext context) => BlocProvider(
+    create: (_) => CalibrationCubit(engine: engine, input: input),
+    child: BlocBuilder<CalibrationCubit, CalibrationState>(
+      builder: (context, state) => _caixa(context, state),
+    ),
+  );
 
-enum _Phase { idle, running, done }
-
-class _CalibrationDialogState extends State<_CalibrationDialog> {
-  _Phase _phase = _Phase.idle;
-  LatencyCalibration? _run;
-  double? _result;
-  Timer? _ticker;
-
-  void _start() {
-    final run = LatencyCalibration(engine: widget.engine, input: widget.input);
-    _run = run;
-    setState(() => _phase = _Phase.running);
-    run.start();
-    _ticker = Timer.periodic(
-      const Duration(milliseconds: 100),
-      (_) => mounted ? setState(() {}) : null,
-    );
-    unawaited(
-      run.result.then((ms) {
-        _ticker?.cancel();
-        if (mounted) {
-          setState(() {
-            _result = ms;
-            _phase = _Phase.done;
-          });
-        }
-      }),
-    );
-  }
-
-  @override
-  void dispose() {
-    _ticker?.cancel();
-    _run?.cancel();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final result = _result;
+  Widget _caixa(BuildContext context, CalibrationState state) {
+    final result = state.result;
     return AlertDialog(
       scrollable: true,
       title: const Text('Ajustar o atraso'),
@@ -241,23 +317,23 @@ class _CalibrationDialogState extends State<_CalibrationDialog> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(switch (_phase) {
-            _Phase.idle =>
+          Text(switch (state.phase) {
+            CalibrationPhase.idle =>
               'Vão soar $kCalibrationClicks cliques. Aperte qualquer tecla '
                   'do teclado junto com cada um.',
-            _Phase.running =>
+            CalibrationPhase.running =>
               'Toque junto com os cliques… '
-                  '${_run?.clicksPlayed ?? 0}/$kCalibrationClicks',
-            _Phase.done =>
+                  '${state.clicksPlayed}/$kCalibrationClicks',
+            CalibrationPhase.done =>
               result == null
                   ? 'Não deu para medir — toque junto de pelo menos 5 cliques.'
                   : 'Atraso: ${result.toStringAsFixed(0)} ms'
                         '${result > kCalibrationWarnMs ? '\nAlta (> ${kCalibrationWarnMs.round()} ms) — fone Bluetooth?' : ''}',
           }),
-          if (_phase == _Phase.running) ...[
+          if (state.phase == CalibrationPhase.running) ...[
             const SizedBox(height: 12),
             LinearProgressIndicator(
-              value: (_run?.clicksPlayed ?? 0) / kCalibrationClicks,
+              value: state.clicksPlayed / kCalibrationClicks,
             ),
           ],
         ],
@@ -265,14 +341,18 @@ class _CalibrationDialogState extends State<_CalibrationDialog> {
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context),
-          child: Text(_phase == _Phase.done ? 'Descartar' : 'Cancelar'),
-        ),
-        if (_phase != _Phase.running)
-          TextButton(
-            onPressed: _start,
-            child: Text(_phase == _Phase.idle ? 'Começar' : 'Repetir'),
+          child: Text(
+            state.phase == CalibrationPhase.done ? 'Descartar' : 'Cancelar',
           ),
-        if (_phase == _Phase.done && result != null)
+        ),
+        if (state.phase != CalibrationPhase.running)
+          TextButton(
+            onPressed: context.read<CalibrationCubit>().comecar,
+            child: Text(
+              state.phase == CalibrationPhase.idle ? 'Começar' : 'Repetir',
+            ),
+          ),
+        if (state.phase == CalibrationPhase.done && result != null)
           FilledButton(
             onPressed: () => Navigator.pop(context, result),
             child: const Text('Usar'),
@@ -325,24 +405,43 @@ Future<void> showPracticeSummary(
   );
 }
 
+/// Se o resumo mostra os detalhes (o único estado da folha).
+class PracticeSummaryState extends Equatable {
+  const PracticeSummaryState({this.details = false});
+
+  final bool details;
+
+  PracticeSummaryState copyWith({bool? details}) =>
+      PracticeSummaryState(details: details ?? this.details);
+
+  @override
+  List<Object?> get props => [details];
+}
+
+/// Abre e fecha os detalhes do resumo do treino.
+class PracticeSummaryCubit extends Cubit<PracticeSummaryState> {
+  PracticeSummaryCubit() : super(const PracticeSummaryState());
+
+  /// "Detalhes" ou "Esconder detalhes".
+  void alternarDetalhes() => emit(state.copyWith(details: !state.details));
+}
+
 /// A folha de [showPracticeSummary]: o botão de detalhes é o único estado.
-class _PracticeSummarySheet extends StatefulWidget {
+class _PracticeSummarySheet extends StatelessWidget {
   const _PracticeSummarySheet({required this.report, required this.options});
 
   final PracticeReport report;
   final PracticeSummaryOptions options;
 
   @override
-  State<_PracticeSummarySheet> createState() => _PracticeSummarySheetState();
-}
+  Widget build(BuildContext context) => BlocProvider(
+    create: (_) => PracticeSummaryCubit(),
+    child: BlocBuilder<PracticeSummaryCubit, PracticeSummaryState>(
+      builder: (context, state) => _corpo(context, state.details),
+    ),
+  );
 
-class _PracticeSummarySheetState extends State<_PracticeSummarySheet> {
-  bool _details = false;
-
-  @override
-  Widget build(BuildContext context) {
-    final report = widget.report;
-    final options = widget.options;
+  Widget _corpo(BuildContext context, bool details) {
     final worst = report.worstMeasures();
     return sheetBody(
       sidePanel: options.sidePanel,
@@ -380,10 +479,10 @@ class _PracticeSummarySheetState extends State<_PracticeSummarySheet> {
             ),
           if (!report.isEmpty)
             TextButton(
-              onPressed: () => setState(() => _details = !_details),
-              child: Text(_details ? 'Esconder detalhes' : 'Detalhes'),
+              onPressed: context.read<PracticeSummaryCubit>().alternarDetalhes,
+              child: Text(details ? 'Esconder detalhes' : 'Detalhes'),
             ),
-          if (_details && !report.isEmpty) ..._detailRows(report, worst),
+          if (details && !report.isEmpty) ..._detailRows(report, worst),
           TextButton(
             onPressed: () => Navigator.pop(context),
             child: const Text('Fechar'),

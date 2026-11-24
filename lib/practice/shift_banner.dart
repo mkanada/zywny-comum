@@ -1,8 +1,10 @@
 // Q07: a faixa no topo da partitura com o aviso do TRANSPOSE (docs/plano/Q07).
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
+import 'package:zywny_bloc/zywny_bloc.dart';
 import 'package:zywny_midi/midi_input_service.dart';
 
 import 'shift_detector.dart';
@@ -13,7 +15,7 @@ const Duration kShiftBannerDuration = Duration(seconds: 8);
 /// A faixa: mostra o aviso de [notice] e some em [duration] ou, se o aviso
 /// pede ([ShiftNotice.hideOnPlay]), quando [notes] entrega a próxima nota
 /// tocada. Tocar na faixa também a fecha. Ao sumir, zera [notice].
-class ShiftBanner extends StatefulWidget {
+class ShiftBanner extends StatelessWidget {
   const ShiftBanner({
     super.key,
     required this.notice,
@@ -26,107 +28,133 @@ class ShiftBanner extends StatefulWidget {
   final Duration duration;
 
   @override
-  State<ShiftBanner> createState() => _ShiftBannerState();
+  Widget build(BuildContext context) => BlocProvider(
+    // Outro aviso, outras notas ou outro prazo: refaz o Cubit, que assina as
+    // duas coisas na criação.
+    key: ValueKey((notice, notes, duration)),
+    create: (_) => ShiftBannerCubit(
+      notice: notice,
+      onFechar: () => notice.value = null,
+      notes: notes,
+      duration: duration,
+    ),
+    child: const _ShiftBannerView(),
+  );
 }
 
-class _ShiftBannerState extends State<ShiftBanner> {
-  Timer? _timer;
-  ShiftNotice? _shown;
-  late StreamSubscription<PlayedNote> _sub;
+/// O aviso que a faixa mostra agora (`null` se ela está fechada).
+class ShiftBannerState extends Equatable {
+  const ShiftBannerState({this.shown});
+
+  final ShiftNotice? shown;
+
+  @override
+  List<Object?> get props => [shown];
+}
+
+/// A faixa por dentro: copia o aviso do [notice] para o estado, arma o prazo
+/// de sumir e fecha quando a próxima nota chega (se o aviso pede). O
+/// [close] tira o ouvinte do aviso e cancela o prazo e a escuta das notas.
+class ShiftBannerCubit extends Cubit<ShiftBannerState> {
+  ShiftBannerCubit({
+    required ValueListenable<ShiftNotice?> notice,
+    required this.onFechar,
+    required Stream<PlayedNote> notes,
+    required this.duration,
+  }) : _notice = notice,
+       super(ShiftBannerState(shown: notice.value)) {
+    _sub = notes.listen(_aoTocar);
+    notice.addListener(_aoAviso);
+    _armar();
+    _ouvindo = true;
+  }
+
+  final ValueListenable<ShiftNotice?> _notice;
+
+  /// Zera o aviso no dono dele (a faixa só o lê).
+  final VoidCallback onFechar;
+  final Duration duration;
+  late final StreamSubscription<PlayedNote> _sub;
+  Timer? _prazo;
 
   /// A nota que fez o aviso nascer chega a esta faixa na mesma entrega (o
   /// treino a recebeu primeiro): só vale como "tocou de novo" a que vier
   /// depois.
-  var _listening = false;
+  var _ouvindo = false;
 
-  @override
-  void initState() {
-    super.initState();
-    _sub = widget.notes.listen(_onNote);
-    widget.notice.addListener(_onNotice);
-    _shown = widget.notice.value;
-    _arm();
-    _listening = true;
+  /// Fecha a faixa (e zera o aviso, para quem o ouve).
+  void fechar() => onFechar();
+
+  void _armar() {
+    _prazo?.cancel();
+    _prazo = state.shown == null ? null : Timer(duration, fechar);
+  }
+
+  void _aoAviso() {
+    final notice = _notice.value;
+    if (notice == state.shown) return;
+    emit(ShiftBannerState(shown: notice));
+    _armar();
+    _ouvindo = false;
+    scheduleMicrotask(() => _ouvindo = true);
+  }
+
+  void _aoTocar(PlayedNote note) {
+    if (_ouvindo && note.on && (state.shown?.hideOnPlay ?? false)) fechar();
   }
 
   @override
-  void didUpdateWidget(ShiftBanner old) {
-    super.didUpdateWidget(old);
-    if (old.notice != widget.notice) {
-      old.notice.removeListener(_onNotice);
-      widget.notice.addListener(_onNotice);
-      _onNotice();
-    }
-    if (old.notes != widget.notes) {
-      unawaited(_sub.cancel());
-      _sub = widget.notes.listen(_onNote);
-    }
-  }
-
-  @override
-  void dispose() {
-    widget.notice.removeListener(_onNotice);
+  Future<void> close() {
+    _notice.removeListener(_aoAviso);
     unawaited(_sub.cancel());
-    _timer?.cancel();
-    super.dispose();
+    _prazo?.cancel();
+    return super.close();
   }
+}
 
-  void _arm() {
-    _timer?.cancel();
-    _timer = _shown == null ? null : Timer(widget.duration, _dismiss);
-  }
-
-  void _onNotice() {
-    final notice = widget.notice.value;
-    if (notice == _shown) return;
-    setState(() => _shown = notice);
-    _arm();
-    _listening = false;
-    scheduleMicrotask(() => _listening = true);
-  }
-
-  void _onNote(PlayedNote note) {
-    if (_listening && note.on && (_shown?.hideOnPlay ?? false)) _dismiss();
-  }
-
-  void _dismiss() => widget.notice.value = null;
+class _ShiftBannerView extends StatelessWidget {
+  const _ShiftBannerView();
 
   @override
   Widget build(BuildContext context) {
-    final notice = _shown;
-    if (notice == null) return const SizedBox.shrink();
-    final scheme = Theme.of(context).colorScheme;
-    return Align(
-      alignment: Alignment.topCenter,
-      child: Padding(
-        padding: const EdgeInsets.all(8),
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 560),
-          child: Material(
-            key: const ValueKey('shift-banner'),
-            color: scheme.inverseSurface,
-            elevation: 3,
-            borderRadius: BorderRadius.circular(8),
-            child: InkWell(
-              borderRadius: BorderRadius.circular(8),
-              onTap: _dismiss,
-              child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 14,
-                  vertical: 10,
-                ),
-                child: Text(
-                  notice.message,
-                  style: TextStyle(
-                    color: scheme.onInverseSurface,
-                    fontSize: 15,
+    return BlocSelector<ShiftBannerCubit, ShiftBannerState, ShiftNotice?>(
+      selector: (state) => state.shown,
+      builder: (context, notice) {
+        if (notice == null) return const SizedBox.shrink();
+        final scheme = Theme.of(context).colorScheme;
+        return Align(
+          alignment: Alignment.topCenter,
+          child: Padding(
+            padding: const EdgeInsets.all(8),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 560),
+              child: Material(
+                key: const ValueKey('shift-banner'),
+                color: scheme.inverseSurface,
+                elevation: 3,
+                borderRadius: BorderRadius.circular(8),
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(8),
+                  onTap: context.read<ShiftBannerCubit>().fechar,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 10,
+                    ),
+                    child: Text(
+                      notice.message,
+                      style: TextStyle(
+                        color: scheme.onInverseSurface,
+                        fontSize: 15,
+                      ),
+                    ),
                   ),
                 ),
               ),
             ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 }

@@ -89,6 +89,23 @@ void main() {
     expect(_result(), isNotNull);
   });
 
+  testWidgets(
+    'escolher de novo a cor atual põe o código no campo (o digitado incompleto some)',
+    (tester) async {
+      await open(tester);
+      await tester.tap(find.text('Padrão'));
+      await tester.pump();
+      await tester.enterText(find.byType(TextField), '2e7d3');
+      await tester.pump();
+      expect(find.text('2e7d3'), findsOneWidget);
+
+      await tester.tap(find.text('Padrão'));
+      await tester.pump();
+      expect(find.text('2E7D32'), findsOneWidget);
+      expect(find.text('2e7d3'), findsNothing);
+    },
+  );
+
   testWidgets('celular deitado: cabe sem estourar', (tester) async {
     await open(tester, size: const Size(844, 390));
     expect(tester.takeException(), isNull);

@@ -5,6 +5,9 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:zywny_bloc/zywny_bloc.dart';
+
+import 'color_picker_cubit.dart';
 
 /// Matizes das colunas da paleta, em graus.
 const List<double> _kPaletteHues = [0, 25, 45, 130, 175, 210, 265, 320];
@@ -76,13 +79,10 @@ class ColorPickerDialog extends StatefulWidget {
 }
 
 class _ColorPickerDialogState extends State<ColorPickerDialog> {
-  late Color _color = widget.initial.withAlpha(0xFF);
-
-  // Guardado à parte de [_color]: no cinza (saturação 0) ou no preto a cor
-  // não diz mais o matiz, e os controles pulariam para o vermelho.
-  late HSVColor _hsv = HSVColor.fromColor(_color);
+  // Dono do campo do código: fica aqui (e não no cubit) para o texto que se
+  // digita sobreviver à troca de layout (celular deitado), como antes.
   late final TextEditingController _hex = TextEditingController(
-    text: colorHex(_color).substring(1),
+    text: colorHex(widget.initial).substring(1),
   );
 
   @override
@@ -91,77 +91,72 @@ class _ColorPickerDialogState extends State<ColorPickerDialog> {
     super.dispose();
   }
 
-  void _pick(Color color) {
-    setState(() {
-      _color = color.withAlpha(0xFF);
-      _hsv = HSVColor.fromColor(_color);
-      _hex.text = colorHex(_color).substring(1);
-    });
-  }
-
-  void _adjust(HSVColor hsv) {
-    setState(() {
-      _hsv = hsv;
-      _color = hsv.toColor();
-      _hex.text = colorHex(_color).substring(1);
-    });
-  }
-
-  void _typed(String text) {
-    if (text.length != 6) return;
-    final rgb = int.tryParse(text, radix: 16);
-    if (rgb == null) return;
-    setState(() {
-      _color = Color(0xFF000000 | rgb);
-      _hsv = HSVColor.fromColor(_color);
-    });
-  }
-
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final size = MediaQuery.sizeOf(context);
-    // Celular deitado: pouca altura e muita largura — paleta e ajuste fino
-    // ficam lado a lado em vez de empilhados.
-    final wide = size.width >= 600 && size.height < 560;
-    return Dialog(
-      insetPadding: const EdgeInsets.all(16),
-      child: ConstrainedBox(
-        constraints: BoxConstraints(maxWidth: wide ? 660 : 380),
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 14, 16, 8),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              _titleRow(theme),
-              const SizedBox(height: 12),
-              Flexible(child: SingleChildScrollView(child: _body(wide))),
-              const SizedBox(height: 4),
-              _buttons(context),
-            ],
-          ),
+    return BlocProvider(
+      create: (_) => ColorPickerCubit(initial: widget.initial),
+      child: BlocListener<ColorPickerCubit, ColorPickerState>(
+        // Uma escolha pela paleta ou pelo ajuste põe o código da cor no campo
+        // (o serial sobe mesmo com a cor igual). O que se digita não sobe o
+        // serial: o campo fica como foi digitado.
+        listenWhen: (antes, depois) => antes.serial != depois.serial,
+        listener: (_, state) {
+          _hex.text = colorHex(state.color).substring(1);
+        },
+        child: BlocBuilder<ColorPickerCubit, ColorPickerState>(
+          builder: (context, state) {
+            final theme = Theme.of(context);
+            final size = MediaQuery.sizeOf(context);
+            // Celular deitado: pouca altura e muita largura — paleta e ajuste
+            // fino ficam lado a lado em vez de empilhados.
+            final wide = size.width >= 600 && size.height < 560;
+            return Dialog(
+              insetPadding: const EdgeInsets.all(16),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(maxWidth: wide ? 660 : 380),
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 14, 16, 8),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      _titleRow(theme, state.color),
+                      const SizedBox(height: 12),
+                      Flexible(
+                        child: SingleChildScrollView(
+                          child: _body(context, wide, state),
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      _buttons(context),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
         ),
       ),
     );
   }
 
   /// O título e a prévia da nota, antes e depois da escolha.
-  Widget _titleRow(ThemeData theme) => Row(
+  Widget _titleRow(ThemeData theme, Color color) => Row(
     children: [
       Expanded(child: Text(widget.title, style: theme.textTheme.titleMedium)),
-      _NotePreview(before: widget.initial, after: _color),
+      _NotePreview(before: widget.initial, after: color),
     ],
   );
 
   /// A paleta e o ajuste fino: lado a lado (celular deitado) ou empilhados.
-  Widget _body(bool wide) {
-    final palette = _Palette(value: _color, onPick: _pick);
+  Widget _body(BuildContext context, bool wide, ColorPickerState state) {
+    final cubit = context.read<ColorPickerCubit>();
+    final palette = _Palette(value: state.color, onPick: cubit.escolher);
     final fine = _FineTuning(
-      hsv: _hsv,
+      hsv: state.hsv,
       hex: _hex,
-      onChanged: _adjust,
-      onHexChanged: _typed,
+      onChanged: cubit.ajustar,
+      onHexChanged: cubit.digitar,
     );
     return wide
         ? Row(
@@ -186,7 +181,8 @@ class _ColorPickerDialogState extends State<ColorPickerDialog> {
     crossAxisAlignment: WrapCrossAlignment.center,
     children: [
       TextButton(
-        onPressed: () => _pick(widget.defaultColor),
+        onPressed: () =>
+            context.read<ColorPickerCubit>().escolher(widget.defaultColor),
         child: const Text('Padrão'),
       ),
       Row(
@@ -198,7 +194,9 @@ class _ColorPickerDialogState extends State<ColorPickerDialog> {
           ),
           const SizedBox(width: 4),
           FilledButton(
-            onPressed: () => Navigator.of(context).pop(_color),
+            onPressed: () =>
+                Navigator.of(context)
+                    .pop(context.read<ColorPickerCubit>().state.color),
             child: const Text('Aplicar'),
           ),
         ],

@@ -4,14 +4,15 @@
 #
 #   tool/catraca_bloc.sh <raiz-do-repo> [--gravar]
 #
-# Conta cinco padrões: setState( de widget (S), só a chamada do State (ver
+# Conta seis padrões: setState( de widget (S), só a chamada do State (ver
 # `conta_setstate`); ChangeNotifier com extends ou with (CN); ValueNotifier<
-# (VN); ValueListenableBuilder (VLB); StatefulWidget com extends (SW). Confere
+# (VN); ValueListenableBuilder (VLB); StatefulWidget com extends (SW); ListenableBuilder e addListener( (L,
+# estado ouvido fora do BLoC; o BL05–BL07 mostrou que faltava). Confere
 # os .dart de lib/ da raiz e de packages/*, score_bridge/ e
 # apps/* (sem .dart_tool, build e *.g.dart) contra tool/catraca_bloc.txt, uma
 # linha por arquivo com algum contador acima de zero:
 #
-#   lib/foo/foo_screen.dart S=0 CN=0 VN=0 VLB=1 SW=1 # framework: AnimationController
+#   lib/foo/foo_screen.dart S=0 CN=0 VN=0 VLB=1 SW=1 L=0 # framework: AnimationController
 #
 # Sai com 1 se um arquivo passou do registro (estado novo fora do BLoC) ou se
 # ficou abaixo dele (o registro tem de ser exato: rode com --gravar). Com
@@ -76,35 +77,37 @@ conta_setstate() {
   conta -P '(?<![._A-Za-z0-9])(?<!void )(?<!VoidCallback )(?<!static )setState\(' "$arq"
 }
 
-# Imprime "S CN VN VLB SW" do arquivo $1 (caminho completo).
+# Imprime "S CN VN VLB SW L" do arquivo $1 (caminho completo).
 contadores() {
-  local arq="$1" s cn vn vlb sw
+  local arq="$1" s cn vn vlb sw l
   s=$(conta_setstate "$arq")
   cn=$(conta -E '(extends|with) ChangeNotifier\b' "$arq")
   vn=$(conta -F 'ValueNotifier<' "$arq")
   vlb=$(conta -F 'ValueListenableBuilder' "$arq")
   sw=$(conta -E 'extends StatefulWidget\b' "$arq")
-  echo "$s $cn $vn $vlb $sw"
+  l=$(conta -E 'ListenableBuilder\b|\baddListener\(' "$arq")
+  l=$(( l - $(conta -F 'ValueListenableBuilder' "$arq") ))
+  echo "$s $cn $vn $vlb $sw $l"
 }
 
-# Escreve os cinco contadores na ordem S CN VN VLB SW.
+# Escreve os seis contadores na ordem S CN VN VLB SW L.
 formata() {
-  printf 'S=%s CN=%s VN=%s VLB=%s SW=%s' "$@"
+  printf 'S=%s CN=%s VN=%s VLB=%s SW=%s L=%s' "$@"
 }
 
-# Estado atual e registrado, por caminho relativo: "S CN VN VLB SW".
+# Estado atual e registrado, por caminho relativo: "S CN VN VLB SW L".
 declare -A ATU=()
 declare -A REG=()
 declare -A FW=()
 
 while IFS= read -r rel; do
-  read -r s cn vn vlb sw <<<"$(contadores "$raiz/$rel")"
-  if (( s + cn + vn + vlb + sw > 0 )); then
-    ATU[$rel]="$s $cn $vn $vlb $sw"
+  read -r s cn vn vlb sw l <<<"$(contadores "$raiz/$rel")"
+  if (( s + cn + vn + vlb + sw + l > 0 )); then
+    ATU[$rel]="$s $cn $vn $vlb $sw $l"
   fi
 done < <(arquivos)
 
-re='^([^ ]+) S=([0-9]+) CN=([0-9]+) VN=([0-9]+) VLB=([0-9]+) SW=([0-9]+)[ ]*$'
+re='^([^ ]+) S=([0-9]+) CN=([0-9]+) VN=([0-9]+) VLB=([0-9]+) SW=([0-9]+)( L=([0-9]+))?[ ]*$'
 if [ -f "$registro" ]; then
   while IFS= read -r linha || [ -n "$linha" ]; do
     case "$linha" in
@@ -121,7 +124,7 @@ if [ -f "$registro" ]; then
       exit 2
     fi
     p="${BASH_REMATCH[1]}"
-    REG[$p]="${BASH_REMATCH[2]} ${BASH_REMATCH[3]} ${BASH_REMATCH[4]} ${BASH_REMATCH[5]} ${BASH_REMATCH[6]}"
+    REG[$p]="${BASH_REMATCH[2]} ${BASH_REMATCH[3]} ${BASH_REMATCH[4]} ${BASH_REMATCH[5]} ${BASH_REMATCH[6]} ${BASH_REMATCH[8]:-0}"
     FW[$p]="$fw"
   done < "$registro"
 fi
@@ -153,11 +156,11 @@ mais=()
 menos=()
 while IFS= read -r p; do
   [ -n "$p" ] || continue
-  read -r -a rv <<<"${REG[$p]:-0 0 0 0 0}"
-  read -r -a av <<<"${ATU[$p]:-0 0 0 0 0}"
+  read -r -a rv <<<"${REG[$p]:-0 0 0 0 0 0}"
+  read -r -a av <<<"${ATU[$p]:-0 0 0 0 0 0}"
   acima=0
   abaixo=0
-  for i in 0 1 2 3 4; do
+  for i in 0 1 2 3 4 5; do
     if (( av[i] > rv[i] )); then acima=1; fi
     if (( av[i] < rv[i] )); then abaixo=1; fi
   done

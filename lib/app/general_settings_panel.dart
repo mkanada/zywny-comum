@@ -9,6 +9,7 @@ import 'package:score_bridge/score_bridge.dart' show kDefaultBarColor;
 
 import 'package:zywny_audio/soundfont_store.dart';
 import 'package:zywny_auth/zywny_auth.dart';
+import 'package:zywny_bloc/zywny_bloc.dart';
 
 import '../about/about_screen.dart';
 import '../auth/account_settings_section.dart';
@@ -35,6 +36,7 @@ import '../ui/device_kind.dart';
 import '../ui/theme.dart';
 import '../settings/app_settings.dart';
 import '../settings/color_picker.dart';
+import 'general_settings_cubit.dart';
 import 'libraries_section.dart';
 
 /// Abre o seletor de arquivos para um `.sf2` e devolve os bytes; `null` se
@@ -656,68 +658,53 @@ class GeneralSettingsPanel extends StatelessWidget {
   );
 }
 
-/// Ação à direita de uma linha das configurações ("Trocar", "Conectar",
-/// "Ajustar"): inicial maiúscula e cor de destaque, para ler como botão. A
-/// linha inteira continua sendo o alvo do toque.
-/// "Latência do som": abre o medidor e mostra a última medida do teclado.
-class _LatencyMeterTile extends StatefulWidget {
+/// "Latência do som": abre o medidor e mostra a última medida do teclado. O
+/// [LatencyTileCubit] guarda essa medida; com outro teclado, a chave troca o
+/// cubit e ele lê a medida desse teclado.
+class _LatencyMeterTile extends StatelessWidget {
   const _LatencyMeterTile({required this.devices, required this.device});
 
   final MidiDeviceManager devices;
   final MidiDevice device;
 
   @override
-  State<_LatencyMeterTile> createState() => _LatencyMeterTileState();
-}
-
-class _LatencyMeterTileState extends State<_LatencyMeterTile> {
-  ({double ms, bool corrected})? _last;
-
-  @override
-  void initState() {
-    super.initState();
-    unawaited(_load());
-  }
-
-  @override
-  void didUpdateWidget(_LatencyMeterTile old) {
-    super.didUpdateWidget(old);
-    if (old.device.id != widget.device.id) unawaited(_load());
-  }
-
-  Future<void> _load() async {
-    final last = await widget.devices.soundLatency(widget.device.id);
-    if (mounted) setState(() => _last = last);
-  }
-
-  Future<void> _open() async {
-    await showLatencyMeter(
-      context,
-      devices: widget.devices,
-      device: widget.device,
-    );
-    await _load();
-  }
-
-  @override
   Widget build(BuildContext context) {
-    final last = _last;
-    return ListTile(
-      dense: true,
-      leading: const Icon(Icons.mic_none, size: 20),
-      title: const Text('Latência do som'),
-      subtitle: Text(
-        last == null
-            ? 'mede o atraso do som do teclado, pelo microfone'
-            : 'última medida: ${last.ms.round()} ms'
-                  '${last.corrected ? '' : ' (com o microfone)'}',
+    return BlocProvider(
+      key: ValueKey(device.id),
+      create: (_) =>
+          LatencyTileCubit(devices: devices, deviceId: device.id)..carregar(),
+      child: BlocBuilder<LatencyTileCubit, LatencyTileState>(
+        builder: (context, state) {
+          final last = state.last;
+          return ListTile(
+            dense: true,
+            leading: const Icon(Icons.mic_none, size: 20),
+            title: const Text('Latência do som'),
+            subtitle: Text(
+              last == null
+                  ? 'mede o atraso do som do teclado, pelo microfone'
+                  : 'última medida: ${last.ms.round()} ms'
+                        '${last.corrected ? '' : ' (com o microfone)'}',
+            ),
+            trailing: const _RowAction('Medir'),
+            onTap: () => unawaited(_open(context)),
+          );
+        },
       ),
-      trailing: const _RowAction('Medir'),
-      onTap: () => unawaited(_open()),
     );
+  }
+
+  /// Abre o medidor e, ao fechar, lê de novo a medida guardada.
+  Future<void> _open(BuildContext context) async {
+    final cubit = context.read<LatencyTileCubit>();
+    await showLatencyMeter(context, devices: devices, device: device);
+    await cubit.carregar();
   }
 }
 
+/// Ação à direita de uma linha das configurações ("Trocar", "Conectar",
+/// "Ajustar"): inicial maiúscula e cor de destaque, para ler como botão. A
+/// linha inteira continua sendo o alvo do toque.
 class _RowAction extends StatelessWidget {
   const _RowAction(this.label);
 
@@ -758,7 +745,7 @@ Future<void> _changeTrailN(
 /// As configurações gerais abertas pela biblioteca, em tela cheia: sem
 /// partitura aberta não há motor de áudio, então trocar o soundfont aqui só
 /// o guarda (a próxima partitura já abre com ele).
-class GeneralSettingsScreen extends StatefulWidget {
+class GeneralSettingsScreen extends StatelessWidget {
   const GeneralSettingsScreen({
     super.key,
     required this.settings,
@@ -807,88 +794,72 @@ class GeneralSettingsScreen extends StatefulWidget {
   final bool showPageBar;
 
   @override
-  State<GeneralSettingsScreen> createState() => _GeneralSettingsScreenState();
-}
-
-class _GeneralSettingsScreenState extends State<GeneralSettingsScreen> {
-  bool _custom = false;
-
-  @override
-  void initState() {
-    super.initState();
-    unawaited(_refresh());
-  }
-
-  Future<void> _refresh() async {
-    final custom = await widget.soundFonts.hasCustom();
-    if (mounted) setState(() => _custom = custom);
-  }
-
-  Future<void> _choose() async {
-    try {
-      final bytes = await pickSoundFontBytes();
-      if (bytes == null) return;
-      await widget.soundFonts.saveCustom(bytes);
-    } on Object catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('não consegui usar esse soundfont ($e)')),
-      );
-    }
-    await _refresh();
-  }
-
-  Future<void> _reset() async {
-    await widget.soundFonts.clearCustom();
-    await _refresh();
-  }
-
-  /// Instala uma biblioteca pela seção Bibliotecas; a lista acompanha sozinha
-  /// (o store avisa quem escuta).
-  Future<void> _installLibrary() async {
-    final install = widget.installLibrary;
-    if (install != null) return install(context);
-    await installLibraryFromFile(
-      context,
-      widget.libraryStore!,
-      pick: widget.pickLibraryFile,
-    );
-  }
-
-  @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: SafeArea(
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 520),
-            child: Padding(
-              padding: const EdgeInsets.all(8),
-              child: GeneralSettingsPanel(
-                settings: widget.settings,
-                midiDeviceManager: widget.midiDeviceManager,
-                customSoundFont: _custom,
-                onChooseSoundFont: () => unawaited(_choose()),
-                onResetSoundFont: () => unawaited(_reset()),
-                onClose: () => Navigator.of(context).pop(),
-                onTutorial: widget.onTutorial,
-                authStore: widget.authStore,
-                showTrail: widget.showTrail,
-                showTranspose: widget.showTranspose,
-                showPageBar: widget.showPageBar,
-                libraries: widget.libraryStore == null
-                    ? null
-                    : LibrariesSection(
-                        store: widget.libraryStore!,
-                        onInstall: () => unawaited(_installLibrary()),
-                      ),
-                courses: widget.coursesSection?.call(context),
+    return BlocProvider(
+      create: (_) => GeneralSettingsCubit(
+        soundFonts: soundFonts,
+        pickSoundFont: pickSoundFontBytes,
+      )..atualizar(),
+      child: BlocListener<GeneralSettingsCubit, GeneralSettingsState>(
+        // Uma falha ao trocar o timbre vira SnackBar. O contador faz o aviso
+        // sair também quando a mensagem é a mesma da vez anterior.
+        listenWhen: (antes, depois) => antes.errors != depois.errors,
+        listener: (context, state) {
+          final aviso = SnackBar(content: Text(state.soundFontError ?? ''));
+          ScaffoldMessenger.of(context).showSnackBar(aviso);
+        },
+        child: Scaffold(
+          body: SafeArea(
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 520),
+                child: Padding(
+                  padding: const EdgeInsets.all(8),
+                  child: _painel(),
+                ),
               ),
             ),
           ),
         ),
       ),
     );
+  }
+
+  /// O painel. Só o timbre próprio (um bool) vem do cubit: a tela refaz o
+  /// painel quando ele muda, e o resto ele lê do próprio `settings`.
+  Widget _painel() =>
+      BlocSelector<GeneralSettingsCubit, GeneralSettingsState, bool>(
+        selector: (state) => state.customSoundFont,
+        builder: (context, custom) => GeneralSettingsPanel(
+          settings: settings,
+          midiDeviceManager: midiDeviceManager,
+          customSoundFont: custom,
+          onChooseSoundFont: () =>
+              unawaited(context.read<GeneralSettingsCubit>().escolherTimbre()),
+          onResetSoundFont: () =>
+              unawaited(context.read<GeneralSettingsCubit>().voltarAoPadrao()),
+          onClose: () => Navigator.of(context).pop(),
+          onTutorial: onTutorial,
+          authStore: authStore,
+          showTrail: showTrail,
+          showTranspose: showTranspose,
+          showPageBar: showPageBar,
+          libraries: libraryStore == null
+              ? null
+              : LibrariesSection(
+                  store: libraryStore!,
+                  onInstall: () => unawaited(_installLibrary(context)),
+                ),
+          courses: coursesSection?.call(context),
+        ),
+      );
+
+  /// Instala uma biblioteca pela seção Bibliotecas; a lista acompanha sozinha
+  /// (o store avisa quem escuta).
+  Future<void> _installLibrary(BuildContext context) async {
+    final install = installLibrary;
+    if (install != null) return install(context);
+    await installLibraryFromFile(context, libraryStore!, pick: pickLibraryFile);
   }
 }
 

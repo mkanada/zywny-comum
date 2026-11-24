@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_midi_command/flutter_midi_command.dart' show MidiDevice;
 
 import 'package:zywny_audio/engine_opener.dart';
+import 'package:zywny_bloc/zywny_bloc.dart';
 import 'package:zywny_midi/midi_device_manager.dart';
 import 'package:zywny_midi/midi_out_sound_engine.dart';
 
@@ -28,7 +29,7 @@ Future<void> showLatencyMeter(
   ),
 );
 
-class LatencyMeterScreen extends StatefulWidget {
+class LatencyMeterScreen extends StatelessWidget {
   const LatencyMeterScreen({
     super.key,
     required this.devices,
@@ -44,49 +45,77 @@ class LatencyMeterScreen extends StatefulWidget {
   final LatencyMeterRunner Function(MidiDevice device)? createRunner;
 
   @override
-  State<LatencyMeterScreen> createState() => _LatencyMeterScreenState();
+  Widget build(BuildContext context) => BlocProvider(
+    // Outro teclado, outra medida: refaz o Cubit (que fecha a rodada antiga).
+    key: ValueKey(device.id),
+    create: (_) => LatencyMeterScreenCubit(
+      createRunner: () =>
+          createRunner?.call(device) ??
+          LatencyMeterRunner(
+            mic: RecordMicCapture(),
+            sender: FlutterMidiSender(),
+            deviceId: device.id,
+            openReference: openAppSoundEngine,
+          ),
+      saveLatency: (ms, corrected) =>
+          devices.setSoundLatency(device.id, ms, corrected: corrected),
+    ),
+    child: _LatencyMeterView(device: device),
+  );
 }
 
-class _LatencyMeterScreenState extends State<LatencyMeterScreen> {
-  LatencyMeterRunner? _runner;
-  LatencyMeterResult? _result;
+/// A rodada em curso (se há) e o resultado da última.
+class LatencyMeterScreenState extends Equatable {
+  const LatencyMeterScreenState({this.runner, this.result});
 
-  Future<void> _measure() async {
-    final runner =
-        widget.createRunner?.call(widget.device) ??
-        LatencyMeterRunner(
-          mic: RecordMicCapture(),
-          sender: FlutterMidiSender(),
-          deviceId: widget.device.id,
-          openReference: openAppSoundEngine,
-        );
-    setState(() {
-      _runner = runner;
-      _result = null;
-    });
+  final LatencyMeterRunner? runner;
+  final LatencyMeterResult? result;
+
+  @override
+  List<Object?> get props => [runner, result];
+}
+
+/// A tela do medidor: "Medir" faz uma rodada, grava a medida no teclado e
+/// mostra o resultado; "Parar" a interrompe. Quem fecha a tela, para a rodada.
+class LatencyMeterScreenCubit extends Cubit<LatencyMeterScreenState> {
+  LatencyMeterScreenCubit({
+    required this.createRunner,
+    required this.saveLatency,
+  }) : super(const LatencyMeterScreenState());
+
+  /// Faz a rodada (os testes trocam por uma de mundo simulado).
+  final LatencyMeterRunner Function() createRunner;
+
+  /// Grava a medida no teclado.
+  final Future<void> Function(double ms, bool corrected) saveLatency;
+
+  /// Uma rodada: o microfone e os cliques, a medida (gravada no teclado) e o
+  /// resultado.
+  Future<void> medir() async {
+    final runner = createRunner();
+    emit(LatencyMeterScreenState(runner: runner));
     final result = await runner.run();
     final ms = result.keyboardMs;
-    if (ms != null) {
-      await widget.devices.setSoundLatency(
-        widget.device.id,
-        ms,
-        corrected: result.corrected,
-      );
-    }
-    if (mounted) {
-      setState(() {
-        _runner = null;
-        _result = result;
-      });
-    }
+    if (ms != null) await saveLatency(ms, result.corrected);
+    if (!isClosed) emit(LatencyMeterScreenState(result: result));
     runner.dispose();
   }
 
+  /// "Parar": a rodada acaba no próximo passo, com o que tiver.
+  void parar() => state.runner?.cancel();
+
   @override
-  void dispose() {
-    _runner?.cancel();
-    super.dispose();
+  Future<void> close() {
+    state.runner?.cancel();
+    return super.close();
   }
+}
+
+/// A página do medidor: o nome do teclado, as dicas, a rodada e o resultado.
+class _LatencyMeterView extends StatelessWidget {
+  const _LatencyMeterView({required this.device});
+
+  final MidiDevice device;
 
   @override
   Widget build(BuildContext context) {
@@ -98,28 +127,36 @@ class _LatencyMeterScreenState extends State<LatencyMeterScreen> {
           child: Center(
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 520),
-              child: ListView(
-                padding: const EdgeInsets.all(16),
-                children: [
-                  Text(
-                    widget.device.name,
-                    style: Theme.of(context).textTheme.titleSmall,
+              child:
+                  BlocBuilder<LatencyMeterScreenCubit, LatencyMeterScreenState>(
+                    builder: (context, state) => ListView(
+                      padding: const EdgeInsets.all(16),
+                      children: [
+                        Text(
+                          device.name,
+                          style: Theme.of(context).textTheme.titleSmall,
+                        ),
+                        const SizedBox(height: 8),
+                        const Text(
+                          'O app manda algumas notas ao teclado e escuta, pelo '
+                          'microfone do celular, quando o som sai. Assim mede o '
+                          'atraso entre o app mandar a nota e você ouvi-la.',
+                        ),
+                        const SizedBox(height: 12),
+                        ..._tips(),
+                        const SizedBox(height: 16),
+                        if (state.runner != null)
+                          BlocProvider.value(
+                            value: state.runner!.meter,
+                            child: const _Running(),
+                          ),
+                        if (state.result != null)
+                          _Report(result: state.result!),
+                        const SizedBox(height: 16),
+                        _measureButton(context, state),
+                      ],
+                    ),
                   ),
-                  const SizedBox(height: 8),
-                  const Text(
-                    'O app manda algumas notas ao teclado e escuta, pelo '
-                    'microfone do celular, quando o som sai. Assim mede o '
-                    'atraso entre o app mandar a nota e você ouvi-la.',
-                  ),
-                  const SizedBox(height: 12),
-                  ..._tips(),
-                  const SizedBox(height: 16),
-                  if (_runner != null) _Running(runner: _runner!),
-                  if (_result != null) _Report(result: _result!),
-                  const SizedBox(height: 16),
-                  _measureButton(),
-                ],
-              ),
             ),
           ),
         ),
@@ -145,16 +182,19 @@ class _LatencyMeterScreenState extends State<LatencyMeterScreen> {
   ];
 
   /// "Medir" (ou "Medir de novo") quando não há medida em curso; "Parar" quando há.
-  Widget _measureButton() {
-    final runner = _runner;
-    if (runner == null) {
+  Widget _measureButton(BuildContext context, LatencyMeterScreenState state) {
+    if (state.runner == null) {
       return FilledButton.icon(
-        onPressed: () => unawaited(_measure()),
+        onPressed: () =>
+            unawaited(context.read<LatencyMeterScreenCubit>().medir()),
         icon: const Icon(Icons.mic),
-        label: Text(_result == null ? 'Medir' : 'Medir de novo'),
+        label: Text(state.result == null ? 'Medir' : 'Medir de novo'),
       );
     }
-    return OutlinedButton(onPressed: runner.cancel, child: const Text('Parar'));
+    return OutlinedButton(
+      onPressed: context.read<LatencyMeterScreenCubit>().parar,
+      child: const Text('Parar'),
+    );
   }
 }
 
@@ -183,11 +223,10 @@ class _Tip extends StatelessWidget {
   );
 }
 
-/// O andamento da rodada e o volume do microfone.
+/// O andamento da rodada e o volume do microfone. Lê o [LatencyMeterCubit] da
+/// rodada, que está acima dele.
 class _Running extends StatelessWidget {
-  const _Running({required this.runner});
-
-  final LatencyMeterRunner runner;
+  const _Running();
 
   static String _label(MeterProgress p) => switch (p.phase) {
     MeterPhase.idle || MeterPhase.starting => 'Abrindo o microfone…',
@@ -208,9 +247,9 @@ class _Running extends StatelessWidget {
   Widget build(BuildContext context) => Column(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
-      ValueListenableBuilder<MeterProgress>(
-        valueListenable: runner.progress,
-        builder: (context, p, _) => Text(
+      BlocSelector<LatencyMeterCubit, LatencyMeterState, MeterProgress>(
+        selector: (state) => state.progress,
+        builder: (context, p) => Text(
           _label(p),
           style: const TextStyle(fontWeight: FontWeight.w600),
         ),
@@ -221,9 +260,9 @@ class _Running extends StatelessWidget {
         style: TextStyle(fontSize: 12, color: kInkCaption),
       ),
       const SizedBox(height: 4),
-      ValueListenableBuilder<double>(
-        valueListenable: runner.level,
-        builder: (context, level, _) =>
+      BlocSelector<LatencyMeterCubit, LatencyMeterState, double>(
+        selector: (state) => state.level,
+        builder: (context, level) =>
             LinearProgressIndicator(value: _bar(level), minHeight: 8),
       ),
     ],

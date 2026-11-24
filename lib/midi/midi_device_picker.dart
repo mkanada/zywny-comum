@@ -2,12 +2,15 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_midi_command/flutter_midi_command.dart';
+import 'package:zywny_bloc/zywny_bloc.dart';
 
 import '../ui/device_kind.dart';
 import '../ui/theme.dart';
 
 import 'package:zywny_midi/midi_device_manager.dart';
 import 'package:zywny_midi/midi_labels.dart';
+
+import 'midi_picker_cubit.dart';
 
 /// Ícone do teclado MIDI para a AppBar (M01): mostra se algo está
 /// conectado e abre [showMidiDevicePicker] ao tocar.
@@ -134,53 +137,48 @@ Future<void> showMidiDevicePicker(
   MidiDeviceManager deviceManager, {
   VoidCallback? onCalibrate,
 }) {
-  final searching = ValueNotifier<bool>(false);
-  // Fechado o diálogo, a busca que ainda termina não mexe mais no aviso.
-  var open = true;
-  Future<void> search() async {
-    searching.value = true;
-    try {
-      // No Android, procurar é ligar o Bluetooth e escanear por um tempo; no
-      // resto, só relê a lista.
-      if (deviceManager.bluetooth) {
-        await deviceManager.searchBluetooth();
-      } else {
-        await deviceManager.refresh();
-      }
-    } finally {
-      if (open) searching.value = false;
-    }
-  }
-
   return showDialog<void>(
     context: context,
-    builder: (context) => AlertDialog(
-      // Na horizontal a altura útil é pequena (BG01): o conteúdo rola, senão o
-      // "Procurar de novo" fica cortado e fora do toque.
-      scrollable: true,
-      title: const Text('Teclado MIDI'),
-      content: SizedBox(
-        width: 360,
-        child: ListenableBuilder(
-          listenable: Listenable.merge([
-            deviceManager.devices,
-            deviceManager.connected,
-            deviceManager.lastError,
-            deviceManager.unavailable,
-            deviceManager.bluetoothNote,
-            searching,
-          ]),
-          builder: (context, _) =>
-              _pickerBody(context, deviceManager, searching, search),
-        ),
+    // A busca vive no diálogo: fechado ele, o Cubit fecha junto, e a busca que
+    // ainda termina não mexe mais no estado.
+    builder: (context) => BlocProvider(
+      create: (_) => MidiPickerCubit(
+        buscar: () async {
+          // No Android, procurar é ligar o Bluetooth e escanear por um tempo; no
+          // resto, só relê a lista.
+          if (deviceManager.bluetooth) {
+            await deviceManager.searchBluetooth();
+          } else {
+            await deviceManager.refresh();
+          }
+        },
       ),
-      actions: _pickerActions(context, deviceManager, onCalibrate),
+      child: AlertDialog(
+        // Na horizontal a altura útil é pequena (BG01): o conteúdo rola, senão o
+        // "Procurar de novo" fica cortado e fora do toque.
+        scrollable: true,
+        title: const Text('Teclado MIDI'),
+        content: SizedBox(
+          width: 360,
+          child: ListenableBuilder(
+            listenable: Listenable.merge([
+              deviceManager.devices,
+              deviceManager.connected,
+              deviceManager.lastError,
+              deviceManager.unavailable,
+              deviceManager.bluetoothNote,
+            ]),
+            builder: (context, _) => _pickerBody(
+              context,
+              deviceManager,
+              context.read<MidiPickerCubit>().search,
+            ),
+          ),
+        ),
+        actions: _pickerActions(context, deviceManager, onCalibrate),
+      ),
     ),
-  ).whenComplete(() {
-    open = false;
-    deviceManager.stopBluetoothSearch();
-    searching.dispose();
-  });
+  ).whenComplete(() => deviceManager.stopBluetoothSearch());
 }
 
 /// O corpo do diálogo: o erro de conectar (se houve) e a lista de aparelhos ou,
@@ -188,7 +186,6 @@ Future<void> showMidiDevicePicker(
 Widget _pickerBody(
   BuildContext context,
   MidiDeviceManager deviceManager,
-  ValueNotifier<bool> searching,
   Future<void> Function() search,
 ) {
   final devices = deviceManager.devices.value;
@@ -206,7 +203,7 @@ Widget _pickerBody(
         const SizedBox(height: 8),
       ],
       if (devices.isEmpty)
-        _noDevices(context, deviceManager, searching, search)
+        _noDevices(context, deviceManager, search)
       else
         for (final device in devices)
           _deviceTile(
@@ -224,7 +221,6 @@ Widget _pickerBody(
 Widget _noDevices(
   BuildContext context,
   MidiDeviceManager deviceManager,
-  ValueNotifier<bool> searching,
   Future<void> Function() search,
 ) {
   final bluetoothNote = deviceManager.bluetoothNote.value;
@@ -260,7 +256,7 @@ Widget _noDevices(
         ],
         if (unavailableText == null || unavailableText.action != null) ...[
           const SizedBox(height: 12),
-          _searchButton(searching, search, unavailableText?.action),
+          _searchButton(search, unavailableText?.action),
         ],
       ],
     ),
@@ -268,21 +264,21 @@ Widget _noDevices(
 }
 
 /// O botão de procurar (ou o da permissão, com o rótulo [action]); gira
-/// enquanto a busca corre.
-Widget _searchButton(
-  ValueNotifier<bool> searching,
-  Future<void> Function() search,
-  String? action,
-) => FilledButton.tonal(
-  onPressed: searching.value ? null : search,
-  child: searching.value
-      ? const SizedBox(
-          width: 18,
-          height: 18,
-          child: CircularProgressIndicator(strokeWidth: 2),
-        )
-      : Text(action ?? 'Procurar de novo'),
-);
+/// enquanto a busca corre (o [MidiPickerCubit] diz).
+Widget _searchButton(Future<void> Function() search, String? action) =>
+    BlocSelector<MidiPickerCubit, MidiPickerState, bool>(
+      selector: (state) => state.searching,
+      builder: (context, searching) => FilledButton.tonal(
+        onPressed: searching ? null : search,
+        child: searching
+            ? const SizedBox(
+                width: 18,
+                height: 18,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              )
+            : Text(action ?? 'Procurar de novo'),
+      ),
+    );
 
 /// Os botões do diálogo: ajustar o atraso (com teclado conectado) e fechar.
 List<Widget> _pickerActions(
