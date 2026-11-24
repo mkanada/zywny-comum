@@ -8,12 +8,49 @@ import 'dart:math';
 
 import 'package:flutter/widgets.dart';
 import 'package:score_bridge/score_bridge.dart';
-
+import 'package:zywny_bloc/zywny_bloc.dart';
 import 'package:zywny_diag/diag_log.dart';
+
+/// A última medição gravada: a partitura (pelo documento) e a caixa.
+class ScoreSizeState extends Equatable {
+  const ScoreSizeState({this.doc, this.box});
+
+  final VsbDocument? doc;
+  final Size? box;
+
+  @override
+  List<Object?> get props => [doc, box];
+}
+
+/// Grava uma linha por (partitura, tamanho de caixa). Guarda a última
+/// medição e só grava quando a partitura ou a caixa mudam.
+class ScoreSizeCubit extends Cubit<ScoreSizeState> {
+  ScoreSizeCubit() : super(const ScoreSizeState());
+
+  /// Chamado a cada layout da caixa (`LayoutBuilder`). Não faz nada se a
+  /// caixa não tem tamanho finito ou se é a mesma medição de antes.
+  void medir({
+    required String label,
+    required VsbDocument doc,
+    required Size box,
+    required double dpr,
+    required bool continuous,
+  }) {
+    if (!box.isFinite) return;
+    if (identical(doc, state.doc) && box == state.box) return;
+    emit(ScoreSizeState(doc: doc, box: box));
+    final line = scoreSizeLine(label, doc, (
+      box: box,
+      dpr: dpr,
+    ), continuous: continuous);
+    debugPrint(line);
+    DiagLog.log('tamanho', line);
+  }
+}
 
 /// Envolve um `ScoreView` que ocupa a caixa inteira e grava uma medição por
 /// (partitura, tamanho de caixa).
-class ScoreSizeLog extends StatefulWidget {
+class ScoreSizeLog extends StatelessWidget {
   const ScoreSizeLog({
     super.key,
     required this.label,
@@ -32,34 +69,21 @@ class ScoreSizeLog extends StatefulWidget {
   final bool continuous;
 
   @override
-  State<ScoreSizeLog> createState() => _ScoreSizeLogState();
-}
-
-class _ScoreSizeLogState extends State<ScoreSizeLog> {
-  VsbDocument? _loggedDoc;
-  Size? _loggedBox;
-
-  @override
-  Widget build(BuildContext context) {
-    return LayoutBuilder(
+  Widget build(BuildContext context) => BlocProvider(
+    create: (_) => ScoreSizeCubit(),
+    child: LayoutBuilder(
       builder: (context, constraints) {
-        final box = constraints.biggest;
-        final doc = widget.document;
-        if (box.isFinite &&
-            (!identical(doc, _loggedDoc) || box != _loggedBox)) {
-          _loggedDoc = doc;
-          _loggedBox = box;
-          final line = scoreSizeLine(widget.label, doc, (
-            box: box,
-            dpr: MediaQuery.devicePixelRatioOf(context),
-          ), continuous: widget.continuous);
-          debugPrint(line);
-          DiagLog.log('tamanho', line);
-        }
-        return widget.child;
+        context.read<ScoreSizeCubit>().medir(
+          label: label,
+          doc: document,
+          box: constraints.biggest,
+          dpr: MediaQuery.devicePixelRatioOf(context),
+          continuous: continuous,
+        );
+        return child;
       },
-    );
-  }
+    ),
+  );
 }
 
 /// A linha do log: caixa, página, escala (como o `ScoreView` encaixa a

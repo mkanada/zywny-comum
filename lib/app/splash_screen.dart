@@ -1,8 +1,8 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
+import 'package:zywny_bloc/zywny_bloc.dart';
 
 import '../ui/brand.dart';
+import 'splash_cubit.dart';
 
 /// Splash "C — Varsóvia, 1816" do artefato "Zywny — Ícone e Splash": vinho,
 /// o Z itálico do ícone, o lema e a homenagem a Wojciech Żywny. O artefato
@@ -160,7 +160,7 @@ class _Credit extends StatelessWidget {
 /// fade. O app já monta por baixo (MIDI, medição da caixa da partitura), só
 /// não recebe toques até a splash sair. Com [enabled] `false` (testes), não
 /// há splash nem timer.
-class SplashOverlay extends StatefulWidget {
+class SplashOverlay extends StatelessWidget {
   const SplashOverlay({
     super.key,
     required this.child,
@@ -173,45 +173,27 @@ class SplashOverlay extends StatefulWidget {
   final Duration duration;
 
   @override
-  State<SplashOverlay> createState() => _SplashOverlayState();
-}
-
-class _SplashOverlayState extends State<SplashOverlay> {
-  late bool _showing = widget.enabled;
-  Timer? _timer;
-
-  @override
-  void initState() {
-    super.initState();
-    if (_showing) {
-      _timer = Timer(widget.duration, () {
-        if (mounted) setState(() => _showing = false);
-      });
-    }
-  }
-
-  @override
-  void dispose() {
-    _timer?.cancel();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
-    if (!widget.enabled) return widget.child;
-    return Stack(
-      fit: StackFit.expand,
-      children: [
-        widget.child,
-        IgnorePointer(
-          ignoring: !_showing,
-          child: AnimatedOpacity(
-            opacity: _showing ? 1 : 0,
-            duration: const Duration(milliseconds: 400),
-            child: const SplashScreen(),
+    if (!enabled) return child;
+    return BlocProvider(
+      create: (_) => SplashCubit(duration: duration),
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          child,
+          BlocSelector<SplashCubit, SplashState, bool>(
+            selector: (state) => state.showing,
+            builder: (context, showing) => IgnorePointer(
+              ignoring: !showing,
+              child: AnimatedOpacity(
+                opacity: showing ? 1 : 0,
+                duration: const Duration(milliseconds: 400),
+                child: const SplashScreen(),
+              ),
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }

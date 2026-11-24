@@ -4,9 +4,10 @@
 #
 #   tool/catraca_bloc.sh <raiz-do-repo> [--gravar]
 #
-# Conta cinco padrões: setState( (S); ChangeNotifier com extends ou with (CN);
-# ValueNotifier< (VN); ValueListenableBuilder (VLB); StatefulWidget com extends
-# (SW). Confere os .dart de lib/ da raiz e de packages/*, score_bridge/ e
+# Conta cinco padrões: setState( de widget (S), só a chamada do State (ver
+# `conta_setstate`); ChangeNotifier com extends ou with (CN); ValueNotifier<
+# (VN); ValueListenableBuilder (VLB); StatefulWidget com extends (SW). Confere
+# os .dart de lib/ da raiz e de packages/*, score_bridge/ e
 # apps/* (sem .dart_tool, build e *.g.dart) contra tool/catraca_bloc.txt, uma
 # linha por arquivo com algum contador acima de zero:
 #
@@ -60,10 +61,25 @@ conta() {
   { grep -o "$1" -e "$2" -- "$3" || true; } | wc -l | tr -d ' '
 }
 
+# setState( de widget: só o que é chamada do State. Não conta DiagLog.setState(
+# (outro objeto: ponto antes), _setState( (letra ou sublinhado antes), a
+# declaração void setState(, VoidCallback setState( e static ... setState(. E,
+# no arquivo sem classe State nem StatefulBuilder, não conta: os stores de
+# autenticação chamam o setState herdado de AuthStoreBase, sem ponto, mas não
+# são widget.
+conta_setstate() {
+  local arq="$1"
+  if ! grep -q -E '(^|[^A-Za-z0-9_])State<|StatefulBuilder\(' -- "$arq"; then
+    echo 0
+    return
+  fi
+  conta -P '(?<![._A-Za-z0-9])(?<!void )(?<!VoidCallback )(?<!static )setState\(' "$arq"
+}
+
 # Imprime "S CN VN VLB SW" do arquivo $1 (caminho completo).
 contadores() {
   local arq="$1" s cn vn vlb sw
-  s=$(conta -F 'setState(' "$arq")
+  s=$(conta_setstate "$arq")
   cn=$(conta -E '(extends|with) ChangeNotifier\b' "$arq")
   vn=$(conta -F 'ValueNotifier<' "$arq")
   vlb=$(conta -F 'ValueListenableBuilder' "$arq")

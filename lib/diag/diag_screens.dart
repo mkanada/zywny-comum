@@ -1,4 +1,5 @@
 import 'package:flutter/widgets.dart';
+import 'package:zywny_bloc/zywny_bloc.dart';
 import 'package:zywny_diag/diag_log.dart';
 
 /// Quem sabe em que tela o aluno está: as telas que se declaram com
@@ -64,55 +65,104 @@ class _RouteLogger extends NavigatorObserver {
   }
 }
 
+void _abrirTela(String name) {
+  DiagScreens._screens.add(name);
+  DiagLog.log('nav', 'tela aberta: $name');
+}
+
+void _fecharTela(String name) {
+  DiagScreens._screens.remove(name);
+  DiagLog.log('nav', 'tela fechada: $name');
+}
+
+/// O nome da tela que está declarada aberta.
+class DiagScreenState extends Equatable {
+  const DiagScreenState({required this.name});
+
+  final String name;
+
+  @override
+  List<Object?> get props => [name];
+}
+
+/// Declara a tela aberta: abre no construtor e fecha no close(). Trocar o
+/// nome (outro passo na mesma tela) fecha o antigo e abre o novo.
+class DiagScreenCubit extends Cubit<DiagScreenState> {
+  DiagScreenCubit({required String name}) : super(DiagScreenState(name: name)) {
+    _abrirTela(name);
+  }
+
+  /// Troca o nome da tela. Sem mudança, não faz nada.
+  void trocar(String name) {
+    if (name == state.name) return;
+    _fecharTela(state.name);
+    _abrirTela(name);
+    emit(DiagScreenState(name: name));
+  }
+
+  @override
+  Future<void> close() {
+    _fecharTela(state.name);
+    return super.close();
+  }
+}
+
 /// Declara que esta tela está aberta, com um nome que o relatório entenda
 /// ("curso 3", "treino de leitura").
-class DiagScreen extends StatefulWidget {
+class DiagScreen extends StatelessWidget {
   const DiagScreen({super.key, required this.name, required this.child});
 
   final String name;
   final Widget child;
 
   @override
-  State<DiagScreen> createState() => _DiagScreenState();
+  Widget build(BuildContext context) => BlocProvider(
+    create: (_) => DiagScreenCubit(name: name),
+    lazy: false,
+    child: Builder(
+      builder: (context) {
+        // Roda a cada build da tela de cima. Sem mudança de nome, não faz
+        // nada; com nome novo, troca antes de a tela de dentro ser montada.
+        context.read<DiagScreenCubit>().trocar(name);
+        return child;
+      },
+    ),
+  );
 }
 
-class _DiagScreenState extends State<DiagScreen> {
-  late String _name;
+/// O tipo e o nome da sessão aberta de uma tela.
+class DiagSessionState extends Equatable {
+  const DiagSessionState({required this.kind, required this.name});
+
+  final String kind;
+  final String name;
 
   @override
-  void initState() {
-    super.initState();
-    _open(widget.name);
-  }
+  List<Object?> get props => [kind, name];
+}
 
-  void _open(String name) {
-    _name = name;
-    DiagScreens._screens.add(name);
-    DiagLog.log('nav', 'tela aberta: $name');
-  }
+/// Abre a sessão do log ([DiagLog.beginSession]) no construtor e a fecha no
+/// close(). Trocar o tipo ou o nome encerra a sessão e abre outra.
+class DiagSessionCubit extends Cubit<DiagSessionState> {
+  DiagSessionCubit({required String kind, required String name})
+    : _session = DiagLog.beginSession(kind, name),
+      super(DiagSessionState(kind: kind, name: name));
 
-  void _close() {
-    DiagScreens._screens.remove(_name);
-    DiagLog.log('nav', 'tela fechada: $_name');
-  }
+  DiagSession? _session;
 
-  @override
-  void didUpdateWidget(DiagScreen old) {
-    super.didUpdateWidget(old);
-    if (widget.name != _name) {
-      _close();
-      _open(widget.name);
-    }
-  }
-
-  @override
-  void dispose() {
-    _close();
-    super.dispose();
+  /// Troca a sessão se o tipo ou o nome mudou. Sem mudança, não faz nada.
+  void trocar({required String kind, required String name}) {
+    if (kind == state.kind && name == state.name) return;
+    DiagLog.endSession(_session);
+    _session = DiagLog.beginSession(kind, name);
+    emit(DiagSessionState(kind: kind, name: name));
   }
 
   @override
-  Widget build(BuildContext context) => widget.child;
+  Future<void> close() {
+    DiagLog.endSession(_session);
+    return super.close();
+  }
 }
 
 /// Uma tela de exercício, música ou aula: abre uma **sessão** do log
@@ -121,7 +171,7 @@ class _DiagScreenState extends State<DiagScreen> {
 ///
 /// Trocar [name] (o próximo passo na mesma tela) encerra a sessão e abre
 /// outra.
-class DiagSessionScope extends StatefulWidget {
+class DiagSessionScope extends StatelessWidget {
   const DiagSessionScope({
     super.key,
     required this.kind,
@@ -135,34 +185,15 @@ class DiagSessionScope extends StatefulWidget {
   final Widget child;
 
   @override
-  State<DiagSessionScope> createState() => _DiagSessionScopeState();
-}
-
-class _DiagSessionScopeState extends State<DiagSessionScope> {
-  DiagSession? _session;
-
-  @override
-  void initState() {
-    super.initState();
-    _session = DiagLog.beginSession(widget.kind, widget.name);
-  }
-
-  @override
-  void didUpdateWidget(DiagSessionScope old) {
-    super.didUpdateWidget(old);
-    if (widget.name != old.name || widget.kind != old.kind) {
-      DiagLog.endSession(_session);
-      _session = DiagLog.beginSession(widget.kind, widget.name);
-    }
-  }
-
-  @override
-  void dispose() {
-    DiagLog.endSession(_session);
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) =>
-      DiagScreen(name: '${widget.kind} ${widget.name}', child: widget.child);
+  Widget build(BuildContext context) => BlocProvider(
+    create: (_) => DiagSessionCubit(kind: kind, name: name),
+    lazy: false,
+    child: Builder(
+      builder: (context) {
+        // Ver DiagScreen: a troca acontece aqui, antes da tela de dentro.
+        context.read<DiagSessionCubit>().trocar(kind: kind, name: name);
+        return DiagScreen(name: '$kind $name', child: child);
+      },
+    ),
+  );
 }
