@@ -12,6 +12,8 @@ resolution: workspace
 dependencies:
   flutter:
     sdk: flutter
+  zywny_bloc:
+    path: ../zywny_bloc
   # Android e Web: o SDK oficial do Firebase (D01, D-NEG-AUTH). O Linux e o
   # Windows não têm plugin nativo: lá o login é pelo navegador do sistema
   # (loopback) e pela API REST, sem depender destes pacotes.

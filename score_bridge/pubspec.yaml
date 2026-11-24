@@ -1,5 +1,6 @@
 name: score_bridge
 description: "Modelo e parser do formato .vsb (Verovio Score Bridge)."
+publish_to: 'none'
 version: 0.0.1
 homepage:
 
@@ -11,6 +12,8 @@ dependencies:
   archive: ^4.3.0
   flutter:
     sdk: flutter
+  zywny_bloc:
+    path: ../packages/zywny_bloc
 
 dev_dependencies:
   flutter_test:

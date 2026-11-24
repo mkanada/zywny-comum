@@ -15,6 +15,8 @@ resolution: workspace
 dependencies:
   flutter:
     sdk: flutter
+  zywny_bloc:
+    path: ../zywny_bloc
   ffi: ^2.1.0
   path_provider: ^2.1.5
   # O `.vsb` (timemap, midi.json) que vira a PerformanceTrack.

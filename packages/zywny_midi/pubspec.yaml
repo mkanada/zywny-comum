@@ -13,6 +13,8 @@ resolution: workspace
 dependencies:
   flutter:
     sdk: flutter
+  zywny_bloc:
+    path: ../zywny_bloc
   flutter_midi_command: ^1.3.0
   # Bluetooth LE (MIDI por BLE, no Android): o transporte que o plugin pede
   # em `MidiCommand(bleTransport:)`. Mesma linha de versão do plugin acima.

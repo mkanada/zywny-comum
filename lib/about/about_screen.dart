@@ -6,13 +6,13 @@
 // terminaram (1819, 1821 ou 1822), por isso o texto diz só "a partir de
 // 1816".
 
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+import 'package:zywny_bloc/zywny_bloc.dart';
 
 import '../ui/brand.dart';
 import '../ui/theme.dart';
+import 'about_cubit.dart';
 
 /// O motto da abertura (`SplashScreen`); aqui, no cabeçalho.
 const String kAboutMotto = 'Todo grande pianista começou na primeira tecla.';
@@ -40,7 +40,7 @@ void showAppLicenses(BuildContext context, String version) {
   );
 }
 
-class AboutScreen extends StatefulWidget {
+class AboutScreen extends StatelessWidget {
   const AboutScreen({
     super.key,
     this.loadVersion = packageVersionText,
@@ -54,22 +54,19 @@ class AboutScreen extends StatefulWidget {
   final void Function(BuildContext context, String version) openLicenses;
 
   @override
-  State<AboutScreen> createState() => _AboutScreenState();
+  Widget build(BuildContext context) {
+    return BlocProvider(
+      create: (_) => AboutCubit(loadVersion: loadVersion)..load(),
+      child: _AboutView(openLicenses: openLicenses),
+    );
+  }
 }
 
-class _AboutScreenState extends State<AboutScreen> {
-  String _version = '';
+/// A página: a versão vem do [AboutCubit] acima dela.
+class _AboutView extends StatelessWidget {
+  const _AboutView({required this.openLicenses});
 
-  @override
-  void initState() {
-    super.initState();
-    unawaited(_load());
-  }
-
-  Future<void> _load() async {
-    final version = await widget.loadVersion();
-    if (mounted) setState(() => _version = version);
-  }
+  final void Function(BuildContext context, String version) openLicenses;
 
   @override
   Widget build(BuildContext context) {
@@ -91,7 +88,10 @@ class _AboutScreenState extends State<AboutScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  _Header(version: _version),
+                  BlocSelector<AboutCubit, AboutState, String>(
+                    selector: (state) => state.version,
+                    builder: (context, version) => _Header(version: version),
+                  ),
                   const SizedBox(height: 26),
                   ..._nameSection(),
                   const SizedBox(height: 18),
@@ -190,7 +190,10 @@ class _AboutScreenState extends State<AboutScreen> {
     Align(
       alignment: Alignment.centerLeft,
       child: OutlinedButton.icon(
-        onPressed: () => widget.openLicenses(context, _version),
+        onPressed: () => openLicenses(
+          context,
+          context.read<AboutCubit>().state.version,
+        ),
         icon: const Icon(Icons.description_outlined, size: 18),
         label: const Text('Licenças de código aberto'),
       ),
