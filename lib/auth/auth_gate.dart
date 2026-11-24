@@ -1,10 +1,12 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:zywny_auth/zywny_auth.dart';
+import 'package:zywny_bloc/zywny_bloc.dart';
 
 import '../ui/brand.dart';
 import '../ui/theme.dart';
+import 'auth_gate_cubit.dart';
+import 'nickname_cubit.dart';
+import 'reconnect_cubit.dart';
 import 'sign_in_screen.dart';
 
 /// O portão da autenticação (D02): o que decide se o app abre.
@@ -15,7 +17,7 @@ import 'sign_in_screen.dart';
 ///
 /// Sem [store] (os testes dos apps, que não têm rede nem Firebase), o portão
 /// não segura nada: o [child] aparece logo.
-class AuthGate extends StatefulWidget {
+class AuthGate extends StatelessWidget {
   const AuthGate({
     super.key,
     required this.store,
@@ -35,49 +37,21 @@ class AuthGate extends StatefulWidget {
   final bool requireNickname;
 
   @override
-  State<AuthGate> createState() => _AuthGateState();
-}
-
-class _AuthGateState extends State<AuthGate> {
-  @override
-  void initState() {
-    super.initState();
-    final store = widget.store;
-    if (store != null) unawaited(_restore(store));
-  }
-
-  /// Lê a sessão guardada no aparelho. Enquanto isso roda, o estado é
-  /// `initializing` e a tela mostra o carregando.
-  Future<void> _restore(AuthStore store) async {
-    try {
-      await store.restore();
-    } on Object {
-      // A sessão guardada não pôde ser lida: o store fica como está, e o app
-      // mostra o que ele disser (a tela de entrada, em geral).
-    }
-  }
-
-  @override
-  void didUpdateWidget(AuthGate oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    // O store mudou: a sessão guardada é lida de novo.
-    if (oldWidget.store != widget.store && widget.store != null) {
-      unawaited(_restore(widget.store!));
-    }
-  }
-
-  @override
   Widget build(BuildContext context) {
-    final store = widget.store;
-    if (store == null) return widget.child;
-    return ListenableBuilder(
-      listenable: store,
-      builder: (context, _) => _view(store),
+    final store = this.store;
+    if (store == null) return child;
+    // A chave é o próprio store: se ele troca, o Cubit é refeito e lê a
+    // sessão guardada dele (o `didUpdateWidget` de antes fazia o mesmo).
+    return BlocProvider(
+      key: ValueKey(store),
+      create: (_) => AuthGateCubit(store: store)..restaurar(),
+      child: BlocBuilder<AuthGateCubit, AuthState>(
+        builder: (context, state) => _view(store, state),
+      ),
     );
   }
 
-  Widget _view(AuthStore store) {
-    final state = store.value;
+  Widget _view(AuthStore store, AuthState state) {
     return switch (state.status) {
       AuthStatus.initializing => const _AuthLoading(),
       AuthStatus.unauthenticated => SignInScreen(store: store),
@@ -96,12 +70,12 @@ class _AuthGateState extends State<AuthGate> {
   /// pedido está ligado e o apelido ainda não foi escolhido.
   Widget _authenticated(AuthStore store, AuthState state) {
     final user = state.user;
-    if (widget.requireNickname &&
+    if (requireNickname &&
         user != null &&
         (user.nickname ?? '').trim().isEmpty) {
       return _NicknameStep(store: store, user: user);
     }
-    return widget.child;
+    return child;
   }
 }
 
@@ -133,55 +107,23 @@ class _AuthLoading extends StatelessWidget {
 
 /// A sessão guardada passou dos 7 dias sem rede (D-NEG-OFFLINE): o app pede
 /// conexão, com a opção de trocar de conta.
-class _ReconnectScreen extends StatefulWidget {
+class _ReconnectScreen extends StatelessWidget {
   const _ReconnectScreen({required this.store, required this.message});
 
   final AuthStore store;
   final String message;
 
   @override
-  State<_ReconnectScreen> createState() => _ReconnectScreenState();
-}
+  Widget build(BuildContext context) => BlocProvider(
+    create: (_) => ReconnectCubit(store: store),
+    child: BlocBuilder<ReconnectCubit, ReconnectState>(
+      builder: (context, estado) => _painel(context, estado),
+    ),
+  );
 
-class _ReconnectScreenState extends State<_ReconnectScreen> {
-  bool _busy = false;
-  String? _error;
-
-  Future<void> _retry() async {
-    setState(() {
-      _busy = true;
-      _error = null;
-    });
-    try {
-      await widget.store.refreshSession();
-    } on AuthException catch (e) {
-      if (mounted) setState(() => _error = e.message);
-    } on Object catch (e) {
-      if (mounted) {
-        setState(() => _error = 'Não consegui falar com o servidor: $e');
-      }
-    } finally {
-      if (mounted) setState(() => _busy = false);
-    }
-  }
-
-  Future<void> _switchAccount() async {
-    setState(() {
-      _busy = true;
-      _error = null;
-    });
-    try {
-      await widget.store.signOut();
-    } on Object catch (e) {
-      if (mounted) setState(() => _error = 'Não consegui sair da conta: $e');
-    } finally {
-      if (mounted) setState(() => _busy = false);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final error = _error;
+  Widget _painel(BuildContext context, ReconnectState estado) {
+    final cubit = context.read<ReconnectCubit>();
+    final error = estado.error;
     return AuthPanel(
       children: [
         const Center(child: BrandMonogram()),
@@ -193,7 +135,7 @@ class _ReconnectScreenState extends State<_ReconnectScreen> {
         ),
         const SizedBox(height: 8),
         Text(
-          widget.message,
+          message,
           textAlign: TextAlign.center,
           style: Theme.of(context).textTheme.bodyMedium
               ?.copyWith(color: kInkCaption),
@@ -204,11 +146,11 @@ class _ReconnectScreenState extends State<_ReconnectScreen> {
           const SizedBox(height: 14),
         ],
         FilledButton(
-          onPressed: _busy ? null : _retry,
+          onPressed: estado.busy ? null : cubit.tentarDeNovo,
           style: FilledButton.styleFrom(
             padding: const EdgeInsets.symmetric(vertical: 14),
           ),
-          child: _busy
+          child: estado.busy
               ? const SizedBox(
                   width: 18,
                   height: 18,
@@ -221,7 +163,7 @@ class _ReconnectScreenState extends State<_ReconnectScreen> {
         ),
         const SizedBox(height: 8),
         TextButton(
-          onPressed: _busy ? null : _switchAccount,
+          onPressed: estado.busy ? null : cubit.trocarDeConta,
           child: const Text('Trocar de conta'),
         ),
       ],
@@ -232,50 +174,23 @@ class _ReconnectScreenState extends State<_ReconnectScreen> {
 /// O primeiro acesso: o apelido (D-NEG-PRIVACIDADE) e o aceite da política
 /// de privacidade — com o aviso para quem tem menos de 12 anos (o aceite do
 /// responsável é dado no formulário da plataforma).
-class _NicknameStep extends StatefulWidget {
+class _NicknameStep extends StatelessWidget {
   const _NicknameStep({required this.store, required this.user});
 
   final AuthStore store;
   final AuthUser user;
 
   @override
-  State<_NicknameStep> createState() => _NicknameStepState();
-}
+  Widget build(BuildContext context) => BlocProvider(
+    create: (_) => NicknameCubit(store: store),
+    child: BlocBuilder<NicknameCubit, NicknameState>(
+      builder: (context, estado) => _painel(context, estado),
+    ),
+  );
 
-class _NicknameStepState extends State<_NicknameStep> {
-  final _controller = TextEditingController();
-  bool _accepted = false;
-  bool _busy = false;
-  String? _error;
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  bool get _canContinue =>
-      _controller.text.trim().isNotEmpty && _accepted && !_busy;
-
-  Future<void> _continue() async {
-    setState(() {
-      _busy = true;
-      _error = null;
-    });
-    try {
-      await widget.store.updateNickname(_controller.text);
-    } on AuthException catch (e) {
-      if (mounted) setState(() => _error = e.message);
-    } on Object catch (e) {
-      if (mounted) setState(() => _error = 'Não consegui guardar: $e');
-    } finally {
-      if (mounted) setState(() => _busy = false);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final error = _error;
+  Widget _painel(BuildContext context, NicknameState estado) {
+    final cubit = context.read<NicknameCubit>();
+    final error = estado.error;
     return AuthPanel(
       children: [
         const Center(child: BrandMonogram()),
@@ -294,9 +209,9 @@ class _NicknameStepState extends State<_NicknameStep> {
               ?.copyWith(color: kInkCaption),
         ),
         const SizedBox(height: 18),
-        _nicknameField(),
+        _nicknameField(cubit),
         const SizedBox(height: 12),
-        ..._acceptance(),
+        ..._acceptance(cubit, estado),
         const SizedBox(height: 8),
         const Text(
           'Menor de 12 anos? O aceite do responsável é dado no formulário da '
@@ -308,20 +223,18 @@ class _NicknameStepState extends State<_NicknameStep> {
           AuthMessage(text: error),
           const SizedBox(height: 14),
         ],
-        _continueButton(),
+        _continueButton(cubit, estado),
       ],
     );
   }
 
-  /// O campo do apelido: continua pelo teclado, se o apelido vale.
-  Widget _nicknameField() => TextField(
-    controller: _controller,
+  /// O campo do apelido: continua pelo teclado, se o apelido vale. Sem
+  /// controller: o texto vai para o Cubit a cada tecla.
+  Widget _nicknameField(NicknameCubit cubit) => TextField(
     autofocus: false,
     textInputAction: TextInputAction.done,
-    onChanged: (_) => setState(() {}),
-    onSubmitted: (_) {
-      if (_canContinue) unawaited(_continue());
-    },
+    onChanged: cubit.editarApelido,
+    onSubmitted: (_) => cubit.continuar(),
     decoration: const InputDecoration(
       labelText: 'Apelido',
       hintText: 'Como te chamamos?',
@@ -330,10 +243,10 @@ class _NicknameStepState extends State<_NicknameStep> {
   );
 
   /// O aceite da política de privacidade (o uso dos dados de estudo).
-  List<Widget> _acceptance() => [
+  List<Widget> _acceptance(NicknameCubit cubit, NicknameState estado) => [
     CheckboxListTile(
-      value: _accepted,
-      onChanged: (v) => setState(() => _accepted = v ?? false),
+      value: estado.accepted,
+      onChanged: (v) => cubit.mudarAceite(v ?? false),
       controlAffinity: ListTileControlAffinity.leading,
       contentPadding: EdgeInsets.zero,
       title: const Text(
@@ -345,11 +258,12 @@ class _NicknameStepState extends State<_NicknameStep> {
   ];
 
   /// O botão de continuar, desligado até o apelido e o aceite estarem prontos.
-  Widget _continueButton() => FilledButton(
-    onPressed: _canContinue ? _continue : null,
-    style: FilledButton.styleFrom(
-      padding: const EdgeInsets.symmetric(vertical: 14),
-    ),
-    child: const Text('Continuar'),
-  );
+  Widget _continueButton(NicknameCubit cubit, NicknameState estado) =>
+      FilledButton(
+        onPressed: estado.podeContinuar ? cubit.continuar : null,
+        style: FilledButton.styleFrom(
+          padding: const EdgeInsets.symmetric(vertical: 14),
+        ),
+        child: const Text('Continuar'),
+      );
 }

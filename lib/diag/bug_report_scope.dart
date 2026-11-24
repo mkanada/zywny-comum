@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:score_bridge/score_bridge.dart' show ScoreTrace;
+import 'package:zywny_bloc/zywny_bloc.dart';
 import 'package:zywny_diag/diag_log.dart';
 
 import '../about/about_screen.dart' show packageVersionText;
@@ -14,6 +15,7 @@ import 'audio_recording_corner.dart';
 import 'audio_recording_service.dart';
 import 'bug_report_builder.dart';
 import 'bug_report_delivery.dart';
+import 'bug_report_flow_cubit.dart';
 import 'bug_report_page.dart';
 import 'bug_report_sender.dart';
 import 'diag_screens.dart';
@@ -98,12 +100,13 @@ class BugReportScopeState extends State<BugReportScope>
     with WidgetsBindingObserver {
   static BugReportScopeState? _current;
 
+  // O que a tela mostra (congelada, relatório aberto, captura) é do Cubit. O
+  // State é o dono dele: `start`, `sendNow` e `current` o alcançam de fora da
+  // árvore. O `dispose` o fecha (o BlocProvider.value só o entrega à árvore).
+  final BugReportFlowCubit _flow = BugReportFlowCubit();
   final GlobalKey _boundary = GlobalKey();
   final Set<int> _pointers = {};
   Timer? _hold;
-  bool _frozen = false;
-  bool _formShown = false;
-  Uint8List? _shot;
   Map<String, String> _device = const {};
   String _version = '';
 
@@ -257,22 +260,23 @@ class BugReportScopeState extends State<BugReportScope>
     if (ScoreTrace.sink == DiagLog.log) ScoreTrace.sink = null;
     _hold?.cancel();
     if (_current == this) _current = null;
+    unawaited(_flow.close());
     super.dispose();
   }
 
   /// Congela, captura e abre a tela do relatório.
   Future<void> start() async {
-    if (_frozen || !mounted) return;
+    if (_flow.state.parada || !mounted) return;
     DiagLog.log('bug', 'relatório de bug aberto');
     // O que toca para primeiro; a tela congela no mesmo quadro.
     DiagLog.freeze();
     _device = _deviceInfo();
-    setState(() => _frozen = true);
+    _flow.congelar();
     unawaited(packageVersionText().then((v) => _version = v));
     await WidgetsBinding.instance.endOfFrame;
-    _shot = await _capture();
+    final captura = await _capture();
     if (!mounted) return;
-    setState(() => _formShown = true);
+    _flow.mostrar(captura);
   }
 
   Map<String, String> _deviceInfo() {
@@ -312,11 +316,7 @@ class BugReportScopeState extends State<BugReportScope>
 
   void _cancel() {
     DiagLog.log('bug', 'tela do relatório fechada');
-    setState(() {
-      _frozen = false;
-      _formShown = false;
-      _shot = null;
-    });
+    _flow.fechar();
   }
 
   BugReportInput _input(String doing, String happened, Uint8List? shot) =>
@@ -342,7 +342,7 @@ class BugReportScopeState extends State<BugReportScope>
       'bug',
       'relatório gerado: fazia="$doing" aconteceu="$happened"',
     );
-    final input = _input(doing, happened, _shot);
+    final input = _input(doing, happened, _flow.state.captura);
     final name = bugReportFileName(widget.appName, input.at);
     return widget.deliver(name, buildBugReportZip(input));
   }
@@ -356,7 +356,7 @@ class BugReportScopeState extends State<BugReportScope>
       'bug',
       'relatório enviado: fazia="$doing" aconteceu="$happened"',
     );
-    return _sendWith(doing, happened, _shot);
+    return _sendWith(doing, happened, _flow.state.captura);
   }
 
   /// **Enviar já** ([BugReportScope.sendNow]): tira a captura agora, sem parar
@@ -410,7 +410,7 @@ class BugReportScopeState extends State<BugReportScope>
   void _pointerDown(PointerDownEvent e) {
     _touchDown(e);
     _pointers.add(e.pointer);
-    if (_pointers.length >= kBugReportFingers && !_frozen) {
+    if (_pointers.length >= kBugReportFingers && !_flow.state.parada) {
       _hold?.cancel();
       _hold = Timer(kBugReportHold, () => unawaited(start()));
     }
@@ -427,52 +427,59 @@ class BugReportScopeState extends State<BugReportScope>
 
   @override
   Widget build(BuildContext context) {
-    return CallbackShortcuts(
-      bindings: {
-        const SingleActivator(
-          LogicalKeyboardKey.keyB,
-          control: true,
-          shift: true,
-        ): () =>
-            unawaited(start()),
-      },
-      child: Stack(
-        children: [
-          Positioned.fill(
-            child: Listener(
-              onPointerDown: _pointerDown,
-              onPointerMove: _touchMove,
-              onPointerUp: _pointerUp,
-              onPointerCancel: _pointerUp,
-              child: TickerMode(
-                enabled: !_frozen,
-                child: RepaintBoundary(key: _boundary, child: widget.child),
-              ),
-            ),
-          ),
-          Positioned.fill(
-            child: AudioRecordingCorner(
-              service: widget.recorder,
-              // Parar a gravação abre a tela de envio, com a sessão dela no log.
-              onStopped: () => unawaited(start()),
-            ),
-          ),
-          if (_formShown)
-            Positioned.fill(
-              child: Overlay(
-                initialEntries: [
-                  OverlayEntry(
-                    builder: (_) => BugReportPage(
-                      screenshot: _shot,
-                      onCancel: _cancel,
-                      onSubmit: _submit,
-                      onSend: canSend ? _send : null,
-                    ),
+    return BlocProvider.value(
+      value: _flow,
+      child: CallbackShortcuts(
+        bindings: {
+          const SingleActivator(
+            LogicalKeyboardKey.keyB,
+            control: true,
+            shift: true,
+          ): () =>
+              unawaited(start()),
+        },
+        // A pilha só muda quando o relatório abre, fecha ou congela (poucas
+        // vezes por relatório), então o builder da tela inteira basta aqui.
+        child: BlocBuilder<BugReportFlowCubit, BugReportFlowState>(
+          builder: (context, fluxo) => Stack(
+            children: [
+              Positioned.fill(
+                child: Listener(
+                  onPointerDown: _pointerDown,
+                  onPointerMove: _touchMove,
+                  onPointerUp: _pointerUp,
+                  onPointerCancel: _pointerUp,
+                  child: TickerMode(
+                    enabled: !fluxo.parada,
+                    child: RepaintBoundary(key: _boundary, child: widget.child),
                   ),
-                ],
+                ),
               ),
-            ),
-        ],
+              Positioned.fill(
+                child: AudioRecordingCorner(
+                  service: widget.recorder,
+                  // Parar a gravação abre a tela de envio, com a sessão dela no log.
+                  onStopped: () => unawaited(start()),
+                ),
+              ),
+              if (fluxo.formulario)
+                Positioned.fill(
+                  child: Overlay(
+                    initialEntries: [
+                      OverlayEntry(
+                        builder: (_) => BugReportPage(
+                          screenshot: fluxo.captura,
+                          onCancel: _cancel,
+                          onSubmit: _submit,
+                          onSend: canSend ? _send : null,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+            ],
+          ),
+        ),
       ),
     );
   }

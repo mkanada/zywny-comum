@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:zywny_auth/zywny_auth.dart';
+import 'package:zywny_bloc/zywny_bloc.dart';
 
 import '../ui/brand.dart';
 import '../ui/theme.dart';
+import 'sign_in_cubit.dart';
 
 /// O cartão que segura as telas de entrada (a de entrada propriamente dita,
 /// a de reconexão e a do apelido). As três são a mesma coisa com textos
@@ -66,7 +68,7 @@ class AuthPanel extends StatelessWidget {
 ///
 /// Sem conta conectada o app mostra só esta tela (D-NEG-SEM-CONTA): o
 /// [AuthGate] a troca pelo app assim que o estado passa a `authenticated`.
-class SignInScreen extends StatefulWidget {
+class SignInScreen extends StatelessWidget {
   const SignInScreen({
     super.key,
     required this.store,
@@ -90,81 +92,58 @@ class SignInScreen extends StatefulWidget {
   ];
 
   @override
-  State<SignInScreen> createState() => _SignInScreenState();
-}
-
-class _SignInScreenState extends State<SignInScreen> {
-  /// O provedor cujo login está em curso (o botão dele mostra o carregando).
-  SocialProvider? _busy;
-
-  /// O erro que o store lançou (quando ele guarda a mensagem no estado, é a
-  /// de lá que vale).
-  String? _error;
-
-  Future<void> _signIn(SocialProvider provider) async {
-    setState(() {
-      _busy = provider;
-      _error = null;
-    });
-    try {
-      await widget.store.signInWithProvider(provider);
-    } on AuthException catch (e) {
-      if (mounted) setState(() => _error = e.message);
-    } on Object catch (e) {
-      if (mounted) setState(() => _error = 'Não consegui entrar: $e');
-    } finally {
-      if (mounted) setState(() => _busy = null);
-    }
+  Widget build(BuildContext context) {
+    return BlocProvider(
+      create: (_) => SignInCubit(store: store),
+      child: BlocBuilder<SignInCubit, SignInState>(
+        builder: (context, estado) => _painel(context, estado),
+      ),
+    );
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return ListenableBuilder(
-      listenable: widget.store,
-      builder: (context, _) {
-        final message = _error ?? widget.store.value.errorMessage;
-        return AuthPanel(
-          children: [
-            const Center(child: BrandMonogram()),
-            const SizedBox(height: 18),
-            Text(
-              'Entrar no Zywny',
-              textAlign: TextAlign.center,
-              style: serifDisplay(fontSize: 26),
+  Widget _painel(BuildContext context, SignInState estado) {
+    final cubit = context.read<SignInCubit>();
+    final message = estado.message;
+    return AuthPanel(
+      children: [
+        const Center(child: BrandMonogram()),
+        const SizedBox(height: 18),
+        Text(
+          'Entrar no Zywny',
+          textAlign: TextAlign.center,
+          style: serifDisplay(fontSize: 26),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          'Entre com sua conta para guardar seu progresso e ver o que o '
+          'seu tutor preparou para você.',
+          textAlign: TextAlign.center,
+          style: Theme.of(context).textTheme.bodyMedium
+              ?.copyWith(color: kInkCaption),
+        ),
+        const SizedBox(height: 22),
+        if (message != null) ...[
+          AuthMessage(text: message),
+          const SizedBox(height: 14),
+        ],
+        for (final (i, provider) in providers.indexed)
+          Padding(
+            padding: EdgeInsets.only(top: i == 0 ? 0 : 8),
+            child: _ProviderButton(
+              provider: provider,
+              primary: i == 0,
+              busy: estado.busy == provider,
+              onTap: () => cubit.entrar(provider),
             ),
-            const SizedBox(height: 8),
-            Text(
-              'Entre com sua conta para guardar seu progresso e ver o que o '
-              'seu tutor preparou para você.',
-              textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.bodyMedium
-                  ?.copyWith(color: kInkCaption),
-            ),
-            const SizedBox(height: 22),
-            if (message != null) ...[
-              AuthMessage(text: message),
-              const SizedBox(height: 14),
-            ],
-            for (final (i, provider) in widget.providers.indexed)
-              Padding(
-                padding: EdgeInsets.only(top: i == 0 ? 0 : 8),
-                child: _ProviderButton(
-                  provider: provider,
-                  primary: i == 0,
-                  busy: _busy == provider,
-                  onTap: () => _signIn(provider),
-                ),
-              ),
-            const SizedBox(height: 18),
-            Text(
-              'Ao entrar você aceita a política de privacidade do Zywny.',
-              textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.bodySmall
-                  ?.copyWith(color: kInkMuted),
-            ),
-          ],
-        );
-      },
+          ),
+        const SizedBox(height: 18),
+        Text(
+          'Ao entrar você aceita a política de privacidade do Zywny.',
+          textAlign: TextAlign.center,
+          style: Theme.of(context).textTheme.bodySmall
+              ?.copyWith(color: kInkMuted),
+        ),
+      ],
     );
   }
 }

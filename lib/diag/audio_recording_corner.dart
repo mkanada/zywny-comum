@@ -1,13 +1,12 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-import 'package:zywny_diag/diag_log.dart';
+import 'package:zywny_bloc/zywny_bloc.dart';
 
+import 'audio_recording_cubit.dart';
 import 'audio_recording_service.dart';
 
-/// Quanto tempo segurar o canto para ligar/desligar a gravação.
-const Duration kAudioRecordingHold = Duration(seconds: 1);
+// O segurar do canto (kAudioRecordingHold) é do Cubit; o tamanho do canto é
+// daqui. Reexportado, para quem já importava a constante desta tela.
+export 'audio_recording_cubit.dart' show kAudioRecordingHold;
 
 /// Lado do canto sensível, em dp.
 const double kAudioRecordingCorner = 72;
@@ -24,7 +23,7 @@ const double kAudioRecordingCorner = 72;
 /// Fica por cima da tela sem tomar os toques: o que está embaixo do canto
 /// continua recebendo-os. Enquanto grava, um ponto vermelho com o tempo fica
 /// à vista, também sem tomar toque.
-class AudioRecordingCorner extends StatefulWidget {
+class AudioRecordingCorner extends StatelessWidget {
   const AudioRecordingCorner({super.key, this.service, this.onStopped});
 
   /// Os testes passam um falso; sem ele, cria o da plataforma ao primeiro uso.
@@ -34,149 +33,43 @@ class AudioRecordingCorner extends StatefulWidget {
   final VoidCallback? onStopped;
 
   @override
-  State<AudioRecordingCorner> createState() => AudioRecordingCornerState();
-}
-
-class AudioRecordingCornerState extends State<AudioRecordingCorner> {
-  AudioRecordingService? _service;
-  DiagSession? _session;
-  Timer? _hold;
-  Timer? _tick;
-  Timer? _noticeTimer;
-  int? _pointer;
-  Offset _origin = Offset.zero;
-  bool _busy = false;
-  bool _recording = false;
-  DateTime? _since;
-  String? _notice;
-
-  bool get recording => _recording;
-
-  AudioRecordingService get _svc =>
-      _service ??= widget.service ?? createAudioRecordingService();
-
-  @override
-  void dispose() {
-    _hold?.cancel();
-    _tick?.cancel();
-    _noticeTimer?.cancel();
-    DiagLog.endSession(_session);
-    _session = null;
-    final service = _service;
-    if (service != null) unawaited(service.dispose());
-    super.dispose();
-  }
-
-  void _down(PointerDownEvent e) {
-    if (_pointer != null) return;
-    _pointer = e.pointer;
-    _origin = e.position;
-    _hold?.cancel();
-    _hold = Timer(kAudioRecordingHold, () => unawaited(toggle()));
-  }
-
-  void _move(PointerMoveEvent e) {
-    if (e.pointer == _pointer && (e.position - _origin).distance > 24) {
-      _cancel();
-    }
-  }
-
-  void _up(PointerEvent e) {
-    if (e.pointer == _pointer) _cancel();
-  }
-
-  void _cancel() {
-    _pointer = null;
-    _hold?.cancel();
-    _hold = null;
-  }
-
-  Future<void> toggle() async {
-    if (_busy) return;
-    _busy = true;
-    try {
-      unawaited(HapticFeedback.heavyImpact());
-      if (_recording) {
-        final result = await _svc.stop();
-        _tick?.cancel();
-        DiagLog.endSession(_session);
-        _session = null;
-        if (!mounted) return;
-        setState(() => _recording = false);
-        _showNotice(
-          result?.savedAt == null
-              ? 'Gravação não salva'
-              : 'Gravação salva: ${result!.savedAt}',
-          const Duration(seconds: 6),
-        );
-        widget.onStopped?.call();
-      } else {
-        // A sessão abre antes do microfone: o que o próprio início registrar
-        // (permissão, arquivo) também fica nela.
-        _session = DiagLog.beginSession('gravacao', 'microfone');
-        final ok = await _svc.start();
-        if (!mounted) return;
-        if (!ok) {
-          DiagLog.endSession(_session);
-          _session = null;
-          _showNotice(
-            'Não deu para gravar (microfone ou permissão)',
-            const Duration(seconds: 4),
-          );
-          return;
-        }
-        _since = DateTime.now();
-        _tick = Timer.periodic(const Duration(seconds: 1), (_) {
-          if (mounted) setState(() {});
-        });
-        setState(() {
-          _recording = true;
-          _notice = null;
-        });
-      }
-    } finally {
-      _busy = false;
-    }
-  }
-
-  void _showNotice(String text, Duration time) {
-    _noticeTimer?.cancel();
-    setState(() => _notice = text);
-    _noticeTimer = Timer(time, () {
-      if (mounted) setState(() => _notice = null);
-    });
-  }
-
-  String _elapsed() {
-    final s = DateTime.now().difference(_since ?? DateTime.now()).inSeconds;
-    return '${(s ~/ 60).toString().padLeft(2, '0')}:'
-        '${(s % 60).toString().padLeft(2, '0')}';
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Stack(
-      children: [
-        Positioned(
-          left: 0,
-          bottom: 0,
-          width: kAudioRecordingCorner,
-          height: kAudioRecordingCorner,
-          child: Listener(
-            behavior: HitTestBehavior.translucent,
-            onPointerDown: _down,
-            onPointerMove: _move,
-            onPointerUp: _up,
-            onPointerCancel: _up,
-          ),
+  Widget build(BuildContext context) => BlocProvider(
+    create: (_) => AudioRecordingCubit(service: service),
+    child: BlocListener<AudioRecordingCubit, AudioRecordingState>(
+      // Parar a gravação abre a tela de envio: efeito de tela, no listener.
+      listenWhen: (antes, depois) => depois.paradas != antes.paradas,
+      listener: (_, _) => onStopped?.call(),
+      child: BlocBuilder<AudioRecordingCubit, AudioRecordingState>(
+        builder: (context, state) => Stack(
+          children: [
+            Positioned(
+              left: 0,
+              bottom: 0,
+              width: kAudioRecordingCorner,
+              height: kAudioRecordingCorner,
+              child: Listener(
+                behavior: HitTestBehavior.translucent,
+                onPointerDown: (e) => context
+                    .read<AudioRecordingCubit>()
+                    .pontoBaixo(e.pointer, e.position),
+                onPointerMove: (e) => context
+                    .read<AudioRecordingCubit>()
+                    .pontoMovido(e.pointer, e.position),
+                onPointerUp: (e) =>
+                    context.read<AudioRecordingCubit>().pontoSolto(e.pointer),
+                onPointerCancel: (e) =>
+                    context.read<AudioRecordingCubit>().pontoSolto(e.pointer),
+              ),
+            ),
+            if (state.gravando || state.aviso != null) _noticeChip(state),
+          ],
         ),
-        if (_recording || _notice != null) _noticeChip(),
-      ],
-    );
-  }
+      ),
+    ),
+  );
 
   /// O aviso de gravação (com o tempo) ou a última nota, no canto de baixo.
-  Widget _noticeChip() => Positioned(
+  Widget _noticeChip(AudioRecordingState state) => Positioned(
     left: 8,
     bottom: 8,
     child: IgnorePointer(
@@ -192,7 +85,7 @@ class AudioRecordingCornerState extends State<AudioRecordingCorner> {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                if (_recording) ...[
+                if (state.gravando) ...[
                   const Icon(
                     Icons.fiber_manual_record,
                     color: Color(0xFFFF3B30),
@@ -201,7 +94,9 @@ class AudioRecordingCornerState extends State<AudioRecordingCorner> {
                   const SizedBox(width: 6),
                 ],
                 Text(
-                  _recording ? 'Gravando ${_elapsed()}' : _notice!,
+                  state.gravando
+                      ? 'Gravando ${_formatar(state.decorrido)}'
+                      : state.aviso!,
                   style: const TextStyle(
                     color: Color(0xFFFFFFFF),
                     fontSize: 12,
@@ -216,4 +111,11 @@ class AudioRecordingCornerState extends State<AudioRecordingCorner> {
       ),
     ),
   );
+
+  /// "mm:ss", como o aviso da gravação mostra.
+  static String _formatar(Duration decorrido) {
+    final s = decorrido.inSeconds;
+    return '${(s ~/ 60).toString().padLeft(2, '0')}:'
+        '${(s % 60).toString().padLeft(2, '0')}';
+  }
 }

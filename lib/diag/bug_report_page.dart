@@ -2,9 +2,11 @@ import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:zywny_bloc/zywny_bloc.dart';
 
 import '../ui/theme.dart';
 import 'bug_report_delivery.dart';
+import 'bug_report_form_cubit.dart';
 import 'bug_report_sender.dart';
 
 /// A tela do relatório de bug (ver `BugReportScope`): o aluno diz o que
@@ -39,13 +41,11 @@ class BugReportPage extends StatefulWidget {
   State<BugReportPage> createState() => _BugReportPageState();
 }
 
+/// Dona dos dois campos de texto (`TextEditingController`, objeto do framework);
+/// o resto do estado do formulário é do [BugReportFormCubit].
 class _BugReportPageState extends State<BugReportPage> {
   final _doing = TextEditingController();
   final _happened = TextEditingController();
-  bool _busy = false;
-  String? _error;
-  BugReportDelivery? _done;
-  BugReportReceipt? _sent;
 
   @override
   void dispose() {
@@ -54,92 +54,85 @@ class _BugReportPageState extends State<BugReportPage> {
     super.dispose();
   }
 
-  Future<void> _generate() async {
-    setState(() {
-      _busy = true;
-      _error = null;
-    });
-    try {
-      final delivery = await widget.onSubmit(_doing.text, _happened.text);
-      if (mounted) setState(() => _done = delivery);
-    } on Object catch (e) {
-      if (mounted) setState(() => _error = 'Não consegui gerar o arquivo: $e');
-    } finally {
-      if (mounted) setState(() => _busy = false);
-    }
-  }
+  @override
+  Widget build(BuildContext context) => BlocProvider(
+    create: (_) =>
+        BugReportFormCubit(onSubmit: widget.onSubmit, onSend: widget.onSend),
+    child: _BugReportView(
+      doing: _doing,
+      happened: _happened,
+      screenshot: widget.screenshot,
+      onCancel: widget.onCancel,
+    ),
+  );
+}
 
-  Future<void> _sendToTeam() async {
-    setState(() {
-      _busy = true;
-      _error = null;
-    });
-    try {
-      final receipt = await widget.onSend!(_doing.text, _happened.text);
-      if (mounted) setState(() => _sent = receipt);
-    } on BugReportSendException catch (e) {
-      if (mounted) setState(() => _error = e.message);
-    } on Object {
-      if (mounted) {
-        setState(
-          () => _error =
-              'Não consegui enviar agora (sem rede?). Tente de novo ou '
-              'gere o arquivo.',
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _busy = false);
-    }
-  }
+/// A tela, com o formulário ([BugReportFormCubit]) acima dela.
+class _BugReportView extends StatelessWidget {
+  const _BugReportView({
+    required this.doing,
+    required this.happened,
+    required this.screenshot,
+    required this.onCancel,
+  });
+
+  final TextEditingController doing;
+  final TextEditingController happened;
+  final Uint8List? screenshot;
+  final VoidCallback onCancel;
 
   @override
   Widget build(BuildContext context) {
-    final done = _done;
-    final sent = _sent;
-    final finished = done != null || sent != null;
-    return Scaffold(
-      backgroundColor: kLibraryBg,
-      body: SafeArea(
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 560),
-            child: ListView(
-              padding: const EdgeInsets.all(16),
-              children: [
-                Text('Reportar um bug', style: serifDisplay(fontSize: 24)),
-                const SizedBox(height: 4),
-                const Text(
-                  'A tela, o som e o metrônomo estão parados. Conte o que '
-                  'aconteceu; o arquivo leva também uma imagem da tela e o '
-                  'registro dos últimos exercícios.',
-                  style: TextStyle(color: kInkCaption),
-                ),
-                const SizedBox(height: 12),
-                if (!finished) ...[
-                  if (widget.screenshot != null) _screenshotPreview(),
-                  const SizedBox(height: 12),
-                  ..._questions(),
-                ],
-                const SizedBox(height: 16),
-                if (_error != null)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 12),
-                    child: Text(
-                      _error!,
-                      style: const TextStyle(color: kBadColor),
+    return BlocBuilder<BugReportFormCubit, BugReportFormState>(
+      builder: (context, form) {
+        final gerado = form.gerado;
+        final enviado = form.enviado;
+        final acabou = gerado != null || enviado != null;
+        return Scaffold(
+          backgroundColor: kLibraryBg,
+          body: SafeArea(
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 560),
+                child: ListView(
+                  padding: const EdgeInsets.all(16),
+                  children: [
+                    Text('Reportar um bug', style: serifDisplay(fontSize: 24)),
+                    const SizedBox(height: 4),
+                    const Text(
+                      'A tela, o som e o metrônomo estão parados. Conte o que '
+                      'aconteceu; o arquivo leva também uma imagem da tela e o '
+                      'registro dos últimos exercícios.',
+                      style: TextStyle(color: kInkCaption),
                     ),
-                  ),
-                if (sent != null)
-                  _Sent(receipt: sent, onClose: widget.onCancel)
-                else if (done == null)
-                  _actions()
-                else
-                  _Done(delivery: done, onClose: widget.onCancel),
-              ],
+                    const SizedBox(height: 12),
+                    if (!acabou) ...[
+                      if (screenshot != null) _screenshotPreview(),
+                      const SizedBox(height: 12),
+                      ..._questions(),
+                    ],
+                    const SizedBox(height: 16),
+                    if (form.erro != null)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: Text(
+                          form.erro!,
+                          style: const TextStyle(color: kBadColor),
+                        ),
+                      ),
+                    if (enviado != null)
+                      _Sent(receipt: enviado, onClose: onCancel)
+                    else if (gerado == null)
+                      _actions(context, form.ocupado)
+                    else
+                      _Done(delivery: gerado, onClose: onCancel),
+                  ],
+                ),
+              ),
             ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 
@@ -150,7 +143,7 @@ class _BugReportPageState extends State<BugReportPage> {
       alignment: Alignment.centerLeft,
       child: DecoratedBox(
         decoration: BoxDecoration(border: Border.all(color: kBorder)),
-        child: Image.memory(widget.screenshot!, fit: BoxFit.contain),
+        child: Image.memory(screenshot!, fit: BoxFit.contain),
       ),
     ),
   );
@@ -158,7 +151,7 @@ class _BugReportPageState extends State<BugReportPage> {
   /// As duas perguntas do relatório: o que o aluno fazia e o que aconteceu.
   List<Widget> _questions() => [
     TextField(
-      controller: _doing,
+      controller: doing,
       minLines: 2,
       maxLines: 5,
       textCapitalization: TextCapitalization.sentences,
@@ -170,7 +163,7 @@ class _BugReportPageState extends State<BugReportPage> {
     ),
     const SizedBox(height: 12),
     TextField(
-      controller: _happened,
+      controller: happened,
       minLines: 2,
       maxLines: 5,
       textCapitalization: TextCapitalization.sentences,
@@ -184,47 +177,57 @@ class _BugReportPageState extends State<BugReportPage> {
 
   /// Cancelar, gerar o arquivo e (se o aparelho envia) enviar à equipe;
   /// tudo desligado enquanto um deles roda.
-  Widget _actions() => Column(
-    crossAxisAlignment: CrossAxisAlignment.stretch,
-    children: [
-      if (widget.onSend != null) ...[
-        const Text(
-          'Enviar à equipe manda o texto acima, a imagem da tela e o '
-          'registro do app para a equipe do zywny, que o lê para consertar o '
-          'erro. Só a equipe vê. Ao apagar a conta, o que ainda não foi lido '
-          'é apagado junto.',
-          style: TextStyle(color: kInkCaption, fontSize: 13),
-        ),
-        const SizedBox(height: 12),
-      ],
-      Wrap(
-        alignment: WrapAlignment.end,
-        spacing: 8,
-        runSpacing: 8,
-        children: [
-          TextButton(
-            onPressed: _busy ? null : widget.onCancel,
-            child: const Text('Cancelar'),
+  Widget _actions(BuildContext context, bool ocupado) {
+    final form = context.read<BugReportFormCubit>();
+    final podeEnviar = form.podeEnviar;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (podeEnviar) ...[
+          const Text(
+            'Enviar à equipe manda o texto acima, a imagem da tela e o '
+            'registro do app para a equipe do zywny, que o lê para consertar o '
+            'erro. Só a equipe vê. Ao apagar a conta, o que ainda não foi lido '
+            'é apagado junto.',
+            style: TextStyle(color: kInkCaption, fontSize: 13),
           ),
-          if (widget.onSend != null)
-            OutlinedButton(
-              onPressed: _busy ? null : () => unawaited(_generate()),
-              child: Text(_busy ? 'Aguarde…' : 'Só gerar o arquivo'),
-            )
-          else
-            FilledButton(
-              onPressed: _busy ? null : () => unawaited(_generate()),
-              child: Text(_busy ? 'Gerando…' : 'Gerar relatório'),
-            ),
-          if (widget.onSend != null)
-            FilledButton(
-              onPressed: _busy ? null : () => unawaited(_sendToTeam()),
-              child: Text(_busy ? 'Enviando…' : 'Enviar à equipe'),
-            ),
+          const SizedBox(height: 12),
         ],
-      ),
-    ],
-  );
+        Wrap(
+          alignment: WrapAlignment.end,
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            TextButton(
+              onPressed: ocupado ? null : onCancel,
+              child: const Text('Cancelar'),
+            ),
+            if (podeEnviar)
+              OutlinedButton(
+                onPressed: ocupado
+                    ? null
+                    : () => unawaited(form.gerar(doing.text, happened.text)),
+                child: Text(ocupado ? 'Aguarde…' : 'Só gerar o arquivo'),
+              )
+            else
+              FilledButton(
+                onPressed: ocupado
+                    ? null
+                    : () => unawaited(form.gerar(doing.text, happened.text)),
+                child: Text(ocupado ? 'Gerando…' : 'Gerar relatório'),
+              ),
+            if (podeEnviar)
+              FilledButton(
+                onPressed: ocupado
+                    ? null
+                    : () => unawaited(form.enviar(doing.text, happened.text)),
+                child: Text(ocupado ? 'Enviando…' : 'Enviar à equipe'),
+              ),
+          ],
+        ),
+      ],
+    );
+  }
 }
 
 class _Done extends StatelessWidget {

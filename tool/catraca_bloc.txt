@@ -1,11 +1,8 @@
 lib/app/general_settings_panel.dart S=2 CN=0 VN=0 VLB=0 SW=2
 lib/audio/sound_engine_debug_panel_native.dart S=6 CN=0 VN=0 VLB=0 SW=1
 lib/auth/account_settings_section.dart S=0 CN=0 VN=0 VLB=0 SW=1 # framework: TextEditingController
-lib/auth/auth_gate.dart S=13 CN=0 VN=0 VLB=0 SW=3
-lib/auth/sign_in_screen.dart S=4 CN=0 VN=0 VLB=0 SW=1
-lib/diag/audio_recording_corner.dart S=5 CN=0 VN=0 VLB=0 SW=1
-lib/diag/bug_report_page.dart S=9 CN=0 VN=0 VLB=0 SW=1
-lib/diag/bug_report_scope.dart S=3 CN=0 VN=0 VLB=0 SW=1
+lib/diag/bug_report_page.dart S=0 CN=0 VN=0 VLB=0 SW=1 # framework: TextEditingController
+lib/diag/bug_report_scope.dart S=0 CN=0 VN=0 VLB=0 SW=1 # framework: WidgetsBindingObserver, GlobalKey, Timer dos três dedos (dono do BugReportFlowCubit por causa dos estáticos)
 lib/midi/midi_device_picker.dart S=0 CN=0 VN=4 VLB=0 SW=0
 lib/midi/midi_monitor_panel.dart S=1 CN=0 VN=0 VLB=2 SW=1
 lib/practice/count_in_overlay.dart S=0 CN=0 VN=1 VLB=1 SW=1
