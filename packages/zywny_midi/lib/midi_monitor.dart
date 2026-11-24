@@ -66,7 +66,7 @@ class MidiMonitor {
   /// chamado ao desligar a opção e ao trocar/desconectar o dispositivo
   /// (evita nota presa; docs/plano/M02-monitor-pelo-sintetizador.md).
   void allNotesOff() {
-    for (final pitch in _input.held.value) {
+    for (final pitch in _input.held.state) {
       _engine.send([
         0x80 | kMidiMonitorChannel,
         _sounding.remove(pitch) ?? pitchOf(pitch),

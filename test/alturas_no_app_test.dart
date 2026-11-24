@@ -57,14 +57,14 @@ class _Input implements MidiInputService {
       StreamController<PlayedNote>.broadcast();
   final StreamController<SustainChange> _sustain =
       StreamController<SustainChange>.broadcast();
-  final ValueNotifier<Set<int>> _held = ValueNotifier(const {});
+  final HeldKeysCubit _held = HeldKeysCubit();
 
   @override
   Stream<PlayedNote> get notes => _notes.stream;
   @override
   Stream<SustainChange> get sustain => _sustain.stream;
   @override
-  ValueListenable<Set<int>> get held => _held;
+  HeldKeysCubit get held => _held;
 
   void note(int pitch, {required bool on, double atSeconds = 0}) => _notes.add(
     PlayedNote(
@@ -80,7 +80,7 @@ class _Input implements MidiInputService {
   void dispose() {
     unawaited(_notes.close());
     unawaited(_sustain.close());
-    _held.dispose();
+    unawaited(_held.close());
   }
 }
 

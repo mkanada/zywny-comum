@@ -28,10 +28,10 @@ class MidiDevicePickerButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ListenableBuilder(
-      listenable: deviceManager.connected,
-      builder: (context, _) {
-        final device = deviceManager.connected.value;
+    return BlocSelector<MidiDeviceManager, MidiDeviceState, MidiDevice?>(
+      bloc: deviceManager,
+      selector: (state) => state.connected,
+      builder: (context, device) {
         return IconButton(
           tooltip: device == null
               ? 'Conectar teclado MIDI'
@@ -58,10 +58,10 @@ class MidiStatusPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ListenableBuilder(
-      listenable: deviceManager.connected,
-      builder: (context, _) {
-        final device = deviceManager.connected.value;
+    return BlocSelector<MidiDeviceManager, MidiDeviceState, MidiDevice?>(
+      bloc: deviceManager,
+      selector: (state) => state.connected,
+      builder: (context, device) {
         final connected = device != null;
         return Tooltip(
           message: connected
@@ -160,14 +160,8 @@ Future<void> showMidiDevicePicker(
         title: const Text('Teclado MIDI'),
         content: SizedBox(
           width: 360,
-          child: ListenableBuilder(
-            listenable: Listenable.merge([
-              deviceManager.devices,
-              deviceManager.connected,
-              deviceManager.lastError,
-              deviceManager.unavailable,
-              deviceManager.bluetoothNote,
-            ]),
+          child: BlocBuilder<MidiDeviceManager, MidiDeviceState>(
+            bloc: deviceManager,
             builder: (context, _) => _pickerBody(
               context,
               deviceManager,
@@ -188,9 +182,9 @@ Widget _pickerBody(
   MidiDeviceManager deviceManager,
   Future<void> Function() search,
 ) {
-  final devices = deviceManager.devices.value;
-  final connected = deviceManager.connected.value;
-  final error = deviceManager.lastError.value;
+  final devices = deviceManager.state.devices;
+  final connected = deviceManager.state.connected;
+  final error = deviceManager.state.lastError;
   return Column(
     mainAxisSize: MainAxisSize.min,
     crossAxisAlignment: CrossAxisAlignment.start,
@@ -223,8 +217,8 @@ Widget _noDevices(
   MidiDeviceManager deviceManager,
   Future<void> Function() search,
 ) {
-  final bluetoothNote = deviceManager.bluetoothNote.value;
-  final unavailable = deviceManager.unavailable.value;
+  final bluetoothNote = deviceManager.state.bluetoothNote;
+  final unavailable = deviceManager.state.unavailable;
   final unavailableText = unavailable == null
       ? null
       : midiUnavailableText(unavailable);
@@ -288,7 +282,7 @@ List<Widget> _pickerActions(
 ) => [
   if (onCalibrate != null)
     TextButton(
-      onPressed: deviceManager.connected.value == null
+      onPressed: deviceManager.state.connected == null
           ? null
           : () {
               Navigator.of(context).pop();

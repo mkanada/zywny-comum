@@ -57,7 +57,7 @@ void main() {
     await pumpEventQueue();
   });
 
-  tearDown(() => manager.dispose());
+  tearDown(() => manager.close());
 
   Future<void> openPicker(WidgetTester tester) async {
     await tester.pumpWidget(
@@ -145,14 +145,14 @@ void main() {
     midi.list = [_usb('1', 'Teclado digital')];
     await manager.refresh();
     await pumpEventQueueForTest(tester);
-    expect(manager.connected.value, isNotNull);
+    expect(manager.state.connected, isNotNull);
     await openPicker(tester);
     expect(find.text('Conectado · USB'), findsOneWidget);
     expect(find.text('Desconectar'), findsOneWidget);
     expect(find.text('native'), findsNothing);
     await tester.tap(find.text('Desconectar'));
     await tester.pumpAndSettle();
-    expect(manager.connected.value, isNull);
+    expect(manager.state.connected, isNull);
     expect(find.text('Toque para conectar · USB'), findsOneWidget);
   });
 

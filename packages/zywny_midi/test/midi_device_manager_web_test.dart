@@ -67,29 +67,29 @@ void _parte1() {
     _midi = _WebFakeMidi();
   });
   tearDown(() {
-    manager?.dispose();
+    unawaited(manager?.close());
     unawaited(_midi.setup.close());
   });
   test('sem permissão ainda: não toca no plugin e espera o clique', () async {
     final m = create();
     await pumpEventQueue();
-    expect(m.unavailable.value, MidiUnavailable.notAsked);
+    expect(m.state.unavailable, MidiUnavailable.notAsked);
     expect(_midi.deviceReads, 0);
     expect(_midi.setupListens, 0);
 
     _midi.list = [MidiDevice('a', 'Piano', MidiDeviceType.serial, false)];
     await m.refresh();
-    expect(m.unavailable.value, isNull);
-    expect(m.devices.value, hasLength(1));
-    expect(m.connected.value?.id, 'a');
+    expect(m.state.unavailable, isNull);
+    expect(m.state.devices, hasLength(1));
+    expect(m.state.connected?.id, 'a');
     expect(_midi.setupListens, 1);
   });
   test('permissão já dada: lista na abertura, sem esperar clique', () async {
     _midi.list = [MidiDevice('a', 'Piano', MidiDeviceType.serial, false)];
     final m = create(granted: true);
     await pumpEventQueue();
-    expect(m.unavailable.value, isNull);
-    expect(m.connected.value?.id, 'a');
+    expect(m.state.unavailable, isNull);
+    expect(m.state.connected?.id, 'a');
   });
 }
 
@@ -97,7 +97,7 @@ void _parte2() {
   test('navegador sem Web MIDI: avisa e nunca toca no plugin', () async {
     final m = create(supported: false);
     await pumpEventQueue();
-    expect(m.unavailable.value, MidiUnavailable.unsupported);
+    expect(m.state.unavailable, MidiUnavailable.unsupported);
     expect(_midi.deviceReads, 0);
   });
   test('UnsupportedError do plugin vira "sem suporte"', () async {
@@ -105,7 +105,7 @@ void _parte2() {
     await pumpEventQueue();
     _midi.failWith = UnsupportedError('Web MIDI API is unavailable');
     await m.refresh();
-    expect(m.unavailable.value, MidiUnavailable.unsupported);
+    expect(m.state.unavailable, MidiUnavailable.unsupported);
   });
   test(
     'acesso recusado vira "negado" e o clique seguinte tenta de novo',
@@ -114,14 +114,14 @@ void _parte2() {
       await pumpEventQueue();
       _midi.failWith = StateError('SecurityError');
       await m.refresh();
-      expect(m.unavailable.value, MidiUnavailable.denied);
-      expect(m.devices.value, isEmpty);
+      expect(m.state.unavailable, MidiUnavailable.denied);
+      expect(m.state.devices, isEmpty);
 
       _midi.failWith = null;
       _midi.list = [MidiDevice('a', 'Piano', MidiDeviceType.serial, false)];
       await m.refresh();
-      expect(m.unavailable.value, isNull);
-      expect(m.devices.value, hasLength(1));
+      expect(m.state.unavailable, isNull);
+      expect(m.state.devices, hasLength(1));
     },
   );
 }

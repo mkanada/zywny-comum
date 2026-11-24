@@ -18,7 +18,7 @@ Future<double> calibratedInputLatency(
   MidiDeviceManager devices,
   SoundOutput output,
 ) async {
-  final device = devices.connected.value;
+  final device = devices.state.connected;
   if (device == null) return 0;
   return await devices.inputLatencyMs(device.id, soundOutputKey(output)) ?? 0;
 }

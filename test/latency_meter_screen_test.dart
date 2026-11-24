@@ -42,7 +42,7 @@ void main() {
     );
   });
 
-  tearDown(() => manager.dispose());
+  tearDown(() => manager.close());
 
   Future<void> pumpScreen(
     WidgetTester tester,
@@ -134,7 +134,7 @@ void main() {
     await tester.pump();
     expect(find.text('Latência do som'), findsNothing);
 
-    manager.connected.value = _piano();
+    manager.simularConectado(_piano());
     await manager.setSoundLatency('kb-1', 41.6, corrected: true);
     await tester.pumpAndSettle();
     expect(find.text('Latência do som'), findsOneWidget);

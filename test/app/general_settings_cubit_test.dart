@@ -170,7 +170,7 @@ void main() {
       );
     });
 
-    tearDown(() => manager.dispose());
+    tearDown(() => manager.close());
 
     test('sem medida guardada, a linha fica sem valor', () async {
       final cubit = LatencyTileCubit(devices: manager, deviceId: 'kb-1');

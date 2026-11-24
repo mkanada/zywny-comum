@@ -6,13 +6,14 @@ import 'package:flutter/widgets.dart'
 import 'package:flutter_midi_command/flutter_midi_command.dart';
 import 'package:flutter_midi_command_ble/flutter_midi_command_ble.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:zywny_bloc/zywny_bloc.dart';
 
 import 'package:zywny_diag/diag_log.dart';
 
 import 'web_midi_access.dart';
 
 /// Por que a lista de teclados não existe (só na Web, W03): `null` em
-/// [MidiDeviceManager.unavailable] quer dizer que o MIDI está acessível.
+/// [MidiDeviceState.unavailable] quer dizer que o MIDI está acessível.
 enum MidiUnavailable {
   /// O navegador não tem Web MIDI (Safari, iOS, Firefox sem add-on).
   unsupported,
@@ -25,10 +26,68 @@ enum MidiUnavailable {
   denied,
 }
 
+/// O que o [MidiDeviceManager] sabe dos teclados, para quem desenha: a lista,
+/// o teclado conectado, o último erro, o motivo de a lista não existir e a
+/// nota da busca pelo Bluetooth.
+class MidiDeviceState extends Equatable {
+  const MidiDeviceState({
+    this.devices = const [],
+    this.connected,
+    this.lastError,
+    this.unavailable,
+    this.bluetoothNote,
+  });
+
+  /// Os dispositivos MIDI vistos agora.
+  final List<MidiDevice> devices;
+
+  /// O teclado conectado; `null` se nenhum.
+  final MidiDevice? connected;
+
+  /// O texto do último erro de conectar; `null` se não houve.
+  final String? lastError;
+
+  /// Por que a lista não existe (só na Web, W03); `null` com o MIDI acessível.
+  final MidiUnavailable? unavailable;
+
+  /// Por que a busca pelo Bluetooth não pôde começar (desligado, sem
+  /// permissão...); `null` quando está tudo certo.
+  final String? bluetoothNote;
+
+  /// Os campos anuláveis trocam por uma função: `connected: () => null` põe
+  /// `null`; sem o argumento, o valor fica como está.
+  MidiDeviceState copyWith({
+    List<MidiDevice>? devices,
+    MidiDevice? Function()? connected,
+    String? Function()? lastError,
+    MidiUnavailable? Function()? unavailable,
+    String? Function()? bluetoothNote,
+  }) => MidiDeviceState(
+    devices: devices ?? this.devices,
+    connected: connected == null ? this.connected : connected(),
+    lastError: lastError == null ? this.lastError : lastError(),
+    unavailable: unavailable == null ? this.unavailable : unavailable(),
+    bluetoothNote: bluetoothNote == null ? this.bluetoothNote : bluetoothNote(),
+  );
+
+  @override
+  List<Object?> get props => [
+    devices,
+    connected,
+    lastError,
+    unavailable,
+    bluetoothNote,
+  ];
+}
+
 /// Lista dispositivos MIDI, conecta, guarda o último escolhido e conecta
 /// sozinho — na abertura do app e a cada hot-plug (M01, critério de aceite
 /// 1): plugou o fio, o teclado entra, sem passar pela configuração. Não decodifica mensagens: isso é `MidiInputService`.
-class MidiDeviceManager {
+///
+/// É um Cubit: o estado (a lista, o conectado, os erros) é [MidiDeviceState];
+/// quem lê o teclado conectado usa `state.connected`, e quem reage a ele, um
+/// `BlocSelector` ou o `stream`.
+class MidiDeviceManager extends Cubit<MidiDeviceState> {
   /// [isWeb], [webSupported] e [webGranted] existem para testar o caminho da
   /// Web fora do navegador; o padrão é o ambiente de verdade.
   ///
@@ -48,7 +107,8 @@ class MidiDeviceManager {
        _prefs = prefs ?? SharedPreferencesAsync(),
        _isWeb = isWeb,
        _bluetooth = bluetooth, // ignore: prefer_initializing_formals
-       _newBleTransport = newBleTransport ?? _defaultBleTransport {
+       _newBleTransport = newBleTransport ?? _defaultBleTransport,
+       super(const MidiDeviceState()) {
     if (!isWeb) {
       _listenSetup();
       unawaited(refresh());
@@ -67,10 +127,6 @@ class MidiDeviceManager {
   /// Se a busca pelo Bluetooth existe nesta plataforma ([searchBluetooth]).
   bool get bluetooth => _bluetooth;
 
-  /// Por que a busca pelo Bluetooth não pôde começar (desligado, sem
-  /// permissão...); `null` quando está tudo certo.
-  final ValueNotifier<String?> bluetoothNote = ValueNotifier(null);
-
   /// Fim da janela de [searchBluetooth]; `null` quando não está procurando.
   Completer<void>? _searchStop;
 
@@ -87,21 +143,18 @@ class MidiDeviceManager {
 
   final MidiBleTransport Function() _newBleTransport;
 
-  /// `null` com o MIDI acessível; senão o motivo (Web, W03).
-  final ValueNotifier<MidiUnavailable?> unavailable = ValueNotifier(null);
-
   Future<void> _startWeb(
     bool Function() supported,
     Future<bool> Function()? granted,
   ) async {
     if (!supported()) {
-      unavailable.value = MidiUnavailable.unsupported;
+      emit(state.copyWith(unavailable: () => MidiUnavailable.unsupported));
       return;
     }
     if (await (granted ?? webMidiGranted)()) {
       await refresh();
     } else if (!_disposed) {
-      unavailable.value = MidiUnavailable.notAsked;
+      emit(state.copyWith(unavailable: () => MidiUnavailable.notAsked));
     }
   }
 
@@ -118,10 +171,6 @@ class MidiDeviceManager {
   final MidiCommand _midi;
   final SharedPreferencesAsync _prefs;
   StreamSubscription<MidiSetupChange>? _setupSub;
-
-  final ValueNotifier<List<MidiDevice>> devices = ValueNotifier(const []);
-  final ValueNotifier<MidiDevice?> connected = ValueNotifier(null);
-  final ValueNotifier<String?> lastError = ValueNotifier(null);
 
   /// Relista os dispositivos e, se nada estiver conectado, conecta sozinho
   /// (ver [_autoConnectCandidate]). Chamado na abertura do serviço e a cada
@@ -160,31 +209,30 @@ class MidiDeviceManager {
       // Web: sem Web MIDI (UnsupportedError do plugin) ou acesso recusado.
       DiagLog.log('midi-dev', 'Web MIDI indisponível: $e');
       if (_disposed) return;
-      unavailable.value = e is UnsupportedError
+      final motivo = e is UnsupportedError
           ? MidiUnavailable.unsupported
           : MidiUnavailable.denied;
-      devices.value = const [];
+      emit(state.copyWith(unavailable: () => motivo, devices: const []));
       return;
     }
     if (_disposed) return;
-    unavailable.value = null;
+    emit(state.copyWith(unavailable: () => null, devices: list));
     if (_isWeb) _listenSetup();
-    devices.value = list;
     DiagLog.log(
       'midi-dev',
       'dispositivos (${list.length}): ${[for (final d in list) '${d.name} id=${d.id} tipo=${d.type} conectado=${d.connected} '
             'in=${d.inputPorts.length} out=${d.outputPorts.length}'].join(' | ')}',
     );
 
-    final current = connected.value;
+    final current = state.connected;
     if (current != null && !list.any((d) => d.id == current.id)) {
-      connected.value = null;
+      emit(state.copyWith(connected: () => null));
     }
     if (_pausedName != null && !list.any((d) => d.name == _pausedName)) {
       _pausedName = null;
     }
 
-    if (connected.value != null || _bleReleased) return;
+    if (state.connected != null || _bleReleased) return;
     final match = await _autoConnectCandidate(list);
     if (_disposed || match == null) return;
     await connect(match);
@@ -224,24 +272,23 @@ class MidiDeviceManager {
       DiagLog.log('midi-dev', 'conectado a ${device.name}');
       _pausedName = null;
       _bleReleased = false;
-      connected.value = device;
-      lastError.value = null;
+      emit(state.copyWith(connected: () => device, lastError: () => null));
       if (device.type == MidiDeviceType.ble) _watchLifecycle();
       await _prefs.setString(_kLastDeviceIdKey, device.id);
       await _prefs.setString(_kLastDeviceNameKey, device.name);
     } on MidiConnectionException catch (e) {
       DiagLog.log('midi-dev', 'falha ao conectar: $e');
-      lastError.value = e.toString();
+      if (!_disposed) emit(state.copyWith(lastError: () => e.toString()));
     }
   }
 
   void disconnect() {
-    final device = connected.value;
+    final device = state.connected;
     if (device == null) return;
     DiagLog.log('midi-dev', 'desconectando ${device.name}');
     _midi.disconnectDevice(device);
     _pausedName = device.name;
-    connected.value = null;
+    if (!_disposed) emit(state.copyWith(connected: () => null));
   }
 
   AppLifecycleListener? _lifecycle;
@@ -264,8 +311,8 @@ class MidiDeviceManager {
   /// de novo e reconectado sozinho. `inactive` (diálogo de permissão, painel
   /// do sistema) não solta nada; USB também não: o sistema já o isola.
   @visibleForTesting
-  void onLifecycleChanged(AppLifecycleState state) {
-    switch (state) {
+  void onLifecycleChanged(AppLifecycleState estado) {
+    switch (estado) {
       case AppLifecycleState.hidden:
       case AppLifecycleState.paused:
       case AppLifecycleState.detached:
@@ -278,14 +325,14 @@ class MidiDeviceManager {
   }
 
   void _releaseBle() {
-    final device = connected.value;
+    final device = state.connected;
     if (_disposed || device == null || device.type != MidiDeviceType.ble) {
       return;
     }
     DiagLog.log('midi-dev', 'segundo plano: soltando ${device.name}');
     _bleReleased = true;
     _midi.disconnectDevice(device);
-    connected.value = null;
+    emit(state.copyWith(connected: () => null));
   }
 
   void _resumeBle() {
@@ -297,18 +344,17 @@ class MidiDeviceManager {
   Future<void> _reconnectBle() async {
     _bleReleased = false;
     await refresh();
-    if (_disposed || connected.value != null || !_bluetooth) return;
+    if (_disposed || state.connected != null || !_bluetooth) return;
     // Solto o teclado, o plugin o esquece: só volta à lista ao ser visto de
-    // novo pela busca. A busca para assim que ele conecta.
-    void stopWhenConnected() {
-      if (connected.value != null) stopBluetoothSearch();
-    }
-
-    connected.addListener(stopWhenConnected);
+    // novo pela busca. A busca para assim que ele conecta (o stream do estado
+    // avisa; a busca já está correndo quando a escuta começa).
+    final parar = stream.listen((estado) {
+      if (estado.connected != null) stopBluetoothSearch();
+    });
     try {
       await searchBluetooth(window: const Duration(seconds: 15));
     } finally {
-      if (!_disposed) connected.removeListener(stopWhenConnected);
+      unawaited(parar.cancel());
     }
   }
 
@@ -321,7 +367,7 @@ class MidiDeviceManager {
   }) async {
     if (!_bluetooth || _disposed || _searchStop != null) return;
     final stop = _searchStop = Completer<void>();
-    bluetoothNote.value = null;
+    emit(state.copyWith(bluetoothNote: () => null));
     try {
       _startBle();
       await _midi.startBluetooth();
@@ -329,17 +375,21 @@ class MidiDeviceManager {
         const Duration(seconds: 5),
         onTimeout: () {},
       );
-      final state = _midi.bluetoothState;
+      final radio = _midi.bluetoothState;
       if (_disposed) return;
-      bluetoothNote.value = _bluetoothNote(state);
-      if (state == BluetoothState.poweredOn) {
+      emit(state.copyWith(bluetoothNote: () => _bluetoothNote(radio)));
+      if (radio == BluetoothState.poweredOn) {
         await _midi.startScanningForBluetoothDevices();
         await stop.future.timeout(window, onTimeout: () {});
       }
     } on Object catch (e) {
       DiagLog.log('midi-dev', 'busca pelo Bluetooth falhou: $e');
       if (!_disposed) {
-        bluetoothNote.value = 'Não deu para procurar pelo Bluetooth. $e';
+        emit(
+          state.copyWith(
+            bluetoothNote: () => 'Não deu para procurar pelo Bluetooth. $e',
+          ),
+        );
       }
     } finally {
       _searchStop = null;
@@ -371,9 +421,9 @@ class MidiDeviceManager {
   /// sobrevive a um replugue no Android (ver [_autoConnectCandidate]). Sem
   /// o dispositivo na lista, o próprio id.
   String _deviceKey(String deviceId) {
-    final current = connected.value;
+    final current = state.connected;
     if (current != null && current.id == deviceId) return current.name;
-    for (final d in devices.value) {
+    for (final d in state.devices) {
       if (d.id == deviceId) return d.name;
     }
     return deviceId;
@@ -425,17 +475,19 @@ class MidiDeviceManager {
     await _prefs.setBool('${key}_corrected', corrected);
   }
 
-  void dispose() {
+  /// Só para os testes (dos pacotes e dos apps): põe [device] como o teclado
+  /// conectado, ou nenhum, sem passar pelo plugin. Não grava nada.
+  void simularConectado(MidiDevice? device) =>
+      emit(state.copyWith(connected: () => device));
+
+  @override
+  Future<void> close() {
     _disposed = true;
     _lifecycle?.dispose();
     stopBluetoothSearch();
     unawaited(_setupSub?.cancel());
     unawaited(_transportInstalled.close());
-    devices.dispose();
-    connected.dispose();
-    lastError.dispose();
-    unavailable.dispose();
-    bluetoothNote.dispose();
+    return super.close();
   }
 }
 

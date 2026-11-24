@@ -2,7 +2,6 @@
 // notas, as notas que chegam na frente e a escuta que para quando o painel sai.
 import 'dart:async';
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_midi_command/flutter_midi_command.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -29,7 +28,7 @@ class _SemTeclado implements MidiCommand {
 class _EntradaFalsa implements MidiInputService {
   final StreamController<PlayedNote> notas =
       StreamController<PlayedNote>.broadcast(sync: true);
-  final ValueNotifier<Set<int>> apertadas = ValueNotifier<Set<int>>(const {});
+  final HeldKeysCubit apertadas = HeldKeysCubit();
 
   @override
   Stream<PlayedNote> get notes => notas.stream;
@@ -38,7 +37,7 @@ class _EntradaFalsa implements MidiInputService {
   Stream<SustainChange> get sustain => const Stream.empty();
 
   @override
-  ValueListenable<Set<int>> get held => apertadas;
+  HeldKeysCubit get held => apertadas;
 
   @override
   void dispose() {}
@@ -61,7 +60,7 @@ void main() {
 
   tearDown(() async {
     await entrada.notas.close();
-    manager.dispose();
+    unawaited(manager.close());
   });
 
   Future<void> abrirPainel(WidgetTester tester) => tester.pumpWidget(

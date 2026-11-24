@@ -187,16 +187,21 @@ class GeneralSettingsPanel extends StatelessWidget {
           Expanded(
             child: BlocBuilder<SettingsCubit, SettingsState>(
               bloc: settings,
-              builder: (context, _) => ListenableBuilder(
-                listenable: midiDeviceManager.connected,
-                builder: (context, _) => ListView(children: _rows(context)),
-              ),
+              builder: (context, _) => _lista(context),
             ),
           ),
         ],
       ),
     );
   }
+
+  /// A lista de ajustes; refaz-se quando o teclado conectado muda (o MIDI).
+  Widget _lista(BuildContext context) =>
+      BlocSelector<MidiDeviceManager, MidiDeviceState, MidiDevice?>(
+        bloc: midiDeviceManager,
+        selector: (state) => state.connected,
+        builder: (context, _) => ListView(children: _rows(context)),
+      );
 
   List<Widget> _rows(BuildContext context) => [
     if (authStore != null) AccountSettingsSection(store: authStore!),
@@ -293,7 +298,7 @@ class GeneralSettingsPanel extends StatelessWidget {
   /// O teclado MIDI: o aparelho e o medidor de latência; com um teclado
   /// conectado, também o monitor e o atraso.
   List<Widget> _midiRows(BuildContext context) {
-    final device = midiDeviceManager.connected.value;
+    final device = midiDeviceManager.state.connected;
     return [
       const _Header('Teclado MIDI'),
       ListTile(
@@ -320,7 +325,7 @@ class GeneralSettingsPanel extends StatelessWidget {
     final live = this.live;
     if (live == null) return const [];
     final busy = live.busy;
-    final device = midiDeviceManager.connected.value;
+    final device = midiDeviceManager.state.connected;
     return [
       SwitchListTile(
         dense: true,

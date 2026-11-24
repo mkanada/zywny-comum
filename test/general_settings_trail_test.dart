@@ -45,7 +45,7 @@ void main() {
       midi: _NoDevicesMidi(),
       prefs: SharedPreferencesAsync(),
     );
-    addTearDown(manager.dispose);
+    addTearDown(manager.close);
     await tester.pumpWidget(
       MaterialApp(
         theme: buildAppTheme(),

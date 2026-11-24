@@ -4,6 +4,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_midi_command/flutter_midi_command.dart';
 import 'package:flutter_midi_command/flutter_midi_command_messages.dart';
+import 'package:zywny_bloc/zywny_bloc.dart';
 
 import 'package:zywny_diag/diag_log.dart';
 
@@ -58,10 +59,25 @@ abstract class MidiInputService {
   /// CC64 (pedal de sustain), com o valor cru 0..127 e a hora.
   Stream<SustainChange> get sustain;
 
-  /// Pitches apertados agora, para o teclado desenhado do monitor.
-  ValueListenable<Set<int>> get held;
+  /// Pitches apertados agora. Quem decide algo com as teclas lê `held.state`
+  /// na hora (síncrono); o `stream` só serve para desenhar (o teclado do
+  /// monitor, as teclas erradas).
+  StateStreamable<Set<int>> get held;
 
   void dispose();
+}
+
+/// As teclas apertadas agora: o `held` de [FlutterMidiInputService] e do
+/// aluno virtual. O `state` é lido na hora; cada troca põe um `Set` novo (o
+/// estado nunca é mutado), e o `emit` sempre avisa.
+class HeldKeysCubit extends Cubit<Set<int>> {
+  HeldKeysCubit() : super(const <int>{});
+
+  /// A tecla [pitch] foi apertada.
+  void apertou(int pitch) => emit(Set<int>.of(state)..add(pitch));
+
+  /// A tecla [pitch] foi solta.
+  void soltou(int pitch) => emit(Set<int>.of(state)..remove(pitch));
 }
 
 /// Implementação sobre `flutter_midi_command` (D-MIDI). Converte
@@ -106,7 +122,7 @@ class FlutterMidiInputService implements MidiInputService {
       StreamController<PlayedNote>.broadcast();
   final StreamController<SustainChange> _sustain =
       StreamController<SustainChange>.broadcast();
-  final ValueNotifier<Set<int>> _held = ValueNotifier(const <int>{});
+  final HeldKeysCubit _held = HeldKeysCubit();
 
   @override
   Stream<PlayedNote> get notes => _notes.stream;
@@ -115,7 +131,7 @@ class FlutterMidiInputService implements MidiInputService {
   Stream<SustainChange> get sustain => _sustain.stream;
 
   @override
-  ValueListenable<Set<int>> get held => _held;
+  StateStreamable<Set<int>> get held => _held;
 
   void _onEvent(MidiDataReceivedEvent event) {
     final at = _nowSeconds();
@@ -165,14 +181,15 @@ class FlutterMidiInputService implements MidiInputService {
   }
 
   void _emitNote(PlayedNote note) {
-    _notes.add(note);
-    final next = Set<int>.of(_held.value);
+    // O `held` muda na hora, antes de a nota sair: o stream de `notes` entrega
+    // depois (é assíncrono), então quem lê `held.state` num ouvinte de `notes`
+    // já vê a tecla da nota.
     if (note.on) {
-      next.add(note.pitch);
+      _held.apertou(note.pitch);
     } else {
-      next.remove(note.pitch);
+      _held.soltou(note.pitch);
     }
-    _held.value = next;
+    _notes.add(note);
   }
 
   @override
@@ -181,6 +198,6 @@ class FlutterMidiInputService implements MidiInputService {
     unawaited(_sub?.cancel());
     unawaited(_notes.close());
     unawaited(_sustain.close());
-    _held.dispose();
+    unawaited(_held.close());
   }
 }

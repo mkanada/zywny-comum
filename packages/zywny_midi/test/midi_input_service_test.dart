@@ -35,15 +35,15 @@ void _parte1() {
     expect(note.channel, 2);
     expect(note.on, isTrue);
     expect(note.atSeconds, 1.5);
-    expect(service.held.value, {60});
+    expect(service.held.state, {60});
     service.dispose();
   });
   test('Note Off remove de held', () async {
     final service = _service();
     service.handleMessage(NoteOnMessage(note: 60, velocity: 100), atSeconds: 0);
-    expect(service.held.value, {60});
+    expect(service.held.state, {60});
     service.handleMessage(NoteOffMessage(note: 60, velocity: 0), atSeconds: 1);
-    expect(service.held.value, isEmpty);
+    expect(service.held.state, isEmpty);
     service.dispose();
   });
 }
@@ -57,7 +57,7 @@ void _parte2() {
     service.handleMessage(NoteOnMessage(note: 60, velocity: 0), atSeconds: 0);
     final note = await future;
     expect(note.on, isFalse);
-    expect(service.held.value, isEmpty);
+    expect(service.held.state, isEmpty);
     service.dispose();
   });
   test('CC64 publica em sustain; outros CCs são ignorados', () async {
@@ -77,7 +77,7 @@ void _parte2() {
 
     expect(sustainValues.map((c) => c.value), [127]);
     expect(sustainValues.single.atSeconds, 1.5);
-    expect(service.held.value, isEmpty);
+    expect(service.held.state, isEmpty);
     await sub.cancel();
     service.dispose();
   });
@@ -88,9 +88,24 @@ void _parte3() {
     final service = _service();
     service.handleMessage(NoteOnMessage(note: 60, velocity: 100), atSeconds: 0);
     service.handleMessage(NoteOnMessage(note: 64, velocity: 90), atSeconds: 0);
-    expect(service.held.value, {60, 64});
+    expect(service.held.state, {60, 64});
     service.handleMessage(NoteOffMessage(note: 60, velocity: 0), atSeconds: 0);
-    expect(service.held.value, {64});
+    expect(service.held.state, {64});
+    service.dispose();
+  });
+  test('quem ouve `notes` já vê `held.state` com a tecla da nota', () async {
+    final service = _service();
+    final vistas = <Set<int>>[];
+    final sub = service.notes.listen((_) => vistas.add(service.held.state));
+    service.handleMessage(NoteOnMessage(note: 60, velocity: 100), atSeconds: 0);
+    await pumpEventQueue();
+    service.handleMessage(NoteOffMessage(note: 60, velocity: 0), atSeconds: 1);
+    await pumpEventQueue();
+    expect(vistas, [
+      {60},
+      isEmpty,
+    ]);
+    await sub.cancel();
     service.dispose();
   });
 }

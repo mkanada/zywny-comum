@@ -689,9 +689,9 @@ class _KeyboardHint extends StatelessWidget {
             borderRadius: BorderRadius.circular(8),
           ),
           clipBehavior: Clip.antiAlias,
-          child: ValueListenableBuilder<Set<int>>(
-            valueListenable: input.held,
-            builder: (context, held, _) => CustomPaint(
+          child: BlocBuilder<StateStreamable<Set<int>>, Set<int>>(
+            bloc: input.held,
+            builder: (context, held) => CustomPaint(
               size: Size(width, 88),
               painter: PianoKeyboardPainter(
                 held: held,

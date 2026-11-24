@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_midi_command/flutter_midi_command.dart';
 import 'package:zywny_bloc/zywny_bloc.dart';
 
 import 'package:zywny_midi/midi_device_manager.dart';
@@ -100,10 +101,10 @@ class MidiMonitorPanel extends StatelessWidget {
     final theme = Theme.of(context);
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      child: ListenableBuilder(
-        listenable: deviceManager.connected,
-        builder: (context, _) {
-          final device = deviceManager.connected.value;
+      child: BlocSelector<MidiDeviceManager, MidiDeviceState, MidiDevice?>(
+        bloc: deviceManager,
+        selector: (state) => state.connected,
+        builder: (context, device) {
           return Text(
             device == null
                 ? 'nenhum dispositivo conectado'
@@ -122,29 +123,30 @@ class MidiMonitorPanel extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 8),
       child: LayoutBuilder(
-        builder: (context, constraints) => ValueListenableBuilder<Set<int>>(
-          valueListenable: input.held,
-          builder: (context, received, _) {
-            final convert = heldPitchOf;
-            final held = convert == null
-                ? received
-                : {for (final p in received) convert(p)};
-            Widget paint(Set<int> wrongPitches) => CustomPaint(
-              size: Size(constraints.maxWidth, 64),
-              painter: PianoKeyboardPainter(
-                held: held,
-                heldColor: theme.colorScheme.primary,
-                wrong: wrongPitches,
-              ),
-            );
-            final erradas = wrong;
-            if (erradas == null) return paint(const {});
-            return ValueListenableBuilder<Set<int>>(
-              valueListenable: erradas,
-              builder: (context, wrongPitches, _) => paint(wrongPitches),
-            );
-          },
-        ),
+        builder: (context, constraints) =>
+            BlocBuilder<StateStreamable<Set<int>>, Set<int>>(
+              bloc: input.held,
+              builder: (context, received) {
+                final convert = heldPitchOf;
+                final held = convert == null
+                    ? received
+                    : {for (final p in received) convert(p)};
+                Widget paint(Set<int> wrongPitches) => CustomPaint(
+                  size: Size(constraints.maxWidth, 64),
+                  painter: PianoKeyboardPainter(
+                    held: held,
+                    heldColor: theme.colorScheme.primary,
+                    wrong: wrongPitches,
+                  ),
+                );
+                final erradas = wrong;
+                if (erradas == null) return paint(const {});
+                return ValueListenableBuilder<Set<int>>(
+                  valueListenable: erradas,
+                  builder: (context, wrongPitches, _) => paint(wrongPitches),
+                );
+              },
+            ),
       ),
     );
   }
