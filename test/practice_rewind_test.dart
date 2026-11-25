@@ -1,4 +1,4 @@
-// LP24.2 / LP25 — A volta na hora no `PracticeController`: o compasso que acaba
+// LP24.2 / LP25 — A volta na hora no `PracticeCubit`: o compasso que acaba
 // com erro não segue; ele repete numa escada de degraus (só notas, depois os
 // andamentos até o da etapa), com aviso de "Errou" e de "Acertou" e contagem de
 // um compasso antes de cada degrau que sobe. Mesmo arranjo de
@@ -61,7 +61,7 @@ class _Rig {
     scoreController = ScoreCubit(document: doc);
     final measures = timeline.measures;
     final skip = skipMeasure;
-    practice = PracticeController(
+    practice = PracticeCubit(
       midiInput: midi,
       track: track,
       scheduler: scheduler,
@@ -125,7 +125,7 @@ class _Rig {
   late final ScoreTimeline timeline;
   late final ScoreAudioScheduler scheduler;
   late final ScoreCubit scoreController;
-  late final PracticeController practice;
+  late final PracticeCubit practice;
   int dones = 0;
 
   /// Cada volta da escada (o aviso que segura a música no começo do compasso),
@@ -140,7 +140,7 @@ class _Rig {
   final List<({double at, int pitch, double musical})> noteOns = [];
 
   /// O estado da escada na tela.
-  RepeatStatus? get status => practice.repeat.value;
+  RepeatStatus? get status => practice.state.repeat;
 
   /// Deixa o aviso acabar e o degrau começar. O aviso não acaba sozinho (o
   /// tempo dele é de horas): só aqui, quando o teste quer.
@@ -180,7 +180,7 @@ class _Rig {
   }
 
   void dispose() {
-    practice.dispose();
+    unawaited(practice.close());
     scoreController.clearAll();
     scoreController.close();
     midi.dispose();
@@ -244,7 +244,7 @@ class _Rig {
   /// Modo espera: toca o passo pendente; [wrongFirst] aperta e solta uma
   /// tecla errada antes.
   Future<void> playStep({bool wrongFirst = false}) async {
-    final step = practice.currentStep.value!;
+    final step = practice.currentStep.state!;
     advanceTo(step.onMs);
     if (wrongFirst) {
       midi.press(20, atSeconds: engine.now);
@@ -263,7 +263,7 @@ class _Rig {
   }
 
   int measureOfStep() =>
-      timeline.measureIndexAt(practice.currentStep.value!.onMs);
+      timeline.measureIndexAt(practice.currentStep.state!.onMs);
 
   /// Modo espera: toca os passos do compasso pendente até ele acabar (ou
   /// voltar); [wrongAt] erra o passo de índice dado no compasso.
@@ -273,7 +273,7 @@ class _Rig {
     var i = 0;
     while (dones == 0 &&
         rewound.length == voltas &&
-        practice.currentStep.value != null &&
+        practice.currentStep.state != null &&
         measureOfStep() == measure) {
       await playStep(wrongFirst: i == wrongAt);
       i++;
@@ -764,13 +764,13 @@ void main() {
       rig = _Rig(mode: PracticeMode.wait, firstMeasure: 1, endMeasure: 3);
       final start1 = rig.timeline.measures[1].startMs.toDouble();
       rig.practice.start();
-      final first = rig.practice.currentStep.value!;
+      final first = rig.practice.currentStep.state!;
       await rig.playWaitMeasure(wrongAt: 0);
       expect(rig.rewound, [(1, start1)]);
       expect(rig.status!.notice, RepeatNotice.missed);
       // A repetição começa no primeiro passo do compasso, depois do aviso.
       await rig.settle();
-      expect(rig.practice.currentStep.value!.index, first.index);
+      expect(rig.practice.currentStep.state!.index, first.index);
       await rig.playWaitMeasure(wrongAt: 0);
       await rig.settle();
       expect(rig.practice.rewinds, {1: 2});

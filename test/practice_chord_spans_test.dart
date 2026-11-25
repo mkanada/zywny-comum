@@ -8,6 +8,7 @@
 // são falsos (classes de altura): a grade da cifra e o juiz são testados no app
 // (`test/chord_play`).
 
+import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
 
@@ -142,7 +143,7 @@ class _Rig {
     scoreController = ScoreCubit(document: doc);
     final measures = timeline.measures;
     chords = chordsOf == null ? const [] : chordsOf!(track, timeline);
-    practice = PracticeController(
+    practice = PracticeCubit(
       midiInput: midi,
       track: track,
       scheduler: scheduler,
@@ -177,14 +178,14 @@ class _Rig {
   late final ScoreTimeline timeline;
   late final ScoreAudioScheduler scheduler;
   late final ScoreCubit scoreController;
-  late final PracticeController practice;
+  late final PracticeCubit practice;
   int dones = 0;
 
   /// Cada volta da escada: o compasso e o instante musical do começo dele.
   final List<(int, double)> rewound = [];
 
   /// O estado da escada na tela.
-  RepeatStatus? get status => practice.repeat.value;
+  RepeatStatus? get status => practice.state.repeat;
 
   /// Deixa o aviso acabar e o degrau começar (o aviso não acaba sozinho).
   Future<void> settle() {
@@ -193,7 +194,7 @@ class _Rig {
   }
 
   void dispose() {
-    practice.dispose();
+    unawaited(practice.close());
     scoreController.clearAll();
     scoreController.close();
     midi.dispose();
@@ -275,7 +276,7 @@ class _Rig {
   }
 
   int measureOfStep() =>
-      timeline.measureIndexAt(practice.currentStep.value!.onMs);
+      timeline.measureIndexAt(practice.currentStep.state!.onMs);
 
   /// Modo espera: toca os passos do compasso pendente até ele acabar (ou
   /// voltar). [wrongAt] aperta e solta uma tecla errada antes do passo de
@@ -287,7 +288,7 @@ class _Rig {
     var guard = 0;
     while (dones == 0 &&
         rewound.length == voltas &&
-        practice.currentStep.value != null &&
+        practice.currentStep.state != null &&
         measureOfStep() == measure) {
       await _playStep(wrongFirst: i == wrongAt);
       i++;
@@ -296,7 +297,7 @@ class _Rig {
   }
 
   Future<void> _playStep({bool wrongFirst = false}) async {
-    final step = practice.currentStep.value!;
+    final step = practice.currentStep.state!;
     advanceTo(step.onMs);
     if (wrongFirst) {
       midi.press(20, atSeconds: engine.now);
@@ -342,7 +343,7 @@ void main() {
         expect(verdicts.single.kind, PracticeVerdictKind.correct);
         expect(verdicts.single.eventId, isNull);
         expect(verdicts.single.atMs, 1000);
-        session.dispose();
+        session.close();
       }
     });
 
@@ -360,7 +361,7 @@ void main() {
       expect(session.done, isFalse);
       session.noteOn(52, atMs: 0);
       expect(session.done, isTrue);
-      session.dispose();
+      session.close();
     });
 
     test('o acorde não tem janela de tempo: as teclas podem ser arpejadas, se '
@@ -373,7 +374,7 @@ void main() {
         ..noteOn(52, atMs: 1000)
         ..noteOn(55, atMs: 2000);
       expect(session.done, isTrue);
-      session.dispose();
+      session.close();
     });
 
     test('tecla fora do acorde é erro na hora, com o ataque do passo, e segura '
@@ -396,7 +397,7 @@ void main() {
         PracticeVerdictKind.wrong,
         PracticeVerdictKind.correct,
       ]);
-      session.dispose();
+      session.close();
     });
 
     test('tecla errada segurada impede o acorde até soltar, mesmo com as três '
@@ -412,7 +413,7 @@ void main() {
       expect(session.done, isFalse);
       session.noteOff(62);
       expect(session.done, isTrue);
-      session.dispose();
+      session.close();
     });
 
     test('melodia e acorde no mesmo ataque: só fecham com os dois, em qualquer '
@@ -439,7 +440,7 @@ void main() {
         PracticeVerdictKind.correct,
       );
       expect(verdicts.any((v) => v.eventId == null && v.atMs == 1000), isTrue);
-      session.dispose();
+      session.close();
 
       // Melodia primeiro, acorde depois.
       session = WaitModeSession([
@@ -458,7 +459,7 @@ void main() {
         verdicts.where((v) => v.kind == PracticeVerdictKind.correct),
         hasLength(2),
       );
-      session.dispose();
+      session.close();
     });
 
     test(
@@ -479,7 +480,7 @@ void main() {
           verdicts.where((v) => v.kind == PracticeVerdictKind.wrong),
           isEmpty,
         );
-        session.dispose();
+        session.close();
       },
     );
 
@@ -495,7 +496,7 @@ void main() {
         ..noteOn(48, atMs: 0)
         ..noteOn(52, atMs: 0)
         ..noteOn(55, atMs: 0);
-      expect(session.current.value!.index, 1);
+      expect(session.state!.index, 1);
       expect(session.done, isFalse);
       // As três continuam presas: nenhuma conta para o segundo acorde.
       expect(
@@ -512,16 +513,16 @@ void main() {
         ..noteOff(48)
         ..noteOn(48, atMs: 500);
       expect(session.done, isTrue);
-      session.dispose();
+      session.close();
     });
 
     test('o passo publicado leva a exigência de acorde', () {
       const chord = _Chord(1000, _cMajor);
       final session = WaitModeSession([_chordStep(0, 1000, chord)]);
-      expect(session.current.value!.chord, same(chord));
+      expect(session.state!.chord, same(chord));
       session.noteOn(48, atMs: 1000);
-      expect(session.current.value!.chord, same(chord));
-      session.dispose();
+      expect(session.state!.chord, same(chord));
+      session.close();
     });
 
     test('sem demandas, o passo de melodia é o de antes: o veredito não leva '
@@ -535,7 +536,7 @@ void main() {
         ),
       ]);
       final verdicts = _listen(session);
-      expect(session.current.value!.chord, isNull);
+      expect(session.state!.chord, isNull);
       session.noteOn(62, atMs: 0);
       session.noteOff(62);
       session.noteOn(60, atMs: 0);
@@ -545,7 +546,7 @@ void main() {
         PracticeVerdictKind.correct,
       ]);
       expect(verdicts.every((v) => v.atMs == null), isTrue);
-      session.dispose();
+      session.close();
     });
   });
 
@@ -566,13 +567,13 @@ void main() {
           const _Free(1700),
         ],
       );
-      expect(session.current.value!.onMs, 1000);
-      expect(session.current.value!.notes.single.pitch, 72);
-      expect(session.current.value!.chord, isNotNull);
+      expect(session.state!.onMs, 1000);
+      expect(session.state!.notes.single.pitch, 72);
+      expect(session.state!.chord, isNotNull);
 
       // A melodia sozinha não fecha o passo do acorde.
       session.noteOn(72, atMs: 1000);
-      expect(session.current.value!.onMs, 1000);
+      expect(session.state!.onMs, 1000);
       session
         ..noteOn(48, atMs: 1000)
         ..noteOn(52, atMs: 1000)
@@ -584,8 +585,8 @@ void main() {
         ..noteOff(55);
 
       // Passo só de acorde, em 1500: sem nota, e o de 1700 não existe.
-      expect(session.current.value!.onMs, 1500);
-      expect(session.current.value!.notes, isEmpty);
+      expect(session.state!.onMs, 1500);
+      expect(session.state!.notes, isEmpty);
       session
         ..noteOn(48, atMs: 1500)
         ..noteOn(52, atMs: 1500)
@@ -595,11 +596,11 @@ void main() {
         ..noteOff(52)
         ..noteOff(55);
 
-      expect(session.current.value!.onMs, 2000);
-      expect(session.current.value!.chord, isNull);
+      expect(session.state!.onMs, 2000);
+      expect(session.state!.chord, isNull);
       session.noteOn(74, atMs: 2000);
       expect(session.done, isTrue);
-      session.dispose();
+      session.close();
     });
 
     test('duas exigências no mesmo passo são erro de quem monta a rodada', () {
@@ -617,9 +618,9 @@ void main() {
     test('sem exigências, o passo é o mesmo de antes (nenhum acorde)', () {
       final track = PerformanceTrack.fromEvents([_ev('m1', 72, 1000)]);
       final session = WaitModeSession.forStaves(track, staves: {1});
-      expect(session.current.value!.chord, isNull);
-      expect(session.current.value!.onMs, 1000);
-      session.dispose();
+      expect(session.state!.chord, isNull);
+      expect(session.state!.onMs, 1000);
+      session.close();
     });
   });
 
@@ -642,18 +643,18 @@ void main() {
       () async {
         rig = _Rig(chordsOf: _measureOneChords);
         rig.practice.start();
-        final first = rig.practice.currentStep.value!;
+        final first = rig.practice.currentStep.state!;
         rig.advanceTo(first.onMs);
         for (final e in first.notes) {
           rig.midi.press(e.pitch, atSeconds: rig.engine.now);
         }
         await pumpEventQueue();
-        expect(rig.practice.currentStep.value!.index, first.index);
+        expect(rig.practice.currentStep.state!.index, first.index);
         for (final key in _cMajorKeys) {
           rig.midi.press(key, atSeconds: rig.engine.now);
         }
         await pumpEventQueue();
-        expect(rig.practice.currentStep.value!.index, isNot(first.index));
+        expect(rig.practice.currentStep.state!.index, isNot(first.index));
       },
     );
 

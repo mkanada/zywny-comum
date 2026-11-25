@@ -39,7 +39,7 @@ void main() {
 
       expect(session.done, isTrue);
       expect(verdicts.single.kind, PracticeVerdictKind.correct);
-      expect(session.current.value, isNull);
+      expect(session.state, isNull);
     });
 
     test(
@@ -53,8 +53,8 @@ void main() {
         session.verdicts.listen(verdicts.add);
 
         session.noteOn(60, atMs: 0);
-        expect(session.current.value!.holdStartMs, 0);
-        expect(session.current.value!.holdEndMs, 800);
+        expect(session.state!.holdStartMs, 0);
+        expect(session.state!.holdEndMs, 800);
 
         session.tick(799);
         expect(session.done, isFalse);
@@ -62,9 +62,9 @@ void main() {
 
         session.tick(800);
         expect(verdicts.single.kind, PracticeVerdictKind.correct);
-        expect(session.current.value!.index, 1);
-        expect(session.current.value!.holdEndMs, isNull);
-        expect(session.current.value!.holdStartMs, isNull);
+        expect(session.state!.index, 1);
+        expect(session.state!.holdEndMs, isNull);
+        expect(session.state!.holdStartMs, isNull);
       },
     );
 
@@ -79,15 +79,15 @@ void main() {
       session.verdicts.listen(verdicts.add);
 
       session.noteOn(60, atMs: 0);
-      expect(session.current.value!.holdEndMs, 600);
-      expect(session.current.value!.holdParkMs, 1000);
+      expect(session.state!.holdEndMs, 600);
+      expect(session.state!.holdParkMs, 1000);
 
       // Segurou 60% da nota (só um pouco mais): já vale.
       session.tick(599);
       expect(verdicts, isEmpty);
       session.tick(601);
       expect(verdicts.single.kind, PracticeVerdictKind.correct);
-      expect(session.current.value!.holdParkMs, isNull);
+      expect(session.state!.holdParkMs, isNull);
     });
 
     test('o fim da nota do freio é o da nota mais curta do acorde, sem passar '
@@ -100,8 +100,8 @@ void main() {
       session.noteOn(60, atMs: 0);
       session.noteOn(64, atMs: 10);
       // A nota mais curta acaba em 400 (antes do passo seguinte, em 700).
-      expect(session.current.value!.holdEndMs, 240);
-      expect(session.current.value!.holdParkMs, 400);
+      expect(session.state!.holdEndMs, 240);
+      expect(session.state!.holdParkMs, 400);
     });
 
     test('soltar em tick(500) é soltura cedo: sem veredito, a nota volta', () {
@@ -124,12 +124,12 @@ void main() {
       expect(releases.single.atMs, 500);
       expect(releases.single.fraction, closeTo(0.625, 1e-9));
       expect(verdicts, isEmpty);
-      expect(session.current.value!.remaining, {60});
-      expect(session.current.value!.holdEndMs, isNull);
+      expect(session.state!.remaining, {60});
+      expect(session.state!.holdEndMs, isNull);
 
       // Apertar de novo arma a cápsula outra vez.
       session.noteOn(60, atMs: 600);
-      expect(session.current.value!.holdEndMs, 800);
+      expect(session.state!.holdEndMs, 800);
       session.tick(800);
       expect(session.done, isTrue);
       expect(verdicts.single.kind, PracticeVerdictKind.correct);
@@ -143,7 +143,7 @@ void main() {
       session.noteOn(60, atMs: 0);
       session.noteOn(64, atMs: 10);
 
-      expect(session.current.value!.holdEndMs, 800);
+      expect(session.state!.holdEndMs, 800);
     });
 
     test(
@@ -156,7 +156,7 @@ void main() {
 
         session.noteOn(60, atMs: 0);
 
-        expect(session.current.value!.holdEndMs, 800);
+        expect(session.state!.holdEndMs, 800);
       },
     );
 
@@ -195,8 +195,8 @@ void main() {
       expect(session.done, isFalse);
 
       session.noteOn(60, atMs: 0);
-      expect(session.current.value!.index, 1);
-      expect(session.current.value!.holdEndMs, isNull);
+      expect(session.state!.index, 1);
+      expect(session.state!.holdEndMs, isNull);
     });
 
     test('resetTo no meio da cápsula: o passo volta sem cápsula', () {
@@ -207,13 +207,13 @@ void main() {
 
       session.noteOn(60, atMs: 0);
       session.tick(500);
-      expect(session.current.value!.holdEndMs, 800);
+      expect(session.state!.holdEndMs, 800);
 
       session.resetTo(0);
-      expect(session.current.value!.index, 0);
-      expect(session.current.value!.holdEndMs, isNull);
-      expect(session.current.value!.holdStartMs, isNull);
-      expect(session.current.value!.remaining, {60});
+      expect(session.state!.index, 0);
+      expect(session.state!.holdEndMs, isNull);
+      expect(session.state!.holdStartMs, isNull);
+      expect(session.state!.remaining, {60});
     });
   });
 }

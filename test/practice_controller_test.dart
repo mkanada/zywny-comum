@@ -1,4 +1,4 @@
-// T02: `PracticeController` de ponta a ponta — `FakeMidiInput` (não existe
+// T02: `PracticeCubit` de ponta a ponta — `FakeMidiInput` (não existe
 // dublê real ainda; mesmo estilo do `FakeMidiSender` de
 // test/midi_out_sound_engine_test.dart) alimentando um `ScoreAudioScheduler`
 // real (com um `FakeSoundEngine`, mesmo estilo de
@@ -139,7 +139,7 @@ void main() {
     TestWidgetsFlutterBinding.ensureInitialized();
   });
 
-  group('PracticeController', () {
+  group('PracticeCubit', () {
     test('tempo real: notas no tempo viram certas, o que não foi tocado vira '
         'perdido e o resumo reflete', () async {
       final track = _loadTrack('erik-satie.vsb');
@@ -156,7 +156,7 @@ void main() {
       addTearDown(scoreController.clearAll);
       final midi = FakeMidiInput();
       addTearDown(midi.dispose);
-      final practice = PracticeController(
+      final practice = PracticeCubit(
         midiInput: midi,
         track: track,
         scheduler: scheduler,
@@ -165,7 +165,7 @@ void main() {
         mode: PracticeMode.realtime,
         measureIndexAt: timeline.measureIndexAt,
       );
-      addTearDown(practice.dispose);
+      addTearDown(practice.close);
 
       final mine = track.events
           .where(
@@ -209,7 +209,7 @@ void main() {
       addTearDown(scoreController.clearAll);
       final midi = FakeMidiInput();
       addTearDown(midi.dispose);
-      final practice = PracticeController(
+      final practice = PracticeCubit(
         midiInput: midi,
         track: track,
         scheduler: scheduler,
@@ -218,7 +218,7 @@ void main() {
         mode: PracticeMode.realtime,
         measureIndexAt: timeline.measureIndexAt,
       );
-      addTearDown(practice.dispose);
+      addTearDown(practice.close);
 
       final mine = track.events
           .where(
@@ -275,7 +275,7 @@ void main() {
       addTearDown(ghosts.close);
       final midi = FakeMidiInput();
       addTearDown(midi.dispose);
-      final practice = PracticeController(
+      final practice = PracticeCubit(
         midiInput: midi,
         track: track,
         scheduler: scheduler,
@@ -285,7 +285,7 @@ void main() {
         mode: PracticeMode.realtime,
         measureIndexAt: timeline.measureIndexAt,
       );
-      addTearDown(practice.dispose);
+      addTearDown(practice.close);
 
       final mine = track.events
           .where(
@@ -354,7 +354,7 @@ void main() {
       addTearDown(ghosts.close);
       final midi = FakeMidiInput();
       addTearDown(midi.dispose);
-      final practice = PracticeController(
+      final practice = PracticeCubit(
         midiInput: midi,
         track: track,
         scheduler: scheduler,
@@ -366,7 +366,7 @@ void main() {
         rhythmToleranceMs: 75,
         measureIndexAt: timeline.measureIndexAt,
       );
-      addTearDown(practice.dispose);
+      addTearDown(practice.close);
 
       final mine = track.events
           .where(
@@ -421,7 +421,7 @@ void main() {
       final midi = FakeMidiInput();
       addTearDown(midi.dispose);
       final restarts = <double>[];
-      final practice = PracticeController(
+      final practice = PracticeCubit(
         midiInput: midi,
         track: track,
         scheduler: scheduler,
@@ -429,17 +429,17 @@ void main() {
         hand: Hand.direita,
         onLoopRestart: restarts.add,
       );
-      addTearDown(practice.dispose);
+      addTearDown(practice.close);
 
       practice.start(fromMs: startMs);
       practice.setLoop(startMs, endMs);
-      final first = practice.currentStep.value!;
+      final first = practice.currentStep.state!;
       expect(first.onMs, greaterThanOrEqualTo(startMs));
 
       // Toca todos os passos do trecho.
       var guard = 0;
       while (restarts.isEmpty && guard++ < 50) {
-        final step = practice.currentStep.value!;
+        final step = practice.currentStep.state!;
         _advanceUntil(engine, scheduler, step.onMs);
         for (final e in step.notes) {
           midi.press(e.pitch, atSeconds: engine.now);
@@ -447,7 +447,7 @@ void main() {
         await pumpEventQueue();
       }
       expect(restarts, [startMs]);
-      expect(practice.currentStep.value!.onMs, first.onMs);
+      expect(practice.currentStep.state!.onMs, first.onMs);
       expect(scheduler.positionMs, closeTo(startMs, 1));
     });
 
@@ -468,17 +468,17 @@ void main() {
         final midi = FakeMidiInput();
         addTearDown(midi.dispose);
 
-        final practice = PracticeController(
+        final practice = PracticeCubit(
           midiInput: midi,
           track: track,
           scheduler: scheduler,
           controller: scoreController,
           hand: Hand.direita, // aluno = pauta 1, app = pauta 2
         );
-        addTearDown(practice.dispose);
+        addTearDown(practice.close);
 
         practice.start();
-        final step0 = practice.currentStep.value!;
+        final step0 = practice.currentStep.state!;
         _advanceUntil(engine, scheduler, step0.onMs);
         expect(scheduler.positionMs, step0.onMs);
 
@@ -491,7 +491,7 @@ void main() {
         await pumpEventQueue();
 
         // Todas as notas do passo tocadas certas: sessão avançou.
-        final step1 = practice.currentStep.value;
+        final step1 = practice.currentStep.state;
         expect(step1, isNot(same(step0)));
         expect(
           step1 == null || step1.onMs >= step0.onMs,
@@ -536,7 +536,7 @@ void main() {
 
       final head = track.events.firstWhere((e) => e.tied.isNotEmpty);
       const correct = Color(0xFF00838F);
-      final practice = PracticeController(
+      final practice = PracticeCubit(
         midiInput: midi,
         track: track,
         scheduler: scheduler,
@@ -544,12 +544,12 @@ void main() {
         hand: head.staff == 1 ? Hand.direita : Hand.esquerda,
         correctColor: correct,
       );
-      addTearDown(practice.dispose);
+      addTearDown(practice.close);
 
       practice.start();
       // Toca passo a passo até o da cabeça da ligadura.
       while (true) {
-        final step = practice.currentStep.value!;
+        final step = practice.currentStep.state!;
         expect(step.onMs, lessThanOrEqualTo(head.onMs));
         _advanceUntil(engine, scheduler, step.onMs);
         for (final e in step.notes) {
@@ -567,7 +567,7 @@ void main() {
         expect(scoreController.colorOf(id), correct, reason: 'nota $id');
       }
       // A continuação não vira passo: a espera é só pela cabeça.
-      final next = practice.currentStep.value;
+      final next = practice.currentStep.state;
       expect(next?.notes.map((e) => e.id), isNot(contains(head.tied.first)));
     });
 
@@ -587,7 +587,7 @@ void main() {
       final midi = FakeMidiInput();
       addTearDown(midi.dispose);
 
-      final practice = PracticeController(
+      final practice = PracticeCubit(
         midiInput: midi,
         track: track,
         scheduler: scheduler,
@@ -595,9 +595,9 @@ void main() {
         hand: Hand.direita,
         ghosts: ghosts,
       );
-      addTearDown(practice.dispose);
+      addTearDown(practice.close);
       practice.start();
-      final step = practice.currentStep.value!;
+      final step = practice.currentStep.state!;
       final wrong =
           step.notes.map((e) => e.pitch).reduce((a, b) => a > b ? a : b) + 1;
       final stepIds = step.notes.map((e) => e.id).toSet();
@@ -634,17 +634,17 @@ void main() {
       final midi = FakeMidiInput();
       addTearDown(midi.dispose);
 
-      final practice = PracticeController(
+      final practice = PracticeCubit(
         midiInput: midi,
         track: track,
         scheduler: scheduler,
         controller: scoreController,
         hand: Hand.direita,
       );
-      addTearDown(practice.dispose);
+      addTearDown(practice.close);
 
       practice.start();
-      final step0 = practice.currentStep.value!;
+      final step0 = practice.currentStep.state!;
       _advanceUntil(engine, scheduler, step0.onMs);
 
       // Pitch bem fora do range de piano: garantidamente não é nenhuma
@@ -654,11 +654,11 @@ void main() {
       await pumpEventQueue();
 
       expect(
-        practice.currentStep.value,
+        practice.currentStep.state,
         same(step0),
         reason: 'nota errada não avança o passo',
       );
-      expect(practice.wrongPitches.value, contains(wrongPitch));
+      expect(practice.state.wrongPitches, contains(wrongPitch));
 
       final nearest = step0.notes.reduce(
         (a, b) => (a.pitch - wrongPitch).abs() <= (b.pitch - wrongPitch).abs()
@@ -669,7 +669,7 @@ void main() {
 
       midi.release(wrongPitch, atSeconds: engine.now);
       await pumpEventQueue();
-      expect(practice.wrongPitches.value, isNot(contains(wrongPitch)));
+      expect(practice.state.wrongPitches, isNot(contains(wrongPitch)));
     });
 
     test('espera em camadas: esperada embaixo, certa por cima enquanto a '
@@ -689,7 +689,7 @@ void main() {
       addTearDown(ghosts.close);
       final midi = FakeMidiInput();
       addTearDown(midi.dispose);
-      final practice = PracticeController(
+      final practice = PracticeCubit(
         midiInput: midi,
         track: track,
         scheduler: scheduler,
@@ -697,13 +697,13 @@ void main() {
         hand: Hand.direita,
         ghosts: ghosts,
       );
-      addTearDown(practice.dispose);
+      addTearDown(practice.close);
       practice.start();
 
       Color? color(SoundEvent e) => scoreController.colorOf(e.id);
 
       // Anda até um acorde de duas teclas ou mais.
-      var step = practice.currentStep.value!;
+      var step = practice.currentStep.state!;
       var guard = 0;
       while (step.notes.map((e) => e.pitch).toSet().length < 2) {
         expect(guard++, lessThan(200), reason: 'sem acorde no começo');
@@ -715,7 +715,7 @@ void main() {
           midi.release(e.pitch, atSeconds: engine.now);
         }
         await pumpEventQueue();
-        step = practice.currentStep.value!;
+        step = practice.currentStep.state!;
       }
       final pitches = step.notes.map((e) => e.pitch).toSet().toList();
       for (final e in step.notes) {
@@ -733,7 +733,7 @@ void main() {
       midi.release(first.pitch, atSeconds: engine.now);
       await pumpEventQueue();
       expect(color(first), kPracticePendingColor);
-      expect(practice.currentStep.value!.index, step.index);
+      expect(practice.currentStep.state!.index, step.index);
 
       // Errada: fantasma, e as esperadas continuam esperadas.
       final wrong = pitches.reduce((a, b) => a > b ? a : b) + 1;
@@ -749,7 +749,7 @@ void main() {
         midi.press(p, atSeconds: engine.now);
       }
       await pumpEventQueue();
-      expect(practice.currentStep.value!.index, step.index);
+      expect(practice.currentStep.state!.index, step.index);
       for (final e in step.notes) {
         expect(color(e), kPracticeCorrectColor);
       }
@@ -758,7 +758,7 @@ void main() {
       // passo seguinte acende como esperado.
       midi.release(wrong, atSeconds: engine.now);
       await pumpEventQueue();
-      final next = practice.currentStep.value!;
+      final next = practice.currentStep.state!;
       expect(next.index, step.index + 1);
       for (final e in step.notes) {
         expect(color(e), kPracticeCorrectColor);
@@ -803,14 +803,14 @@ void main() {
       final midi = FakeMidiInput();
       addTearDown(midi.dispose);
 
-      final practice = PracticeController(
+      final practice = PracticeCubit(
         midiInput: midi,
         track: track,
         scheduler: scheduler,
         controller: scoreController,
         hand: Hand.esquerda,
       );
-      addTearDown(practice.dispose);
+      addTearDown(practice.close);
 
       practice.start();
       expect(scheduler.isRunning, isTrue);
@@ -840,9 +840,9 @@ void main() {
       FakeMidiInput midi,
       FakeSoundEngine engine,
       ScoreAudioScheduler scheduler,
-      PracticeController practice,
+      PracticeCubit practice,
     ) async {
-      final step = practice.currentStep.value!;
+      final step = practice.currentStep.state!;
       _advanceUntil(engine, scheduler, step.onMs);
       for (final e in step.notes) {
         midi.press(e.pitch, atSeconds: engine.now);
@@ -873,7 +873,7 @@ void main() {
       final midi = FakeMidiInput();
       addTearDown(midi.dispose);
       var dones = 0;
-      final practice = PracticeController(
+      final practice = PracticeCubit(
         midiInput: midi,
         track: track,
         scheduler: scheduler,
@@ -883,7 +883,7 @@ void main() {
         range: interval,
         onRangeDone: () => dones++,
       );
-      addTearDown(practice.dispose);
+      addTearDown(practice.close);
 
       practice.start();
       var guard = 0;
@@ -892,7 +892,7 @@ void main() {
       }
       expect(dones, 1);
       final result = practice.stageResult!;
-      expect(practice.liveScore.value, (
+      expect(practice.state.liveScore, (
         hits: result.hits,
         total: result.total,
       ));
@@ -908,7 +908,7 @@ void main() {
           )
           .length;
       expect(result.total, expectedSteps);
-      final next = practice.currentStep.value;
+      final next = practice.currentStep.state;
       expect(next == null || next.onMs >= interval.endMs, isTrue);
     });
 
@@ -929,7 +929,7 @@ void main() {
       final midi = FakeMidiInput();
       addTearDown(midi.dispose);
       var dones = 0;
-      final practice = PracticeController(
+      final practice = PracticeCubit(
         midiInput: midi,
         track: track,
         scheduler: scheduler,
@@ -939,10 +939,10 @@ void main() {
         range: interval,
         onRangeDone: () => dones++,
       );
-      addTearDown(practice.dispose);
+      addTearDown(practice.close);
 
       practice.start();
-      final target = practice.currentStep.value!;
+      final target = practice.currentStep.state!;
       final targetMeasure = timeline.measureIndexAt(target.onMs);
       midi.press(200, atSeconds: engine.now);
       await pumpEventQueue();
@@ -955,7 +955,7 @@ void main() {
       }
       expect(dones, 1);
       final result = practice.stageResult!;
-      expect(practice.liveScore.value, (
+      expect(practice.state.liveScore, (
         hits: result.hits,
         total: result.total,
       ));
@@ -984,7 +984,7 @@ void main() {
           final midi = FakeMidiInput();
           addTearDown(midi.dispose);
           var dones = 0;
-          final practice = PracticeController(
+          final practice = PracticeCubit(
             midiInput: midi,
             track: track,
             scheduler: scheduler,
@@ -996,7 +996,7 @@ void main() {
             range: interval,
             onRangeDone: () => dones++,
           );
-          addTearDown(practice.dispose);
+          addTearDown(practice.close);
 
           practice.start();
           final mine = track.events
@@ -1020,7 +1020,7 @@ void main() {
           final result = practice.stageResult;
           // O selo ao vivo (U05) é a mesma conta do resultado, também com
           // tudo perdido (silêncio).
-          expect(practice.liveScore.value, (
+          expect(practice.state.liveScore, (
             hits: result?.hits ?? 0,
             total: result?.total ?? 0,
           ));
@@ -1056,7 +1056,7 @@ void main() {
       final midi = FakeMidiInput();
       addTearDown(midi.dispose);
       var dones = 0;
-      final practice = PracticeController(
+      final practice = PracticeCubit(
         midiInput: midi,
         track: track,
         scheduler: scheduler,
@@ -1068,7 +1068,7 @@ void main() {
         range: interval,
         onRangeDone: () => dones++,
       );
-      addTearDown(practice.dispose);
+      addTearDown(practice.close);
 
       practice.start();
       _advanceUntil(engine, scheduler, interval.endMs + 1000);
@@ -1105,7 +1105,7 @@ void main() {
       final midi = FakeMidiInput();
       addTearDown(midi.dispose);
       var dones = 0;
-      final practice = PracticeController(
+      final practice = PracticeCubit(
         midiInput: midi,
         track: track,
         scheduler: scheduler,
@@ -1117,7 +1117,7 @@ void main() {
         range: interval,
         onRangeDone: () => dones++,
       );
-      addTearDown(practice.dispose);
+      addTearDown(practice.close);
 
       practice.start();
       final mine = track.events
@@ -1175,7 +1175,7 @@ void main() {
       final midi = FakeMidiInput();
       addTearDown(midi.dispose);
       var dones = 0;
-      final practice = PracticeController(
+      final practice = PracticeCubit(
         midiInput: midi,
         track: track,
         scheduler: scheduler,
@@ -1185,7 +1185,7 @@ void main() {
         range: interval,
         onRangeDone: () => dones++,
       );
-      addTearDown(practice.dispose);
+      addTearDown(practice.close);
 
       practice.start();
       var guard = 0;

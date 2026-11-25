@@ -4,7 +4,7 @@
 // notas (modo espera), depois cada andamento menor que o da etapa, até o da
 // etapa. Errou em qualquer degrau, aviso e volta ao primeiro; acertou num degrau
 // que não é o último, aviso de "acertou", contagem de um compasso e o degrau de
-// cima; acertou no último, a música segue (o `PracticeController` faz a parte
+// cima; acertou no último, a música segue (o `PracticeCubit` faz a parte
 // de tocar; aqui só está a ordem dos degraus).
 //
 // Os andamentos vêm de quem chama (o app passa `kMusicStageSpeeds`): este arquivo
@@ -54,7 +54,7 @@ enum RepeatNotice {
   passed,
 }
 
-/// A escuta do erro (`PracticeController.onMissReplay`): o que o host está
+/// A escuta do erro (`PracticeCubit.onMissReplay`): o que o host está
 /// tocando para o aluno ouvir, só de ouvido.
 enum RepeatListen {
   /// Sem escuta: o aviso, o degrau ou a contagem.

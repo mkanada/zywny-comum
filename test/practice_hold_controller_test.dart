@@ -1,9 +1,10 @@
-// ND02 (docs/plano/ND00 e ND02): o `PracticeController(holdNotes: true)`, o modo
+// ND02 (docs/plano/ND00 e ND02): o `PracticeCubit(holdNotes: true)`, o modo
 // espera que segura a nota. Mesmo arranjo de test/practice_controller_test.dart:
 // agendador de verdade sobre o motor falso e o MIDI falso, com o relógio andado
 // à mão. A trilha é pequena e feita aqui (sem partitura: a tela é a do
 // erik-satie, só para pintar).
 
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
@@ -60,7 +61,7 @@ class _Rig {
       track: this.track,
       autoTick: false,
     );
-    practice = PracticeController(
+    practice = PracticeCubit(
       midiInput: midi,
       track: this.track,
       scheduler: scheduler,
@@ -86,7 +87,7 @@ class _Rig {
   final FakeSoundEngine engine = FakeSoundEngine();
   final FakeMidiInput midi = FakeMidiInput();
   late final ScoreAudioScheduler scheduler;
-  late final PracticeController practice;
+  late final PracticeCubit practice;
   int rangeDone = 0;
 
   Future<void> press(int pitch) async {
@@ -113,7 +114,7 @@ class _Rig {
   }
 
   void dispose() {
-    practice.dispose();
+    unawaited(practice.close());
     midi.dispose();
   }
 }
@@ -123,7 +124,7 @@ void main() {
     TestWidgetsFlutterBinding.ensureInitialized();
   });
 
-  group('PracticeController com notas com duração (holdNotes)', () {
+  group('PracticeCubit com notas com duração (holdNotes)', () {
     test('sem holdNotes, o aperto fecha o passo na hora (guarda)', () async {
       final rig = _Rig(holdNotes: false)..practice.start();
       addTearDown(rig.dispose);
@@ -131,8 +132,8 @@ void main() {
       await rig.press(60);
 
       expect(rig.practice.report.correct, 1);
-      expect(rig.practice.currentStep.value!.index, 1);
-      expect(rig.practice.currentStep.value!.holdEndMs, isNull);
+      expect(rig.practice.currentStep.state!.index, 1);
+      expect(rig.practice.currentStep.state!.holdEndMs, isNull);
       expect(rig.practice.earlyReleases, 0);
     });
 
@@ -144,14 +145,14 @@ void main() {
       await rig.press(60);
       // A cápsula da semínima de 0 a 500 vai de 0 a 300 (60%); o freio fica no
       // fim da nota (500), não no fim da cápsula.
-      final held = rig.practice.currentStep.value!;
+      final held = rig.practice.currentStep.state!;
       expect(held.holdEndMs, closeTo(300, 1e-6));
       expect(held.holdParkMs, closeTo(500, 1e-6));
       rig.advanceTo(300);
       expect(rig.scheduler.positionMs, closeTo(300, 1e-6));
       // Cápsula cheia, mas sem tique: o passo ainda não fechou, e a música não
       // parou nela (seguiu pelo relógio livre).
-      expect(rig.practice.currentStep.value!.index, 0);
+      expect(rig.practice.currentStep.state!.index, 0);
       rig.engine.now += 0.02;
       rig.scheduler.pump();
       expect(rig.scheduler.positionMs, closeTo(320, 1e-6));
@@ -160,8 +161,8 @@ void main() {
       // `onMs` do seguinte (500), sem a música ter perdido tempo.
       rig.practice.debugTickHold();
       expect(rig.practice.report.correct, 1);
-      expect(rig.practice.currentStep.value!.index, 1);
-      expect(rig.practice.currentStep.value!.holdEndMs, isNull);
+      expect(rig.practice.currentStep.state!.index, 1);
+      expect(rig.practice.currentStep.state!.holdEndMs, isNull);
       expect(rig.scheduler.positionMs, closeTo(320, 1e-6));
       rig.advanceTo(500);
       expect(rig.scheduler.positionMs, 500);
@@ -186,7 +187,7 @@ void main() {
         await rig.press(60);
         // O tique de 70 ms: a cápsula enche em 300 e o passo só fecha em 350.
         var ms = 0;
-        while (rig.practice.currentStep.value!.index == 0) {
+        while (rig.practice.currentStep.state!.index == 0) {
           rig.engine.now += 0.001;
           rig.scheduler.pump();
           if (++ms % 70 == 0) rig.practice.debugTickHold();
@@ -216,17 +217,17 @@ void main() {
       expect(releases.single.pitch, 60);
       expect(releases.single.fraction, closeTo(2 / 3, 1e-9));
       expect(rig.scheduler.positionMs, 0);
-      final step = rig.practice.currentStep.value!;
+      final step = rig.practice.currentStep.state!;
       expect(step.index, 0);
       expect(step.remaining, contains(60));
       expect(step.holdEndMs, isNull);
       // Nada conta como erro nem como acerto.
       expect(rig.practice.report.correct, 0);
       expect(rig.practice.report.wrong, 0);
-      expect(rig.practice.wrongCount.value, 0);
+      expect(rig.practice.state.wrongCount, 0);
 
       await rig.press(60);
-      expect(rig.practice.currentStep.value!.holdEndMs, 300);
+      expect(rig.practice.currentStep.state!.holdEndMs, 300);
     });
 
     test('a soltura antes do primeiro tique sai com o tempo certo (o '
@@ -255,19 +256,19 @@ void main() {
       await rig.press(61);
       expect(rig.practice.report.wrong, 1);
       expect(rig.practice.report.correct, 0);
-      expect(rig.practice.currentStep.value!.index, 0);
-      expect(rig.practice.currentStep.value!.holdEndMs, 300);
+      expect(rig.practice.currentStep.state!.index, 0);
+      expect(rig.practice.currentStep.state!.holdEndMs, 300);
 
       rig.advanceTo(300);
       rig.practice.debugTickHold();
       // A errada ainda está presa: a cápsula cheia não basta.
-      expect(rig.practice.currentStep.value!.index, 0);
+      expect(rig.practice.currentStep.state!.index, 0);
       expect(rig.practice.report.correct, 0);
 
       await rig.release(61);
       expect(rig.practice.report.correct, 1);
       expect(rig.practice.report.wrong, 1);
-      expect(rig.practice.currentStep.value!.index, 1);
+      expect(rig.practice.currentStep.state!.index, 1);
     });
 
     test('tecla errada no meio da cápsula e soltura certa antes do fim: '
@@ -285,7 +286,7 @@ void main() {
 
       expect(rig.practice.earlyReleases, 1);
       expect(releases.single.fraction, closeTo(280 / 300, 1e-9));
-      final step = rig.practice.currentStep.value!;
+      final step = rig.practice.currentStep.state!;
       expect(step.index, 0);
       expect(step.remaining, contains(60));
       expect(rig.practice.report.correct, 0);

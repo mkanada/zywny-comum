@@ -1,6 +1,6 @@
 // EX07: a gravação da execução. Tudo o que o teclado manda (a hora e a força
 // de cada tecla, o pedal) fica aqui em ms musicais. Quem converte a hora é
-// quem chama (o PracticeController): a gravação não conhece relógio. Dart
+// quem chama (o PracticeCubit): a gravação não conhece relógio. Dart
 // puro, sem UI; os medidores (meters.dart) leem esta estrutura.
 
 import 'package:flutter/foundation.dart';

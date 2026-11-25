@@ -1,7 +1,7 @@
 // R03 — o modo do treino num arquivo-folha, para `SettingsCubit` e a trilha
 // não dependerem do controller (que puxa áudio e MIDI).
 
-/// Margem padrão do tempo real (ver `PracticeController.rhythmToleranceMs`).
+/// Margem padrão do tempo real (ver `PracticeCubit.rhythmToleranceMs`).
 const double kDefaultRhythmToleranceMs = 150;
 
 /// Como o treino conduz o tempo (T03).

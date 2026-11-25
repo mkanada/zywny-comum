@@ -109,7 +109,7 @@ class _Rig {
       autoTick: false,
     );
     scoreController = ScoreCubit(document: _doc());
-    practice = PracticeController(
+    practice = PracticeCubit(
       midiInput: midi,
       track: track,
       scheduler: scheduler,
@@ -134,7 +134,7 @@ class _Rig {
   late final PerformanceTrack track;
   late final ScoreAudioScheduler scheduler;
   late final ScoreCubit scoreController;
-  late final PracticeController practice;
+  late final PracticeCubit practice;
   final List<int> shifts = [];
   void Function(int d)? onShift;
 
@@ -159,7 +159,7 @@ class _Rig {
     Future<void> Function()? flush,
   }) async {
     flush ??= pumpEventQueue;
-    final step = practice.currentStep.value;
+    final step = practice.currentStep.state;
     final chord = chords[round];
     final onMs = mode == PracticeMode.wait ? step!.onMs : chord.onMs;
     final pitches = mode == PracticeMode.wait
@@ -177,7 +177,7 @@ class _Rig {
   }
 
   void dispose() {
-    practice.dispose();
+    unawaited(practice.close());
     scoreController.close();
     midi.dispose();
   }

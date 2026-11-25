@@ -1,5 +1,5 @@
 // Gera a imagem da revisão do treino com o código de verdade: uma sessão de
-// tempo real (PracticeController + agendador + notas MIDI simuladas) sobre a
+// tempo real (PracticeCubit + agendador + notas MIDI simuladas) sobre a
 // Gymnopédie já gravada, as marcas viram fantasmas fixas (GhostCubit) e
 // a página sai do ScoreView.
 //
@@ -9,6 +9,7 @@
 @Tags(['manual'])
 library;
 
+import 'dart:async';
 import 'dart:io';
 import 'dart:ui' as ui;
 
@@ -61,7 +62,7 @@ void main() {
     final scoreController = ScoreCubit(document: doc);
     final ghosts = GhostCubit()..attachDocument(doc);
     final midi = FakeMidiInput();
-    final practice = PracticeController(
+    final practice = PracticeCubit(
       midiInput: midi,
       track: track,
       scheduler: scheduler,
@@ -215,7 +216,7 @@ void main() {
     // ignore: avoid_print
     print('página ${w}x$h -> $out');
 
-    practice.dispose();
+    unawaited(practice.close());
     ghosts.close();
     scoreController.close();
     midi.dispose();

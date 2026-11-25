@@ -365,7 +365,7 @@ void main() {
   });
 
   group('passagem única com salto nas três modalidades (critério 1)', () {
-    Future<PracticeController> startStage({
+    Future<PracticeCubit> startStage({
       required PerformanceTrack track,
       required PracticeMode mode,
       required _Engine engine,
@@ -376,7 +376,7 @@ void main() {
       required void Function() onDone,
       required List<double> jumped,
     }) async {
-      final practice = PracticeController(
+      final practice = PracticeCubit(
         midiInput: midi,
         track: track,
         scheduler: scheduler,
@@ -390,7 +390,7 @@ void main() {
         onRangeDone: onDone,
         onRangeJump: jumped.add,
       );
-      addTearDown(practice.dispose);
+      addTearDown(practice.close);
       practice.start();
       return practice;
     }
@@ -399,9 +399,9 @@ void main() {
       _Midi midi,
       _Engine engine,
       ScoreAudioScheduler scheduler,
-      PracticeController practice,
+      PracticeCubit practice,
     ) async {
-      final step = practice.currentStep.value!;
+      final step = practice.currentStep.state!;
       _advanceUntil(engine, scheduler, step.onMs);
       for (final e in step.notes) {
         midi.press(e.pitch, atSeconds: engine.now);
@@ -448,7 +448,7 @@ void main() {
       expect(dones, 1);
       expect(jumped, [5000]);
       final result = practice.stageResult!;
-      expect(practice.liveScore.value, (
+      expect(practice.state.liveScore, (
         hits: result.hits,
         total: result.total,
       ));
@@ -484,7 +484,7 @@ void main() {
         jumped: <double>[],
       );
 
-      final target = practice.currentStep.value!;
+      final target = practice.currentStep.state!;
       final targetMeasure = timeline.measureIndexAt(target.onMs);
       midi.press(200, atSeconds: engine.now);
       await pumpEventQueue();
@@ -497,7 +497,7 @@ void main() {
       }
       expect(dones, 1);
       final result = practice.stageResult!;
-      expect(practice.liveScore.value, (
+      expect(practice.state.liveScore, (
         hits: result.hits,
         total: result.total,
       ));
@@ -545,7 +545,7 @@ void main() {
       expect(dones, 1);
       expect(jumped, [5000]);
       final result = practice.stageResult!;
-      expect(practice.liveScore.value, (
+      expect(practice.state.liveScore, (
         hits: result.hits,
         total: result.total,
       ));

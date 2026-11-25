@@ -1,4 +1,4 @@
-// EX07: o PracticeController grava a execução (`capture`) e casa as notas
+// EX07: o PracticeCubit grava a execução (`capture`) e casa as notas
 // certas com a escrita (`matches`). Com o MIDI falso, a hora gravada é a
 // mesma que a conferência do tempo real usou, e o pedal entra na gravação
 // com a hora musical. Pausado, não grava nada.
@@ -48,7 +48,7 @@ void main() {
     TestWidgetsFlutterBinding.ensureInitialized();
   });
 
-  group('PracticeController e a gravação', () {
+  group('PracticeCubit e a gravação', () {
     test('a tecla certa vira gravação e par, na hora que a conferência usa; '
         'o fim e o pedal também entram', () async {
       final track = _loadTrack('erik-satie.vsb');
@@ -65,7 +65,7 @@ void main() {
       addTearDown(scoreController.clearAll);
       final midi = FakeMidiInput();
       addTearDown(midi.dispose);
-      final practice = PracticeController(
+      final practice = PracticeCubit(
         midiInput: midi,
         track: track,
         scheduler: scheduler,
@@ -74,7 +74,7 @@ void main() {
         mode: PracticeMode.realtime,
         measureIndexAt: timeline.measureIndexAt,
       );
-      addTearDown(practice.dispose);
+      addTearDown(practice.close);
 
       final first = track.events.firstWhere(
         (e) => Hand.direita.studentStaves.contains(e.staff) && !e.ornament,
@@ -124,7 +124,7 @@ void main() {
       addTearDown(scoreController.clearAll);
       final midi = FakeMidiInput();
       addTearDown(midi.dispose);
-      final practice = PracticeController(
+      final practice = PracticeCubit(
         midiInput: midi,
         track: track,
         scheduler: scheduler,
@@ -132,7 +132,7 @@ void main() {
         hand: Hand.direita,
         mode: PracticeMode.realtime,
       );
-      addTearDown(practice.dispose);
+      addTearDown(practice.close);
 
       practice.start();
       practice.pause();

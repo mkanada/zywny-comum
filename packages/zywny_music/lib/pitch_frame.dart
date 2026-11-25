@@ -63,7 +63,7 @@ class PitchFrame {
   bool get _in => keyboardShiftsIn && !appIsSound;
 
   /// A altura escrita da nota [received] que chegou do teclado: o que o
-  /// casador (`PracticeController`) compara com a partitura.
+  /// casador (`PracticeCubit`) compara com a partitura.
   int writtenFromReceived(int received) => _out ? received + k : received;
 
   /// A altura soada da escrita [written]: o que o agendador (K04) e os

@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_midi_command/flutter_midi_command.dart';
 import 'package:zywny_bloc/zywny_bloc.dart';
@@ -39,7 +38,7 @@ class MidiMonitorPanel extends StatelessWidget {
   /// Pitches errados do modo treino (T02), pintados em vermelho por cima de
   /// [held]. `null` fora do modo treino — o teclado volta a só acender o
   /// que está apertado.
-  final ValueListenable<Set<int>>? wrong;
+  final StateStreamable<Set<int>>? wrong;
 
   /// Converte a altura que chegou na **escrita** (fase Q): o teclado desenhado
   /// mostra a tecla que a pessoa aperta, a mesma de [wrong]. `null` = as que
@@ -141,9 +140,9 @@ class MidiMonitorPanel extends StatelessWidget {
                 );
                 final erradas = wrong;
                 if (erradas == null) return paint(const {});
-                return ValueListenableBuilder<Set<int>>(
-                  valueListenable: erradas,
-                  builder: (context, wrongPitches, _) => paint(wrongPitches),
+                return BlocBuilder<StateStreamable<Set<int>>, Set<int>>(
+                  bloc: erradas,
+                  builder: (context, wrongPitches) => paint(wrongPitches),
                 );
               },
             ),

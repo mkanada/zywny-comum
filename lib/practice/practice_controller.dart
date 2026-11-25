@@ -12,6 +12,7 @@ import 'package:flutter/foundation.dart';
 import 'package:score_bridge/score_bridge.dart';
 
 import 'package:zywny_audio/score_audio_scheduler.dart';
+import 'package:zywny_bloc/zywny_bloc.dart';
 
 import 'package:zywny_midi/midi_input_service.dart';
 import 'package:zywny_diag/diag_log.dart';
@@ -52,13 +53,97 @@ const kRepeatNoticeDuration = Duration(seconds: 2);
 const kReplayMaxGapMs = 1500.0;
 const kReplayMinHoldMs = 120.0;
 
+/// O que a tela da prática mostra além do passo pendente (que é o
+/// [WaitModeSession], em `currentStep`): a escada de repetição, as teclas
+/// erradas apertadas e os contadores. `repeat` é `null` quando o compasso não
+/// repete. Cada publicação da escada é um estado novo (o [RepeatStatus] não tem
+/// `==` de valor), como o `ValueNotifier` de antes.
+class PracticeState extends Equatable {
+  const PracticeState({
+    this.repeat,
+    this.wrongPitches = const <int>{},
+    this.correctCount = 0,
+    this.wrongCount = 0,
+    this.liveScore = (hits: 0, total: 0),
+  });
+
+  /// A escada de repetição (LP25), ou `null` quando não repete.
+  final RepeatStatus? repeat;
+
+  /// Pitches errados apertados agora (o teclado desenhado pinta em vermelho).
+  final Set<int> wrongPitches;
+
+  /// Acertos e erros da sessão, para os contadores da tela. Só contam
+  /// veredictos do modo espera (ou do tempo real, no caso dos acertos).
+  final int correctCount;
+  final int wrongCount;
+
+  /// Acertos e total avaliado **até agora** (ver [PracticeCubit.liveScore]).
+  final ({int hits, int total}) liveScore;
+
+  /// [semRepeat] tira a escada (o `repeat` vira `null`); sem ele, [repeat] só
+  /// troca o valor quando é dado.
+  PracticeState copyWith({
+    RepeatStatus? repeat,
+    bool semRepeat = false,
+    Set<int>? wrongPitches,
+    int? correctCount,
+    int? wrongCount,
+    ({int hits, int total})? liveScore,
+  }) => PracticeState(
+    repeat: semRepeat ? null : (repeat ?? this.repeat),
+    wrongPitches: wrongPitches ?? this.wrongPitches,
+    correctCount: correctCount ?? this.correctCount,
+    wrongCount: wrongCount ?? this.wrongCount,
+    liveScore: liveScore ?? this.liveScore,
+  );
+
+  @override
+  List<Object?> get props => [
+    repeat,
+    wrongPitches,
+    correctCount,
+    wrongCount,
+    liveScore,
+  ];
+}
+
+/// O passo pendente quando não há sessão de espera: sempre `null`, e nunca
+/// muda (o `currentStep` devolve este quando [PracticeCubit] está no tempo real).
+class _SemPasso extends Cubit<PracticeStep?> {
+  _SemPasso() : super(null);
+}
+
+/// Um campo do [PracticeState], como um `StateStreamable`: quem só pinta um
+/// pedaço da prática (o teclado com as teclas erradas, a escada) não precisa da
+/// prática inteira. `state` lê na hora; `stream` repete só as mudanças desse
+/// campo (sem repetir o mesmo valor).
+class PracticeField<T> implements StateStreamable<T> {
+  PracticeField(this._fonte, this._de);
+
+  /// A prática (o [PracticeCubit]), ou outra fonte do mesmo estado.
+  final StateStreamable<PracticeState> _fonte;
+  final T Function(PracticeState state) _de;
+
+  @override
+  T get state => _de(_fonte.state);
+
+  @override
+  Stream<T> get stream => _fonte.stream.map(_de).distinct();
+}
+
 /// Modo espera (T02): o aluno escolhe [hand], o app agenda a outra no
 /// [scheduler] (freio incluso) e cada nota tocada no [midiInput] alimenta o
 /// [WaitModeSession] — que devolve as cores esperada/certa para o
 /// [ScoreCubit] (ver "três camadas" em [_paintStep]) e o pitch errado
 /// para a fantasma e o teclado desenhado.
-class PracticeController {
-  PracticeController({
+///
+/// É um Cubit ([state] é um [PracticeState]). A tela escuta o `stream`; o motor
+/// (a [ScoreRoundRunner] e as sessões) lê o [state] na hora e recebe os avisos
+/// síncronos ([ouvirEscadaSincrona] e o aviso de passo da sessão), na mesma pilha
+/// da mudança.
+class PracticeCubit extends Cubit<PracticeState> {
+  PracticeCubit({
     required MidiInputService midiInput,
     required PerformanceTrack track,
     required this.scheduler,
@@ -96,7 +181,8 @@ class PracticeController {
     this.holdNotes = false,
     this.chordDemands = const [],
   }) : _midiInput = midiInput, // ignore: prefer_initializing_formals
-       _track = track {
+       _track = track,
+       super(const PracticeState()) {
     if (range != null) {
       assert(range!.startMs < range!.endMs, 'range precisa de startMs < endMs');
     }
@@ -165,7 +251,7 @@ class PracticeController {
       if (range != null) _tally = WaitTally();
       _verdictSub = wait.verdicts.listen(_onVerdict);
       _releasesSub = wait.releases.listen(_onHoldRelease);
-      wait.current.addListener(_onStepChanged);
+      wait.onStepChanged = _onStepChanged;
       _paintStep();
       _syncGhostExpected();
     } else {
@@ -202,9 +288,9 @@ class PracticeController {
           if (e.onMs <= pos && pos < e.offMs) e.id,
       ],
       'notasEmEspera': _expectedIds,
-      'acertos': _correctCount.value,
-      'erros': _wrongCount.value,
-      'teclasErradasApertadas': _wrongPitches.value.toList(),
+      'acertos': state.correctCount,
+      'erros': state.wrongCount,
+      'teclasErradasApertadas': state.wrongPitches.toList(),
       'segurasCedo': _earlyReleases,
     };
   }
@@ -412,12 +498,14 @@ class PracticeController {
   /// se a música estava parada à espera (modo espera).
   final List<_KeyLog> _keyLog = [];
 
-  /// A escada na tela (`null` quando não repete).
-  final ValueNotifier<RepeatStatus?> _repeat = ValueNotifier(null);
+  final List<void Function(RepeatStatus? status)> _ouvintesDaEscada = [];
 
-  /// O estado da escada de repetição para a tela (LP25): o compasso, o degrau, o
-  /// aviso e a contagem. `null` quando o compasso não repete.
-  ValueListenable<RepeatStatus?> get repeat => _repeat;
+  /// Ouve a escada na mesma pilha da publicação (motor→motor, como o `addListener`
+  /// de antes, sem passar pelo [stream]): chamado logo depois de [PracticeState.repeat]
+  /// mudar, com o status novo (ou `null` ao acabar). O `ScoreRoundRunner` põe a faixa
+  /// do compasso que repete por aqui. A tela não usa isto: escuta o [stream].
+  void ouvirEscadaSincrona(void Function(RepeatStatus? status) ouvinte) =>
+      _ouvintesDaEscada.add(ouvinte);
 
   /// O andamento da rodada (o último degrau da escada), lido na construção.
   late final double _baseSpeed;
@@ -516,46 +604,58 @@ class PracticeController {
   bool _paused = false;
   bool get paused => _paused;
 
-  final ValueNotifier<Set<int>> _wrongPitches = ValueNotifier(const {});
-  final ValueNotifier<int> _correctCount = ValueNotifier(0);
-  final ValueNotifier<int> _wrongCount = ValueNotifier(0);
-
-  /// Acertos e erros da sessão, para os contadores da tela (o artefato
-  /// mostra "23 · ×1"). Só contam veredictos do modo espera.
-  ValueListenable<int> get correctCount => _correctCount;
-  ValueListenable<int> get wrongCount => _wrongCount;
-
-  final ValueNotifier<({int hits, int total})> _liveScore = ValueNotifier((
-    hits: 0,
-    total: 0,
-  ));
+  /// Publica uma mudança do [PracticeState]: a tela recebe pelo `stream`, e os
+  /// ouvintes síncronos da escada ([ouvirEscadaSincrona]) recebem na mesma pilha,
+  /// como o `ValueNotifier` de antes. Depois do `close`, não há o que avisar.
+  void _emitir(PracticeState next) {
+    if (isClosed) return;
+    final antes = state.repeat;
+    emit(next);
+    if (identical(antes, next.repeat)) return;
+    for (final ouvinte in List.of(_ouvintesDaEscada)) {
+      ouvinte(next.repeat);
+    }
+  }
 
   /// Acertos e total avaliado **até agora**, na mesma conta de
   /// [stageResult] (U05): modo espera com intervalo = passos de primeira /
   /// passos concluídos; tempo real = `correct` / avaliadas. Incremental,
   /// para não refazer o resumo a cada veredito. Sem resultado (modo espera
-  /// sem intervalo): fica em 0/0.
-  ValueListenable<({int hits, int total})> get liveScore => _liveScore;
-
+  /// sem intervalo): fica em 0/0. Vai no [state] (`liveScore`).
   void _liveAdd({required bool hit}) {
-    final now = _liveScore.value;
-    _liveScore.value = (hits: now.hits + (hit ? 1 : 0), total: now.total + 1);
+    final now = state.liveScore;
+    _emitir(
+      state.copyWith(
+        liveScore: (hits: now.hits + (hit ? 1 : 0), total: now.total + 1),
+      ),
+    );
   }
 
   void _liveFromTally() {
     final tally = _tally;
     if (tally == null) return;
-    _liveScore.value = (hits: tally.firstTry, total: tally.done);
+    _emitir(
+      state.copyWith(liveScore: (hits: tally.firstTry, total: tally.done)),
+    );
   }
 
   /// Passo pendente do aluno (para a UI mostrar progresso); `null` quando a
-  /// sessão acabou.
-  ValueListenable<PracticeStep?> get currentStep => _wait?.current ?? _noStep;
-  static final ValueNotifier<PracticeStep?> _noStep = ValueNotifier(null);
+  /// sessão acabou. É síncrono: o motorista do aluno virtual lê o `state` na
+  /// hora, e a tela escuta o `stream`.
+  StateStreamable<PracticeStep?> get currentStep => _wait ?? _noStep;
+  static final _SemPasso _noStep = _SemPasso();
 
-  /// Pitches errados apertados agora — o teclado desenhado (M01) pinta em
-  /// vermelho.
-  ValueListenable<Set<int>> get wrongPitches => _wrongPitches;
+  /// As teclas erradas e a escada como `StateStreamable`s estáveis (a mesma
+  /// instância a cada chamada): o teclado desenhado (`MidiMonitorPanel.wrong`) e
+  /// a camada da escada (`ExerciseRepeatLayer.status`).
+  late final PracticeField<Set<int>> wrongView = PracticeField(
+    this,
+    (s) => s.wrongPitches,
+  );
+  late final PracticeField<RepeatStatus?> repeatView = PracticeField(
+    this,
+    (s) => s.repeat,
+  );
 
   bool get done => _wait?.done ?? false;
 
@@ -578,18 +678,18 @@ class PracticeController {
         // Sem nenhum passo no trecho (mão só com pausa): a sessão já nasce
         // sem passo e não avisa mudança nenhuma — encerra aqui, senão a
         // etapa tocaria sozinha e ficaria sem resumo.
-        final first = wait.current.value;
+        final first = wait.state;
         if (first == null || first.onMs >= range.endMs) {
           _finishRange();
           return;
         }
-        _armBrake(wait.current.value);
+        _armBrake(wait.state);
         scheduler.setStopAt(range.endMs - kRangeBoundaryToleranceMs);
         scheduler.setJumps(rangeJumps);
         scheduler.onJump = onRangeJump;
       } else {
         if (fromMs > 0) wait.resetTo(fromMs);
-        _armBrake(wait.current.value);
+        _armBrake(wait.state);
       }
     } else {
       final startMs = range?.startMs ?? fromMs;
@@ -633,7 +733,7 @@ class PracticeController {
     _loopEndMs = endMs;
     final wait = _wait;
     if (wait != null) {
-      final step = wait.current.value;
+      final step = wait.state;
       if (step == null || step.onMs >= endMs) _restartLoop();
     } else {
       _resetTimed(startMs, untilMs: endMs);
@@ -693,7 +793,7 @@ class PracticeController {
     scheduler.seek(start);
     wait.resetTo(start);
     _restarting = false;
-    _armBrake(wait.current.value);
+    _armBrake(wait.state);
     onLoopRestart?.call(start);
   }
 
@@ -718,7 +818,7 @@ class PracticeController {
     // a cápsula é dada por cheia (a passagem acabou com a nota presa).
     final range = this.range;
     if (range != null &&
-        wait.current.value?.holdEndMs != null &&
+        wait.state?.holdEndMs != null &&
         ms >= range.endMs - kRangeBoundaryToleranceMs) {
       ms = double.infinity;
     }
@@ -1246,7 +1346,7 @@ class PracticeController {
       chords: _sessionChords,
     );
     _ownWait = created;
-    created.current.addListener(_onStepChanged);
+    created.onStepChanged = _onStepChanged;
     _ownWaitVerdictSub = created.verdicts.listen(_onVerdict);
     return created;
   }
@@ -1255,17 +1355,21 @@ class PracticeController {
   void _publish({required RepeatNotice notice, bool countingIn = false}) {
     final ladder = _ladder;
     if (ladder == null) {
-      _repeat.value = null;
+      _emitir(state.copyWith(semRepeat: true));
       return;
     }
-    _repeat.value = RepeatStatus(
-      measure: _repeatMeasure,
-      rung: ladder.current,
-      rungIndex: ladder.index,
-      rungCount: ladder.length,
-      notice: notice,
-      countingIn: countingIn,
-      listen: _listen,
+    _emitir(
+      state.copyWith(
+        repeat: RepeatStatus(
+          measure: _repeatMeasure,
+          rung: ladder.current,
+          rungIndex: ladder.index,
+          rungCount: ladder.length,
+          notice: notice,
+          countingIn: countingIn,
+          listen: _listen,
+        ),
+      ),
     );
   }
 
@@ -1289,7 +1393,7 @@ class PracticeController {
     _countInHold = false;
     _earlyPitches.clear();
     _pendingRung = null;
-    _repeat.value = null;
+    _emitir(state.copyWith(semRepeat: true));
   }
 
   /// A volta ao compasso [measure]: o que foi avaliado depois dele (na folga
@@ -1299,7 +1403,7 @@ class PracticeController {
     _wrongMarks.removeWhere((m) => m.measureIndex > measure);
     if (_wait == null) {
       final now = report;
-      _liveScore.value = (hits: now.correct, total: now.total);
+      _emitir(state.copyWith(liveScore: (hits: now.correct, total: now.total)));
     }
   }
 
@@ -1402,7 +1506,7 @@ class PracticeController {
     _litStep.clear();
     _litDone.clear();
     ghosts?.clear();
-    _wrongPitches.value = const {};
+    _emitir(state.copyWith(wrongPitches: const <int>{}));
   }
 
   void _onNote(PlayedNote note) {
@@ -1461,10 +1565,17 @@ class PracticeController {
       wait?.noteOff(pitch);
       _releaseDone(pitch);
       ghosts?.release(pitch);
-      if (_wrongPitches.value.contains(pitch)) {
-        _wrongPitches.value = Set.of(_wrongPitches.value)..remove(pitch);
-      }
+      _soltaErrada(pitch);
     }
+  }
+
+  /// A tecla errada [pitch] foi solta: sai de [PracticeState.wrongPitches] (o
+  /// teclado a apaga).
+  void _soltaErrada(int pitch) {
+    if (!state.wrongPitches.contains(pitch)) return;
+    _emitir(
+      state.copyWith(wrongPitches: Set.of(state.wrongPitches)..remove(pitch)),
+    );
   }
 
   /// Guarda a tecla aceita para a escuta do erro ([onMissReplay]).
@@ -1480,7 +1591,7 @@ class PracticeController {
       _KeyLog(
         pitch: pitch,
         velocity: note.velocity,
-        measure: _measureAt(_wait?.current.value?.onMs ?? musicalMs),
+        measure: _measureAt(_wait?.state?.onMs ?? musicalMs),
         musicalMs: musicalMs,
         wallMs: note.atSeconds * 1000,
         waiting: waiting,
@@ -1572,7 +1683,7 @@ class PracticeController {
         verdict.atMs ??
         (verdict.eventId != null
             ? _eventOnMs(verdict.eventId!)
-            : (_wait?.current.value?.onMs ?? _lastPlayedMusicalMs));
+            : (_wait?.state?.onMs ?? _lastPlayedMusicalMs));
     final index = _measureAt(ms);
     _entries.add(ReportEntry(verdict, index, pass: passOf?.call(index) ?? 1));
     if (rewindOnError &&
@@ -1626,7 +1737,7 @@ class PracticeController {
   /// Acertou: conta e acende a nota (ou o acorde) na cor de certa.
   void _onCorrectVerdict(NoteVerdict verdict) {
     _unwatchShift(verdict);
-    _correctCount.value++;
+    _emitir(state.copyWith(correctCount: state.correctCount + 1));
     if (_waitLook) {
       // O acorde da cifra (sem `eventId`) não acende nota da partitura.
       if (verdict.eventId != null) _closeHit(verdict.pitch);
@@ -1642,8 +1753,12 @@ class PracticeController {
 
   /// Errou a tecla: conta, marca a tecla e pisca na nota esperada mais próxima.
   void _onWrongVerdict(NoteVerdict verdict) {
-    _wrongCount.value++;
-    _wrongPitches.value = Set.of(_wrongPitches.value)..add(verdict.pitch);
+    _emitir(state.copyWith(wrongCount: state.wrongCount + 1));
+    _emitir(
+      state.copyWith(
+        wrongPitches: Set.of(state.wrongPitches)..add(verdict.pitch),
+      ),
+    );
     final mark = _markWrong(verdict.pitch);
     ghosts?.press(
       verdict.pitch,
@@ -1671,7 +1786,7 @@ class PracticeController {
   /// Fora do tempo (antes ou depois): conta como certa, com a cor própria.
   void _onOffBeatVerdict(NoteVerdict verdict) {
     _unwatchShift(verdict);
-    _correctCount.value++;
+    _emitir(state.copyWith(correctCount: state.correctCount + 1));
     if (verdict.eventId != null) {
       final mark = _markOffBeat(verdict);
       ghosts?.press(verdict.pitch, targetIds: mark.targetIds, side: mark.side);
@@ -1712,7 +1827,7 @@ class PracticeController {
     final WrongMark mark;
     final wait = _wait;
     if (wait != null) {
-      final step = wait.current.value;
+      final step = wait.state;
       if (step == null) return null;
       mark = WrongMark(
         pitch: pitch,
@@ -1772,7 +1887,7 @@ class PracticeController {
   /// próxima de uma nota errada nem sempre é a que a pessoa queria tocar, por
   /// isso o detector recebe as distâncias a todas.
   Iterable<SoundEvent> _expectedNear(double ms) => _wait != null
-      ? (_wait!.current.value?.notes ?? const <SoundEvent>[])
+      ? (_wait!.state?.notes ?? const <SoundEvent>[])
       : _track.startingIn(ms - 400, ms + 400, staves: hand.studentStaves);
 
   /// Q07: conta a nota errada [pitch] no detector de deslocamento.
@@ -1820,7 +1935,7 @@ class PracticeController {
   /// que ainda faltam no passo atual — a nota errada em si pode não existir
   /// na partitura.
   String? _nearestExpectedId(int wrongPitch) {
-    final step = _wait?.current.value;
+    final step = _wait?.state;
     if (step == null) return null;
     SoundEvent? nearest;
     var bestDistance = 1 << 30;
@@ -1838,7 +1953,7 @@ class PracticeController {
   void _onStepChanged() {
     final wait = _wait;
     if (wait == null) return;
-    final shown = wait.current.value;
+    final shown = wait.state;
     DiagLog.log(
       'passo',
       shown == null
@@ -1853,14 +1968,14 @@ class PracticeController {
     }
     final end = _loopEndMs;
     if (end != null) {
-      final step = wait.current.value;
+      final step = wait.state;
       if (step == null || step.onMs >= end) {
         _restartLoop();
         return;
       }
     }
     _paintStep();
-    _armBrake(wait.current.value);
+    _armBrake(wait.state);
     _syncGhostExpected();
   }
 
@@ -1874,7 +1989,7 @@ class PracticeController {
     // republicação do mesmo passo a cada nota certa não conta); o
     // seguinte, se ainda está no intervalo, entra na contagem — senão o
     // intervalo acabou.
-    final step = wait.current.value;
+    final step = wait.state;
     final ended = step == null || step.onMs >= range.endMs;
     if (_tallyStep != null && _tallyStep != step?.index) {
       _tally?.stepDone();
@@ -1943,7 +2058,7 @@ class PracticeController {
   /// Põe na tela o passo publicado pela sessão: troca a camada do meio
   /// quando o passo muda e acende/apaga as certas conforme `remaining`.
   void _paintStep() {
-    final step = _waitLook ? _wait?.current.value : null;
+    final step = _waitLook ? _wait?.state : null;
     if (step?.index != _paintedStep) {
       // Passo novo: o que estava aceso do anterior sem ele fechar (loop,
       // salto) apaga; o que fechou já passou para [_litDone].
@@ -1976,12 +2091,12 @@ class PracticeController {
 
   /// O acorde fechou com [pitch] apertada: a nota fica na cor de certa até
   /// a tecla soltar ([_releaseDone]). Chamado antes de a sessão publicar o
-  /// passo seguinte, com o passo que fechou ainda em `current`.
+  /// passo seguinte, com o passo que fechou ainda em `state`.
   void _closeHit(int pitch) {
     var ids = _litStep.remove(pitch);
     if (ids == null) {
       // A última nota do acorde: fechou sem republicar o passo.
-      final step = _wait?.current.value;
+      final step = _wait?.state;
       ids = step == null ? const <String>[] : _stepIdsOf(step, pitch);
       controller.highlightAll(ids, color: correctColor, hold: _kForever);
     }
@@ -2024,14 +2139,15 @@ class PracticeController {
   /// Todas as notas do passo (não só as que faltam): a colisão da fantasma
   /// com as cabeças reais da coluna precisa conhecê-las (G05, §10 passo 7).
   void _syncGhostExpected() {
-    final step = _wait?.current.value;
+    final step = _wait?.state;
     ghosts?.setExpected([
       if (step != null)
         for (final e in step.notes) e.id,
     ]);
   }
 
-  void dispose() {
+  @override
+  Future<void> close() {
     DiagLog.log('pratica', 'fim');
     _diagOffState();
     _disposed = true;
@@ -2043,17 +2159,18 @@ class PracticeController {
     unawaited(_verdictSub?.cancel());
     unawaited(_releasesSub?.cancel());
     unawaited(_ownWaitVerdictSub?.cancel());
-    _ownWait?.current.removeListener(_onStepChanged);
-    _ownWait?.dispose();
+    final own = _ownWait;
+    if (own != null) {
+      own.onStepChanged = null;
+      unawaited(own.close());
+    }
     _rt?.dispose();
-    _repeat.dispose();
-    _wrongPitches.dispose();
-    _correctCount.dispose();
-    _wrongCount.dispose();
+    _ouvintesDaEscada.clear();
+    return super.close();
   }
 }
 
-/// Uma tecla do aluno para a escuta do erro (ver [PracticeController.onMissReplay]).
+/// Uma tecla do aluno para a escuta do erro (ver [PracticeCubit.onMissReplay]).
 class _KeyLog {
   _KeyLog({
     required this.pitch,

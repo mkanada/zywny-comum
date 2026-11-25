@@ -131,7 +131,7 @@ void main() {
         addTearDown(scoreController.clearAll);
         final midi = _Input();
         addTearDown(midi.dispose);
-        final practice = PracticeController(
+        final practice = PracticeCubit(
           midiInput: midi,
           track: track,
           scheduler: scheduler,
@@ -139,11 +139,11 @@ void main() {
           hand: Hand.direita,
           writtenFromReceived: frame.writtenFromReceived,
         );
-        addTearDown(practice.dispose);
+        addTearDown(practice.close);
 
         practice.start();
         for (var i = 0; i < 6; i++) {
-          final step = practice.currentStep.value!;
+          final step = practice.currentStep.state!;
           _advanceUntil(engine, scheduler, step.onMs);
           for (final e in step.notes) {
             midi.note(sent(frame, e.pitch), on: true, atSeconds: engine.now);
@@ -157,7 +157,7 @@ void main() {
         practice.finish();
         expect(practice.report.wrong, 0);
         expect(practice.report.correct, greaterThanOrEqualTo(6));
-        expect(practice.wrongPitches.value, isEmpty);
+        expect(practice.state.wrongPitches, isEmpty);
         practice.stop();
       });
 
@@ -174,7 +174,7 @@ void main() {
         addTearDown(scoreController.clearAll);
         final midi = _Input();
         addTearDown(midi.dispose);
-        final practice = PracticeController(
+        final practice = PracticeCubit(
           midiInput: midi,
           track: track,
           scheduler: scheduler,
@@ -183,7 +183,7 @@ void main() {
           mode: PracticeMode.realtime,
           writtenFromReceived: frame.writtenFromReceived,
         );
-        addTearDown(practice.dispose);
+        addTearDown(practice.close);
 
         final mine = track.events
             .where(
@@ -219,7 +219,7 @@ void main() {
       addTearDown(scoreController.clearAll);
       final midi = _Input();
       addTearDown(midi.dispose);
-      final practice = PracticeController(
+      final practice = PracticeCubit(
         midiInput: midi,
         track: track,
         scheduler: scheduler,
@@ -227,10 +227,10 @@ void main() {
         hand: Hand.direita,
         writtenFromReceived: _plain.writtenFromReceived,
       );
-      addTearDown(practice.dispose);
+      addTearDown(practice.close);
 
       practice.start();
-      final step = practice.currentStep.value!;
+      final step = practice.currentStep.state!;
       _advanceUntil(engine, scheduler, step.onMs);
       final inStep = {for (final e in step.notes) e.pitch};
       // A soada das notas do passo, que não é nenhuma delas.
@@ -241,9 +241,9 @@ void main() {
       expect(soundings, isNotEmpty, reason: 'passo sem tecla vizinha livre');
       midi.note(soundings.first, on: true, atSeconds: engine.now);
       await pumpEventQueue();
-      expect(practice.currentStep.value, same(step));
+      expect(practice.currentStep.state, same(step));
       // A tecla errada na tela é a que a pessoa apertou (escrita).
-      expect(practice.wrongPitches.value, contains(soundings.first));
+      expect(practice.state.wrongPitches, contains(soundings.first));
     });
 
     test(
@@ -261,22 +261,22 @@ void main() {
         addTearDown(scoreController.clearAll);
         final midi = _Input();
         addTearDown(midi.dispose);
-        final practice = PracticeController(
+        final practice = PracticeCubit(
           midiInput: midi,
           track: track,
           scheduler: scheduler,
           controller: scoreController,
           hand: Hand.direita,
         );
-        addTearDown(practice.dispose);
+        addTearDown(practice.close);
         practice.start();
-        final step = practice.currentStep.value!;
+        final step = practice.currentStep.state!;
         _advanceUntil(engine, scheduler, step.onMs);
         for (final e in step.notes) {
           midi.note(e.pitch, on: true, atSeconds: engine.now);
         }
         await pumpEventQueue();
-        expect(practice.currentStep.value, isNot(same(step)));
+        expect(practice.currentStep.state, isNot(same(step)));
       },
     );
   });

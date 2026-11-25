@@ -10,7 +10,7 @@ Set<String> appHandNoteIds(PerformanceTrack track, Hand hand) =>
 
 /// Ids das notas das pautas que o **aluno** toca com a mão escolhida, com as
 /// continuações de ligadura: no modo espera quem as pinta é o
-/// `PracticeController`, não o player.
+/// `PracticeCubit`, não o player.
 Set<String> studentHandNoteIds(PerformanceTrack track, Hand hand) =>
     _staffNoteIds(track, hand.studentStaves);
 

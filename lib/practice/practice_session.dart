@@ -9,6 +9,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 
 import 'package:zywny_audio/performance_track.dart';
+import 'package:zywny_bloc/zywny_bloc.dart';
 
 import 'chord_demand.dart';
 import 'practice_verdict_kind.dart';
@@ -157,14 +158,26 @@ const double kHoldFraction = 0.6;
 /// `eventId`, com o `atMs` do ataque. Como as notas, uma tecla já segurada
 /// quando o passo começa não conta para o acorde: é preciso soltá-la e
 /// apertá-la.
-class WaitModeSession {
+///
+/// O estado (BL28) é o passo atual: `state` lê na hora, e a tela escuta o
+/// `stream`. Quem é motor (a controladora) liga [onStepChanged], um aviso
+/// síncrono, na mesma pilha da mudança.
+class WaitModeSession extends Cubit<PracticeStep?> {
   WaitModeSession(
     List<PracticeStep> steps, {
     this._chordWindowMs = kWaitChordWindowMs,
     this.holdFraction,
-  }) : _steps = steps {
+  }) : _steps = steps,
+       super(null) {
     _startStep(0);
   }
+
+  /// Aviso síncrono de cada mudança do [state], sem argumento, como um
+  /// `addListener`: chamado logo depois de o estado mudar, na mesma pilha do
+  /// motor que o mudou. Não é chamado ao criar a sessão (o passo inicial está em
+  /// [state]); quem o liga lê o [state] na hora. Só o motor usa; a tela usa o
+  /// [stream].
+  VoidCallback? onStepChanged;
 
   /// Funde os acordes das pautas do aluno pelo mesmo `onMs` (N03 já agrupa
   /// por pauta, com tolerância de [PerformanceTrack.chordToleranceMs]; aqui
@@ -283,11 +296,17 @@ class WaitModeSession {
   /// entram as apertadas depois de o passo começar ([_startStep] limpa).
   final Map<int, double> _chordHeld = {};
 
-  final ValueNotifier<PracticeStep?> _current = ValueNotifier(null);
-
-  /// Passo atual, com `remaining` sempre atualizado; `null` quando a peça
-  /// acabou.
-  ValueListenable<PracticeStep?> get current => _current;
+  /// Publica o passo atual (o [state]). Como o `ValueNotifier` de antes, um valor
+  /// igual ao anterior não avisa (só `null` sobre `null`, ao acabar a peça de novo).
+  /// Um passo novo avisa sempre, mesmo com os mesmos campos: [PracticeStep] não tem
+  /// `==` de valor, e a controladora repinta a cada publicação. O aviso do motor
+  /// ([onStepChanged]) vem logo depois do `emit`. Depois do `close`, não há o que
+  /// avisar.
+  void _setStep(PracticeStep? next) {
+    if (isClosed || next == state) return;
+    emit(next);
+    onStepChanged?.call();
+  }
 
   final StreamController<NoteVerdict> _verdicts =
       StreamController<NoteVerdict>.broadcast(sync: true);
@@ -556,7 +575,7 @@ class WaitModeSession {
     if (done) {
       _remaining = {};
       _blocked = {};
-      _current.value = null;
+      _setStep(null);
       return;
     }
     final step = _steps[index];
@@ -595,22 +614,25 @@ class WaitModeSession {
 
   void _publish(PracticeStep step) {
     final holdEnd = _holdEndMs;
-    _current.value = PracticeStep(
-      index: step.index,
-      onMs: step.onMs,
-      notes: step.notes,
-      remaining: Set.of(_remaining),
-      holdStartMs: holdEnd == null ? null : step.onMs,
-      holdEndMs: holdEnd,
-      holdParkMs: holdEnd == null ? null : _noteEndOf(_index),
-      chord: step.chord,
+    _setStep(
+      PracticeStep(
+        index: step.index,
+        onMs: step.onMs,
+        notes: step.notes,
+        remaining: Set.of(_remaining),
+        holdStartMs: holdEnd == null ? null : step.onMs,
+        holdEndMs: holdEnd,
+        holdParkMs: holdEnd == null ? null : _noteEndOf(_index),
+        chord: step.chord,
+      ),
     );
   }
 
-  void dispose() {
-    _current.dispose();
+  @override
+  Future<void> close() {
     unawaited(_verdicts.close());
     unawaited(_releases.close());
+    return super.close();
   }
 }
 

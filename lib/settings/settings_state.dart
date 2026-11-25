@@ -123,7 +123,7 @@ class PracticeSettings extends Equatable {
   final PracticeMode practiceMode;
 
   /// Margem do tempo real em ms no andamento original (ver
-  /// `PracticeController.rhythmToleranceMs`), entre
+  /// `PracticeCubit.rhythmToleranceMs`), entre
   /// [kMinRhythmToleranceMs] e [kMaxRhythmToleranceMs].
   final double rhythmToleranceMs;
 

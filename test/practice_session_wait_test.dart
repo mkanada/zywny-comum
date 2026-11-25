@@ -80,7 +80,7 @@ void main() {
       session.noteOn(72, atMs: 50); // errada
       session.noteOn(64, atMs: 100); // acorde todo, mas a 72 ainda presa
       expect(session.done, isFalse);
-      expect(session.current.value!.remaining, isEmpty);
+      expect(session.state!.remaining, isEmpty);
       expect(verdicts.map((v) => v.kind), [PracticeVerdictKind.wrong]);
       session.noteOff(72);
       expect(session.done, isTrue);
@@ -120,7 +120,7 @@ void main() {
       session.noteOn(72, atMs: 10);
       session.noteOff(72);
       expect(session.done, isFalse);
-      expect(session.current.value!.remaining, {64});
+      expect(session.state!.remaining, {64});
       session.noteOn(64, atMs: 60);
       expect(session.done, isTrue);
     });
@@ -145,7 +145,7 @@ void main() {
       session.verdicts.listen(verdicts.add);
       session.noteOn(60, atMs: 0);
       session.noteOn(64, atMs: 10);
-      expect(session.current.value!.index, 1);
+      expect(session.state!.index, 1);
       // 60 e 64 continuam apertadas enquanto o acorde novo entra.
       session.noteOn(62, atMs: 600);
       session.noteOn(65, atMs: 620);
@@ -175,7 +175,7 @@ void main() {
       session.noteOn(64, atMs: 100);
       session.noteOn(67, atMs: 600); // fora da janela: recomeça
       expect(session.done, isFalse);
-      expect(session.current.value!.remaining, {60});
+      expect(session.state!.remaining, {60});
       session.noteOff(60);
       session.noteOn(60, atMs: 700);
       expect(session.done, isTrue);
@@ -194,7 +194,7 @@ void main() {
       session.noteOff(60);
       session.noteOn(64, atMs: 100);
       expect(session.done, isFalse);
-      expect(session.current.value!.remaining, {60});
+      expect(session.state!.remaining, {60});
       session.noteOn(60, atMs: 150);
       expect(session.done, isTrue);
     });
@@ -210,10 +210,10 @@ void main() {
       ];
       final session = WaitModeSession(steps);
 
-      expect(session.current.value!.remaining, {60, 64});
+      expect(session.state!.remaining, {60, 64});
       session.noteOn(60, atMs: 0);
-      expect(session.current.value!.index, 0, reason: 'ainda no passo 0');
-      expect(session.current.value!.remaining, {64});
+      expect(session.state!.index, 0, reason: 'ainda no passo 0');
+      expect(session.state!.remaining, {64});
       session.noteOn(64, atMs: 10);
       expect(session.done, isTrue);
     });
@@ -239,12 +239,12 @@ void main() {
       session.verdicts.listen(verdicts.add);
 
       session.noteOn(60, atMs: 0);
-      expect(session.current.value!.index, 1);
+      expect(session.state!.index, 1);
 
       // Tecla continua fisicamente apertada: tentar de novo sem soltar
       // antes não pode contar como a nota do passo 1.
       session.noteOn(60, atMs: 10);
-      expect(session.current.value!.index, 1);
+      expect(session.state!.index, 1);
       expect(
         verdicts.where((v) => v.kind == PracticeVerdictKind.correct).length,
         1,
@@ -269,7 +269,7 @@ void main() {
       // instantes, o passo correspondente precisa trazer as notas das
       // duas juntas.
       final byOnMs = <double, PracticeStep>{};
-      var step = session.current.value;
+      var step = session.state;
       var i = 0;
       while (step != null && i < 10000) {
         byOnMs[step.onMs] = step;
@@ -283,7 +283,7 @@ void main() {
         for (final pitch in pitches) {
           session.noteOff(pitch);
         }
-        step = session.current.value;
+        step = session.state;
         i++;
       }
 
@@ -318,13 +318,13 @@ void main() {
       ];
       final session = WaitModeSession(steps);
       session.noteOn(60, atMs: 0);
-      expect(session.current.value!.index, 1);
+      expect(session.state!.index, 1);
 
       session.resetTo(1500);
-      expect(session.current.value!.index, 2);
+      expect(session.state!.index, 2);
 
       session.resetTo(0);
-      expect(session.current.value!.index, 0);
+      expect(session.state!.index, 0);
     });
 
     test('acorde pingado sem segurar não acumula: fora da janela a '
@@ -347,11 +347,11 @@ void main() {
       // primeiro da nova tentativa.
       session.noteOn(64, atMs: 500);
       expect(session.done, isFalse);
-      expect(session.current.value!.remaining, {60, 67});
+      expect(session.state!.remaining, {60, 67});
       session.noteOff(64);
       session.noteOn(67, atMs: 1100);
       expect(session.done, isFalse);
-      expect(session.current.value!.remaining, {60, 64});
+      expect(session.state!.remaining, {60, 64});
       // Nenhuma nota solta vira "certa": o acerto só sai com o acorde todo.
       expect(
         verdicts.where((v) => v.kind == PracticeVerdictKind.correct),
@@ -399,7 +399,7 @@ void main() {
 
       session.noteOn(60, atMs: 0); // segura
       session.noteOn(64, atMs: 500); // fora da janela: recomeça, 60 vale
-      expect(session.current.value!.remaining, {67});
+      expect(session.state!.remaining, {67});
       session.noteOn(67, atMs: 550);
       expect(session.done, isTrue);
     });
@@ -436,7 +436,7 @@ void main() {
       session.noteOn(60, atMs: 0);
       session.noteOff(60);
       session.noteOn(72, atMs: 500); // errada, fora da janela: recomeça
-      expect(session.current.value!.remaining, {60, 64, 67});
+      expect(session.state!.remaining, {60, 64, 67});
       session.noteOff(72);
       session.noteOn(60, atMs: 550);
       session.noteOn(64, atMs: 600);
@@ -470,7 +470,7 @@ void main() {
     ]);
     final wait = WaitModeSession.forStaves(track, staves: {1});
     wait.resetTo(15158);
-    expect(wait.current.value!.notes.map((e) => e.id), ['a']);
+    expect(wait.state!.notes.map((e) => e.id), ['a']);
 
     final rt = RealtimeSession.forStaves(track, staves: {1}, speed: 1);
     final kinds = <PracticeVerdictKind>[];

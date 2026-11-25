@@ -1,6 +1,6 @@
 // LP24.2 — A volta na hora: a conta do compasso com erro (Dart puro).
 //
-// O `PracticeController` anota aqui cada erro (nota errada ou perdida) pelo
+// O `PracticeCubit` anota aqui cada erro (nota errada ou perdida) pelo
 // compasso dele e pergunta, quando o compasso acaba, se ele precisa voltar.
 // A volta zera a tentativa do compasso e de tudo o que vem depois (o que o
 // aluno tocou na folga depois da barra vai ser tocado de novo).
