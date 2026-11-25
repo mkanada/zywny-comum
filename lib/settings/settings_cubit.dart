@@ -447,7 +447,7 @@ class SettingsCubit extends Cubit<SettingsState> {
     final stored = await _readStored();
     if (isClosed) return;
     emit(_lido(stored));
-    DiagLog.setState('configuracoes', () => state.diagSnapshot());
+    DiagLog.retrato('configuracoes',() => state.diagSnapshot());
     _diagLogChange('carregadas');
   }
 

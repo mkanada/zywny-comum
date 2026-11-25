@@ -114,7 +114,7 @@ class BugReportScopeState extends State<BugReportScope>
   void initState() {
     super.initState();
     _current = this;
-    DiagLog.setState('app', () => {'app': widget.appName});
+    DiagLog.retrato('app',() => {'app': widget.appName});
     // O rastro da partitura (player e vista) vai para o mesmo log.
     ScoreTrace.sink = DiagLog.log;
     WidgetsBinding.instance.addObserver(this);

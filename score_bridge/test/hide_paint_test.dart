@@ -77,23 +77,18 @@ void main() {
     h = page.heightPx;
   });
 
-  Future<(GlobalKey, ScorePageViewState)> mount(
+  Future<(GlobalKey, ScorePageCubit)> mount(
     WidgetTester tester,
     ScoreCubit controller, {
     void Function(String id)? onTap,
   }) async {
     final key = await pumpAtSize(
       tester,
-      ScorePageView(
-        document: doc,
-        pageIndex: 0,
-        controller: controller,
-        onElementTap: onTap,
-      ),
+      scorePageFor(doc, 0, controller: controller, onElementTap: onTap),
       w,
       h,
     );
-    return (key, tester.state<ScorePageViewState>(find.byType(ScorePageView)));
+    return (key, pageCubitOf(tester));
   }
 
   testWidgets('esconder uma nota fora de barra: nada dela fica (critério 2)', (

@@ -48,7 +48,7 @@ void main() {
       await body(controller, player);
     } finally {
       controller.clearAll();
-      player.dispose();
+      player.close();
       controller.close();
     }
   }

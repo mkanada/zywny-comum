@@ -53,13 +53,11 @@ void main() {
       final page = doc.pages[0];
       final key = await pumpAtSize(
         tester,
-        ScorePageView(document: doc, pageIndex: 0, controller: controller),
+        scorePageFor(doc, 0, controller: controller),
         page.widthPx,
         page.heightPx,
       );
-      final state = tester.state<ScorePageViewState>(
-        find.byType(ScorePageView),
-      );
+      final state = pageCubitOf(tester);
       final builds = state.pictureBuilds;
       expect(builds, greaterThan(0));
       final ids = animatableIdsFromTimemap(doc.timemap)
@@ -89,12 +87,10 @@ void main() {
         addTearDown(tester.view.resetDevicePixelRatio);
         // Mesma estrutura de árvore nas montagens: o `State` é o mesmo.
         Widget at(int page) => Center(
-          child: ScorePageView(document: doc, pageIndex: page),
+          child: scorePageFor(doc, page),
         );
         await tester.pumpWidget(at(0));
-        final state = tester.state<ScorePageViewState>(
-          find.byType(ScorePageView),
-        );
+        final state = pageCubitOf(tester);
         final builds0 = state.pictureBuilds;
         expect(builds0, greaterThan(0));
         expect(state.pictureDisposals, 0);
@@ -117,19 +113,17 @@ void main() {
       final page = doc.pages[0];
       await pumpAtSize(
         tester,
-        ScorePageView(document: doc, pageIndex: 0),
+        scorePageFor(doc, 0),
         page.widthPx,
         page.heightPx,
       );
-      final state = tester.state<ScorePageViewState>(
-        find.byType(ScorePageView),
-      );
+      final state = pageCubitOf(tester);
       final builds = state.pictureBuilds;
       await tester.pumpWidget(
         Center(
           child: SizedBox(
             width: page.widthPx / 2,
-            child: ScorePageView(document: doc, pageIndex: 0),
+            child: scorePageFor(doc, 0),
           ),
         ),
       );

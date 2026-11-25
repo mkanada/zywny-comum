@@ -126,7 +126,7 @@ void main() {
 
   group('ScoreGeometry resolve ids expandidos (critério 6)', () {
     // scrollToId('x-rend2') é testado em score_view_test.dart, que já monta
-    // o widget necessário (ScoreViewController precisa de um ScoreView vivo).
+    // o widget necessário (ScoreViewCubit precisa de um ScoreView vivo).
     test('rectForId(x-rend2) == rectForId(x)', () {
       final doc = fakeDocument([
         [

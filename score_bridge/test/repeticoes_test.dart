@@ -170,7 +170,7 @@ void main() {
           );
         } finally {
           controller.clearAll();
-          player.dispose();
+          player.close();
           controller.close();
         }
       });

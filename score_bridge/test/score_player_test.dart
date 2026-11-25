@@ -98,7 +98,7 @@ void main() {
   ScorePlayer makePlayer(
     VsbDocument doc,
     ScoreCubit controller, {
-    ScoreViewController? view,
+    ScoreViewCubit? view,
     void Function(TimemapEntry)? onEntry,
   }) => ScorePlayer(
     document: doc,
@@ -117,7 +117,7 @@ void main() {
         final player = makePlayer(doc, controller);
         cleanup.add(() {
           controller.clearAll();
-          player.dispose();
+          player.close();
           controller.close();
         });
         final rng = math.Random(5);
@@ -158,7 +158,7 @@ void main() {
     final player = makePlayer(doc, controller);
     cleanup.add(() {
       controller.clearAll();
-      player.dispose();
+      player.close();
       controller.close();
     });
     final rng = math.Random(7);
@@ -189,7 +189,7 @@ void main() {
       );
       cleanup.add(() {
         controller.clearAll();
-        player.dispose();
+        player.close();
         controller.close();
       });
       // Timemap: on m1n1 em 0, off m1n1 + on m1n1-rend2 em 2000 (o mesmo
@@ -220,7 +220,7 @@ void main() {
     final player = ScorePlayer(document: doc, controller: controller);
     cleanup.add(() {
       controller.clearAll();
-      player.dispose();
+      player.close();
       controller.close();
     });
     player.play();
@@ -247,12 +247,12 @@ void main() {
     final player = makePlayer(doc, controller);
     cleanup.add(() {
       controller.clearAll();
-      player.dispose();
+      player.close();
       controller.close();
     });
     player.seek(const Duration(seconds: 30));
     final lit = controller.highlightedIds.toSet();
-    final idx = player.currentMeasureIndex.value;
+    final idx = player.state.measureIndex;
     final m = player.measures[idx];
     expect(m.startMs, lessThanOrEqualTo(30000));
     expect(m.endMs, greaterThan(30000));
@@ -262,7 +262,7 @@ void main() {
       controller.highlightedIds.toSet().intersection(lit),
       lit.intersection(activeAt(doc, 0)),
     );
-    expect(player.currentMeasureIndex.value, 0);
+    expect(player.state.measureIndex, 0);
     // Cor fixa do host sobrevive ao seek.
     final id = doc.pages[0].elements
         .firstWhere((e) => e.className == 'note')
@@ -289,7 +289,7 @@ void main() {
       player.play();
       cleanup.add(() {
         controller.clearAll();
-        player.dispose();
+        player.close();
         controller.close();
       });
       return seen;
@@ -316,8 +316,8 @@ void main() {
     cleanup.add(() {
       c1.clearAll();
       c4.clearAll();
-      p1.dispose();
-      p4.dispose();
+      p1.close();
+      p4.close();
       c1.close();
       c4.close();
     });
@@ -341,7 +341,7 @@ void main() {
     final player = ScorePlayer(document: doc, controller: controller);
     cleanup.add(() {
       controller.clearAll();
-      player.dispose();
+      player.close();
       controller.close();
     });
     player.play();
@@ -385,7 +385,7 @@ void main() {
     final player = ScorePlayer(document: doc, controller: controller);
     cleanup.add(() {
       controller.clearAll();
-      player.dispose();
+      player.close();
       controller.close();
     });
     player.speed = 30;
@@ -408,7 +408,7 @@ void main() {
       final doc = corpusDoc('Scarlatti')!;
       expect(doc.pages.length, greaterThanOrEqualTo(3));
       final controller = ScoreCubit(document: doc);
-      final vc = ScoreViewController();
+      final vc = ScoreViewCubit();
       final player = ScorePlayer(
         document: doc,
         controller: controller,
@@ -416,7 +416,7 @@ void main() {
       );
       cleanup.add(() {
         controller.clearAll();
-        player.dispose();
+        player.close();
         controller.close();
       });
       final p0 = doc.pages[0];
@@ -435,10 +435,10 @@ void main() {
         p0.heightPx,
       );
       final turns = <int>[];
-      vc.addListener(() => turns.add(vc.currentPage));
+      vc.stream.map((s) => s.page).distinct().listen((_) => turns.add(vc.currentPage));
       var sawCurtain = false;
-      player.curtain.addListener(() {
-        if (player.curtain.value != null) sawCurtain = true;
+      player.curtain.stream.listen((_) {
+        if (player.curtain.state != null) sawCurtain = true;
       });
       player.speed = 20;
       player.play();
@@ -454,7 +454,7 @@ void main() {
       final last = doc.pages.length - 1;
       expect(vc.currentPage, last);
       expect(turns, isNotEmpty);
-      expect(player.curtain.value, isNull);
+      expect(player.curtain.state, isNull);
       expect(find.byType(ClipRect), findsNothing);
       final expected = await harnessBytes(tester, doc, last);
       final got = await captureBytes(tester, key, p0.widthPx, p0.heightPx);
@@ -467,7 +467,7 @@ void main() {
         'da virada (critério 5)', (tester, cleanup) async {
       final doc = corpusDoc('Nocturne')!;
       final controller = ScoreCubit(document: doc);
-      final vc = ScoreViewController();
+      final vc = ScoreViewCubit();
       final player = ScorePlayer(
         document: doc,
         controller: controller,
@@ -476,7 +476,7 @@ void main() {
       );
       cleanup.add(() {
         controller.clearAll();
-        player.dispose();
+        player.close();
         controller.close();
       });
       final p0 = doc.pages[0];
@@ -508,20 +508,20 @@ void main() {
       final parked = (m.startMs + m.endMs) / 2;
       player.seek(Duration(milliseconds: parked.round()));
       await tester.pump();
-      expect(player.curtain.value, expectedAt(parked));
-      expect(player.curtain.value, isNotNull);
+      expect(player.curtain.state, expectedAt(parked));
+      expect(player.curtain.state, isNotNull);
       expect(find.byType(ClipRect), findsOneWidget);
       // Na página seguinte (depois da conclusão): repouso, sem animação.
       final after = next.startMs + 5000.0;
       player.seek(Duration(milliseconds: after.round()));
       await tester.pump();
-      expect(player.curtain.value, isNull);
+      expect(player.curtain.state, isNull);
       expect(vc.currentPage, next.page);
       expect(find.byType(ClipRect), findsNothing);
       // Antes da virada: repouso da página 0.
       player.seek(Duration.zero);
       await tester.pump();
-      expect(player.curtain.value, isNull);
+      expect(player.curtain.state, isNull);
       expect(vc.currentPage, 0);
       expect(find.byType(ClipRect), findsNothing);
     });
@@ -532,7 +532,7 @@ void main() {
     ) async {
       final doc = corpusDoc('Nocturne')!;
       final controller = ScoreCubit(document: doc);
-      final vc = ScoreViewController();
+      final vc = ScoreViewCubit();
       final player = ScorePlayer(
         document: doc,
         controller: controller,
@@ -541,7 +541,7 @@ void main() {
       );
       cleanup.add(() {
         controller.clearAll();
-        player.dispose();
+        player.close();
         controller.close();
       });
       final p0 = doc.pages[0];
@@ -574,7 +574,7 @@ void main() {
         frames++;
         samples.add((
           controller.highlightedCount,
-          player.curtain.value != null,
+          player.curtain.state != null,
         ));
       }
       expect(vc.currentPage, 1);
@@ -596,7 +596,7 @@ void main() {
         '(critério 8)', (tester, cleanup) async {
       final doc = corpusDoc('Nocturne')!;
       final controller = ScoreCubit(document: doc);
-      final vc = ScoreViewController();
+      final vc = ScoreViewCubit();
       final player = ScorePlayer(
         document: doc,
         controller: controller,
@@ -605,7 +605,7 @@ void main() {
       );
       cleanup.add(() {
         controller.clearAll();
-        player.dispose();
+        player.close();
         controller.close();
       });
       final p0 = doc.pages[0];
@@ -633,7 +633,7 @@ void main() {
       var maxJump = 0.0;
       var last = scroll.offset;
       var sawCurtain = false;
-      player.curtain.addListener(() => sawCurtain = true);
+      player.curtain.stream.listen((_) => sawCurtain = true);
       player.play();
       var frames = 0;
       // 60 s de execução em tempo real (1x), quadros de 50 ms.
@@ -696,12 +696,12 @@ void main() {
       );
       cleanup.add(() {
         controller.clearAll();
-        player.dispose();
+        player.close();
         controller.close();
       });
       final edges = <double>[];
-      player.curtain.addListener(() {
-        final c = player.curtain.value;
+      player.curtain.stream.listen((_) {
+        final c = player.curtain.state;
         if (c != null && c.pageIndex == 1) edges.add(c.edgeX);
       });
       player.seek(const Duration(milliseconds: 8000));
@@ -765,8 +765,8 @@ void main() {
         cleanup.add(() {
           controllerA.clearAll();
           controllerC.clearAll();
-          playerA.dispose();
-          playerC.dispose();
+          playerA.close();
+          playerC.close();
           controllerA.close();
           controllerC.close();
         });
@@ -789,18 +789,18 @@ void main() {
         )..clock = clock;
         cleanup.add(() {
           controller.clearAll();
-          player.dispose();
+          player.close();
           controller.close();
         });
         player.seek(Duration(milliseconds: clock.positionMs.round()));
         final lit = controller.highlightedIds.toSet();
-        final index = player.currentMeasureIndex.value;
+        final index = player.state.measureIndex;
         player.play();
         for (var i = 0; i < 100; i++) {
           await tester.pump(const Duration(milliseconds: 16));
         }
         expect(controller.highlightedIds.toSet(), lit);
-        expect(player.currentMeasureIndex.value, index);
+        expect(player.state.measureIndex, index);
         expect(player.position, const Duration(milliseconds: 30000));
       },
     );
@@ -817,7 +817,7 @@ void main() {
       )..clock = clock;
       cleanup.add(() {
         controller.clearAll();
-        player.dispose();
+        player.close();
         controller.close();
       });
       player.play();
@@ -844,7 +844,7 @@ void main() {
       );
       cleanup.add(() {
         controller2.clearAll();
-        player2.dispose();
+        player2.close();
         controller2.close();
       });
       player2.seek(const Duration(milliseconds: 25000));

@@ -18,6 +18,7 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:score_bridge/score_bridge.dart';
+import 'package:zywny_bloc/zywny_bloc.dart';
 
 Iterable<SceneNode> _descendants(SceneNode node) sync* {
   yield node;
@@ -100,7 +101,7 @@ Future<void> main() async {
         ),
       ),
     );
-    final state = tester.state<ScorePageViewState>(find.byType(ScorePageView));
+    final state = BlocProvider.of<ScorePageCubit>(tester.element(find.descendant(of: find.byType(ScorePageView), matching: find.byType(RepaintBoundary)).first));
     final buildsBefore = state.pictureBuilds;
 
     final out = Directory('../compare/out/a02')..createSync(recursive: true);

@@ -61,7 +61,7 @@ void main() {
   ) async {
     final doc = _fixture('maple-leaf-rag.vsb');
     final controller = ScoreCubit(document: doc);
-    final curtain = ValueNotifier<SweepCurtain?>(null);
+    final curtain = ScoreCurtainCubit(null);
     final midX = sweepEndX(doc.pages[0], defaultBarWidth(doc)) / 2;
 
     Future<void> pump({required double sigma}) => tester.pumpWidget(
@@ -87,14 +87,16 @@ void main() {
       // Repouso: nada de filtro na árvore.
       expect(find.byType(ImageFiltered), findsNothing);
 
-      curtain.value = SweepCurtain(pageIndex: 0, edgeX: midX, blur: 1);
+      curtain.show(SweepCurtain(pageIndex: 0, edgeX: midX, blur: 1));
+      await tester.pump();
       await tester.pump();
       expect(
         tester.widget<ImageFiltered>(find.byType(ImageFiltered)).enabled,
         isTrue,
       );
 
-      curtain.value = SweepCurtain(pageIndex: 0, edgeX: midX);
+      curtain.show(SweepCurtain(pageIndex: 0, edgeX: midX));
+      await tester.pump();
       await tester.pump();
       expect(
         tester.widget<ImageFiltered>(find.byType(ImageFiltered)).enabled,
@@ -102,14 +104,14 @@ void main() {
       );
 
       // Sem `revealBlurSigma` a árvore é a de sempre, com qualquer blur.
-      curtain.value = SweepCurtain(pageIndex: 0, edgeX: midX, blur: 1);
+      curtain.show(SweepCurtain(pageIndex: 0, edgeX: midX, blur: 1));
       await pump(sigma: 0);
       expect(find.byType(ImageFiltered), findsNothing);
     } finally {
       await tester.pumpWidget(const SizedBox());
       controller.clearAll();
       controller.close();
-      curtain.dispose();
+      curtain.close();
     }
   });
 }

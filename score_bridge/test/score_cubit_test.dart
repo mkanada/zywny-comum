@@ -72,7 +72,7 @@ void main() {
     noteIds = [for (final n in notesWithStem(doc, 0)) n.id!];
   });
 
-  Future<ScorePageViewState> mount(
+  Future<ScorePageCubit> mount(
     WidgetTester tester,
     VsbDocument d,
     ScoreCubit? controller, {
@@ -90,16 +90,16 @@ void main() {
       Center(
         child: RepaintBoundary(
           key: _key,
-          child: ScorePageView(
-            document: d,
-            pageIndex: 0,
+          child: scorePageFor(
+            d,
+            0,
             controller: controller,
             animatableIds: animatableIds,
           ),
         ),
       ),
     );
-    return tester.state<ScorePageViewState>(find.byType(ScorePageView));
+    return pageCubitOf(tester);
   }
 
   Future<ByteData> shot(WidgetTester tester, VsbDocument d) =>

@@ -83,7 +83,7 @@ void main() {
         return chain.where(controller.isHighlighted).toSet();
       } finally {
         controller.clearAll();
-        player.dispose();
+        player.close();
         controller.close();
       }
     }
@@ -103,7 +103,7 @@ void main() {
       expect(chain.every(controller.isHighlighted), isTrue);
     } finally {
       controller.clearAll();
-      player.dispose();
+      player.close();
       controller.close();
     }
   });

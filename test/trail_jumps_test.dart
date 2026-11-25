@@ -326,7 +326,7 @@ void main() {
         track: track,
         autoTick: false,
       );
-      addTearDown(scheduler.dispose);
+      addTearDown(scheduler.close);
       scheduler.setStaves(const {2});
       scheduler.beats = const [
         Beat(1000, accent: true, measure: 0),

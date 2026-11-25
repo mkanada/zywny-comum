@@ -39,7 +39,7 @@ void main() {
     } finally {
       // Antes do fim do teste: os destaques têm animações em curso.
       controller.clearAll();
-      player.dispose();
+      player.close();
       controller.close();
     }
   });
@@ -67,7 +67,7 @@ void main() {
       expect(controller.colorOf('m2n1'), kDefaultHighlightColor);
     } finally {
       controller.clearAll();
-      player.dispose();
+      player.close();
       controller.close();
     }
   });
@@ -106,7 +106,7 @@ void main() {
       expect(controller.colorOf('m1n1'), kDefaultHighlightColor);
     } finally {
       controller.clearAll();
-      player.dispose();
+      player.close();
       controller.close();
     }
   });

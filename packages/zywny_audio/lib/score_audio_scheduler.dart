@@ -31,6 +31,7 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart' show VoidCallback;
+import 'package:zywny_bloc/zywny_bloc.dart';
 import 'package:zywny_diag/diag_log.dart';
 
 import 'performance_track.dart';
@@ -42,12 +43,61 @@ import 'sound_engine.dart';
 /// note-off da anterior.
 const _kNoteOffLeadSeconds = 0.001;
 
+/// O que o agendador deixa observar (BL27): se toca, a velocidade e o
+/// metrônomo. A decisão de tocar lê estes campos de forma síncrona, e o som
+/// sai na hora; o estado não espera nada. A posição e a contagem ficam de
+/// fora: mudam com o relógio do motor, então são leituras
+/// ([ScoreAudioScheduler.positionMs], [ScoreAudioScheduler.isCountingIn]). O
+/// loop, o portão e os saltos são dados que o host põe na agenda, e as voltas
+/// e os saltos avisam por callback ([ScoreAudioScheduler.onLoop],
+/// [ScoreAudioScheduler.onJump]).
+class SchedulerState extends Equatable {
+  const SchedulerState({
+    this.running = false,
+    this.speed = 1.0,
+    this.metronomeOn = false,
+    this.metronomeMuted = false,
+  });
+
+  /// Está tocando (de `play` até `pause`, `stop` ou o fim).
+  final bool running;
+
+  /// Velocidade do relógio musical (1 é o andamento escrito).
+  final double speed;
+
+  /// Metrônomo ligado: clica em cada batida enquanto toca.
+  final bool metronomeOn;
+
+  /// Silencia o metrônomo sem mexer em [metronomeOn] (a escolha do aluno): o
+  /// degrau "só notas" da escada de repetição não cobra tempo, então não clica.
+  /// A contagem de entrada não é afetada.
+  final bool metronomeMuted;
+
+  SchedulerState copyWith({
+    bool? running,
+    double? speed,
+    bool? metronomeOn,
+    bool? metronomeMuted,
+  }) => SchedulerState(
+    running: running ?? this.running,
+    speed: speed ?? this.speed,
+    metronomeOn: metronomeOn ?? this.metronomeOn,
+    metronomeMuted: metronomeMuted ?? this.metronomeMuted,
+  );
+
+  @override
+  List<Object?> get props => [running, speed, metronomeOn, metronomeMuted];
+}
+
 /// Agendador puro (sem widgets) que liga [PerformanceTrack] a [SoundEngine]:
 /// mantém a agenda do motor preenchida um pouco à frente do relógio do
 /// dispositivo. Testável com um `FakeSoundEngine` que só registra
 /// (`autoTick: false` evita o `Timer.periodic` de verdade — os testes
 /// chamam [pump] direto).
-class ScoreAudioScheduler {
+///
+/// É um Cubit síncrono (BL27): o estado observado é [SchedulerState] e
+/// `close()` para a agenda e tira os registros do relatório de bug.
+class ScoreAudioScheduler extends Cubit<SchedulerState> {
   ScoreAudioScheduler({
     required this.engine,
     required this.track,
@@ -56,27 +106,27 @@ class ScoreAudioScheduler {
     // Não dá para virar `this._autoTick`: o parâmetro é público, o campo é
     // privado.
     bool autoTick = true,
-  }) : _autoTick = autoTick {
+  }) : _autoTick = autoTick, super(const SchedulerState()) {
     // O relatório de bug para o som (e o metrônomo, que sai daqui) e guarda
     // onde a música estava.
     _diagOffFreeze = DiagLog.addFreezeHook(() {
-      if (!_running) return;
+      if (!state.running) return;
       DiagLog.log(
         'audio',
         'pausado pelo relatório de bug em ${positionMs.toStringAsFixed(1)}ms',
       );
       pause();
     });
-    _diagOffState = DiagLog.setState('audio', _diagSnapshot);
+    _diagOffState = DiagLog.retrato('audio', _diagSnapshot);
   }
 
   late final VoidCallback _diagOffFreeze;
   late final VoidCallback _diagOffState;
 
   Map<String, Object?> _diagSnapshot() => {
-    'tocando': _running,
+    'tocando': state.running,
     'posicaoMs': double.parse(positionMs.toStringAsFixed(1)),
-    'velocidade': _speed,
+    'velocidade': state.speed,
     'metronomo': metronomeOn,
     'contagem': isCountingIn,
     'freioMs': _brakeMs,
@@ -99,11 +149,9 @@ class ScoreAudioScheduler {
   final bool _autoTick;
 
   Timer? _timer;
-  bool _running = false;
 
   double _deviceT0 = 0;
   double _musicalT0 = 0;
-  double _speed = 1.0;
 
   /// Borda superior (exclusiva) da janela já coberta por [pump] — a próxima
   /// chamada só pede a [PerformanceTrack.startingIn] o que vem depois.
@@ -119,13 +167,14 @@ class ScoreAudioScheduler {
   /// metrônomo nem contagem.
   List<Beat> beats = const [];
 
-  /// Metrônomo ligado: clica em cada batida enquanto toca.
-  bool metronomeOn = false;
+  /// Metrônomo ligado (o campo [SchedulerState.metronomeOn]).
+  bool get metronomeOn => state.metronomeOn;
+  set metronomeOn(bool on) => _emitir(state.copyWith(metronomeOn: on));
 
-  /// Silencia o metrônomo sem mexer em [metronomeOn] (a escolha do aluno): o
-  /// degrau "só notas" da escada de repetição não cobra tempo, então não clica.
-  /// A contagem de entrada não é afetada.
-  bool metronomeMuted = false;
+  /// Silencia o metrônomo (o campo [SchedulerState.metronomeMuted]).
+  bool get metronomeMuted => state.metronomeMuted;
+  set metronomeMuted(bool muted) =>
+      _emitir(state.copyWith(metronomeMuted: muted));
 
   /// A altura que o motor recebe para a nota de altura **escrita** `w` (fase
   /// Q, `PitchFrame`): com a música transposta é a soada, e o agendador não
@@ -198,14 +247,14 @@ class ScoreAudioScheduler {
     _gateMs = ms;
   }
 
-  double get speed => _speed;
-  bool get isRunning => _running;
+  double get speed => state.speed;
+  bool get isRunning => state.running;
 
   /// Posição musical atual, em ms — parada (o valor da última âncora)
   /// enquanto não [isRunning], e capada em [_brakeMs] quando o freio do
   /// modo espera está armado.
   double get positionMs {
-    if (!_running) return _musicalT0;
+    if (!state.running) return _musicalT0;
     var raw = _rawPositionAt(engine.nowSeconds);
     final brake = _brakeMs;
     if (brake != null && raw > brake) raw = brake;
@@ -221,7 +270,7 @@ class ScoreAudioScheduler {
   /// vale também na espera até o 1º clique soar (U09).
   bool get isCountingIn {
     final floor = _floorMs;
-    if (!_running || floor == null || _countIn.isEmpty) return false;
+    if (!state.running || floor == null || _countIn.isEmpty) return false;
     return _musicalAt(engine.nowSeconds) < floor;
   }
 
@@ -230,7 +279,7 @@ class ScoreAudioScheduler {
   /// com a música já andando.
   CountInTick? get countInTick {
     final floor = _floorMs;
-    if (!_running || floor == null || _countIn.isEmpty) return null;
+    if (!state.running || floor == null || _countIn.isEmpty) return null;
     return countInTickAt(_countIn, floor, _musicalAt(engine.nowSeconds));
   }
 
@@ -289,7 +338,7 @@ class ScoreAudioScheduler {
     _segments.removeWhere((s) => s.until <= deviceSeconds);
     if (_segments.isNotEmpty) {
       final s = _segments.first;
-      return s.musicalT0 + (deviceSeconds - s.deviceT0) * 1000 * _speed;
+      return s.musicalT0 + (deviceSeconds - s.deviceT0) * 1000 * state.speed;
     }
     return _musicalAt(deviceSeconds);
   }
@@ -328,15 +377,21 @@ class ScoreAudioScheduler {
   }
 
   double _musicalAt(double deviceSeconds) =>
-      _musicalT0 + (deviceSeconds - _deviceT0) * 1000 * _speed;
+      _musicalT0 + (deviceSeconds - _deviceT0) * 1000 * state.speed;
 
   double _deviceAt(double musicalMs) =>
-      _deviceT0 + (musicalMs - _musicalT0) / (1000 * _speed);
+      _deviceT0 + (musicalMs - _musicalT0) / (1000 * state.speed);
+
+  /// Põe [novo] no estado. Depois do [close] não emite: um aviso tardio não
+  /// pode lançar (o `emit` de um Cubit fechado lança).
+  void _emitir(SchedulerState novo) {
+    if (!isClosed) emit(novo);
+  }
 
   void _reanchor(double musicalMs, {double? speed}) {
     _musicalT0 = musicalMs;
     _deviceT0 = engine.nowSeconds;
-    if (speed != null) _speed = speed;
+    if (speed != null) _emitir(state.copyWith(speed: speed));
     _scheduledUpToMs = musicalMs;
     _segments.clear();
     _floorMs = null;
@@ -368,7 +423,7 @@ class ScoreAudioScheduler {
   void play(double fromMs, {double? speed, bool countIn = false}) {
     DiagLog.log(
       'audio',
-      'play de ${fromMs.toStringAsFixed(1)}ms speed=${speed ?? _speed} '
+      'play de ${fromMs.toStringAsFixed(1)}ms speed=${speed ?? state.speed} '
           'contagem=$countIn metronomo=$metronomeOn',
     );
     engine.allNotesOff();
@@ -383,7 +438,7 @@ class ScoreAudioScheduler {
         _scheduledUpToMs = clicks.first.ms;
       }
     }
-    _running = true;
+    _emitir(state.copyWith(running: true));
     _sendProgramChanges();
     _armTimer();
     pump();
@@ -391,13 +446,13 @@ class ScoreAudioScheduler {
 
   /// Pausa na posição atual: silencia tudo e desarma a agenda.
   void pause() {
-    if (!_running) return;
+    if (!state.running) return;
     final ms = positionMs;
     DiagLog.log('audio', 'pause em ${ms.toStringAsFixed(1)}ms');
     _timer?.cancel();
     _timer = null;
     engine.allNotesOff();
-    _running = false;
+    _emitir(state.copyWith(running: false));
     _reanchor(ms);
   }
 
@@ -407,7 +462,7 @@ class ScoreAudioScheduler {
   void seek(double toMs) {
     DiagLog.log('audio', 'seek para ${toMs.toStringAsFixed(1)}ms');
     engine.allNotesOff();
-    final wasRunning = _running;
+    final wasRunning = state.running;
     _reanchor(toMs);
     if (wasRunning) {
       _anchorAtEarliest(toMs);
@@ -418,10 +473,10 @@ class ScoreAudioScheduler {
 
   /// Troca a velocidade sem perder a posição corrente nem prender notas.
   void setSpeed(double newSpeed) {
-    if (newSpeed == _speed) return;
-    DiagLog.log('audio', 'velocidade $_speed -> $newSpeed');
+    if (newSpeed == state.speed) return;
+    DiagLog.log('audio', 'velocidade ${state.speed} -> $newSpeed');
     final ms = positionMs;
-    final wasRunning = _running;
+    final wasRunning = state.running;
     if (wasRunning) engine.allNotesOff();
     _reanchor(ms, speed: newSpeed);
     if (wasRunning) {
@@ -436,18 +491,22 @@ class ScoreAudioScheduler {
     _timer?.cancel();
     _timer = null;
     engine.allNotesOff();
-    _running = false;
+    _emitir(state.copyWith(running: false));
     _reanchor(0);
   }
 
-  void dispose() {
+  /// Para a agenda, tira os registros do relatório e fecha o Cubit. O `close`
+  /// do Cubit é assíncrono, mas tudo o que importa acontece antes dele.
+  @override
+  Future<void> close() {
     DiagLog.log('audio', 'agendador descartado');
     _diagOffFreeze();
     _diagOffState();
     _timer?.cancel();
     _timer = null;
     engine.allNotesOff();
-    _running = false;
+    if (state.running) _emitir(state.copyWith(running: false));
+    return super.close();
   }
 
   void _sendProgramChanges() {
@@ -467,7 +526,7 @@ class ScoreAudioScheduler {
   /// `Timer` interno chama isto sozinho; os testes chamam direto para
   /// simular ticks sem depender de tempo real.
   void pump() {
-    if (!_running) return;
+    if (!state.running) return;
 
     final horizonDevice = engine.nowSeconds + lookahead.inMicroseconds / 1e6;
     final brake = _brakeMs;

@@ -20,7 +20,7 @@ void main() {
   ) async {
     final doc = twoPages();
     final controller = ScoreCubit(document: doc);
-    final vc = ScoreViewController();
+    final vc = ScoreViewCubit();
     final player = ScorePlayer(
       document: doc,
       controller: controller,
@@ -29,7 +29,7 @@ void main() {
     );
     cleanup.add(() {
       controller.clearAll();
-      player.dispose();
+      player.close();
       controller.close();
     });
     // m3 (8000 ms) está na página 1; a vista ainda não existe.
@@ -81,7 +81,7 @@ void main() {
       ],
     );
     final controller = ScoreCubit(document: doc);
-    final vc = ScoreViewController();
+    final vc = ScoreViewCubit();
     final player = ScorePlayer(
       document: doc,
       controller: controller,
@@ -90,12 +90,12 @@ void main() {
     );
     cleanup.add(() {
       controller.clearAll();
-      player.dispose();
+      player.close();
       controller.close();
     });
     // m4 abre a haste da página 1 (borda 0 em 12000 ms).
     player.seek(const Duration(milliseconds: 12000));
-    expect(player.curtain.value?.edgeX, 0);
+    expect(player.curtain.state?.edgeX, 0);
 
     final p0 = doc.pages[0];
     await pumpAtSize(

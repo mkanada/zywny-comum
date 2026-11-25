@@ -3,6 +3,13 @@
 // virada e a página corrente saem da posição, por função pura
 // (`ScoreTimeline.curtainAt`).
 //
+// ESTADO (BL26): o player é um `Cubit<ScorePlayerState>`. A posição, o compasso
+// tocando, o último `tempo` do timemap e a haste de virada são o `state`, que
+// sobe a cada aplicação do tique (quem mostra usa `BlocSelector` no campo). As
+// decisões (acender, apagar, virar a página) são síncronas: leem e gravam o
+// `state` na hora, sem esperar o `stream`. O `view` avisa pelo `state.attachments`
+// (BG02) e o `curtain` é um `StateStreamable` (o `ScoreView` o ouve).
+//
 // RELÓGIO: um `Ticker` em milissegundos musicais (`posição += delta * speed`),
 // nunca `DateTime.now()` — o teste usa tempo simulado (`tester.pump`) ou chama
 // [advance] direto. `pause`/`play` não movem a posição e não tocam nas
@@ -23,7 +30,8 @@
 // apaga os destaques (as cores fixas do host ficam) e acende exatamente as
 // notas que o timemap diz estarem ativas no instante.
 //
-// LIGAÇÃO COM A VISTA: `curtain` é o `ValueListenable` para `ScoreView.curtain`.
+// LIGAÇÃO COM A VISTA: `curtain` é o `StateStreamable` (a haste do `state`) para
+// `ScoreView.curtain`.
 // Sem haste, o player leva a vista à página de repouso (`showPage`) só quando
 // ela difere; em `continuousScroll` não há haste, e a rolagem acompanha o
 // compasso corrente (`scrollToId`).
@@ -53,12 +61,13 @@
 // participa da rota: sempre a faixa de páginas normais, por `scrollToId`.
 library;
 
+import 'dart:async';
 import 'dart:math' as math;
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/animation.dart' show Curve, Curves;
 import 'package:flutter/painting.dart' show Color;
+import 'package:zywny_bloc/zywny_bloc.dart';
 
 import 'model.dart';
 import 'score_cubit.dart';
@@ -67,6 +76,62 @@ import 'score_trace.dart';
 import 'score_view.dart';
 
 export 'score_timeline.dart' show MeasureInfo, ScoreTimeline;
+
+/// O estado do [ScorePlayer] (BL26): a posição musical (ms), o índice do
+/// compasso tocando, o último `tempo` do timemap até a posição e a haste de
+/// virada. Cada tique que move a posição avisa; quem mostra o compasso usa um
+/// `BlocSelector` no campo.
+class ScorePlayerState extends Equatable {
+  const ScorePlayerState({
+    this.positionMs = 0,
+    this.measureIndex = 0,
+    this.tempo,
+    this.curtain,
+  });
+
+  /// A posição musical, em ms.
+  final double positionMs;
+
+  /// Índice, em `measures`, do compasso tocando agora.
+  final int measureIndex;
+
+  /// O último `tempo` do timemap até a posição (`null` se não houver).
+  final double? tempo;
+
+  /// A haste de virada em [positionMs] (`null` é o repouso).
+  final SweepCurtain? curtain;
+
+  ScorePlayerState copyWith({
+    double? positionMs,
+    int? measureIndex,
+    double? Function()? tempo,
+    SweepCurtain? Function()? curtain,
+  }) => ScorePlayerState(
+    positionMs: positionMs ?? this.positionMs,
+    measureIndex: measureIndex ?? this.measureIndex,
+    tempo: tempo == null ? this.tempo : tempo(),
+    curtain: curtain == null ? this.curtain : curtain(),
+  );
+
+  @override
+  List<Object?> get props => [positionMs, measureIndex, tempo, curtain];
+}
+
+/// A haste de um [ScorePlayer] como `StateStreamable`: é o que a `ScoreView`
+/// recebe em `curtain:`. O `state` é a haste do player; o `stream`, só quando ela
+/// muda.
+class _PlayerCurtain implements StateStreamable<SweepCurtain?> {
+  _PlayerCurtain(this._player);
+
+  final ScorePlayer _player;
+
+  @override
+  SweepCurtain? get state => _player.state.curtain;
+
+  @override
+  Stream<SweepCurtain?> get stream =>
+      _player.stream.map((s) => s.curtain).distinct();
+}
 
 /// Quanto tempo um destaque "sem fim conhecido" espera pelo `off`: acima de
 /// qualquer peça.
@@ -175,7 +240,7 @@ List<TimemapEntry> mergeTiedEntries(List<TimemapEntry> entries, VsbMidi? midi) {
   ];
 }
 
-class ScorePlayer {
+class ScorePlayer extends Cubit<ScorePlayerState> {
   ScorePlayer({
     required this.document,
     required this.controller,
@@ -193,14 +258,14 @@ class ScorePlayer {
     // alternativas — a vista, em execução, só mostra páginas normais, como
     // antes de P04a/P04b.
     bool useAlternates = true,
-  }) : timeline = ScoreTimeline(document, useAlternates: useAlternates) {
+  }) : timeline = ScoreTimeline(document, useAlternates: useAlternates),
+       super(const ScorePlayerState()) {
     _entries = mergeTies
         ? mergeTiedEntries(timeline.entries, document.midi)
         : timeline.entries;
-    _measureIndex = ValueNotifier<int>(0);
-    _tempo = ValueNotifier<double?>(null);
     _publish(force: true);
-    view?.attachments.addListener(_onViewAttached);
+    _viewAttachments = view?.state.attachments ?? 0;
+    _viewSub = view?.stream.listen(_onViewState);
     ScoreTrace.log(
       'player',
       () =>
@@ -224,9 +289,21 @@ class ScorePlayer {
     _publish(seeking: true);
   }
 
+  /// O último contador de ligações da vista que o player viu (BG02).
+  int _viewAttachments = 0;
+  StreamSubscription<ScoreViewState>? _viewSub;
+
+  /// Uma vista nova se ligou (o `attachments` do estado subiu): ver
+  /// [_onViewAttached]. Um aviso sem mudança desse contador não conta.
+  void _onViewState(ScoreViewState s) {
+    if (s.attachments == _viewAttachments) return;
+    _viewAttachments = s.attachments;
+    _onViewAttached();
+  }
+
   /// A vista a acompanhar (página de repouso e rolagem). Opcional: sem ela o
   /// player só destaca notas e publica a haste.
-  final ScoreViewController? view;
+  final ScoreViewCubit? view;
 
   /// Duração do `release` de cada nota ao chegar o `off`.
   final Duration release;
@@ -281,13 +358,13 @@ class ScorePlayer {
   /// sempre; quem lê à primeira vista (o treino de leitura) usa 1.
   final int revealLeadMeasures;
 
-  late final ValueNotifier<int> _measureIndex;
-  late final ValueNotifier<double?> _tempo;
-  final ValueNotifier<SweepCurtain?> _curtain = ValueNotifier(null);
-
   Ticker? _ticker;
   Duration _lastElapsed = Duration.zero;
-  double _positionMs = 0;
+
+  /// A posição musical (ms) do `state`: escrever aqui emite (é o tique).
+  double get _positionMs => state.positionMs;
+  set _positionMs(double ms) => _put(state.copyWith(positionMs: ms));
+
   int _next = 0; // primeira entrada ainda não aplicada
   bool _playing = false;
   bool _disposed = false;
@@ -317,14 +394,9 @@ class ScorePlayer {
     _publish();
   }
 
-  /// A haste de virada em [position]; passe a `ScoreView.curtain`.
-  ValueListenable<SweepCurtain?> get curtain => _curtain;
-
-  /// Índice, em [measures], do compasso tocando agora.
-  ValueListenable<int> get currentMeasureIndex => _measureIndex;
-
-  /// O último `tempo` do timemap até a posição (`null` se não houver).
-  ValueListenable<double?> get tempo => _tempo;
+  /// A haste de virada em [position]; passe a `ScoreView.curtain`. É o `state`
+  /// do player (ver [ScorePlayerState.curtain]) visto como `StateStreamable`.
+  late final StateStreamable<SweepCurtain?> curtain = _PlayerCurtain(this);
 
   /// Compassos em ordem de execução.
   List<MeasureInfo> get measures => timeline.measures;
@@ -393,8 +465,8 @@ class ScorePlayer {
       return;
     }
     _ahead = null;
-    if (_curtain.value != null) {
-      _curtain.value = null;
+    if (state.curtain != null) {
+      _put(state.copyWith(curtain: () => null));
     }
     final v = view;
     if (v != null && v.isAttached && v.mode != ScorePageMode.continuousScroll) {
@@ -419,8 +491,8 @@ class ScorePlayer {
             'andamento: pos=${traceMs(_positionMs)}ms '
             'relógio=${c == null ? '-' : traceMs(c.positionMs)}ms '
             '$frames quadros/s, próxima entrada $_next/${_entries.length}, '
-            'compasso ${_measureIndex.value + 1}, '
-            'haste=${_traceCurtain(_curtain.value)}, ${_traceView()}',
+            'compasso ${state.measureIndex + 1}, '
+            'haste=${_traceCurtain(state.curtain)}, ${_traceView()}',
       );
     }
     if (c != null) {
@@ -477,7 +549,7 @@ class ScorePlayer {
     }
     if (e.on.isNotEmpty) _highlight(e.on);
     if (e.tempo != null) {
-      _tempo.value = e.tempo;
+      _put(state.copyWith(tempo: () => e.tempo));
     }
     onEntry?.call(e);
   }
@@ -567,7 +639,7 @@ class ScorePlayer {
       i++;
     }
     _next = i;
-    _tempo.value = tempo;
+    _put(state.copyWith(positionMs: ms, tempo: () => tempo));
     if (active.isNotEmpty) _highlight(active);
     _publish(seeking: true);
   }
@@ -680,8 +752,8 @@ class ScorePlayer {
       return;
     }
     final index = timeline.measureIndexAt(_positionMs);
-    if (_measureIndex.value != index) {
-      _measureIndex.value = index;
+    if (state.measureIndex != index) {
+      _put(state.copyWith(measureIndex: index));
       ScoreTrace.log(
         'player',
         () =>
@@ -702,8 +774,8 @@ class ScorePlayer {
     }
     final continuous = attached && v.mode == ScorePageMode.continuousScroll;
     if (continuous) {
-      if (_curtain.value != null) {
-        _curtain.value = null;
+      if (state.curtain != null) {
+        _put(state.copyWith(curtain: () => null));
       }
       if (index != _lastScrolledMeasure || seeking) {
         _lastScrolledMeasure = index;
@@ -740,9 +812,9 @@ class ScorePlayer {
         targetSequence: ahead.to.sequence,
       );
     }
-    if (_curtain.value != c) {
-      _traceCurtainChange(_curtain.value, c);
-      _curtain.value = c;
+    if (state.curtain != c) {
+      _traceCurtainChange(state.curtain, c);
+      _put(state.copyWith(curtain: () => c));
     }
     // Haste com a borda em 0 (o instante em que ela abre, p.ex. o `seek` do
     // ritmo ao começo do trecho): a vista não a aceita e fica onde estava, na
@@ -834,24 +906,31 @@ class ScorePlayer {
               : ended
               ? 'termina'
               : 'muda de página'} em ${traceMs(_positionMs)}ms '
-          '(compasso ${_measureIndex.value + 1}): '
+          '(compasso ${state.measureIndex + 1}): '
           '${ended ? _traceCurtain(from) : _traceCurtain(to)}, '
           '${_traceView()}',
     );
   }
 
-  void dispose() {
+  /// Emite o [novo] estado (sem efeito depois do `close`: quem ainda tiver um
+  /// tique na mão não pode derrubar a partitura).
+  void _put(ScorePlayerState novo) {
+    if (isClosed) return;
+    emit(novo);
+  }
+
+  @override
+  Future<void> close() {
     ScoreTrace.log(
       'player',
       () => 'descartado em ${traceMs(_positionMs)}ms, ${_traceView()}',
     );
     _disposed = true;
-    view?.attachments.removeListener(_onViewAttached);
+    _viewSub?.cancel();
+    _viewSub = null;
     _ticker?.dispose();
     _ticker = null;
-    _curtain.dispose();
-    _measureIndex.dispose();
-    _tempo.dispose();
+    return super.close();
   }
 }
 

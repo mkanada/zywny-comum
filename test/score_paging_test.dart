@@ -21,7 +21,7 @@ void main() {
   );
 
   testWidgets('ScorePager: uma página ou tocando, nada à vista', (t) async {
-    final c = ScoreViewController();
+    final c = ScoreViewCubit();
     for (final w in [
       ScorePager(controller: c, pageCount: 1),
       ScorePager(controller: c, pageCount: 3, animated: true),
@@ -38,7 +38,7 @@ void main() {
     await t.pumpWidget(
       MaterialApp(
         home: Scaffold(
-          body: ScorePager(controller: ScoreViewController(), pageCount: 3),
+          body: ScorePager(controller: ScoreViewCubit(), pageCount: 3),
         ),
       ),
     );

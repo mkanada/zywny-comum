@@ -147,7 +147,7 @@ void main() {
         expect(player.position, player.duration);
       } finally {
         controller.clearAll();
-        player.dispose();
+        player.close();
         controller.close();
       }
     },

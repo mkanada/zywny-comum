@@ -6,6 +6,7 @@
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:score_bridge/score_bridge.dart';
 import 'package:zywny_audio/metronome.dart';
@@ -806,4 +807,79 @@ void main() {
       expect(calibrationLatencyMs(clicks, [clicks[3] + 0.05]), isNull);
     });
   });
+
+  _estadoObservado();
+}
+
+ScoreAudioScheduler _agendadorDeTeste() => ScoreAudioScheduler(
+  engine: FakeSoundEngine(latency: 0),
+  track: _loadTrack('erik-satie.vsb'),
+  autoTick: false,
+);
+
+/// BL27: o que o agendador deixa observar é o [SchedulerState], e só as
+/// chamadas o mudam. O relógio (`pump`) não emite: a posição é uma leitura.
+void _estadoObservado() {
+  group('estado observado (Cubit, BL27)', () {
+    _estadoDeTocar();
+    _estadoDeAndamentoEMetronomo();
+  });
+}
+
+void _estadoDeTocar() {
+  blocTest<ScoreAudioScheduler, SchedulerState>(
+    'play põe tocando e pause tira',
+    build: _agendadorDeTeste,
+    act: (s) {
+      s.play(0);
+      s.pause();
+    },
+    expect: () => const [SchedulerState(running: true), SchedulerState()],
+  );
+
+  blocTest<ScoreAudioScheduler, SchedulerState>(
+    'o pump com o relógio andando não emite estado',
+    build: _agendadorDeTeste,
+    act: (s) {
+      s.play(0);
+      (s.engine as FakeSoundEngine).now = 2;
+      s.pump();
+      s.pause();
+    },
+    expect: () => const [SchedulerState(running: true), SchedulerState()],
+  );
+
+  blocTest<ScoreAudioScheduler, SchedulerState>(
+    'close tocando para e não lança depois',
+    build: _agendadorDeTeste,
+    act: (s) async {
+      s.play(0);
+      await s.close();
+      s.play(0);
+    },
+    expect: () => const [SchedulerState(running: true), SchedulerState()],
+  );
+}
+
+void _estadoDeAndamentoEMetronomo() {
+  blocTest<ScoreAudioScheduler, SchedulerState>(
+    'setSpeed parado troca o andamento sem tocar',
+    build: _agendadorDeTeste,
+    act: (s) => s.setSpeed(0.5),
+    expect: () => const [SchedulerState(speed: 0.5)],
+  );
+
+  blocTest<ScoreAudioScheduler, SchedulerState>(
+    'o metrônomo emite só quando muda',
+    build: _agendadorDeTeste,
+    act: (s) {
+      s.metronomeOn = true;
+      s.metronomeMuted = true;
+      s.metronomeOn = true;
+    },
+    expect: () => const [
+      SchedulerState(metronomeOn: true),
+      SchedulerState(metronomeOn: true, metronomeMuted: true),
+    ],
+  );
 }

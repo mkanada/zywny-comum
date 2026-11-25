@@ -218,7 +218,7 @@ void main() {
 
   testWidgets('overlay é recortado com a página e a haste fica por cima '
       '(critério 4)', (tester) async {
-    final vc = ScoreViewController();
+    final vc = ScoreViewCubit();
     final edgeX = xFromPagePx(page.widthPx / 2, page);
     // Uma nota à esquerda da haste e outra à direita.
     final left = doc.pages[0].elements

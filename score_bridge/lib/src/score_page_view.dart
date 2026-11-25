@@ -3,19 +3,23 @@
 // Camadas: os segmentos estáticos de A01a viram `ui.Picture` gravados uma vez
 // (ver `PageLayers`) e os dinâmicos são pintados ao vivo com as cores do
 // `ScoreCubit`. `RepaintBoundary` em volta do `CustomPaint`, e o `repaint:` do
-// painter ligado ao cubit (por um `BlocRepaint`): uma mudança de cor repinta sem
-// `setState`, sem reconstruir widget e sem refazer layout.
+// painter ligado aos cubits (por um `BlocRepaint`): uma mudança de cor repinta
+// sem `setState`, sem reconstruir widget e sem refazer layout.
+//
+// ESTADO (BL26): as camadas, os ids promovidos e as folhas escondidas são do
+// [ScorePageCubit], que esta página põe em volta de si (um `BlocProvider`). O
+// cubit vive enquanto a página viver na árvore (a `GlobalKey` do `ScoreView` a
+// mantém), e a cada build a página passa a ele os seus parâmetros (`sync`). Este
+// widget não tem estado: o pintor lê as camadas do cubit ao pintar.
 //
 // TAMANHO: o widget tem a proporção da página (`widthPx : heightPx`) e escala
 // o desenho para ocupar a largura que recebe. Os `Picture` são gravados em
 // unidades de viewBox, então redimensionar não recompila nada.
 library;
 
-import 'dart:async';
 import 'dart:math' as math;
 import 'dart:ui' as ui;
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:zywny_bloc/zywny_bloc.dart';
 
@@ -25,10 +29,10 @@ import 'hit_test.dart';
 import 'model.dart';
 import 'page_layers.dart';
 import 'score_cubit.dart';
-import 'segmentation.dart';
+import 'score_page_cubit.dart';
 import 'stand_in_layer.dart';
 
-class ScorePageView extends StatefulWidget {
+class ScorePageView extends StatelessWidget {
   const ScorePageView({
     super.key,
     required this.document,
@@ -75,14 +79,9 @@ class ScorePageView extends StatefulWidget {
   /// derivado da nota, `0` desliga. Ver [ScenePainter.paintHalo].
   final double haloSigmaScale;
 
-  /// Contadores de `Picture` a usar. Um dono que monta várias páginas (o
-  /// `ScoreView`) passa o mesmo objeto a todas para somar a vida útil delas;
-  /// sem ele a página tem os seus.
-  final PictureStats? stats;
-
   /// Ids que viram widgets de verdade (A04b), um `Positioned` por id sobre a
-  /// bbox dele. O padrão é vazio — **custo zero**: a árvore fica idêntica à
-  /// de antes dos overlays. Ids que não estão nesta página são ignorados.
+  /// bbox dele. O padrão é vazio — **custo zero**: a árvore fica idêntica
+  /// à de antes dos overlays. Ids que não estão nesta página são ignorados.
   ///
   /// O overlay é uma camada de widget **acima** de toda a partitura: não
   /// participa da ordem de pintura da cena, e vive dentro da página, então é
@@ -122,218 +121,87 @@ class ScorePageView extends StatefulWidget {
   /// desenha nenhuma.
   final ScoreBandCubit? bands;
 
+  /// Contadores de `Picture` a usar. Um dono que monta várias páginas (o
+  /// `ScoreView`) passa o mesmo objeto a todas para somar a vida útil delas;
+  /// sem ele a página tem os seus.
+  final PictureStats? stats;
+
   @override
-  State<ScorePageView> createState() => ScorePageViewState();
-}
-
-class ScorePageViewState extends State<ScorePageView> {
-  late final PictureStats _stats = widget.stats ?? PictureStats();
-  PageLayers? _layers;
-  Set<String> _animatableIds = const {};
-
-  // Folhas da página que o controller manda não pintar (barra de ligação e
-  // linha suplementar de nota escondida, L02); o `Set` do controller, por
-  // identidade, até o conjunto de notas escondidas mudar.
-  Set<SceneChild> _skipLeaves = const {};
-
-  // Ids promovidos a dinâmicos porque o controller os colore (ver
-  // `_collectPromotions`); zerado quando muda documento/página.
-  final Set<String> _promoted = {};
-
-  // A assinatura dos avisos do cubit de cores (o `stream`, assíncrono: o aviso
-  // chega antes do próximo quadro, não na hora do `emit`).
-  StreamSubscription<ScoreState>? _colorSub;
-
-  ScenePage get _page => widget.document.pageAt(
-    PageRef(widget.pageIndex, sequence: widget.sequence),
+  Widget build(BuildContext context) => BlocProvider<ScorePageCubit>(
+    create: (_) => ScorePageCubit(
+      document: document,
+      pageIndex: pageIndex,
+      sequence: sequence,
+      controller: controller,
+      animatableIds: animatableIds,
+      stats: stats,
+    ),
+    child: Builder(builder: _paint),
   );
 
-  @override
-  void initState() {
-    super.initState();
-    widget.controller?.attachDocument(widget.document);
-    widget.ghosts?.attachDocument(widget.document);
-    widget.standIns?.attachDocument(widget.document);
-    _listenColors();
-    _collectPromotions();
-    _rebuildLayers();
-  }
-
-  void _listenColors() {
-    _colorSub?.cancel();
-    _colorSub = widget.controller?.stream.listen(
-      (_) => _onControllerChanged(),
+  Widget _paint(BuildContext context) {
+    final cubit = context.read<ScorePageCubit>();
+    cubit.sync(
+      document: document,
+      pageIndex: pageIndex,
+      sequence: sequence,
+      controller: controller,
+      animatableIds: animatableIds,
     );
-  }
-
-  @override
-  void didUpdateWidget(ScorePageView oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    final controller = widget.controller;
-    if (oldWidget.controller != controller) {
-      _listenColors();
-    }
-    controller?.attachDocument(widget.document);
-    widget.ghosts?.attachDocument(widget.document);
-    widget.standIns?.attachDocument(widget.document);
-    final structural =
-        oldWidget.document != widget.document ||
-        oldWidget.pageIndex != widget.pageIndex ||
-        oldWidget.sequence != widget.sequence ||
-        !setEquals(oldWidget.animatableIds, widget.animatableIds);
-    if (structural) {
-      _promoted.clear();
-    }
-    final promoted = _collectPromotions();
-    final leavesChanged = _skipLeavesChanged();
-    if (structural || promoted || leavesChanged) {
-      _rebuildLayers();
-    }
-  }
-
-  @override
-  void dispose() {
-    _colorSub?.cancel();
-    _colorSub = null;
-    _layers?.dispose();
-    super.dispose();
-  }
-
-  /// Recria as camadas: a única situação em que os `Picture` são recompilados
-  /// (documento, página ou conjunto de ids dinâmicos mudou — nunca cor).
-  void _rebuildLayers() {
-    final old = _layers;
-    _animatableIds = {
-      ...(widget.animatableIds ??
-          animatableIdsFromTimemap(
-            widget.document.timemap,
-            document: widget.document,
-          )),
-      ..._promoted,
-    };
-    _skipLeaves = widget.controller?.hiddenLeavesOf(_page) ?? const {};
-    _layers = PageLayers(
-      _page,
-      widget.document.glyphs,
-      animatableIds: _animatableIds,
-      skipLeaves: _skipLeaves,
-      glyphCache: widget.document.glyphCache,
-      stats: _stats,
-    );
-    old?.dispose();
-  }
-
-  void _onControllerChanged() {
-    final promoted = _collectPromotions();
-    final leavesChanged = _skipLeavesChanged();
-    if (promoted || leavesChanged) {
-      setState(_rebuildLayers);
-    }
-  }
-
-  /// O controller esconde outras formas desta página que não tem id (barra de
-  /// ligação e traços de linha suplementar)? Só então os `Picture` estáticos
-  /// são recompilados. O controller devolve o mesmo `Set` enquanto nada muda,
-  /// então o caso comum (um destaque por frame) custa uma comparação.
-  bool _skipLeavesChanged() {
-    final next = widget.controller?.hiddenLeavesOf(_page) ?? const {};
-    if (identical(next, _skipLeaves)) {
-      return false;
-    }
-    if (next.length != _skipLeaves.length ||
-        !next.every(_skipLeaves.contains)) {
-      return true;
-    }
-    _skipLeaves = next; // igual em conteúdo: guarda o novo objeto e segue
-    return false;
-  }
-
-  /// Se o controller tem cor para um id que existe nesta página mas está num
-  /// `Picture` estático, marca o id para promoção a dinâmico. Devolve se
-  /// houve promoção nova (e as camadas precisam ser recriadas).
-  bool _collectPromotions() {
-    final controller = widget.controller;
-    if (controller == null || controller.colors.isEmpty) {
-      return false;
-    }
-    final byId = _page.byId;
-    var added = false;
-    for (final id in controller.colors.keys) {
-      if (!_animatableIds.contains(id) &&
-          !_promoted.contains(id) &&
-          byId.containsKey(id)) {
-        _promoted.add(id);
-        added = true;
-      }
-    }
-    return added;
-  }
-
-  /// Quantos `Picture` estáticos já foram gravados por este widget (todas as
-  /// gerações de cache somadas). Não muda quando uma cor muda.
-  @visibleForTesting
-  int get pictureBuilds => _stats.builds;
-
-  /// Quantos `Picture` estáticos já foram descartados.
-  @visibleForTesting
-  int get pictureDisposals => _stats.disposals;
-
-  @visibleForTesting
-  PictureStats get pictureStats => _stats;
-
-  @visibleForTesting
-  PageLayers get layers => _layers!;
-
-  @override
-  Widget build(BuildContext context) {
-    final page = _page;
+    final page = cubit.page;
+    // Os cubits de faixa e de fantasma guardam o documento para achar as notas
+    // (é idempotente: outro documento refaz o que eles têm).
+    ghosts?.attachDocument(document);
+    standIns?.attachDocument(document);
     final Widget baseLayer = RepaintBoundary(
       child: CustomPaint(
         painter: _PagePainter(
-          _layers!,
-          widget.controller,
-          widget.backgroundColor,
-          widget.haloSigmaScale,
-          bands: widget.bands,
-          pageIndex: widget.pageIndex,
-          geometry: widget.document.geometryOf(widget.sequence),
+          cubit,
+          controller,
+          backgroundColor,
+          haloSigmaScale,
+          bands: bands,
+          pageIndex: pageIndex,
+          geometry: document.geometryOf(sequence),
         ),
       ),
     );
     Widget base = baseLayer;
-    final ghosts = widget.ghosts;
-    final standIns = widget.standIns;
-    if (ghosts != null || standIns != null) {
-      final pageRef = PageRef(widget.pageIndex, sequence: widget.sequence);
+    final ghostCubit = ghosts;
+    final standInCubit = standIns;
+    if (ghostCubit != null || standInCubit != null) {
+      final pageRef = PageRef(pageIndex, sequence: sequence);
+      void applyTransform(ui.Canvas canvas) =>
+          cubit.layers.applyPageTransform(canvas);
       base = Stack(
         textDirection: TextDirection.ltr,
         fit: StackFit.passthrough,
         children: [
           baseLayer,
-          if (standIns != null)
+          if (standInCubit != null)
             IgnorePointer(
               child: RepaintBoundary(
                 child: CustomPaint(
                   painter: StandInPainter(
-                    controller: standIns,
+                    controller: standInCubit,
                     page: page,
                     pageRef: pageRef,
-                    glyphCache: widget.document.glyphCache,
-                    applyPageTransform: _layers!.applyPageTransform,
+                    glyphCache: document.glyphCache,
+                    applyPageTransform: applyTransform,
                   ),
                 ),
               ),
             ),
-          if (ghosts != null)
+          if (ghostCubit != null)
             IgnorePointer(
               child: RepaintBoundary(
                 child: CustomPaint(
                   painter: GhostPainter(
-                    controller: ghosts,
+                    controller: ghostCubit,
                     page: page,
                     pageRef: pageRef,
-                    glyphCache: widget.document.glyphCache,
-                    applyPageTransform: _layers!.applyPageTransform,
+                    glyphCache: document.glyphCache,
+                    applyPageTransform: applyTransform,
                   ),
                 ),
               ),
@@ -341,11 +209,10 @@ class ScorePageViewState extends State<ScorePageView> {
         ],
       );
     }
-    final hasOverlay =
-        widget.overlayBuilder != null && widget.overlayIds.isNotEmpty;
+    final hasOverlay = overlayBuilder != null && overlayIds.isNotEmpty;
     return AspectRatio(
       aspectRatio: page.widthPx / page.heightPx,
-      child: hasOverlay || widget.onElementTap != null
+      child: hasOverlay || onElementTap != null
           ? LayoutBuilder(
               builder: (context, constraints) =>
                   _withInteraction(context, constraints.maxWidth, base),
@@ -357,20 +224,20 @@ class ScorePageViewState extends State<ScorePageView> {
   /// Camadas de widget por cima da página (A04b): overlays por id e o
   /// detector de toque. Só existe se o host pediu.
   Widget _withInteraction(BuildContext context, double width, Widget base) {
-    final geometry = widget.document.geometryOf(widget.sequence);
-    final builder = widget.overlayBuilder;
+    final geometry = document.geometryOf(sequence);
+    final builder = overlayBuilder;
     Widget result = base;
-    if (builder != null && widget.overlayIds.isNotEmpty) {
+    if (builder != null && overlayIds.isNotEmpty) {
       final children = <Widget>[base];
       final rects = <String, Rect>{};
-      for (final id in widget.overlayIds) {
+      for (final id in overlayIds) {
         final ref = geometry.elementOf(id);
-        if (ref == null || ref.page != widget.pageIndex) {
+        if (ref == null || ref.page != pageIndex) {
           continue;
         }
         rects[id] = geometry.rectOf(ref, pageWidth: width);
       }
-      if (widget.overlayUniformHeight) _unifySystemHeights(rects);
+      if (overlayUniformHeight) _unifySystemHeights(rects);
       for (final entry in rects.entries) {
         final id = entry.key;
         final rect = entry.value;
@@ -391,21 +258,21 @@ class ScorePageViewState extends State<ScorePageView> {
         children: children,
       );
     }
-    final onTap = widget.onElementTap;
-    if (onTap != null) {
-      final classes = widget.tapClasses ?? const {'note'};
+    final tap = onElementTap;
+    if (tap != null) {
+      final classes = tapClasses ?? const {'note'};
       result = GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTapUp: (details) {
           final id = geometry.idAt(
-            widget.pageIndex,
+            pageIndex,
             details.localPosition,
             pageWidth: width,
             classes: classes,
           );
           // Nota escondida não responde a toque: transparente não é ausente.
-          if (id != null && !(widget.controller?.isHidden(id) ?? false)) {
-            onTap(id);
+          if (id != null && !(controller?.isHidden(id) ?? false)) {
+            tap(id);
           }
         },
         child: result,
@@ -443,29 +310,38 @@ void _unifySystemHeights(Map<String, Rect> rects) {
   flush();
 }
 
-/// O que o `Listenable` do painter escuta: um `BlocRepaint` do cubit de cores e
-/// um do de faixas (os que existirem; `null` se nenhum). O painter lê o mapa e as
-/// faixas ao pintar; o `BlocRepaint` só avisa que vale repintar.
-Listenable? _repaintOf(ScoreCubit? a, ScoreBandCubit? b) {
+/// O que o `Listenable` do painter escuta: um `BlocRepaint` da página (as camadas
+/// refeitas), o do cubit de cores e o de faixas (os que existirem). O painter lê
+/// as camadas, o mapa e as faixas ao pintar; o `BlocRepaint` só avisa que vale
+/// repintar.
+Listenable _repaintOf(
+  ScorePageCubit page,
+  ScoreCubit? colors,
+  ScoreBandCubit? bands,
+) {
   final list = <Listenable>[
-    if (a != null) BlocRepaint(a),
-    if (b != null) BlocRepaint(b),
+    BlocRepaint(page),
+    if (colors != null) BlocRepaint(colors),
+    if (bands != null) BlocRepaint(bands),
   ];
-  if (list.isEmpty) return null;
   return list.length == 1 ? list.single : Listenable.merge(list);
 }
 
 class _PagePainter extends CustomPainter {
+  /// As camadas da página são as do cubit; o pintor as lê ao pintar. [layers] é
+  /// as do momento do build: se mudarem, a página nova repinta.
   _PagePainter(
-    this.layers,
+    this.cubit,
     this.controller,
     this.backgroundColor,
     this.haloSigmaScale, {
     this.bands,
     required this.pageIndex,
     required this.geometry,
-  }) : super(repaint: _repaintOf(controller, bands));
+  }) : layers = cubit.layers,
+       super(repaint: _repaintOf(cubit, controller, bands));
 
+  final ScorePageCubit cubit;
   final PageLayers layers;
   final ScoreCubit? controller;
   final Color? backgroundColor;
@@ -478,7 +354,8 @@ class _PagePainter extends CustomPainter {
 
   @override
   void paint(ui.Canvas canvas, ui.Size size) {
-    final page = layers.page;
+    final current = cubit.layers;
+    final page = current.page;
     if (backgroundColor != null) {
       canvas.drawRect(
         ui.Offset.zero & size,
@@ -490,7 +367,7 @@ class _PagePainter extends CustomPainter {
     if (scale != 1.0) {
       canvas.scale(scale);
     }
-    layers.applyPageTransform(canvas);
+    current.applyPageTransform(canvas);
     // A faixa vai depois do fundo e antes das notas: por baixo do halo e das
     // notas escondidas. As bbox da geometria estão no mesmo espaço de conteúdo
     // em que o `applyPageTransform` acabou de pôr o canvas.
@@ -498,12 +375,12 @@ class _PagePainter extends CustomPainter {
     if (b != null && b.bands.isNotEmpty) {
       paintScoreBands(
         canvas,
-        scoreBandRects(layers.page, pageIndex, geometry, b.bands),
+        scoreBandRects(page, pageIndex, geometry, b.bands),
         fill: b.fill,
         labelColor: b.labelColor,
       );
     }
-    layers.paint(
+    current.paint(
       canvas,
       controller?.colors ?? const {},
       haloColors: controller?.haloColors ?? const {},

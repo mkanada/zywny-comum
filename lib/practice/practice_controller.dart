@@ -124,7 +124,7 @@ class PracticeController {
     _sessionTrack = sessionTrack;
     _baseSpeed = scheduler.speed;
     _openSession(sessionTrack);
-    _diagOffState = DiagLog.setState('pratica', _diagSnapshot);
+    _diagOffState = DiagLog.retrato('pratica', _diagSnapshot);
     DiagLog.log(
       'pratica',
       'início modo=${mode.name} mão=${hand.name} '

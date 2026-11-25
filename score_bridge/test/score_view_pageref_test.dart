@@ -8,6 +8,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:score_bridge/score_bridge.dart';
+import 'package:zywny_bloc/zywny_bloc.dart';
 
 import 'support/render_helpers.dart';
 
@@ -23,10 +24,10 @@ void main() {
 
   Widget view(
     VsbDocument doc, {
-    ScoreViewController? vc,
+    ScoreViewCubit? vc,
     ScoreCubit? controller,
     ValueChanged<int>? onPageChanged,
-    ValueListenable<SweepCurtain?>? curtain,
+    StateStreamable<SweepCurtain?>? curtain,
   }) => Directionality(
     textDirection: TextDirection.ltr,
     child: ScoreView(
@@ -49,7 +50,7 @@ void main() {
       'ScorePageView certo e currentPage vira a página normal do compasso', (
     tester,
   ) async {
-    final vc = ScoreViewController();
+    final vc = ScoreViewCubit();
     final page0 = doc.pages[0];
     await pumpAtSize(tester, view(doc, vc: vc), page0.widthPx, page0.heightPx);
 
@@ -58,6 +59,7 @@ void main() {
     expect(expectedNormalPage, isNotNull);
 
     vc.showPage(const PageRef(0, sequence: 0));
+    await tester.pump();
     await tester.pump();
 
     final pageView = tester.widget<ScorePageView>(find.byType(ScorePageView));
@@ -73,7 +75,7 @@ void main() {
     final page = sequence.pages[0];
 
     final harness = await _harnessBytesFor(tester, doc, page);
-    final vc = ScoreViewController();
+    final vc = ScoreViewCubit();
     final key = await pumpAtSize(
       tester,
       view(doc, vc: vc),
@@ -81,6 +83,7 @@ void main() {
       page.heightPx,
     );
     vc.showPage(const PageRef(0, sequence: 0));
+    await tester.pump();
     await tester.pump();
 
     final widgetBytes = await captureBytes(
@@ -99,8 +102,8 @@ void main() {
     'conclusão displayedPage é a alternativa',
     (tester) async {
       final page0 = doc.pages[0];
-      final curtainNotifier = ValueNotifier<SweepCurtain?>(null);
-      final vc = ScoreViewController();
+      final curtainNotifier = ScoreCurtainCubit(null);
+      final vc = ScoreViewCubit();
       await pumpAtSize(
         tester,
         view(doc, vc: vc, curtain: curtainNotifier),
@@ -109,21 +112,23 @@ void main() {
       );
 
       final endX = sweepEndX(doc.pages[0], vc.barWidth);
-      curtainNotifier.value = SweepCurtain(
+      curtainNotifier.show(SweepCurtain(
         pageIndex: 0,
         edgeX: endX / 2,
         targetPageIndex: 0,
         targetSequence: 3,
-      );
+      ));
+      await tester.pump();
       await tester.pump();
       expect(find.byType(ScorePageView), findsNWidgets(2));
 
-      curtainNotifier.value = SweepCurtain(
+      curtainNotifier.show(SweepCurtain(
         pageIndex: 0,
         edgeX: endX,
         targetPageIndex: 0,
         targetSequence: 3,
-      );
+      ));
+      await tester.pump();
       await tester.pump();
 
       expect(vc.displayedPage, const PageRef(0, sequence: 3));
@@ -133,14 +138,16 @@ void main() {
   testWidgets('critério 4: goToPage depois de uma alternativa volta às páginas '
       'normais', (tester) async {
     final page0 = doc.pages[0];
-    final vc = ScoreViewController();
+    final vc = ScoreViewCubit();
     await pumpAtSize(tester, view(doc, vc: vc), page0.widthPx, page0.heightPx);
 
     vc.showPage(const PageRef(0, sequence: 0));
     await tester.pump();
+    await tester.pump();
     expect(vc.displayedPage.isAlternate, isTrue);
 
     vc.goToPage(1);
+    await tester.pump();
     await tester.pump();
     expect(vc.displayedPage, const PageRef(1));
     expect(vc.currentPage, 1);
@@ -157,7 +164,7 @@ void main() {
 
     final controller = ScoreCubit(document: doc);
     addTearDown(controller.close);
-    final vc = ScoreViewController();
+    final vc = ScoreViewCubit();
     final key = await pumpAtSize(
       tester,
       view(doc, vc: vc, controller: controller),
@@ -165,6 +172,7 @@ void main() {
       page.heightPx,
     );
     vc.showPage(const PageRef(0, sequence: 0));
+    await tester.pump();
     await tester.pump();
 
     controller.highlight(noteId);
@@ -185,20 +193,22 @@ void main() {
     'normal -> alternativa -> normal',
     (tester) async {
       final page0 = doc.pages[0];
-      final vc = ScoreViewController();
+      final vc = ScoreViewCubit();
       await pumpAtSize(
         tester,
         view(doc, vc: vc),
         page0.widthPx,
         page0.heightPx,
       );
-      final state = tester.state<ScoreViewState>(find.byType(ScoreView));
+      final state = tester.state<ScoreViewBody>(find.byType(ScoreView));
       await tester.pump();
       final baseline = state.pictureStats.live;
 
       vc.showPage(const PageRef(0, sequence: 0));
       await tester.pump();
+      await tester.pump();
       vc.goToPage(0);
+      await tester.pump();
       await tester.pump();
 
       expect(state.pictureStats.live, baseline);

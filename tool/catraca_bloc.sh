@@ -62,7 +62,7 @@ conta() {
   { grep -o "$1" -e "$2" -- "$3" || true; } | wc -l | tr -d ' '
 }
 
-# setState( de widget: só o que é chamada do State. Não conta DiagLog.setState(
+# setState( de widget: só o que é chamada do State. Não conta DiagLog.retrato(
 # (outro objeto: ponto antes), _setState( (letra ou sublinhado antes), a
 # declaração void setState(, VoidCallback setState( e static ... setState(. E,
 # no arquivo sem classe State nem StatefulBuilder, não conta: os stores de

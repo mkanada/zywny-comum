@@ -22,7 +22,7 @@ void main() {
     )..cueFade = const Duration(seconds: 1);
     addTearDown(() {
       controller.clearAll();
-      player.dispose();
+      player.close();
       controller.close();
     });
     // m1n1 soa de 0 a 2000 ms; a marca, só o primeiro segundo.
@@ -47,7 +47,7 @@ void main() {
     );
     addTearDown(() {
       controller.clearAll();
-      player.dispose();
+      player.close();
       controller.close();
     });
     player.seek(Duration.zero);

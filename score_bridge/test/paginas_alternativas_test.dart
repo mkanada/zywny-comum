@@ -130,7 +130,7 @@ void main() {
       testWidgets(name, (tester) async {
         final doc = _fixture(name);
         final controller = ScoreCubit(document: doc);
-        final vc = ScoreViewController();
+        final vc = ScoreViewCubit();
         await pumpAtSize(
           tester,
           Directionality(
@@ -144,7 +144,7 @@ void main() {
           doc.pages[0].widthPx,
           doc.pages[0].heightPx,
         );
-        final state = tester.state<ScoreViewState>(find.byType(ScoreView));
+        final state = tester.state<ScoreViewBody>(find.byType(ScoreView));
         final player = ScorePlayer(
           document: doc,
           controller: controller,
@@ -175,7 +175,7 @@ void main() {
           );
         } finally {
           controller.clearAll();
-          player.dispose();
+          player.close();
           controller.close();
         }
         await tester.pumpWidget(const SizedBox());

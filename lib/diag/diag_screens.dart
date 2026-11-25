@@ -25,7 +25,7 @@ class DiagScreens {
   /// Registra a tela no estado do relatório (`telas`, `rotas`). Chamado uma
   /// vez, onde o app liga o log.
   static void registerState() {
-    DiagLog.setState('telas', () => {'telas': screens, 'rotas': routes});
+    DiagLog.retrato('telas',() => {'telas': screens, 'rotas': routes});
   }
 }
 

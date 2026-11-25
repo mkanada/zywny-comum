@@ -230,15 +230,16 @@ class DiagLog {
   /// Registra o que a tela sabe do momento (página, posição, notas…) sob
   /// [key]: [provider] devolve algo que o `jsonEncode` entenda. Vai no
   /// relatório e em [logState]. Devolve quem desfaz o registro (chamar no
-  /// `dispose`); registrar a mesma chave de novo substitui a anterior.
-  static VoidCallback setState(String key, Object? Function() provider) {
+  /// `dispose`); registrar a mesma chave de novo substitui a anterior. (Não é
+  /// `setState` de widget: é um retrato lido só pelo relatório.)
+  static VoidCallback retrato(String key, Object? Function() provider) {
     _providers[key] = provider;
     return () {
       if (identical(_providers[key], provider)) _providers.remove(key);
     };
   }
 
-  /// O que cada [setState] diz agora.
+  /// O que cada [retrato] diz agora.
   static Map<String, Object?> snapshot() {
     final out = <String, Object?>{};
     for (final e in _providers.entries) {

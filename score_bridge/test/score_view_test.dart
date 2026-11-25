@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:score_bridge/score_bridge.dart';
+import 'package:zywny_bloc/zywny_bloc.dart';
 
 import 'support/render_helpers.dart';
 
@@ -26,11 +27,11 @@ void main() {
 
   Widget view(
     VsbDocument doc, {
-    ScoreViewController? vc,
+    ScoreViewCubit? vc,
     ScoreCubit? controller,
     ScorePageMode mode = ScorePageMode.pagedSweep,
     ValueChanged<int>? onPageChanged,
-    ValueListenable<SweepCurtain?>? curtain,
+    StateStreamable<SweepCurtain?>? curtain,
   }) => Directionality(
     textDirection: TextDirection.ltr,
     child: ScoreView(
@@ -43,7 +44,7 @@ void main() {
     ),
   );
 
-  Future<ScoreViewState> pumpScoreView(
+  Future<ScoreViewBody> pumpScoreView(
     WidgetTester tester,
     VsbDocument doc,
     Widget widget, {
@@ -55,7 +56,7 @@ void main() {
       doc.pages[page].widthPx,
       doc.pages[page].heightPx,
     );
-    return tester.state<ScoreViewState>(find.byType(ScoreView));
+    return tester.state<ScoreViewBody>(find.byType(ScoreView));
   }
 
   Future<ByteData> capture(WidgetTester tester, GlobalKey key, ScenePage p) =>
@@ -66,7 +67,7 @@ void main() {
       final name = file.uri.pathSegments.last;
       testWidgets('$name paginado', (tester) async {
         final doc = VsbDocument.fromBytes(file.readAsBytesSync());
-        final vc = ScoreViewController();
+        final vc = ScoreViewCubit();
         for (var p = 0; p < doc.pages.length; p++) {
           final page = doc.pages[p];
           final key = await pumpAtSize(
@@ -91,7 +92,7 @@ void main() {
 
       testWidgets('$name contínuo', (tester) async {
         final doc = VsbDocument.fromBytes(file.readAsBytesSync());
-        final vc = ScoreViewController();
+        final vc = ScoreViewCubit();
         final page0 = doc.pages[0];
         final key = await pumpAtSize(
           tester,
@@ -124,7 +125,7 @@ void main() {
   group('navegação direta (A03a, critérios 2 e 3)', () {
     testWidgets('limites, saturação e onPageChanged', (tester) async {
       final doc = nocturne;
-      final vc = ScoreViewController();
+      final vc = ScoreViewCubit();
       final changes = <int>[];
       await pumpScoreView(
         tester,
@@ -154,7 +155,7 @@ void main() {
     ) async {
       final doc = nocturne;
       expect(doc.pages.length, 7);
-      final vc = ScoreViewController();
+      final vc = ScoreViewCubit();
       final state = await pumpScoreView(tester, doc, view(doc, vc: vc));
       final stats = state.pictureStats;
       var maxLive = 0;
@@ -222,7 +223,7 @@ void main() {
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.resetPhysicalSize);
       addTearDown(tester.view.resetDevicePixelRatio);
-      final vc = ScoreViewController();
+      final vc = ScoreViewCubit();
       await tester.pumpWidget(view(doc, vc: vc));
       Rect r() => tester.getRect(find.byType(ScorePageView));
       // 400x600 cabe em 1000x800 (escala 1,333): 533x800, centrada.
@@ -250,7 +251,7 @@ void main() {
     testWidgets('5 frames: repouso, entrada, estacionada, conclusão, repouso', (
       tester,
     ) async {
-      final vc = ScoreViewController();
+      final vc = ScoreViewCubit();
       await pumpScoreView(tester, doc, view(doc, vc: vc));
       final root = find.byType(ScoreView);
       // A caixa de captura é a do `pumpAtSize`.
@@ -361,10 +362,10 @@ void main() {
     testWidgets('nextPage sem curtain externo varre inteiro em maxSweep', (
       tester,
     ) async {
-      final vc = ScoreViewController();
+      final vc = ScoreViewCubit();
       await pumpScoreView(tester, doc, view(doc, vc: vc));
       final changes = <int>[];
-      vc.addListener(() => changes.add(vc.currentPage));
+      vc.stream.map((s) => s.page).distinct().listen((_) => changes.add(vc.currentPage));
       expect(vc.nextPage(), 1);
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 500));
@@ -379,7 +380,7 @@ void main() {
     testWidgets('interrupções: nextPage, goToPage e previousPage', (
       tester,
     ) async {
-      final vc = ScoreViewController();
+      final vc = ScoreViewCubit();
       await pumpScoreView(tester, doc, view(doc, vc: vc));
       void restOn(int page) {
         expect(vc.currentPage, page);
@@ -424,8 +425,8 @@ void main() {
     testWidgets('curtain externo dirige a haste e a página corrente', (
       tester,
     ) async {
-      final curtain = ValueNotifier<SweepCurtain?>(null);
-      final vc = ScoreViewController();
+      final curtain = ScoreCurtainCubit(null);
+      final vc = ScoreViewCubit();
       final pages = <int>[];
       final state = await pumpScoreView(
         tester,
@@ -434,32 +435,32 @@ void main() {
       );
       final a = pageOf(0);
       expect(find.byType(ClipRect), findsNothing);
-      curtain.value = SweepCurtain(pageIndex: 0, edgeX: midX(0));
+      curtain.show(SweepCurtain(pageIndex: 0, edgeX: midX(0)));
       await tester.pump();
       expect(find.byType(ClipRect), findsOneWidget);
       // fora do intervalo aberto = repouso
-      curtain.value = const SweepCurtain(pageIndex: 0, edgeX: 0);
+      curtain.show(const SweepCurtain(pageIndex: 0, edgeX: 0));
       await tester.pump();
       expect(find.byType(ClipRect), findsNothing);
-      curtain.value = SweepCurtain(pageIndex: 0, edgeX: midX(0));
+      curtain.show(SweepCurtain(pageIndex: 0, edgeX: midX(0)));
       await tester.pump();
       // conclusão: a página seguinte vira a corrente
-      curtain.value = SweepCurtain(
+      curtain.show(SweepCurtain(
         pageIndex: 0,
         edgeX: sweepEndX(a, state.barWidth),
-      );
+      ));
       await tester.pump();
       expect(vc.currentPage, 1);
       expect(pages, [1]);
-      curtain.value = null;
+      curtain.show(null);
       await tester.pump();
       expect(find.byType(ClipRect), findsNothing);
       // seek para dentro de uma virada de outra página: A acompanha a curtain
-      curtain.value = SweepCurtain(pageIndex: 3, edgeX: midX(3));
+      curtain.show(SweepCurtain(pageIndex: 3, edgeX: midX(3)));
       await tester.pump();
       expect(vc.currentPage, 3);
       // última página: a curtain não desenha nada
-      curtain.value = SweepCurtain(pageIndex: 6, edgeX: 100);
+      curtain.show(SweepCurtain(pageIndex: 6, edgeX: 100));
       await tester.pump();
       expect(find.byType(ClipRect), findsNothing);
     });
@@ -468,7 +469,7 @@ void main() {
       testWidgets(
         'targetPageIndex: página revelada é o destino, não pageIndex+1 (critério 1)',
         (tester) async {
-          final vc = ScoreViewController();
+          final vc = ScoreViewCubit();
           await pumpScoreView(tester, doc, view(doc, vc: vc), page: 1);
           vc.goToPage(1);
           await tester.pump();
@@ -478,7 +479,7 @@ void main() {
             targetPageIndex: 0,
           );
           await tester.pumpWidget(
-            view(doc, vc: vc, curtain: ValueNotifier<SweepCurtain?>(curtain)),
+            view(doc, vc: vc, curtain: ScoreCurtainCubit(curtain)),
           );
           await tester.pump();
           // A página A (1) está clipada à direita da haste; o destino (0),
@@ -508,21 +509,21 @@ void main() {
       testWidgets(
         'última página só tem haste com destino explícito (critério 2)',
         (tester) async {
-          final curtain = ValueNotifier<SweepCurtain?>(null);
-          final vc = ScoreViewController();
+          final curtain = ScoreCurtainCubit(null);
+          final vc = ScoreViewCubit();
           await pumpScoreView(tester, doc, view(doc, vc: vc, curtain: curtain));
           vc.goToPage(6);
           await tester.pump();
           // Sem destino: pageIndex + 1 (7) não existe, recusada.
-          curtain.value = SweepCurtain(pageIndex: 6, edgeX: midX(6));
+          curtain.show(SweepCurtain(pageIndex: 6, edgeX: midX(6)));
           await tester.pump();
           expect(find.byType(ClipRect), findsNothing);
           // Com destino explícito (a página anterior, por ex.): aceita.
-          curtain.value = SweepCurtain(
+          curtain.show(SweepCurtain(
             pageIndex: 6,
             edgeX: midX(6),
             targetPageIndex: 1,
-          );
+          ));
           await tester.pump();
           expect(find.byType(ClipRect), findsOneWidget);
         },
@@ -531,8 +532,8 @@ void main() {
       testWidgets('conclusão torna o destino a página corrente (critério 3)', (
         tester,
       ) async {
-        final curtain = ValueNotifier<SweepCurtain?>(null);
-        final vc = ScoreViewController();
+        final curtain = ScoreCurtainCubit(null);
+        final vc = ScoreViewCubit();
         final pages = <int>[];
         await pumpScoreView(
           tester,
@@ -542,11 +543,11 @@ void main() {
         vc.goToPage(6);
         await tester.pump();
         pages.clear();
-        curtain.value = SweepCurtain(
+        curtain.show(SweepCurtain(
           pageIndex: 6,
           edgeX: sweepEndX(pageOf(6), defaultBarWidth(doc)),
           targetPageIndex: 1,
-        );
+        ));
         await tester.pump();
         expect(vc.currentPage, 1);
         expect(pages, [1]);
@@ -556,8 +557,8 @@ void main() {
         'salto para página não vizinha pinta as duas e não vaza Picture (critério 5)',
         (tester) async {
           expect(doc.pages.length, greaterThanOrEqualTo(7));
-          final curtain = ValueNotifier<SweepCurtain?>(null);
-          final vc = ScoreViewController();
+          final curtain = ScoreCurtainCubit(null);
+          final vc = ScoreViewCubit();
           final state = await pumpScoreView(
             tester,
             doc,
@@ -565,11 +566,11 @@ void main() {
           );
           vc.goToPage(5);
           await tester.pump();
-          curtain.value = SweepCurtain(
+          curtain.show(SweepCurtain(
             pageIndex: 5,
             edgeX: midX(5),
             targetPageIndex: 0,
-          );
+          ));
           await tester.pump();
           expect(
             tester
@@ -579,14 +580,14 @@ void main() {
             {5, 0},
           );
           // Conclusão: só a página 0 fica, sem vazar o Picture da 5.
-          curtain.value = SweepCurtain(
+          curtain.show(SweepCurtain(
             pageIndex: 5,
             edgeX: sweepEndX(pageOf(5), defaultBarWidth(doc)),
             targetPageIndex: 0,
-          );
+          ));
           await tester.pump();
           expect(vc.currentPage, 0);
-          curtain.value = null;
+          curtain.show(null);
           await tester.pump();
           await tester.pump();
           expect(
@@ -604,7 +605,7 @@ void main() {
     testWidgets('destaque atravessa a virada', (tester) async {
       final controller = ScoreCubit(document: doc);
       addTearDown(controller.close);
-      final vc = ScoreViewController();
+      final vc = ScoreViewCubit();
       await pumpScoreView(
         tester,
         doc,
@@ -672,7 +673,7 @@ void main() {
   group('pagedSlide (A03b, item 5)', () {
     testWidgets('transição sem haste e repouso exato', (tester) async {
       final doc = nocturne;
-      final vc = ScoreViewController();
+      final vc = ScoreViewCubit();
       await pumpScoreView(
         tester,
         doc,
@@ -696,7 +697,7 @@ void main() {
   group('contínuo e scrollToId (A03c)', () {
     testWidgets('rolagem mantém um número limitado de Picture', (tester) async {
       final doc = nocturne;
-      final vc = ScoreViewController();
+      final vc = ScoreViewCubit();
       final state = await pumpScoreView(
         tester,
         doc,
@@ -739,7 +740,7 @@ void main() {
     ]) {
       testWidgets('scrollToId deixa a bbox visível ($mode)', (tester) async {
         final doc = nocturne;
-        final vc = ScoreViewController();
+        final vc = ScoreViewCubit();
         final page0 = doc.pages[0];
         tester.view.physicalSize = ui.Size(
           page0.widthPx.toDouble(),
@@ -792,8 +793,8 @@ void main() {
   });
 }
 
-ScoreViewState state(WidgetTester tester) =>
-    tester.state<ScoreViewState>(find.byType(ScoreView));
+ScoreViewBody state(WidgetTester tester) =>
+    tester.state<ScoreViewBody>(find.byType(ScoreView));
 
 /// Diferença de antialiasing tolerada durante a virada (a tolerância do
 /// projeto: 128/255 por canal). O **repouso** continua exigindo 0 pixels.

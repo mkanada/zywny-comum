@@ -2,6 +2,7 @@
 // canto (parada à vista) e os números da virada com a haste (tocando).
 import 'package:flutter/material.dart';
 import 'package:score_bridge/score_bridge.dart';
+import 'package:zywny_bloc/zywny_bloc.dart';
 
 import 'page_pager.dart';
 
@@ -41,7 +42,7 @@ class ScorePageTurn {
       : kDefaultMaxSweepDuration;
 }
 
-/// Os botões de página ligados a um [ScoreViewController]: somem enquanto a
+/// Os botões de página ligados a um [ScoreViewCubit]: somem enquanto a
 /// música toca ou treina ([animated]: a haste vira a página) e quando só há
 /// uma página. [enabled] `false` (gravando) desabilita os dois.
 class ScorePager extends StatelessWidget {
@@ -53,7 +54,7 @@ class ScorePager extends StatelessWidget {
     this.enabled = true,
   });
 
-  final ScoreViewController controller;
+  final ScoreViewCubit controller;
   final int pageCount;
   final bool animated;
   final bool enabled;
@@ -61,12 +62,14 @@ class ScorePager extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (animated || pageCount < 2) return const SizedBox.shrink();
-    return ListenableBuilder(
-      listenable: controller,
+    return BlocBuilder<ScoreViewCubit, ScoreViewState>(
+      bloc: controller,
+      // Refaz com a página e com a ligação da vista (o `attachments`): o estado
+      // dos botões não pode depender de `isAttached` sem esse aviso.
+      buildWhen: (a, b) => a.page != b.page || a.attachments != b.attachments,
       builder: (context, _) {
-        // A vista se liga ao controller depois do primeiro build do pager e
-        // não avisa: o estado dos botões não pode depender de `isAttached`
-        // (ficariam desabilitados para sempre); o toque confere.
+        // A vista se liga depois do primeiro build do pager: o toque confere
+        // `isAttached`, então os botões nunca ficam desabilitados para sempre.
         final page = controller.isAttached ? controller.currentPage : 0;
         return PagePager(
           onPrevious: enabled && page > 0

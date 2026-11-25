@@ -58,10 +58,10 @@ void main() {
 
   group('virada no modo espera (waitTarget)', () {
     // Relógio parado (o freio do modo espera) e a vista ligada ao player.
-    Future<({ScorePlayer player, ScoreViewController vc, ManualClock clock})>
+    Future<({ScorePlayer player, ScoreViewCubit vc, ManualClock clock})>
     parked(WidgetTester tester, Cleanup cleanup, VsbDocument doc) async {
       final controller = ScoreCubit(document: doc);
-      final vc = ScoreViewController();
+      final vc = ScoreViewCubit();
       final clock = ManualClock();
       final player = ScorePlayer(
         document: doc,
@@ -71,7 +71,7 @@ void main() {
       )..clock = clock;
       cleanup.add(() {
         controller.clearAll();
-        player.dispose();
+        player.close();
         controller.close();
       });
       final p0 = doc.pages[0];
@@ -118,14 +118,14 @@ void main() {
       h.clock.positionMs = 6500;
       h.player.seek(const Duration(milliseconds: 6500));
       await tester.pump();
-      expect(h.player.curtain.value, isNull);
+      expect(h.player.curtain.state, isNull);
       expect(h.vc.currentPage, turn.next.page, reason: 'ainda em m2');
 
       h.clock.positionMs = turn.next.startMs.toDouble();
       h.player.seek(Duration(milliseconds: turn.next.startMs));
       h.player.play();
       await pumpFor(tester, const Duration(seconds: 2));
-      expect(h.player.curtain.value, isNull);
+      expect(h.player.curtain.state, isNull);
       expect(h.vc.currentPage, turn.next.page);
 
       // Antes da conclusão, a página antiga.
@@ -146,13 +146,13 @@ void main() {
       h.player.seek(const Duration(milliseconds: 7700));
       h.player.play();
       await tester.pump(const Duration(milliseconds: 16));
-      final before = h.player.curtain.value!;
+      final before = h.player.curtain.state!;
       expect(before.blur, closeTo(0, 1e-9));
 
       h.player.waitTarget = turn.next.startMs.toDouble();
       for (var i = 0; i < 10; i++) {
         await tester.pump(const Duration(milliseconds: 16));
-        final c = h.player.curtain.value;
+        final c = h.player.curtain.state;
         if (c != null) {
           expect(c.blur, closeTo(0, 1e-9), reason: 'quadro $i');
           expect(c.edgeX, greaterThanOrEqualTo(before.edgeX));
@@ -168,7 +168,7 @@ void main() {
       h.player.seek(Duration(milliseconds: turn.next.startMs));
       h.player.play();
       await pumpFor(tester, const Duration(seconds: 2));
-      expect(h.player.curtain.value, isNotNull);
+      expect(h.player.curtain.state, isNotNull);
       expect(h.vc.currentPage, 0);
     });
 
@@ -184,7 +184,7 @@ void main() {
       h.player.seek(Duration(milliseconds: at.round()));
       h.player.play();
       await tester.pump(const Duration(milliseconds: 16));
-      final before = h.player.curtain.value;
+      final before = h.player.curtain.state;
       expect(before, isNotNull);
 
       // O aluno acertou a última nota da página: a pendente é a 1ª da
@@ -192,13 +192,13 @@ void main() {
       h.player.waitTarget = turn.next.startMs.toDouble();
       await tester.pump(const Duration(milliseconds: 16));
       await tester.pump(const Duration(milliseconds: 16));
-      final moving = h.player.curtain.value;
+      final moving = h.player.curtain.state;
       expect(moving, isNotNull);
       expect(moving!.pageIndex, 0);
       expect(moving.edgeX, greaterThan(before!.edgeX));
 
       await pumpFor(tester, h.vc.maxSweepDuration * 2);
-      expect(h.player.curtain.value, isNull);
+      expect(h.player.curtain.state, isNull);
       expect(h.vc.currentPage, turn.next.page);
       expect(find.byType(ClipRect), findsNothing);
       expect(h.player.position, Duration(milliseconds: at.round()));
@@ -206,7 +206,7 @@ void main() {
       // A posição alcança a página nova: nada volta atrás.
       h.clock.positionMs = turn.next.startMs + 5000.0;
       await pumpFor(tester, const Duration(milliseconds: 100));
-      expect(h.player.curtain.value, isNull);
+      expect(h.player.curtain.state, isNull);
       expect(h.vc.currentPage, turn.next.page);
     });
 
@@ -224,12 +224,12 @@ void main() {
       h.player.waitTarget = at;
       h.clock.positionMs = turn.next.startMs.toDouble();
       await pumpFor(tester, const Duration(milliseconds: 100));
-      expect(h.player.curtain.value, isNotNull);
+      expect(h.player.curtain.state, isNotNull);
       expect(h.vc.currentPage, 0);
 
       h.player.waitTarget = turn.next.startMs.toDouble();
       await pumpFor(tester, h.vc.maxSweepDuration * 2);
-      expect(h.player.curtain.value, isNull);
+      expect(h.player.curtain.state, isNull);
       expect(h.vc.currentPage, turn.next.page);
     });
 
@@ -244,12 +244,12 @@ void main() {
       h.clock.positionMs = turn.next.startMs.toDouble();
       h.player.seek(Duration(milliseconds: turn.next.startMs));
       await tester.pump();
-      expect(h.player.curtain.value, isNull);
+      expect(h.player.curtain.state, isNull);
       expect(h.vc.currentPage, turn.next.page);
 
       h.player.waitTarget = null;
       await tester.pump();
-      expect(h.player.curtain.value, isNotNull);
+      expect(h.player.curtain.state, isNotNull);
       expect(h.vc.currentPage, 0);
     });
   });

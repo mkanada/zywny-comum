@@ -3,10 +3,10 @@
 // usuário continua só em páginas normais.
 import 'dart:io';
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:score_bridge/score_bridge.dart';
+import 'package:zywny_bloc/zywny_bloc.dart';
 
 import 'support/render_helpers.dart';
 
@@ -22,10 +22,10 @@ void main() {
 
   Widget view(
     VsbDocument doc, {
-    required ScoreViewController vc,
+    required ScoreViewCubit vc,
     required ScoreCubit controller,
     ScorePageMode mode = ScorePageMode.pagedSweep,
-    ValueListenable<SweepCurtain?>? curtain,
+    StateStreamable<SweepCurtain?>? curtain,
   }) => Directionality(
     textDirection: TextDirection.ltr,
     child: ScoreView(
@@ -63,7 +63,7 @@ void main() {
   for (final mode in [ScorePageMode.pagedSweep, ScorePageMode.pagedSlide]) {
     testWidgets('critério 1 e 2: $mode, 4x do início ao fim — sequência de '
         'displayedPage bate com a rota de P04a', (tester) async {
-      final vc = ScoreViewController();
+      final vc = ScoreViewCubit();
       final controller = ScoreCubit(document: doc);
       addTearDown(controller.close);
       await pumpAtSize(
@@ -77,7 +77,7 @@ void main() {
         controller: controller,
         view: vc,
       );
-      addTearDown(player.dispose);
+      addTearDown(player.close);
 
       final tl = ScoreTimeline(doc);
       final expected = expectedViewSequence(tl);
@@ -98,7 +98,7 @@ void main() {
 
   testWidgets('critério 2: continuousScroll nunca mostra alternativa '
       '(displayedPage.isAlternate sempre false)', (tester) async {
-    final vc = ScoreViewController();
+    final vc = ScoreViewCubit();
     final controller = ScoreCubit(document: doc);
     addTearDown(controller.close);
     await pumpAtSize(
@@ -113,7 +113,7 @@ void main() {
       doc.pages[0].heightPx,
     );
     final player = ScorePlayer(document: doc, controller: controller, view: vc);
-    addTearDown(player.dispose);
+    addTearDown(player.close);
 
     expect(vc.displayedPage.isAlternate, isFalse);
     await playToEnd(tester, player);
@@ -125,7 +125,7 @@ void main() {
     'critério 3: seek para dentro da alternativa mostra a página certa, '
     'com a nota acesa nela',
     (tester) async {
-      final vc = ScoreViewController();
+      final vc = ScoreViewCubit();
       final controller = ScoreCubit(document: doc);
       addTearDown(controller.close);
       final key = await pumpAtSize(
@@ -139,7 +139,7 @@ void main() {
         controller: controller,
         view: vc,
       );
-      addTearDown(player.dispose);
+      addTearDown(player.close);
 
       final tl = ScoreTimeline(doc);
       const ms = 160000.0;
@@ -178,7 +178,7 @@ void main() {
     'useAlternates: false mantém displayedPage sempre normal, tocando do '
     'início ao fim',
     (tester) async {
-      final vc = ScoreViewController();
+      final vc = ScoreViewCubit();
       final controller = ScoreCubit(document: doc);
       addTearDown(controller.close);
       await pumpAtSize(
@@ -193,7 +193,7 @@ void main() {
         view: vc,
         useAlternates: false,
       );
-      addTearDown(player.dispose);
+      addTearDown(player.close);
 
       expect(vc.displayedPage.isAlternate, isFalse);
       while (player.position < player.duration) {
@@ -209,7 +209,7 @@ void main() {
     'critério 5: PictureStats.live volta a 0 depois de tocar a peça toda e '
     'desmontar',
     (tester) async {
-      final vc = ScoreViewController();
+      final vc = ScoreViewCubit();
       final controller = ScoreCubit(document: doc);
       addTearDown(controller.close);
       await pumpAtSize(
@@ -218,13 +218,13 @@ void main() {
         doc.pages[0].widthPx,
         doc.pages[0].heightPx,
       );
-      final state = tester.state<ScoreViewState>(find.byType(ScoreView));
+      final state = tester.state<ScoreViewBody>(find.byType(ScoreView));
       final player = ScorePlayer(
         document: doc,
         controller: controller,
         view: vc,
       );
-      addTearDown(player.dispose);
+      addTearDown(player.close);
 
       await playToEnd(tester, player);
       expect(state.pictureStats.live, greaterThan(0));

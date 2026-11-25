@@ -152,7 +152,7 @@ tem a própria fase (attack, hold, release) ao mesmo tempo.
     const piece = 'Nocturne';
     final doc = _load(piece);
     final controller = ScoreCubit(document: doc);
-    final vc = ScoreViewController();
+    final vc = ScoreViewCubit();
     final player = ScorePlayer(
       document: doc,
       controller: controller,
@@ -203,7 +203,7 @@ tem a própria fase (attack, hold, release) ao mesmo tempo.
       await writePng(tester, bytes, _width.round(), h, '$dir/frame-$label.png');
       lines.add(
         '$label: `seek(${at.round()} ms)` — haste '
-        '${player.curtain.value == null ? "ausente" : "edgeX = ${player.curtain.value!.edgeX.toStringAsFixed(0)}"}, '
+        '${player.curtain.state == null ? "ausente" : "edgeX = ${player.curtain.state!.edgeX.toStringAsFixed(0)}"}, '
         'página ${vc.currentPage + 1}',
       );
     }
@@ -226,7 +226,7 @@ Nos frames 2–4 as notas do compasso tocando estão destacadas em vermelho, à
 direita da haste; à esquerda dela aparece a página seguinte.
 ''');
     controller.clearAll();
-    player.dispose();
+    player.close();
     controller.close();
   });
 
@@ -236,7 +236,7 @@ direita da haste; à esquerda dela aparece a página seguinte.
       File('test/fixtures/maple-leaf-rag.vsb').readAsBytesSync(),
     );
     final controller = ScoreCubit(document: doc);
-    final vc = ScoreViewController();
+    final vc = ScoreViewCubit();
     final player = ScorePlayer(
       document: doc,
       controller: controller,
@@ -319,7 +319,7 @@ direita da haste; à esquerda dela aparece a página seguinte.
         );
         lines.add(
           '- $label: `seek(${at.round()} ms)` — haste '
-          '${player.curtain.value == null ? "ausente" : "edgeX = ${player.curtain.value!.edgeX.toStringAsFixed(0)}, destino página ${player.curtain.value!.targetPageIndex! + 1}"}, '
+          '${player.curtain.state == null ? "ausente" : "edgeX = ${player.curtain.state!.edgeX.toStringAsFixed(0)}, destino página ${player.curtain.state!.targetPageIndex! + 1}"}, '
           'página corrente ${vc.currentPage + 1}',
         );
       }
@@ -352,7 +352,7 @@ O quadro "estacionada" de cada salto mostra o compasso de destino já visível
 à esquerda da haste, antes de a música chegar lá.
 ''');
     controller.clearAll();
-    player.dispose();
+    player.close();
     controller.close();
   });
 
@@ -391,13 +391,13 @@ Future<void> _repeticaoAlternativaExample(
       int w,
       int h,
       ScorePlayer player,
-      ScoreViewController vc,
+      ScoreViewCubit vc,
       ScoreCubit controller,
     })
   >
   setup({required bool useAlternates}) async {
     final controller = ScoreCubit(document: doc);
-    final vc = ScoreViewController();
+    final vc = ScoreViewCubit();
     final player = ScorePlayer(
       document: doc,
       controller: controller,
@@ -491,7 +491,7 @@ Future<void> _repeticaoAlternativaExample(
     lines.add(
       '- $label: `seek(${at.round()} ms)` — displayedPage '
       '${active.vc.displayedPage} — haste '
-      '${active.player.curtain.value == null ? "ausente" : "edgeX = ${active.player.curtain.value!.edgeX.toStringAsFixed(0)}"}',
+      '${active.player.curtain.state == null ? "ausente" : "edgeX = ${active.player.curtain.state!.edgeX.toStringAsFixed(0)}"}',
     );
   }
 
@@ -567,10 +567,10 @@ como antes desta fase.
     );
 
   active.controller.clearAll();
-  active.player.dispose();
+  active.player.close();
   active.controller.close();
   before.controller.clearAll();
-  before.player.dispose();
+  before.player.close();
   before.controller.close();
 }
 

@@ -95,8 +95,8 @@ void main() {
   test('o estado registrado vai para o snapshot e o log', () async {
     final store = await start();
     var page = 2;
-    final off = DiagLog.setState('partitura', () => {'pagina': page});
-    DiagLog.setState('ruim', () => throw StateError('x'));
+    final off = DiagLog.retrato('partitura', () => {'pagina': page});
+    DiagLog.retrato('ruim',() => throw StateError('x'));
     expect(DiagLog.snapshot()['partitura'], {'pagina': 2});
     expect(DiagLog.snapshot()['ruim'], contains('erro'));
     page = 3;

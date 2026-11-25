@@ -17,8 +17,8 @@
 // atual, centrada e em escala exata — nada de `ClipRect`, haste, `Transform`
 // ou página vizinha. O recorte, a haste e a página B só existem enquanto a
 // `edgeX` está estritamente dentro do intervalo aberto `(0, fim)`; e cada
-// `ScorePageView` mora sob uma `GlobalKey`, de modo que aparecer/sumir o
-// recorte não recompila o cache de `Picture`.
+// `ScorePageView` mora sob uma `GlobalKey` (com o cubit da página dentro), de
+// modo que aparecer/sumir o recorte não recompila o cache de `Picture`.
 //
 // COORDENADAS: `edgeX` está em unidades de viewBox da página A (o referencial
 // de conteúdo do formato, o mesmo de `ElementRef.bbox`); a conversão para
@@ -28,6 +28,13 @@
 // A05b) tem a última palavra enquanto for não-nulo e estiver no intervalo; sem
 // ele, `sweepTo`/`finishSweep`/`nextPage` animam a própria. A página atual
 // acompanha `SweepCurtain.pageIndex`.
+//
+// ESTADO (BL26): a navegação (a página corrente, a exibida, a haste manual, a
+// trilha em curso e o contador de ligações) é o [ScoreViewState] do
+// [ScoreViewCubit] — o controller que o app passa a `viewController:`. O
+// `State` do widget ([ScoreViewBody]) é só o dono dos controllers de animação e
+// de rolagem (framework) e da medida da página; ele não guarda estado de tela. A
+// haste de fora ([ScoreView.curtain]) é lida pelo `state` e ouvida pelo `stream`.
 //
 // INTERRUPÇÕES (definidas em A03b, testadas em `score_view_test.dart`):
 //   * `goToPage`, `previousPage`: cancelam a virada em curso e vão direto ao
@@ -42,9 +49,9 @@ library;
 import 'dart:async';
 import 'dart:ui' show ImageFilter;
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter/rendering.dart' show ScrollCacheExtent;
 import 'package:flutter/widgets.dart';
+import 'package:zywny_bloc/zywny_bloc.dart';
 
 import 'band.dart';
 import 'hit_test.dart';
@@ -199,34 +206,87 @@ class _FirstUse implements SceneVisitor {
 double sweepEndX(ScenePage page, double barWidth) =>
     xFromPagePx(page.widthPx.toDouble(), page) + barWidth;
 
-/// Controle de navegação de um [ScoreView].
-///
-/// Passe o mesmo objeto ao `ScoreView` e use os métodos daqui; notifica a cada
-/// mudança **efetiva** de página (nunca por frame).
-class ScoreViewController extends ChangeNotifier {
-  ScoreViewState? _state;
+/// O estado da navegação de uma vista (BL26): a página corrente, a exibida (uma
+/// alternativa, se houver), a haste manual e a trilha em curso; mais o
+/// [attachments], que sobe a cada vista que se liga (o `ScorePlayer` o ouve para
+/// mostrar a página da posição, BG02), e o [serial], que sobe a cada repintura
+/// pedida sem mudança de campo (a haste de fora que não vale, por exemplo).
+class ScoreViewState extends Equatable {
+  const ScoreViewState({
+    this.page = 0,
+    this.shown,
+    this.manual,
+    this.slideTo,
+    this.attachments = 0,
+    this.serial = 0,
+  });
 
-  ScoreViewState get _s {
-    final s = _state;
+  /// A página em repouso (ou a que está sendo varrida). Sempre normal
+  /// (D-ALT-INDICE).
+  final int page;
+
+  /// A alternativa exibida, se houver; `null` é a página normal [page].
+  final PageRef? shown;
+
+  /// A haste manual (`sweepTo`, `finishSweep`, `nextPage` sem `curtain`).
+  final SweepCurtain? manual;
+
+  /// A página para a qual a trilha horizontal (`pagedSlide`) está indo.
+  final PageRef? slideTo;
+
+  /// Quantas vezes uma vista se ligou a este controller.
+  final int attachments;
+
+  /// Sobe a cada repintura pedida (ver a nota do cubit).
+  final int serial;
+
+  ScoreViewState copyWith({
+    int? page,
+    PageRef? Function()? shown,
+    SweepCurtain? Function()? manual,
+    PageRef? Function()? slideTo,
+    int? attachments,
+    int? serial,
+  }) => ScoreViewState(
+    page: page ?? this.page,
+    shown: shown == null ? this.shown : shown(),
+    manual: manual == null ? this.manual : manual(),
+    slideTo: slideTo == null ? this.slideTo : slideTo(),
+    attachments: attachments ?? this.attachments,
+    serial: serial ?? this.serial,
+  );
+
+  @override
+  List<Object?> get props => [
+    page,
+    shown,
+    manual,
+    slideTo,
+    attachments,
+    serial,
+  ];
+}
+
+/// Controle de navegação de um [ScoreView] (antes `ScoreViewController`).
+///
+/// Passe o mesmo objeto ao `ScoreView` e use os métodos daqui. O `state` avisa a
+/// cada mudança **efetiva** (a haste, que anda um quadro por vez, avisa em cada
+/// quadro); quem quer só a página ouve `stream.map((s) => s.page).distinct()`.
+class ScoreViewCubit extends Cubit<ScoreViewState> {
+  ScoreViewCubit() : super(const ScoreViewState());
+
+  /// A vista ligada, se há uma (a animação, a rolagem e a medida são dela).
+  ScoreViewBody? _body;
+
+  ScoreViewBody get _s {
+    final s = _body;
     if (s == null) {
-      throw StateError('ScoreViewController não está ligado a um ScoreView');
+      throw StateError('ScoreViewCubit não está ligado a um ScoreView');
     }
     return s;
   }
 
-  bool get isAttached => _state != null;
-
-  /// Avisa quando uma vista se liga a este controller (no quadro seguinte ao
-  /// `initState`, nunca no meio do build). Quem pediu uma página antes de a
-  /// vista existir (o `ScorePlayer`, num `seek` logo depois de montar a
-  /// rodada) a pede de novo aqui.
-  final ValueNotifier<int> attachments = ValueNotifier<int>(0);
-
-  @override
-  void dispose() {
-    attachments.dispose();
-    super.dispose();
-  }
+  bool get isAttached => _body != null;
 
   /// Largura efetiva da haste e teto de cada movimento (o `ScorePlayer` os lê
   /// daqui para não duplicar as constantes).
@@ -236,13 +296,13 @@ class ScoreViewController extends ChangeNotifier {
   /// A página em repouso (ou, durante a virada, a que está sendo varrida).
   /// Sempre uma página **normal** (D-ALT-INDICE) — para saber se uma
   /// alternativa está exibida, use [displayedPage].
-  int get currentPage => _state?._current ?? 0;
+  int get currentPage => state.page;
 
   /// A página realmente exibida agora: normal (`sequence == null`) ou uma
   /// alternativa que [showPage] pediu (P03b/P04b). `currentPage`/`goToPage`
   /// continuam falando só de páginas normais (D-ALT-INDICE); `displayedPage`
   /// é o que aparece na tela.
-  PageRef get displayedPage => _state?.displayedPage ?? const PageRef(0);
+  PageRef get displayedPage => state.shown ?? PageRef(state.page);
 
   /// Mostra [ref] (normal ou alternativa) - API do player (P04b). Com uma
   /// [PageRef] normal, é o [goToPage] de hoje (sem animação). Com uma
@@ -256,7 +316,7 @@ class ScoreViewController extends ChangeNotifier {
   ScorePageMode get mode => _s.widget.mode;
 
   /// Há uma virada (haste ou trilha) em curso.
-  bool get isTurning => _state?.isTurning ?? false;
+  bool get isTurning => _body?.isTurning ?? false;
 
   /// Vai para a página [index], **instantaneamente**, cancelando qualquer
   /// virada em curso. Fora do intervalo não lança: satura na primeira/última
@@ -294,7 +354,59 @@ class ScoreViewController extends ChangeNotifier {
     Duration duration = Duration.zero,
   }) => _s.scrollToId(id, alignment: alignment, duration: duration);
 
-  void _notifyPage() => notifyListeners();
+  // ---------------------------------------------------------------------
+  // Chamados pela vista (a mesma biblioteca). Cada um avisa uma vez e nada
+  // quando o valor não muda.
+  // ---------------------------------------------------------------------
+
+  void _attach(ScoreViewBody body) => _body = body;
+
+  void _detach(ScoreViewBody body) {
+    if (identical(_body, body)) _body = null;
+  }
+
+  /// Uma vista se ligou: sobe [ScoreViewState.attachments] (sempre avisa; é
+  /// isso que o BG02 precisa).
+  void _attached() => _put(state.copyWith(attachments: state.attachments + 1));
+
+  /// Passa para a troca de controller: a navegação da vista antiga vem junto.
+  void _adopt(ScoreViewState from) => _put(
+    state.copyWith(
+      page: from.page,
+      shown: () => from.shown,
+      manual: () => from.manual,
+      slideTo: () => from.slideTo,
+    ),
+  );
+
+  void _setPage(int page) => _put(state.copyWith(page: page));
+
+  void _setShown(PageRef? ref) => _put(state.copyWith(shown: () => ref));
+
+  void _setManual(SweepCurtain? curtain) =>
+      _put(state.copyWith(manual: () => curtain));
+
+  void _setSlide(PageRef? to) => _put(state.copyWith(slideTo: () => to));
+
+  /// Pede uma repintura sem mudar campo nenhum (o `serial` sobe).
+  void _repaint() => _put(state.copyWith(serial: state.serial + 1));
+
+  void _put(ScoreViewState next) {
+    if (isClosed) return;
+    emit(next);
+  }
+}
+
+/// A haste dirigida de fora ([ScoreView.curtain]) quando não há um `ScorePlayer`
+/// (testes e telas que a montam à mão): o `state` é a haste, e [show] a troca.
+class ScoreCurtainCubit extends Cubit<SweepCurtain?> {
+  ScoreCurtainCubit([super.curtain]);
+
+  /// Põe [curtain] como a haste. Igual ao que já está, não avisa.
+  void show(SweepCurtain? curtain) {
+    if (isClosed) return;
+    emit(curtain);
+  }
 }
 
 class ScoreView extends StatefulWidget {
@@ -330,8 +442,9 @@ class ScoreView extends StatefulWidget {
   /// Cor por id e destaques (A01c/A02b), compartilhado por todas as páginas.
   final ScoreCubit? controller;
 
-  /// Navegação (`goToPage`, `nextPage`, ...).
-  final ScoreViewController? viewController;
+  /// Navegação (`goToPage`, `nextPage`, ...). Sem ele, a vista guarda a própria
+  /// navegação.
+  final ScoreViewCubit? viewController;
 
   final ScorePageMode mode;
 
@@ -367,9 +480,10 @@ class ScoreView extends StatefulWidget {
   /// Duração da transição de `pagedSlide`.
   final Duration slideDuration;
 
-  /// A haste dirigida de fora (A05b). `null` no valor (ou `edgeX` fora do
-  /// intervalo aberto) é o repouso.
-  final ValueListenable<SweepCurtain?>? curtain;
+  /// A haste dirigida de fora (A05b): o `ScorePlayer.curtain`, ou um
+  /// [ScoreCurtainCubit]. `null` no valor (ou `edgeX` fora do intervalo
+  /// aberto) é o repouso.
+  final StateStreamable<SweepCurtain?>? curtain;
 
   /// Overlays e toque (A04b), repassados a cada `ScorePageView`.
   final Iterable<String> overlayIds;
@@ -390,31 +504,30 @@ class ScoreView extends StatefulWidget {
   final ScoreBandCubit? bands;
 
   @override
-  State<ScoreView> createState() => ScoreViewState();
+  State<ScoreView> createState() => ScoreViewBody();
 }
 
-class ScoreViewState extends State<ScoreView> with TickerProviderStateMixin {
+/// O `State` de [ScoreView] (framework): dono dos `AnimationController`s da
+/// haste e da trilha e do `ScrollController` da rolagem contínua. A navegação
+/// está no [ScoreViewCubit]; este `State` não chama `setState`.
+class ScoreViewBody extends State<ScoreView> with TickerProviderStateMixin {
   final PictureStats _stats = PictureStats();
   final Map<PageRef, GlobalKey> _keys = {};
 
-  int _current = 0;
-
-  /// Página exibida quando **não** é a normal [_current] (P03b): uma
-  /// alternativa que [showPage] pediu. `null` em repouso normal.
-  PageRef? _shown;
-
-  /// A página realmente na tela: [_shown], ou a normal [_current].
-  PageRef get displayedPage => _shown ?? PageRef(_current);
+  /// A navegação em uso: a do `viewController`, ou a própria (se não há um).
+  late ScoreViewCubit _cubit;
+  ScoreViewCubit? _own;
 
   // Haste manual (sweepTo/finishSweep/nextPage sem curtain externo).
-  final ValueNotifier<SweepCurtain?> _manual = ValueNotifier(null);
   late final AnimationController _sweepAnim = AnimationController(vsync: this);
   Completer<void>? _sweepDone;
 
   // Trilha horizontal (pagedSlide).
   late final AnimationController _slideAnim = AnimationController(vsync: this);
-  PageRef? _slideTo;
   int _slideDir = 1;
+
+  // A haste de fora (`curtain`).
+  StreamSubscription<SweepCurtain?>? _curtainSub;
 
   // Rolagem contínua.
   ScrollController? _scroll;
@@ -424,12 +537,22 @@ class ScoreViewState extends State<ScoreView> with TickerProviderStateMixin {
 
   double? _barWidth;
 
-  // Durante `didUpdateWidget` (fase de build) os listeners não podem chamar
-  // `setState`.
+  // Durante `didUpdateWidget` (fase de build) os avisos não podem mudar a
+  // vista de novo.
   bool _inUpdate = false;
 
   VsbDocument get _doc => widget.document;
   int get _pageCount => _doc.pages.length;
+
+  int get _current => _cubit.state.page;
+
+  /// A haste manual em vigor (ver [_setManual]).
+  SweepCurtain? get _manual => _cubit.state.manual;
+
+  PageRef? get _slideTo => _cubit.state.slideTo;
+
+  /// A página realmente na tela: [_shown], ou a normal [_current].
+  PageRef get displayedPage => _cubit.displayedPage;
 
   /// Contadores de `Picture` das páginas montadas por esta vista (todas
   /// somadas). Em paginado só a página corrente (e a vizinha durante uma
@@ -453,11 +576,12 @@ class ScoreViewState extends State<ScoreView> with TickerProviderStateMixin {
   @override
   void initState() {
     super.initState();
-    _current = widget.initialPage.clamp(0, _pageCount - 1);
-    widget.viewController?._state = this;
+    _own = widget.viewController == null ? ScoreViewCubit() : null;
+    _cubit = widget.viewController ?? _own!;
+    _cubit._attach(this);
+    _cubit._setPage(widget.initialPage.clamp(0, _pageCount - 1));
     _announceAttached(widget.viewController);
-    widget.curtain?.addListener(_onCurtainChanged);
-    _manual.addListener(_onCurtainChanged);
+    _listenCurtain(widget.curtain);
     _sweepAnim.addListener(_onSweepTick);
     _sweepAnim.addStatusListener(_onSweepStatus);
     _slideAnim.addStatusListener(_onSlideStatus);
@@ -486,32 +610,35 @@ class ScoreViewState extends State<ScoreView> with TickerProviderStateMixin {
     }
   }
 
-  void _announceAttached(ScoreViewController? controller) {
+  /// Avisa o controller de que a vista se ligou, no quadro seguinte ao
+  /// `initState` (nunca no meio do build): é o `attachments` que o player ouve
+  /// (BG02).
+  void _announceAttached(ScoreViewCubit? controller) {
     if (controller == null) return;
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted && controller._state == this) {
-        controller.attachments.value++;
+      if (mounted && identical(controller._body, this)) {
+        controller._attached();
       }
     });
   }
 
+  void _listenCurtain(StateStreamable<SweepCurtain?>? curtain) {
+    _curtainSub?.cancel();
+    _curtainSub = curtain?.stream.listen((_) => _onCurtainChanged());
+  }
+
   void _applyWidgetUpdate(ScoreView oldWidget) {
     if (oldWidget.viewController != widget.viewController) {
-      if (oldWidget.viewController?._state == this) {
-        oldWidget.viewController?._state = null;
-      }
-      widget.viewController?._state = this;
-      _announceAttached(widget.viewController);
+      _rebind(widget.viewController ?? (_own ??= ScoreViewCubit()));
     }
     if (oldWidget.curtain != widget.curtain) {
-      oldWidget.curtain?.removeListener(_onCurtainChanged);
-      widget.curtain?.addListener(_onCurtainChanged);
+      _listenCurtain(widget.curtain);
     }
     if (oldWidget.document != widget.document) {
       _barWidth = null;
       _keys.clear();
-      _shown = null;
-      _current = _current.clamp(0, _pageCount - 1);
+      _cubit._setShown(null);
+      _cubit._setPage(_current.clamp(0, _pageCount - 1));
       _cancelTurn();
     }
     if (oldWidget.mode != widget.mode) {
@@ -526,17 +653,24 @@ class ScoreViewState extends State<ScoreView> with TickerProviderStateMixin {
     }
   }
 
+  /// A vista passa a ser dirigida por [next]: a navegação vai junto.
+  void _rebind(ScoreViewCubit next) {
+    final old = _cubit;
+    if (identical(old, next)) return;
+    old._detach(this);
+    next._adopt(old.state);
+    _cubit = next;
+    _cubit._attach(this);
+    _announceAttached(widget.viewController);
+  }
+
   @override
   void dispose() {
-    // Uma vista nova pode já ter assumido o controller (troca de `key`).
-    if (widget.viewController?._state == this) {
-      widget.viewController?._state = null;
-    }
-    widget.curtain?.removeListener(_onCurtainChanged);
-    _manual.removeListener(_onCurtainChanged);
+    _cubit._detach(this);
+    _own?.close();
+    _curtainSub?.cancel();
     _sweepAnim.dispose();
     _slideAnim.dispose();
-    _manual.dispose();
     _scroll?.dispose();
     super.dispose();
   }
@@ -550,7 +684,7 @@ class ScoreViewState extends State<ScoreView> with TickerProviderStateMixin {
       return;
     }
     final from = _current;
-    _current = page;
+    _cubit._setPage(page);
     ScoreTrace.log(
       'vista',
       () =>
@@ -558,7 +692,6 @@ class ScoreViewState extends State<ScoreView> with TickerProviderStateMixin {
           '(de $_pageCount), $_traceOrigin',
     );
     widget.onPageChanged?.call(page);
-    widget.viewController?._notifyPage();
   }
 
   void _cancelTurn() {
@@ -569,30 +702,30 @@ class ScoreViewState extends State<ScoreView> with TickerProviderStateMixin {
     if (_slideAnim.isAnimating) {
       _slideAnim.stop();
     }
-    _slideTo = null;
-    if (_manual.value != null) {
-      _manual.value = null;
+    _cubit._setSlide(null);
+    if (_manual != null) {
+      _setManual(null);
     }
   }
 
   int goToPage(int index) {
     final target = index.clamp(0, _pageCount - 1);
     _traceOrigin = 'goToPage($index)';
-    _shown = null;
+    _cubit._setShown(null);
     _cancelTurn();
     if (widget.mode == ScorePageMode.continuousScroll) {
       _setCurrent(target);
       _jumpToPage(target);
     } else {
       _setCurrent(target);
-      setState(() {});
+      _cubit._repaint();
     }
     _traceOrigin = 'sem origem';
     return target;
   }
 
   int nextPage({bool animate = true}) {
-    _shown = null;
+    _cubit._setShown(null);
     final from = _current;
     if (widget.mode == ScorePageMode.continuousScroll) {
       return goToPage(from + 1);
@@ -609,7 +742,7 @@ class ScoreViewState extends State<ScoreView> with TickerProviderStateMixin {
       return goToPage(from + 1);
     }
     if (widget.mode == ScorePageMode.pagedSweep) {
-      if (_manual.value != null || _sweepAnim.isAnimating) {
+      if (_manual != null || _sweepAnim.isAnimating) {
         unawaited(finishSweep());
       } else {
         unawaited(
@@ -623,7 +756,7 @@ class ScoreViewState extends State<ScoreView> with TickerProviderStateMixin {
   }
 
   int previousPage({bool animate = true}) {
-    _shown = null;
+    _cubit._setShown(null);
     final from = _current;
     if (widget.mode == ScorePageMode.pagedSlide &&
         animate &&
@@ -653,18 +786,18 @@ class ScoreViewState extends State<ScoreView> with TickerProviderStateMixin {
   }
 
   /// Aplica [ref] a `_shown`/`_current`, sem cancelar nenhuma virada em
-  /// curso (decisão de quem chama) nem chamar `setState`. Com uma
-  /// alternativa, `_current` vira a página normal do primeiro compasso dela
-  /// (D-ALT-INDICE) — a mesma pesquisa de `ScenePage.firstMeasureId` +
-  /// `ScoreGeometry.pageOf` que P02b faz em C++ para achar `firstOfNormalPage`.
+  /// curso (decisão de quem chama). Com uma alternativa, `_current` vira a
+  /// página normal do primeiro compasso dela (D-ALT-INDICE) — a mesma pesquisa
+  /// de `ScenePage.firstMeasureId` + `ScoreGeometry.pageOf` que P02b faz em C++
+  /// para achar `firstOfNormalPage`.
   void _applyDisplayed(PageRef ref) {
     final sequence = ref.sequence;
     if (sequence == null) {
-      _shown = null;
+      _cubit._setShown(null);
       _setCurrent(ref.index);
       return;
     }
-    _shown = ref;
+    _cubit._setShown(ref);
     final firstMeasureId =
         _doc.alternates[sequence].pages[ref.index].firstMeasureId;
     final normalPage = firstMeasureId == null
@@ -694,7 +827,7 @@ class ScoreViewState extends State<ScoreView> with TickerProviderStateMixin {
     _traceOrigin = 'showPage pedido pelo player';
     _cancelTurn();
     _applyDisplayed(ref);
-    setState(() {});
+    _cubit._repaint();
     _traceOrigin = 'sem origem';
   }
 
@@ -741,7 +874,7 @@ class ScoreViewState extends State<ScoreView> with TickerProviderStateMixin {
     if (widget.mode != ScorePageMode.pagedSweep) {
       return null;
     }
-    final c = widget.curtain?.value ?? _manual.value;
+    final c = widget.curtain?.state ?? _manual;
     if (c == null || !_isValidCurtain(c)) {
       return null;
     }
@@ -751,6 +884,13 @@ class ScoreViewState extends State<ScoreView> with TickerProviderStateMixin {
     return c;
   }
 
+  /// Troca a haste manual; se mudou, a vista reage como à haste de fora.
+  void _setManual(SweepCurtain? curtain) {
+    if (curtain == _manual) return;
+    _cubit._setManual(curtain);
+    _onCurtainChanged();
+  }
+
   void _onCurtainChanged() {
     if (widget.mode != ScorePageMode.pagedSweep || !mounted || _inUpdate) {
       ScoreTrace.log(
@@ -758,11 +898,11 @@ class ScoreViewState extends State<ScoreView> with TickerProviderStateMixin {
         () =>
             'mudança de haste IGNORADA: modo=${widget.mode.name} '
             'montada=$mounted atualizando=$_inUpdate '
-            'haste=${widget.curtain?.value}',
+            'haste=${widget.curtain?.state}',
       );
       return;
     }
-    final c = widget.curtain?.value ?? _manual.value;
+    final c = widget.curtain?.state ?? _manual;
     if (c != null &&
         _isValidCurtain(c) &&
         c.page == displayedPage &&
@@ -776,11 +916,11 @@ class ScoreViewState extends State<ScoreView> with TickerProviderStateMixin {
       );
       _traceOrigin = 'conclusão da haste';
       _cancelSweepAnim();
-      if (_manual.value != null) {
-        _manual.value = null;
+      if (_manual != null) {
+        _setManual(null);
       }
       _applyDisplayed(c.target);
-      setState(() {});
+      _cubit._repaint();
       _traceOrigin = 'sem origem';
       return;
     }
@@ -808,7 +948,7 @@ class ScoreViewState extends State<ScoreView> with TickerProviderStateMixin {
       _applyDisplayed(active.page);
       _traceOrigin = 'sem origem';
     }
-    setState(() {});
+    _cubit._repaint();
   }
 
   void _cancelSweepAnim() {
@@ -854,10 +994,12 @@ class ScoreViewState extends State<ScoreView> with TickerProviderStateMixin {
     final edgeX = _sweepFrom + (_sweepTo - _sweepFrom) * t;
     // Sem player não há fase de espera: a varredura inteira é a saída.
     final end = _endX(PageRef(_sweepPage));
-    _manual.value = SweepCurtain(
-      pageIndex: _sweepPage,
-      edgeX: edgeX,
-      blur: end > 0 ? revealBlurAt(edgeX / end) : 0,
+    _setManual(
+      SweepCurtain(
+        pageIndex: _sweepPage,
+        edgeX: edgeX,
+        blur: end > 0 ? revealBlurAt(edgeX / end) : 0,
+      ),
     );
   }
 
@@ -871,9 +1013,7 @@ class ScoreViewState extends State<ScoreView> with TickerProviderStateMixin {
     if (widget.mode != ScorePageMode.pagedSweep) {
       return Future.value();
     }
-    final from = _manual.value?.pageIndex == _current
-        ? _manual.value!.edgeX
-        : 0.0;
+    final from = _manual?.pageIndex == _current ? _manual!.edgeX : 0.0;
     return _animateSweep(from, edgeX, duration ?? widget.maxSweepDuration);
   }
 
@@ -881,9 +1021,7 @@ class ScoreViewState extends State<ScoreView> with TickerProviderStateMixin {
     if (widget.mode != ScorePageMode.pagedSweep || _current >= _pageCount - 1) {
       return Future.value();
     }
-    final from = _manual.value?.pageIndex == _current
-        ? _manual.value!.edgeX
-        : 0.0;
+    final from = _manual?.pageIndex == _current ? _manual!.edgeX : 0.0;
     return _animateSweep(
       from,
       _endX(PageRef(_current)),
@@ -897,19 +1035,18 @@ class ScoreViewState extends State<ScoreView> with TickerProviderStateMixin {
 
   void _startSlide(PageRef to) {
     _slideDir = (to.sequence == null && to.index < _current) ? -1 : 1;
-    _slideTo = to;
-    setState(() {});
+    _cubit._setSlide(to);
     _slideAnim
       ..duration = widget.slideDuration
       ..forward(from: 0);
   }
 
   void _onSlideStatus(AnimationStatus status) {
-    if (status == AnimationStatus.completed && _slideTo != null) {
-      final to = _slideTo!;
-      _slideTo = null;
+    final to = _slideTo;
+    if (status == AnimationStatus.completed && to != null) {
+      _cubit._setSlide(null);
       _applyDisplayed(to);
-      setState(() {});
+      _cubit._repaint();
     }
   }
 
@@ -997,6 +1134,8 @@ class ScoreViewState extends State<ScoreView> with TickerProviderStateMixin {
   // Construção
   // -------------------------------------------------------------------------
 
+  /// A página [ref]; a chave é a dela, para que a página (e o cubit com as
+  /// camadas) sobreviva a ser movida na árvore.
   Widget _page(PageRef ref, {Key? key}) => ScorePageView(
     key: key ?? _keyOf(ref),
     document: _doc,
@@ -1039,17 +1178,22 @@ class ScoreViewState extends State<ScoreView> with TickerProviderStateMixin {
 
   @override
   Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        switch (widget.mode) {
-          case ScorePageMode.continuousScroll:
-            return _buildContinuous(constraints);
-          case ScorePageMode.pagedSlide:
-            return _buildSlide(constraints);
-          case ScorePageMode.pagedSweep:
-            return _buildSweep(constraints);
-        }
-      },
+    // O `BlocBuilder` refaz a vista a cada aviso da navegação (página, haste,
+    // trilha ou repintura); o `LayoutBuilder` dá a caixa.
+    return BlocBuilder<ScoreViewCubit, ScoreViewState>(
+      bloc: _cubit,
+      builder: (context, _) => LayoutBuilder(
+        builder: (context, constraints) {
+          switch (widget.mode) {
+            case ScorePageMode.continuousScroll:
+              return _buildContinuous(constraints);
+            case ScorePageMode.pagedSlide:
+              return _buildSlide(constraints);
+            case ScorePageMode.pagedSweep:
+              return _buildSweep(constraints);
+          }
+        },
+      ),
     );
   }
 

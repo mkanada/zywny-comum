@@ -11,6 +11,7 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:score_bridge/score_bridge.dart';
+import 'package:zywny_bloc/zywny_bloc.dart';
 
 /// Diretório dos pacotes do corpus (git-ignorado; regenerável).
 const kCorpusDir = '../compare/out/s08';
@@ -136,9 +137,9 @@ Future<ByteData> pageViewBytes(
   final page = doc.pages[pageIndex];
   final key = await pumpAtSize(
     tester,
-    ScorePageView(
-      document: doc,
-      pageIndex: pageIndex,
+    scorePageFor(
+      doc,
+      pageIndex,
       controller: controller,
       animatableIds: animatableIds,
     ),
@@ -224,3 +225,31 @@ Future<void> writePng(
     buffer.dispose();
   });
 }
+
+/// A página [pageIndex] de [doc] (um `ScorePageView`, com o cubit dela).
+ScorePageView scorePageFor(
+  VsbDocument doc,
+  int pageIndex, {
+  ScoreCubit? controller,
+  Set<String>? animatableIds,
+  void Function(String id)? onElementTap,
+}) => ScorePageView(
+  document: doc,
+  pageIndex: pageIndex,
+  controller: controller,
+  animatableIds: animatableIds,
+  onElementTap: onElementTap,
+);
+
+/// O cubit da página montada (um `ScorePageView`): o que fica dentro do
+/// `BlocProvider` dela, pelo primeiro recorte de página que a árvore tem.
+ScorePageCubit pageCubitOf(WidgetTester tester) => BlocProvider.of<ScorePageCubit>(
+  tester.element(
+    find
+        .descendant(
+          of: find.byType(ScorePageView),
+          matching: find.byType(RepaintBoundary),
+        )
+        .first,
+  ),
+);

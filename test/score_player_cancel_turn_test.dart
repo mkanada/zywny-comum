@@ -19,7 +19,7 @@ void main() {
       ),
     );
     final controller = ScoreCubit(document: doc);
-    final vc = ScoreViewController();
+    final vc = ScoreViewCubit();
     final player = ScorePlayer(
       document: doc,
       controller: controller,
@@ -56,19 +56,19 @@ void main() {
 
       player.seek(Duration(microseconds: (parked * 1000).round()));
       await tester.pump();
-      expect(player.curtain.value, isNotNull);
+      expect(player.curtain.state, isNotNull);
       expect(vc.isTurning, isTrue, reason: 'a haste está na tela');
 
       player.pause();
       expect(
-        player.curtain.value,
+        player.curtain.state,
         isNotNull,
         reason: 'pausar só congela a haste',
       );
 
       player.cancelTurn();
       await tester.pump();
-      expect(player.curtain.value, isNull);
+      expect(player.curtain.state, isNull);
       expect(vc.isTurning, isFalse, reason: 'sem haste presa na vista');
 
       // Sem a haste presa, a vista troca de página (o "Rever" da revisão).
@@ -80,7 +80,7 @@ void main() {
       expect(vc.isTurning, isFalse);
     } finally {
       controller.clearAll();
-      player.dispose();
+      player.close();
       controller.close();
       await tester.pump(const Duration(seconds: 2));
     }

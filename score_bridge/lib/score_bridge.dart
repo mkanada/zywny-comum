@@ -21,6 +21,7 @@ export 'src/hit_test.dart';
 export 'src/page_layers.dart' show PageLayers, PictureStats;
 export 'src/score_cubit.dart';
 export 'src/score_cursor.dart';
+export 'src/score_page_cubit.dart';
 export 'src/score_page_view.dart';
 export 'src/score_player.dart';
 export 'src/score_trace.dart';
