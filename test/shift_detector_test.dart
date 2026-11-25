@@ -21,6 +21,7 @@ import 'package:zywny_comum/practice/hand.dart';
 import 'package:zywny_comum/practice/practice_controller.dart';
 import 'package:zywny_comum/practice/shift_banner.dart';
 import 'package:zywny_comum/practice/shift_detector.dart';
+import 'package:zywny_comum/practice/shift_notice_cubit.dart';
 
 class _Engine implements SoundEngine {
   double now = 0;
@@ -473,7 +474,7 @@ void main() {
   group('a faixa', () {
     Future<void> show(
       WidgetTester tester,
-      ValueNotifier<ShiftNotice?> notice,
+      ShiftNoticeCubit notice,
       Stream<PlayedNote> notes,
     ) => tester.pumpWidget(
       MaterialApp(
@@ -487,14 +488,14 @@ void main() {
 
     testWidgets('música sem transposição, teclado em +3: a faixa aparece em '
         'até 6 notas erradas', (tester) async {
-      final notice = ValueNotifier<ShiftNotice?>(null);
+      final notice = ShiftNoticeCubit();
       final rig = _Rig(mode: PracticeMode.wait);
       addTearDown(() {
         rig.dispose();
-        notice.dispose();
+        unawaited(notice.close());
       });
       rig.onShift = (d) =>
-          notice.value = shiftNoticeFor(d: d, k: 0, frameShiftsOut: false);
+          notice.show(shiftNoticeFor(d: d, k: 0, frameShiftsOut: false));
       await show(tester, notice, rig.midi.notes);
       expect(find.byKey(const ValueKey('shift-banner')), findsNothing);
       for (var i = 0; i < 3; i++) {
@@ -518,32 +519,32 @@ void main() {
 
     // O resto da faixa não precisa de treino: o aviso vem de um notificador
     // e as notas, de um teclado falso à parte.
-    late ValueNotifier<ShiftNotice?> notice;
+    late ShiftNoticeCubit notice;
     late _Input keyboard;
     setUp(() {
-      notice = ValueNotifier(null);
+      notice = ShiftNoticeCubit();
       keyboard = _Input();
     });
-    tearDown(() {
-      notice.dispose();
+    tearDown(() async {
+      await notice.close();
       keyboard.dispose();
     });
 
     testWidgets('some sozinha em 8 s', (tester) async {
       await show(tester, notice, keyboard.notes);
-      notice.value = const ShiftNotice('oi');
+      notice.show(const ShiftNotice('oi'));
       await tester.pump();
       expect(find.text('oi'), findsOneWidget);
       await tester.pump(const Duration(seconds: 7));
       expect(find.text('oi'), findsOneWidget);
       await tester.pump(const Duration(seconds: 1, milliseconds: 100));
       expect(find.text('oi'), findsNothing);
-      expect(notice.value, isNull);
+      expect(notice.state.notice, isNull);
     });
 
     testWidgets('some ao tocar a próxima nota', (tester) async {
       await show(tester, notice, keyboard.notes);
-      notice.value = const ShiftNotice('oi');
+      notice.show(const ShiftNotice('oi'));
       await tester.pump();
       keyboard.note(60, on: false);
       await tester.pump();
@@ -552,14 +553,13 @@ void main() {
       await tester.pump();
       await tester.pump();
       expect(find.text('oi'), findsNothing);
-      expect(notice.value, isNull);
+      expect(notice.state.notice, isNull);
     });
 
     testWidgets('o lembrete de voltar a 0 não some ao tocar', (tester) async {
       await show(tester, notice, keyboard.notes);
-      notice.value = const ShiftNotice(
-        kShiftReminderMessage,
-        hideOnPlay: false,
+      notice.show(
+        const ShiftNotice(kShiftReminderMessage, hideOnPlay: false),
       );
       await tester.pump();
       keyboard.note(60, on: true);
@@ -572,20 +572,20 @@ void main() {
 
     testWidgets('tocar na faixa a fecha', (tester) async {
       await show(tester, notice, keyboard.notes);
-      notice.value = const ShiftNotice('oi');
+      notice.show(const ShiftNotice('oi'));
       await tester.pump();
       await tester.tap(find.text('oi'));
       await tester.pump();
       expect(find.text('oi'), findsNothing);
-      expect(notice.value, isNull);
+      expect(notice.state.notice, isNull);
     });
 
     testWidgets('um aviso novo reinicia os 8 s', (tester) async {
       await show(tester, notice, keyboard.notes);
-      notice.value = const ShiftNotice('um');
+      notice.show(const ShiftNotice('um'));
       await tester.pump();
       await tester.pump(const Duration(seconds: 6));
-      notice.value = const ShiftNotice('dois');
+      notice.show(const ShiftNotice('dois'));
       await tester.pump();
       await tester.pump(const Duration(seconds: 6));
       expect(find.text('dois'), findsOneWidget);

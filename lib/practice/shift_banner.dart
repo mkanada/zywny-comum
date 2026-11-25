@@ -1,20 +1,20 @@
 // Q07: a faixa no topo da partitura com o aviso do TRANSPOSE (docs/plano/Q07).
 import 'dart:async';
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import 'package:zywny_bloc/zywny_bloc.dart';
 import 'package:zywny_midi/midi_input_service.dart';
 
 import 'shift_detector.dart';
+import 'shift_notice_cubit.dart';
 
 /// Quanto tempo a faixa fica na tela sozinha.
 const Duration kShiftBannerDuration = Duration(seconds: 8);
 
 /// A faixa: mostra o aviso de [notice] e some em [duration] ou, se o aviso
 /// pede ([ShiftNotice.hideOnPlay]), quando [notes] entrega a próxima nota
-/// tocada. Tocar na faixa também a fecha. Ao sumir, zera [notice].
+/// tocada. Tocar na faixa também a fecha. Ao sumir, zera o aviso em [notice].
 class ShiftBanner extends StatelessWidget {
   const ShiftBanner({
     super.key,
@@ -23,7 +23,8 @@ class ShiftBanner extends StatelessWidget {
     this.duration = kShiftBannerDuration,
   });
 
-  final ValueNotifier<ShiftNotice?> notice;
+  /// O Cubit que guarda o aviso: a faixa o lê e o fecha; quem o mostra é o dono.
+  final ShiftNoticeCubit notice;
   final Stream<PlayedNote> notes;
   final Duration duration;
 
@@ -34,7 +35,6 @@ class ShiftBanner extends StatelessWidget {
     key: ValueKey((notice, notes, duration)),
     create: (_) => ShiftBannerCubit(
       notice: notice,
-      onFechar: () => notice.value = null,
       notes: notes,
       duration: duration,
     ),
@@ -54,27 +54,25 @@ class ShiftBannerState extends Equatable {
 
 /// A faixa por dentro: copia o aviso do [notice] para o estado, arma o prazo
 /// de sumir e fecha quando a próxima nota chega (se o aviso pede). O
-/// [close] tira o ouvinte do aviso e cancela o prazo e a escuta das notas.
+/// [close] tira a escuta do aviso, cancela o prazo e a escuta das notas.
 class ShiftBannerCubit extends Cubit<ShiftBannerState> {
   ShiftBannerCubit({
-    required ValueListenable<ShiftNotice?> notice,
-    required this.onFechar,
+    required ShiftNoticeCubit notice,
     required Stream<PlayedNote> notes,
     required this.duration,
   }) : _notice = notice,
-       super(ShiftBannerState(shown: notice.value)) {
+       super(ShiftBannerState(shown: notice.state.notice)) {
     _sub = notes.listen(_aoTocar);
-    notice.addListener(_aoAviso);
+    _avisoSub = notice.stream.listen(_aoAviso);
     _armar();
     _ouvindo = true;
   }
 
-  final ValueListenable<ShiftNotice?> _notice;
-
-  /// Zera o aviso no dono dele (a faixa só o lê).
-  final VoidCallback onFechar;
+  /// Dono do aviso: a faixa só o lê, e fechar passa por ele.
+  final ShiftNoticeCubit _notice;
   final Duration duration;
   late final StreamSubscription<PlayedNote> _sub;
+  late final StreamSubscription<ShiftNoticeState> _avisoSub;
   Timer? _prazo;
 
   /// A nota que fez o aviso nascer chega a esta faixa na mesma entrega (o
@@ -83,15 +81,15 @@ class ShiftBannerCubit extends Cubit<ShiftBannerState> {
   var _ouvindo = false;
 
   /// Fecha a faixa (e zera o aviso, para quem o ouve).
-  void fechar() => onFechar();
+  void fechar() => _notice.clear();
 
   void _armar() {
     _prazo?.cancel();
     _prazo = state.shown == null ? null : Timer(duration, fechar);
   }
 
-  void _aoAviso() {
-    final notice = _notice.value;
+  void _aoAviso(ShiftNoticeState estado) {
+    final notice = estado.notice;
     if (notice == state.shown) return;
     emit(ShiftBannerState(shown: notice));
     _armar();
@@ -105,7 +103,7 @@ class ShiftBannerCubit extends Cubit<ShiftBannerState> {
 
   @override
   Future<void> close() {
-    _notice.removeListener(_aoAviso);
+    unawaited(_avisoSub.cancel());
     unawaited(_sub.cancel());
     _prazo?.cancel();
     return super.close();

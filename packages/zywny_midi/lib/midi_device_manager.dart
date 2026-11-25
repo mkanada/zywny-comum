@@ -477,6 +477,7 @@ class MidiDeviceManager extends Cubit<MidiDeviceState> {
 
   /// Só para os testes (dos pacotes e dos apps): põe [device] como o teclado
   /// conectado, ou nenhum, sem passar pelo plugin. Não grava nada.
+  @visibleForTesting
   void simularConectado(MidiDevice? device) =>
       emit(state.copyWith(connected: () => device));
 
