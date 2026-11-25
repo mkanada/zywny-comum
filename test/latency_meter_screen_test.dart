@@ -30,6 +30,13 @@ class _NoDevicesMidi implements MidiCommand {
 
 MidiDevice _piano() => MidiDevice('kb-1', 'Piano', MidiDeviceType.serial, true);
 
+/// Abre a seção "Avançado" das configurações (recolhida por padrão): os
+/// ajustes técnicos e o diagnóstico ficam lá.
+Future<void> abrirAvancado(WidgetTester tester) async {
+  await tester.tap(find.text('Avançado'));
+  await tester.pumpAndSettle();
+}
+
 void main() {
   late MidiDeviceManager manager;
 
@@ -132,6 +139,7 @@ void main() {
       ),
     );
     await tester.pump();
+    await abrirAvancado(tester);
     expect(find.text('Latência do som'), findsNothing);
 
     manager.simularConectado(_piano());

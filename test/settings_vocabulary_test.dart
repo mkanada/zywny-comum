@@ -22,6 +22,13 @@ class _NoDevicesMidi implements MidiCommand {
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
+/// Abre a seção "Avançado" das configurações (recolhida por padrão): os
+/// ajustes técnicos e o diagnóstico ficam lá.
+Future<void> abrirAvancado(WidgetTester tester) async {
+  await tester.tap(find.text('Avançado'));
+  await tester.pumpAndSettle();
+}
+
 void main() {
   setUp(() {
     SharedPreferencesAsyncPlatform.instance =
@@ -69,6 +76,8 @@ void main() {
     );
     await tester.pump();
     expect(tester.takeException(), isNull);
+    // Os ajustes técnicos (o timbre do piano, o atraso) estão em "Avançado".
+    await abrirAvancado(tester);
 
     const titles = [
       'Som',

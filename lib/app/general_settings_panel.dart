@@ -214,18 +214,15 @@ class GeneralSettingsPanel extends StatelessWidget {
     ..._rhythmRows(),
     if (showTrail) ..._trailRows(context),
     ..._colorRows(),
-    if (BugReportScope.current != null && audioRecordingSupported) ...[
-      const _Header('Gravar o som do microfone'),
-      const AudioRecordingHelp(),
-    ],
     ..._helpRows(context),
+    ..._advancedRows(context),
     const SizedBox(height: 12),
   ];
 
-  /// O som: se toca, por onde sai (o app ou o teclado) e o timbre do piano.
+  /// O som: se toca e por onde sai (o app ou o teclado). O timbre do piano e a
+  /// saída pelo teclado são ajustes: ficam em [_advancedRows].
   List<Widget> _soundRows(BuildContext context) {
     final busy = live?.busy ?? false;
-    final toMidi = settings.state.output == SoundOutput.midiKeyboard;
     return [
       const _Header('Som'),
       SwitchListTile(
@@ -262,19 +259,11 @@ class GeneralSettingsPanel extends StatelessWidget {
           onSelectionChanged: busy ? null : (s) => settings.setOutput(s.first),
         ),
       ),
-      if (toMidi)
-        SwitchListTile(
-          dense: true,
-          title: const Text('Trocar o timbre do teclado'),
-          subtitle: const Text('usa o instrumento da partitura'),
-          value: settings.state.useScoreInstruments,
-          onChanged: (v) => settings.setUseScoreInstruments(v),
-        ),
-      ..._soundFontRows(busy),
     ];
   }
 
-  /// O timbre do piano: trocar pelo .sf2 escolhido, ou voltar ao padrão.
+  /// O timbre do piano dos ajustes avançados: trocar pelo .sf2 escolhido, ou
+  /// voltar ao padrão.
   List<Widget> _soundFontRows(bool busy) => [
     // Na Web não há onde guardar o .sf2 escolhido (W04): só o padrão.
     if (!kIsWeb)
@@ -295,8 +284,8 @@ class GeneralSettingsPanel extends StatelessWidget {
       ),
   ];
 
-  /// O teclado MIDI: o aparelho e o medidor de latência; com um teclado
-  /// conectado, também o monitor e o atraso.
+  /// O teclado MIDI: o aparelho e, com ele conectado, o monitor (ouvir o que o
+  /// aluno toca). O medidor de latência e o atraso estão em [_advancedRows].
   List<Widget> _midiRows(BuildContext context) {
     final device = midiDeviceManager.state.connected;
     return [
@@ -313,27 +302,33 @@ class GeneralSettingsPanel extends StatelessWidget {
         onTap: () =>
             unawaited(showMidiDevicePicker(context, midiDeviceManager)),
       ),
-      if (device != null)
-        _LatencyMeterTile(devices: midiDeviceManager, device: device),
-      ..._liveRows(context),
+      ..._monitorRows(context),
     ];
   }
 
-  /// O que vale com o teclado ao vivo (o monitor, o atraso e as teclas que
-  /// chegam). Sem as ações ao vivo, nada.
-  List<Widget> _liveRows(BuildContext context) {
+  /// O monitor: ouvir o que o aluno toca pelo teclado. Sem as ações ao vivo,
+  /// nada.
+  List<Widget> _monitorRows(BuildContext context) {
     final live = this.live;
     if (live == null) return const [];
-    final busy = live.busy;
-    final device = midiDeviceManager.state.connected;
     return [
       SwitchListTile(
         dense: true,
         title: Text('Ouvir o que eu toco pelo ${deviceNoun(context)}'),
         subtitle: const Text('para teclado sem som próprio'),
         value: live.monitorOn,
-        onChanged: busy ? null : live.onMonitorChanged,
+        onChanged: live.busy ? null : live.onMonitorChanged,
       ),
+    ];
+  }
+
+  /// Os ajustes técnicos do teclado ao vivo: o atraso (que a calibração põe) e
+  /// as teclas que chegam. Sem as ações ao vivo, nada.
+  List<Widget> _liveAdvancedRows() {
+    final live = this.live;
+    if (live == null) return const [];
+    final device = midiDeviceManager.state.connected;
+    return [
       ListTile(
         dense: true,
         leading: const Icon(Icons.timer_outlined, size: 20),
@@ -353,6 +348,59 @@ class GeneralSettingsPanel extends StatelessWidget {
         title: const Text('Ver as teclas que chegam'),
         onTap: live.onOpenMidiPanel,
       ),
+    ];
+  }
+
+  /// Os ajustes técnicos e de diagnóstico, recolhidos no fim das configurações
+  /// (UX12, decisão 3 da avaliação das telas): o atraso e o medidor de
+  /// latência do teclado e do som, a saída pelo teclado, o timbre do piano, o
+  /// aviso da repetição de compasso e a gravação do microfone. O aluno do dia a
+  /// dia não precisa deles.
+  List<Widget> _advancedRows(BuildContext context) => [
+    ExpansionTile(
+      key: const ValueKey('configuracoes-avancado'),
+      leading: const Icon(Icons.tune, size: 20),
+      title: const Text('Avançado'),
+      subtitle: const Text('ajuste fino e diagnóstico'),
+      shape: const Border(),
+      collapsedShape: const Border(),
+      children: [
+        ..._midiAdvancedRows(),
+        ..._soundAdvancedRows(),
+        ..._repeatNoticeRows(),
+        if (BugReportScope.current != null && audioRecordingSupported) ...[
+          const _Header('Gravar o som do microfone'),
+          const AudioRecordingHelp(),
+        ],
+      ],
+    ),
+  ];
+
+  /// O teclado MIDI nos ajustes: o medidor de latência (com o teclado
+  /// conectado), o atraso e as teclas que chegam (com o teclado ao vivo).
+  List<Widget> _midiAdvancedRows() {
+    final device = midiDeviceManager.state.connected;
+    return [
+      if (device != null)
+        _LatencyMeterTile(devices: midiDeviceManager, device: device),
+      ..._liveAdvancedRows(),
+    ];
+  }
+
+  /// A saída pelo teclado (o instrumento da partitura) e o timbre do piano.
+  List<Widget> _soundAdvancedRows() {
+    final busy = live?.busy ?? false;
+    final toMidi = settings.state.output == SoundOutput.midiKeyboard;
+    return [
+      if (toMidi)
+        SwitchListTile(
+          dense: true,
+          title: const Text('Trocar o timbre do teclado'),
+          subtitle: const Text('usa o instrumento da partitura'),
+          value: settings.state.useScoreInstruments,
+          onChanged: (v) => settings.setUseScoreInstruments(v),
+        ),
+      ..._soundFontRows(busy),
     ];
   }
 
@@ -457,6 +505,11 @@ class GeneralSettingsPanel extends StatelessWidget {
         style: TextStyle(fontSize: 12, color: kInkCaption),
       ),
     ),
+  ];
+
+  /// O aviso da repetição de compasso (um ajuste fino, dos avançados): quanto
+  /// tempo o "Errou" ou o "Acertou" fica na tela.
+  List<Widget> _repeatNoticeRows() => [
     _SliderRow(
       label: 'Aviso de erro e acerto da repetição',
       value: settings.state.repeatNoticeSeconds,

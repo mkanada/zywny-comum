@@ -23,6 +23,13 @@ class _NoDevicesMidi implements MidiCommand {
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
+/// Abre a seção "Avançado" das configurações (recolhida por padrão): os
+/// ajustes técnicos e o diagnóstico ficam lá.
+Future<void> abrirAvancado(WidgetTester tester) async {
+  await tester.tap(find.text('Avançado'));
+  await tester.pumpAndSettle();
+}
+
 void main() {
   setUp(() {
     SharedPreferencesAsyncPlatform.instance =
@@ -69,6 +76,7 @@ void main() {
     tester,
   ) async {
     await pumpPanel(tester, onClose: () {});
+    await abrirAvancado(tester);
     expect(find.text('Gravar o som do microfone'), findsOneWidget);
     expect(find.text('Abrir a pasta das gravações'), findsOneWidget);
   });
@@ -77,6 +85,7 @@ void main() {
     tester,
   ) async {
     await pumpPanel(tester);
+    await abrirAvancado(tester);
     expect(find.text('Gravar o som do microfone'), findsNothing);
   });
 
