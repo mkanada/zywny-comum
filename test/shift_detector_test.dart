@@ -22,6 +22,7 @@ import 'package:zywny_comum/practice/practice_controller.dart';
 import 'package:zywny_comum/practice/shift_banner.dart';
 import 'package:zywny_comum/practice/shift_detector.dart';
 import 'package:zywny_comum/practice/shift_notice_cubit.dart';
+import 'package:zywny_clock/zywny_clock.dart';
 
 class _Engine implements SoundEngine {
   double now = 0;
@@ -105,12 +106,14 @@ class _Rig {
        detector = detector ?? ShiftDetector() {
     track = PerformanceTrack.fromDocument(_doc());
     scheduler = ScoreAudioScheduler(
+      clock: SystemClock(),
       engine: engine,
       track: track,
       autoTick: false,
     );
     scoreController = ScoreCubit(document: _doc());
     practice = PracticeCubit(
+      clock: SystemClock(),
       midiInput: midi,
       track: track,
       scheduler: scheduler,
@@ -558,9 +561,7 @@ void main() {
 
     testWidgets('o lembrete de voltar a 0 não some ao tocar', (tester) async {
       await show(tester, notice, keyboard.notes);
-      notice.show(
-        const ShiftNotice(kShiftReminderMessage, hideOnPlay: false),
-      );
+      notice.show(const ShiftNotice(kShiftReminderMessage, hideOnPlay: false));
       await tester.pump();
       keyboard.note(60, on: true);
       await tester.pump();

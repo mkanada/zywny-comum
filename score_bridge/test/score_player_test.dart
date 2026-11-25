@@ -62,7 +62,7 @@ class Cleanup {
 
 /// Relógio com posição setável à mão — prova mínima do contrato de
 /// [PlaybackClock] e exemplo de uso (`ScorePlayer.clock`, C01).
-class ManualClock implements PlaybackClock {
+class FakePlaybackClock implements PlaybackClock {
   @override
   double positionMs = 0;
   @override
@@ -435,7 +435,10 @@ void main() {
         p0.heightPx,
       );
       final turns = <int>[];
-      vc.stream.map((s) => s.page).distinct().listen((_) => turns.add(vc.currentPage));
+      vc.stream
+          .map((s) => s.page)
+          .distinct()
+          .listen((_) => turns.add(vc.currentPage));
       var sawCurtain = false;
       player.curtain.stream.listen((_) {
         if (player.curtain.state != null) sawCurtain = true;
@@ -721,7 +724,7 @@ void main() {
 
   group('relógio plugável (C01)', () {
     testPlayer(
-      'ManualClock em saltos irregulares acende os mesmos ids que `advance` '
+      'FakePlaybackClock em saltos irregulares acende os mesmos ids que `advance` '
       '(critério 2, reusa a comparação do critério 4 de A05a)',
       (tester, cleanup) async {
         final doc = corpusDoc('Scarlatti')!;
@@ -749,7 +752,7 @@ void main() {
 
         final seenClock = <String>{};
         final controllerC = ScoreCubit(document: doc);
-        final clock = ManualClock();
+        final clock = FakePlaybackClock();
         final playerC = ScorePlayer(
           document: doc,
           controller: controllerC,
@@ -775,41 +778,11 @@ void main() {
       },
     );
 
-    testPlayer(
-      'ManualClock parado (posição não anda) por 100 frames: nada muda, sem '
-      'exceção — modo espera (critério 3)',
-      (tester, cleanup) async {
-        final doc = corpusDoc('Scarlatti')!;
-        final controller = ScoreCubit(document: doc);
-        final clock = ManualClock()..positionMs = 30000;
-        final player = ScorePlayer(
-          document: doc,
-          controller: controller,
-          release: Duration.zero,
-        )..clock = clock;
-        cleanup.add(() {
-          controller.clearAll();
-          player.close();
-          controller.close();
-        });
-        player.seek(Duration(milliseconds: clock.positionMs.round()));
-        final lit = controller.highlightedIds.toSet();
-        final index = player.state.measureIndex;
-        player.play();
-        for (var i = 0; i < 100; i++) {
-          await tester.pump(const Duration(milliseconds: 16));
-        }
-        expect(controller.highlightedIds.toSet(), lit);
-        expect(player.state.measureIndex, index);
-        expect(player.position, const Duration(milliseconds: 30000));
-      },
-    );
-
-    testPlayer('ManualClock: recuo de 5 s refaz como `seek`; recuo de 10 ms é '
-        'ignorado (critério 4)', (tester, cleanup) async {
+    testPlayer('FakePlaybackClock parado (posição não anda) por 100 frames: nada muda, sem '
+        'exceção — modo espera (critério 3)', (tester, cleanup) async {
       final doc = corpusDoc('Scarlatti')!;
       final controller = ScoreCubit(document: doc);
-      final clock = ManualClock()..positionMs = 30000;
+      final clock = FakePlaybackClock()..positionMs = 30000;
       final player = ScorePlayer(
         document: doc,
         controller: controller,
@@ -820,35 +793,65 @@ void main() {
         player.close();
         controller.close();
       });
+      player.seek(Duration(milliseconds: clock.positionMs.round()));
+      final lit = controller.highlightedIds.toSet();
+      final index = player.state.measureIndex;
       player.play();
-      await tester.pump(const Duration(milliseconds: 16));
+      for (var i = 0; i < 100; i++) {
+        await tester.pump(const Duration(milliseconds: 16));
+      }
+      expect(controller.highlightedIds.toSet(), lit);
+      expect(player.state.measureIndex, index);
       expect(player.position, const Duration(milliseconds: 30000));
-
-      // Recuo de 10 ms: jitter do relógio de áudio interpolado — ignorado.
-      clock.positionMs -= 10;
-      await tester.pump(const Duration(milliseconds: 16));
-      expect(player.position, const Duration(milliseconds: 30000));
-
-      // Recuo de 5 s: o host fez seek no áudio — refaz o estado do zero,
-      // igual a `seek` para aquele instante.
-      clock.positionMs = 25000;
-      await tester.pump(const Duration(milliseconds: 16));
-      expect(player.position, const Duration(milliseconds: 25000));
-      final viaClock = controller.highlightedIds.toSet();
-
-      final controller2 = ScoreCubit(document: doc);
-      final player2 = ScorePlayer(
-        document: doc,
-        controller: controller2,
-        release: Duration.zero,
-      );
-      cleanup.add(() {
-        controller2.clearAll();
-        player2.close();
-        controller2.close();
-      });
-      player2.seek(const Duration(milliseconds: 25000));
-      expect(viaClock, controller2.highlightedIds.toSet());
     });
+
+    testPlayer(
+      'FakePlaybackClock: recuo de 5 s refaz como `seek`; recuo de 10 ms é '
+      'ignorado (critério 4)',
+      (tester, cleanup) async {
+        final doc = corpusDoc('Scarlatti')!;
+        final controller = ScoreCubit(document: doc);
+        final clock = FakePlaybackClock()..positionMs = 30000;
+        final player = ScorePlayer(
+          document: doc,
+          controller: controller,
+          release: Duration.zero,
+        )..clock = clock;
+        cleanup.add(() {
+          controller.clearAll();
+          player.close();
+          controller.close();
+        });
+        player.play();
+        await tester.pump(const Duration(milliseconds: 16));
+        expect(player.position, const Duration(milliseconds: 30000));
+
+        // Recuo de 10 ms: jitter do relógio de áudio interpolado — ignorado.
+        clock.positionMs -= 10;
+        await tester.pump(const Duration(milliseconds: 16));
+        expect(player.position, const Duration(milliseconds: 30000));
+
+        // Recuo de 5 s: o host fez seek no áudio — refaz o estado do zero,
+        // igual a `seek` para aquele instante.
+        clock.positionMs = 25000;
+        await tester.pump(const Duration(milliseconds: 16));
+        expect(player.position, const Duration(milliseconds: 25000));
+        final viaClock = controller.highlightedIds.toSet();
+
+        final controller2 = ScoreCubit(document: doc);
+        final player2 = ScorePlayer(
+          document: doc,
+          controller: controller2,
+          release: Duration.zero,
+        );
+        cleanup.add(() {
+          controller2.clearAll();
+          player2.close();
+          controller2.close();
+        });
+        player2.seek(const Duration(milliseconds: 25000));
+        expect(viaClock, controller2.highlightedIds.toSet());
+      },
+    );
   });
 }

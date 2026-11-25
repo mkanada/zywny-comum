@@ -94,7 +94,7 @@ class GhostCubit extends Cubit<GhostState> {
   VsbDocument? _document;
   List<String> _expectedIds = const [];
   final Map<int, _Entry> _entries = {};
-  final Stopwatch _clock = Stopwatch()..start();
+  final Stopwatch _clock = Stopwatch(); // relógio: animação que só pinta
   Ticker? _ticker;
 
   /// Instante presente (para teste, sobrescreva com um relógio simulado).

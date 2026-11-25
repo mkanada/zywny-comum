@@ -21,6 +21,7 @@ import 'package:zywny_comum/practice/chord_demand.dart';
 import 'package:zywny_comum/practice/hand.dart';
 import 'package:zywny_comum/practice/practice_controller.dart';
 import 'package:zywny_comum/practice/practice_session.dart';
+import 'package:zywny_clock/zywny_clock.dart';
 
 import 'support/practice_fakes.dart';
 
@@ -132,6 +133,7 @@ class _Rig {
     track = PerformanceTrack.fromDocument(doc);
     timeline = ScoreTimeline(doc);
     scheduler = ScoreAudioScheduler(
+      clock: SystemClock(),
       engine: engine,
       track: track,
       autoTick: false,
@@ -144,6 +146,7 @@ class _Rig {
     final measures = timeline.measures;
     chords = chordsOf == null ? const [] : chordsOf!(track, timeline);
     practice = PracticeCubit(
+      clock: SystemClock(),
       midiInput: midi,
       track: track,
       scheduler: scheduler,

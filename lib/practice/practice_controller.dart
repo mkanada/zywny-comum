@@ -13,6 +13,7 @@ import 'package:score_bridge/score_bridge.dart';
 
 import 'package:zywny_audio/score_audio_scheduler.dart';
 import 'package:zywny_bloc/zywny_bloc.dart';
+import 'package:zywny_clock/zywny_clock.dart';
 
 import 'package:zywny_midi/midi_input_service.dart';
 import 'package:zywny_diag/diag_log.dart';
@@ -147,6 +148,7 @@ class PracticeCubit extends Cubit<PracticeState> {
     required MidiInputService midiInput,
     required PerformanceTrack track,
     required this.scheduler,
+    required this.clock,
     required this.controller,
     required this.hand,
     this.ghosts,
@@ -380,6 +382,11 @@ class PracticeCubit extends Cubit<PracticeState> {
 
   final MidiInputService _midiInput;
   final ScoreAudioScheduler scheduler;
+
+  /// O relógio do app (CT05b): arma os timers da escada (o aviso, o tique da
+  /// avaliação e o da cápsula) e mede a escuta do erro. O tempo da música é o do
+  /// agendador ([scheduler]), não este.
+  final AppClock clock;
   final ScoreCubit controller;
   final Hand hand;
 
@@ -477,7 +484,7 @@ class PracticeCubit extends Cubit<PracticeState> {
 
   /// O aviso da escada, até o compasso repetir, e a contagem que o degrau
   /// seguinte pede.
-  Timer? _holdTimer;
+  AppTimer? _holdTimer;
   bool _holdCountIn = false;
 
   /// Um degrau esperou a retomada (a rodada estava pausada quando o aviso
@@ -565,7 +572,7 @@ class PracticeCubit extends Cubit<PracticeState> {
 
   /// Relógio da cápsula (ND02): leva o tempo musical à sessão enquanto o aluno
   /// segura, para ela fechar o passo no fim da cápsula (ver [_tickHold]).
-  Timer? _noteHoldTimer;
+  AppTimer? _noteHoldTimer;
 
   /// A gravação da execução (EX07): cada tecla e cada movimento do pedal, em
   /// ms musicais, para os medidores. Não toca a conferência.
@@ -598,7 +605,7 @@ class PracticeCubit extends Cubit<PracticeState> {
     return map[(id, pitch)];
   }
 
-  Timer? _tickTimer;
+  AppTimer? _tickTimer;
 
   /// Pausa da rodada (ver [pause]): o agendador parado e as teclas ignoradas.
   bool _paused = false;
@@ -705,7 +712,7 @@ class PracticeCubit extends Cubit<PracticeState> {
         scheduler.onJump = onRangeJump;
       }
       _lastPositionMs = startMs;
-      _tickTimer ??= Timer.periodic(
+      _tickTimer ??= clock.periodic(
         const Duration(milliseconds: 30),
         (_) => _tick(),
       );
@@ -800,7 +807,7 @@ class PracticeCubit extends Cubit<PracticeState> {
   /// Liga o relógio da cápsula (ND02) junto com a música. Fica fora de [start]
   /// para ela não passar do limite de linhas do `just qualidade`.
   void _startHoldClock() {
-    _noteHoldTimer ??= Timer.periodic(
+    _noteHoldTimer ??= clock.periodic(
       const Duration(milliseconds: 30),
       (_) => _tickHold(),
     );
@@ -1145,7 +1152,7 @@ class PracticeCubit extends Cubit<PracticeState> {
     onRewind?.call(measure, startMs);
     _holdCountIn = countIn;
     _holdTimer?.cancel();
-    _holdTimer = Timer(repeatNoticeDuration, _endHold);
+    _holdTimer = clock.timer(repeatNoticeDuration, _endHold);
   }
 
   /// O aviso acabou: o degrau começa (ou espera a retomada, se pausada).
@@ -1177,7 +1184,7 @@ class PracticeCubit extends Cubit<PracticeState> {
         _publish(notice: RepeatNotice.none);
       },
     );
-    final watch = Stopwatch()..start();
+    final inicio = clock.seconds;
     _replaying = true;
     _listen = RepeatListen.played;
     _publish(notice: RepeatNotice.none);
@@ -1191,7 +1198,7 @@ class PracticeCubit extends Cubit<PracticeState> {
     DiagLog.log(
       'volta',
       'compasso=$measure escuta: ${miss.played.length} teclas tocadas, '
-          '${watch.elapsedMilliseconds}ms',
+          '${((clock.seconds - inicio) * 1000).floor()}ms',
     );
     _replaying = false;
     _listen = RepeatListen.none;

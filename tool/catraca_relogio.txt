@@ -6,17 +6,11 @@ lib/diag/audio_recording_native.dart DT=1 SW=0 TM=0 PER=0 FD=0
 lib/diag/bug_report_scope.dart DT=1 SW=1 TM=2 PER=0 FD=0
 lib/practice/latency_calibration.dart DT=0 SW=0 TM=1 PER=0 FD=0
 lib/practice/latency_meter_runner.dart DT=0 SW=1 TM=0 PER=0 FD=0
-lib/practice/practice_controller.dart DT=0 SW=1 TM=1 PER=2 FD=0
 lib/practice/practice_tools.dart DT=0 SW=0 TM=0 PER=1 FD=0
 lib/practice/shift_banner.dart DT=0 SW=0 TM=1 PER=0 FD=0
 lib/practice/transpose_check.dart DT=0 SW=0 TM=1 PER=0 FD=1
 lib/render/score_renderer_native.dart DT=1 SW=0 TM=0 PER=0 FD=0
-packages/zywny_audio/lib/score_audio_scheduler.dart DT=0 SW=0 TM=0 PER=1 FD=0
-packages/zywny_audio/lib/silent_sound_engine.dart DT=0 SW=1 TM=0 PER=0 FD=0
 packages/zywny_auth/lib/fake_auth_store.dart DT=4 SW=0 TM=0 PER=0 FD=0
 packages/zywny_auth/lib/src/loopback_server_io.dart DT=0 SW=0 TM=1 PER=0 FD=0
 packages/zywny_diag/lib/diag_log.dart DT=4 SW=1 TM=0 PER=1 FD=0
 packages/zywny_midi/lib/midi_out_sound_engine.dart DT=0 SW=1 TM=0 PER=1 FD=0
-score_bridge/lib/src/ghost_layer.dart DT=0 SW=1 TM=0 PER=0 FD=0
-score_bridge/lib/src/page_layers.dart DT=0 SW=1 TM=0 PER=0 FD=0
-score_bridge/lib/src/stand_in_layer.dart DT=0 SW=1 TM=0 PER=0 FD=0

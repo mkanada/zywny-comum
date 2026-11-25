@@ -5,7 +5,7 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:score_bridge/score_bridge.dart';
 
-import 'score_player_test.dart' show ManualClock;
+import 'score_player_test.dart' show FakePlaybackClock;
 import 'support/fake_doc.dart';
 import 'support/render_helpers.dart';
 
@@ -40,7 +40,7 @@ void main() {
     final doc = twoPages();
     final controller = ScoreCubit(document: doc);
     final vc = ScoreViewCubit();
-    final clock = ManualClock();
+    final clock = FakePlaybackClock();
     final player = ScorePlayer(
       document: doc,
       controller: controller,

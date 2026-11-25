@@ -87,7 +87,7 @@ class PageLayers {
     if (cached != null) {
       return cached;
     }
-    final watch = Stopwatch()..start();
+    final watch = Stopwatch(); // relógio: medida de desenho (estatística)
     final segment = segments[index] as StaticSegment;
     final recorder = ui.PictureRecorder();
     final canvas = ui.Canvas(recorder);

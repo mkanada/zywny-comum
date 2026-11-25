@@ -14,6 +14,7 @@ import 'package:zywny_audio/score_audio_scheduler.dart';
 import 'package:zywny_audio/sound_engine.dart';
 import 'package:zywny_audio/performance_track.dart';
 import 'package:zywny_comum/practice/latency_calibration.dart';
+import 'package:zywny_clock/zywny_clock.dart';
 
 class FakeSoundEngine implements SoundEngine {
   FakeSoundEngine({this.latency = 0.02});
@@ -140,6 +141,7 @@ void main() {
         final engine = FakeSoundEngine(latency: 0);
         final track = _loadTrack('erik-satie.vsb');
         final scheduler = ScoreAudioScheduler(
+          clock: SystemClock(),
           engine: engine,
           track: track,
           autoTick: false,
@@ -194,6 +196,7 @@ void main() {
       final engine = FakeSoundEngine(latency: 0.15);
       final track = _loadTrack('erik-satie.vsb');
       final scheduler = ScoreAudioScheduler(
+        clock: SystemClock(),
         engine: engine,
         track: track,
         autoTick: false,
@@ -226,6 +229,7 @@ void main() {
         final engine = FakeSoundEngine();
         final track = _loadTrack('maple-leaf-rag.vsb');
         final scheduler = ScoreAudioScheduler(
+          clock: SystemClock(),
           engine: engine,
           track: track,
           autoTick: false,
@@ -260,6 +264,7 @@ void main() {
       final engine = FakeSoundEngine();
       final track = _loadTrack('maple-leaf-rag.vsb');
       final scheduler = ScoreAudioScheduler(
+        clock: SystemClock(),
         engine: engine,
         track: track,
         autoTick: false,
@@ -327,6 +332,7 @@ void main() {
       final engine = FakeSoundEngine(latency: 0.5);
       final track = _loadTrack('r13-um-compasso.vsb');
       final scheduler = ScoreAudioScheduler(
+        clock: SystemClock(),
         engine: engine,
         track: track,
         autoTick: false,
@@ -353,6 +359,7 @@ void main() {
         final engine = FakeSoundEngine();
         final track = _loadTrack('maple-leaf-rag.vsb');
         final scheduler = ScoreAudioScheduler(
+          clock: SystemClock(),
           engine: engine,
           track: track,
           autoTick: false,
@@ -380,6 +387,7 @@ void main() {
         final engine = FakeSoundEngine();
         final track = _loadTrack('maple-leaf-rag.vsb');
         final scheduler = ScoreAudioScheduler(
+          clock: SystemClock(),
           engine: engine,
           track: track,
           autoTick: false,
@@ -413,6 +421,7 @@ void main() {
         final engine = FakeSoundEngine();
         final track = _loadTrack('maple-leaf-rag.vsb');
         final scheduler = ScoreAudioScheduler(
+          clock: SystemClock(),
           engine: engine,
           track: track,
           autoTick: false,
@@ -438,6 +447,7 @@ void main() {
         final engine = FakeSoundEngine();
         final track = _loadTrack('maple-leaf-rag.vsb');
         final scheduler = ScoreAudioScheduler(
+          clock: SystemClock(),
           engine: engine,
           track: track,
           autoTick: false,
@@ -480,6 +490,7 @@ void main() {
         final engine = FakeSoundEngine();
         final track = _loadTrack('maple-leaf-rag.vsb');
         final scheduler = ScoreAudioScheduler(
+          clock: SystemClock(),
           engine: engine,
           track: track,
           autoTick: false,
@@ -532,6 +543,7 @@ void main() {
       final startMs = measures[1].startMs.toDouble();
       final endMs = measures[2].endMs.toDouble();
       final scheduler = ScoreAudioScheduler(
+        clock: SystemClock(),
         engine: engine,
         track: track,
         autoTick: false,
@@ -639,7 +651,12 @@ void main() {
         final track = PerformanceTrack.fromDocument(doc);
         final timeline = ScoreTimeline(doc);
         final scheduler =
-            ScoreAudioScheduler(engine: engine, track: track, autoTick: false)
+            ScoreAudioScheduler(
+                clock: SystemClock(),
+                engine: engine,
+                track: track,
+                autoTick: false,
+              )
               ..beats = metronomeBeats(timeline)
               ..metronomeOn = true;
         scheduler.play(0);
@@ -668,6 +685,7 @@ void main() {
       final timeline = ScoreTimeline(doc);
       final from = timeline.measures[2].startMs.toDouble();
       final scheduler = ScoreAudioScheduler(
+        clock: SystemClock(),
         engine: engine,
         track: track,
         autoTick: false,
@@ -702,6 +720,7 @@ void main() {
       final timeline = ScoreTimeline(doc);
       final from = timeline.measures[2].startMs.toDouble();
       final scheduler = ScoreAudioScheduler(
+        clock: SystemClock(),
         engine: engine,
         track: PerformanceTrack.fromDocument(doc),
         autoTick: false,
@@ -809,9 +828,12 @@ void main() {
   });
 
   _estadoObservado();
+  _relogioDoAgendador();
 }
 
+/// Cada blocTest monta o seu relógio (CT05b): nada compartilhado entre testes.
 ScoreAudioScheduler _agendadorDeTeste() => ScoreAudioScheduler(
+  clock: ManualClock(DateTime(2026)),
   engine: FakeSoundEngine(latency: 0),
   track: _loadTrack('erik-satie.vsb'),
   autoTick: false,
@@ -824,6 +846,42 @@ void _estadoObservado() {
     _estadoDeTocar();
     _estadoDeAndamentoEMetronomo();
   });
+}
+
+/// CT05b: o timer que chama [ScoreAudioScheduler.pump] sozinho é o do relógio
+/// recebido. Com um `ManualClock`, ele só dispara quando o teste anda o tempo.
+void _relogioDoAgendador() {
+  test(
+    'com autoTick, o timer é do relógio dado: anda com ele e pausar o tira',
+    () {
+      final relogio = ManualClock(DateTime(2026));
+      final engine = FakeSoundEngine(latency: 0);
+      final scheduler = ScoreAudioScheduler(
+        clock: relogio,
+        engine: engine,
+        track: _loadTrack('erik-satie.vsb'),
+      );
+      addTearDown(scheduler.close);
+
+      scheduler.play(0);
+      expect(relogio.pendingTimers, hasLength(1));
+      final agendadosAntes = engine.scheduled.length;
+
+      // O motor anda: a janela de agenda passa do que já foi agendado. Só o
+      // tique do relógio dado chama `pump`, então nada muda antes dele.
+      engine.now = 2;
+      expect(engine.scheduled.length, agendadosAntes);
+      relogio.advance(const Duration(milliseconds: 25));
+      expect(
+        engine.scheduled.length,
+        greaterThan(agendadosAntes),
+        reason: 'o tique chamou pump',
+      );
+
+      scheduler.pause();
+      expect(relogio.pendingTimers, isEmpty, reason: 'pausar cancela o timer');
+    },
+  );
 }
 
 void _estadoDeTocar() {

@@ -1,26 +1,26 @@
 import 'dart:typed_data';
 
+import 'package:zywny_clock/zywny_clock.dart';
+
 import 'sound_engine.dart';
 
 /// O motor do "Som" desligado: não toca nem manda nada para fora, mas tem
 /// relógio e aceita as agendas como os outros motores. Assim a partitura, o
 /// exercício e o ouvido seguem o mesmo caminho, e só o que sairia pelo som
 /// fica de fora.
+///
+/// O relógio é o do app ([AppClock], CT05b), passado pelo construtor: o motor
+/// mudo não tem relógio de dispositivo, então o tempo dele é o que o app manda
+/// (o roteiro de capturas põe o `ManualClock`). Os motores de verdade seguem no
+/// relógio do áudio.
 class SilentSoundEngine implements SoundEngine {
-  SilentSoundEngine({double Function()? nowSeconds})
-    : _nowSeconds = nowSeconds ?? _stopwatchClock();
+  SilentSoundEngine({required this.clock});
 
-  /// Um `Stopwatch` do app, como o do teclado MIDI de saída (que também não
-  /// tem relógio de dispositivo).
-  static double Function() _stopwatchClock() {
-    final clock = Stopwatch()..start();
-    return () => clock.elapsedMicroseconds / 1e6;
-  }
-
-  final double Function() _nowSeconds;
+  /// O relógio que o app deu ao motor (o do `main` ou o do roteiro).
+  final AppClock clock;
 
   @override
-  double get nowSeconds => _nowSeconds();
+  double get nowSeconds => clock.seconds;
 
   @override
   double get earliestScheduleSeconds => nowSeconds;

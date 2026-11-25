@@ -18,6 +18,7 @@ import 'package:zywny_comum/trail/trail_path.dart';
 import 'package:zywny_comum/trail/trail_plan.dart';
 import 'package:zywny_comum/trail/trail_segments.dart';
 import 'package:zywny_comum/trail/trail_stage.dart';
+import 'package:zywny_clock/zywny_clock.dart';
 
 class _Occ {
   const _Occ(this.id, this.pass, this.t, this.q);
@@ -322,6 +323,7 @@ void main() {
       final track = _houseTrack();
       final engine = _Engine();
       final scheduler = ScoreAudioScheduler(
+        clock: SystemClock(),
         engine: engine,
         track: track,
         autoTick: false,
@@ -377,6 +379,7 @@ void main() {
       required List<double> jumped,
     }) async {
       final practice = PracticeCubit(
+        clock: SystemClock(),
         midiInput: midi,
         track: track,
         scheduler: scheduler,
@@ -418,6 +421,7 @@ void main() {
       final timeline = ScoreTimeline(_houseDoc());
       final engine = _Engine();
       final scheduler = ScoreAudioScheduler(
+        clock: SystemClock(),
         engine: engine,
         track: track,
         autoTick: false,
@@ -462,6 +466,7 @@ void main() {
       final timeline = ScoreTimeline(_houseDoc());
       final engine = _Engine();
       final scheduler = ScoreAudioScheduler(
+        clock: SystemClock(),
         engine: engine,
         track: track,
         autoTick: false,
@@ -512,6 +517,7 @@ void main() {
       final timeline = ScoreTimeline(_houseDoc());
       final engine = _Engine();
       final scheduler = ScoreAudioScheduler(
+        clock: SystemClock(),
         engine: engine,
         track: track,
         autoTick: false,

@@ -4,7 +4,7 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:score_bridge/score_bridge.dart';
 
-import 'score_player_test.dart' show Cleanup, ManualClock, testPlayer;
+import 'score_player_test.dart' show Cleanup, FakePlaybackClock, testPlayer;
 import 'support/fake_doc.dart';
 import 'support/render_helpers.dart';
 
@@ -58,11 +58,11 @@ void main() {
 
   group('virada no modo espera (waitTarget)', () {
     // Relógio parado (o freio do modo espera) e a vista ligada ao player.
-    Future<({ScorePlayer player, ScoreViewCubit vc, ManualClock clock})>
+    Future<({ScorePlayer player, ScoreViewCubit vc, FakePlaybackClock clock})>
     parked(WidgetTester tester, Cleanup cleanup, VsbDocument doc) async {
       final controller = ScoreCubit(document: doc);
       final vc = ScoreViewCubit();
-      final clock = ManualClock();
+      final clock = FakePlaybackClock();
       final player = ScorePlayer(
         document: doc,
         controller: controller,

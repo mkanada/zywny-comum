@@ -28,6 +28,7 @@ import 'package:zywny_audio/performance_track.dart';
 import 'package:zywny_comum/practice/hand.dart';
 import 'package:zywny_comum/practice/practice_colors.dart';
 import 'package:zywny_comum/practice/practice_controller.dart';
+import 'package:zywny_clock/zywny_clock.dart';
 
 class FakeSoundEngine implements SoundEngine {
   double now = 0;
@@ -147,6 +148,7 @@ void main() {
       final timeline = ScoreTimeline(doc);
       final engine = FakeSoundEngine();
       final scheduler = ScoreAudioScheduler(
+        clock: SystemClock(),
         engine: engine,
         track: track,
         autoTick: false,
@@ -157,6 +159,7 @@ void main() {
       final midi = FakeMidiInput();
       addTearDown(midi.dispose);
       final practice = PracticeCubit(
+        clock: SystemClock(),
         midiInput: midi,
         track: track,
         scheduler: scheduler,
@@ -200,6 +203,7 @@ void main() {
       final timeline = ScoreTimeline(doc);
       final engine = FakeSoundEngine();
       final scheduler = ScoreAudioScheduler(
+        clock: SystemClock(),
         engine: engine,
         track: track,
         autoTick: false,
@@ -210,6 +214,7 @@ void main() {
       final midi = FakeMidiInput();
       addTearDown(midi.dispose);
       final practice = PracticeCubit(
+        clock: SystemClock(),
         midiInput: midi,
         track: track,
         scheduler: scheduler,
@@ -264,6 +269,7 @@ void main() {
       final timeline = ScoreTimeline(doc);
       final engine = FakeSoundEngine();
       final scheduler = ScoreAudioScheduler(
+        clock: SystemClock(),
         engine: engine,
         track: track,
         autoTick: false,
@@ -276,6 +282,7 @@ void main() {
       final midi = FakeMidiInput();
       addTearDown(midi.dispose);
       final practice = PracticeCubit(
+        clock: SystemClock(),
         midiInput: midi,
         track: track,
         scheduler: scheduler,
@@ -343,6 +350,7 @@ void main() {
       final timeline = ScoreTimeline(doc);
       final engine = FakeSoundEngine();
       final scheduler = ScoreAudioScheduler(
+        clock: SystemClock(),
         engine: engine,
         track: track,
         autoTick: false,
@@ -355,6 +363,7 @@ void main() {
       final midi = FakeMidiInput();
       addTearDown(midi.dispose);
       final practice = PracticeCubit(
+        clock: SystemClock(),
         midiInput: midi,
         track: track,
         scheduler: scheduler,
@@ -411,6 +420,7 @@ void main() {
       final endMs = measures[1].endMs.toDouble();
       final engine = FakeSoundEngine();
       final scheduler = ScoreAudioScheduler(
+        clock: SystemClock(),
         engine: engine,
         track: track,
         autoTick: false,
@@ -422,6 +432,7 @@ void main() {
       addTearDown(midi.dispose);
       final restarts = <double>[];
       final practice = PracticeCubit(
+        clock: SystemClock(),
         midiInput: midi,
         track: track,
         scheduler: scheduler,
@@ -458,6 +469,7 @@ void main() {
         final doc = _loadDoc('maple-leaf-rag.vsb');
         final engine = FakeSoundEngine();
         final scheduler = ScoreAudioScheduler(
+          clock: SystemClock(),
           engine: engine,
           track: track,
           autoTick: false,
@@ -469,6 +481,7 @@ void main() {
         addTearDown(midi.dispose);
 
         final practice = PracticeCubit(
+          clock: SystemClock(),
           midiInput: midi,
           track: track,
           scheduler: scheduler,
@@ -524,6 +537,7 @@ void main() {
       final doc = _loadDoc('maple-leaf-rag.vsb');
       final engine = FakeSoundEngine();
       final scheduler = ScoreAudioScheduler(
+        clock: SystemClock(),
         engine: engine,
         track: track,
         autoTick: false,
@@ -537,6 +551,7 @@ void main() {
       final head = track.events.firstWhere((e) => e.tied.isNotEmpty);
       const correct = Color(0xFF00838F);
       final practice = PracticeCubit(
+        clock: SystemClock(),
         midiInput: midi,
         track: track,
         scheduler: scheduler,
@@ -576,6 +591,7 @@ void main() {
       final doc = _loadDoc('satie-fantasma.vsb');
       final engine = FakeSoundEngine();
       final scheduler = ScoreAudioScheduler(
+        clock: SystemClock(),
         engine: engine,
         track: track,
         autoTick: false,
@@ -588,6 +604,7 @@ void main() {
       addTearDown(midi.dispose);
 
       final practice = PracticeCubit(
+        clock: SystemClock(),
         midiInput: midi,
         track: track,
         scheduler: scheduler,
@@ -624,6 +641,7 @@ void main() {
       final doc = _loadDoc('maple-leaf-rag.vsb');
       final engine = FakeSoundEngine();
       final scheduler = ScoreAudioScheduler(
+        clock: SystemClock(),
         engine: engine,
         track: track,
         autoTick: false,
@@ -635,6 +653,7 @@ void main() {
       addTearDown(midi.dispose);
 
       final practice = PracticeCubit(
+        clock: SystemClock(),
         midiInput: midi,
         track: track,
         scheduler: scheduler,
@@ -678,6 +697,7 @@ void main() {
       final doc = _loadDoc('satie-fantasma.vsb');
       final engine = FakeSoundEngine();
       final scheduler = ScoreAudioScheduler(
+        clock: SystemClock(),
         engine: engine,
         track: track,
         autoTick: false,
@@ -690,6 +710,7 @@ void main() {
       final midi = FakeMidiInput();
       addTearDown(midi.dispose);
       final practice = PracticeCubit(
+        clock: SystemClock(),
         midiInput: midi,
         track: track,
         scheduler: scheduler,
@@ -793,6 +814,7 @@ void main() {
       final doc = _loadDoc('maple-leaf-rag.vsb');
       final engine = FakeSoundEngine();
       final scheduler = ScoreAudioScheduler(
+        clock: SystemClock(),
         engine: engine,
         track: track,
         autoTick: false,
@@ -804,6 +826,7 @@ void main() {
       addTearDown(midi.dispose);
 
       final practice = PracticeCubit(
+        clock: SystemClock(),
         midiInput: midi,
         track: track,
         scheduler: scheduler,
@@ -863,6 +886,7 @@ void main() {
       final interval = twoBars(timeline);
       final engine = FakeSoundEngine();
       final scheduler = ScoreAudioScheduler(
+        clock: SystemClock(),
         engine: engine,
         track: track,
         autoTick: false,
@@ -874,6 +898,7 @@ void main() {
       addTearDown(midi.dispose);
       var dones = 0;
       final practice = PracticeCubit(
+        clock: SystemClock(),
         midiInput: midi,
         track: track,
         scheduler: scheduler,
@@ -919,6 +944,7 @@ void main() {
       final interval = twoBars(timeline);
       final engine = FakeSoundEngine();
       final scheduler = ScoreAudioScheduler(
+        clock: SystemClock(),
         engine: engine,
         track: track,
         autoTick: false,
@@ -930,6 +956,7 @@ void main() {
       addTearDown(midi.dispose);
       var dones = 0;
       final practice = PracticeCubit(
+        clock: SystemClock(),
         midiInput: midi,
         track: track,
         scheduler: scheduler,
@@ -974,6 +1001,7 @@ void main() {
           final interval = twoBars(timeline);
           final engine = FakeSoundEngine();
           final scheduler = ScoreAudioScheduler(
+            clock: SystemClock(),
             engine: engine,
             track: track,
             autoTick: false,
@@ -985,6 +1013,7 @@ void main() {
           addTearDown(midi.dispose);
           var dones = 0;
           final practice = PracticeCubit(
+            clock: SystemClock(),
             midiInput: midi,
             track: track,
             scheduler: scheduler,
@@ -1046,6 +1075,7 @@ void main() {
       final interval = twoBars(timeline);
       final engine = FakeSoundEngine();
       final scheduler = ScoreAudioScheduler(
+        clock: SystemClock(),
         engine: engine,
         track: track,
         autoTick: false,
@@ -1057,6 +1087,7 @@ void main() {
       addTearDown(midi.dispose);
       var dones = 0;
       final practice = PracticeCubit(
+        clock: SystemClock(),
         midiInput: midi,
         track: track,
         scheduler: scheduler,
@@ -1087,14 +1118,16 @@ void main() {
       practice.stop();
     });
 
-    test('tempo real: toque errado logo depois do fim não marca compasso de '
-        'fora do intervalo (U12)', () async {
+    test('tempo real: o tique da avaliação é o do relógio dado (CT05b), sem '
+        'esperar o tempo real', () {
       final track = _loadTrack('erik-satie.vsb');
       final doc = _loadDoc('erik-satie.vsb');
       final timeline = ScoreTimeline(doc);
       final interval = twoBars(timeline);
       final engine = FakeSoundEngine();
+      final relogio = ManualClock(DateTime(2026));
       final scheduler = ScoreAudioScheduler(
+        clock: relogio,
         engine: engine,
         track: track,
         autoTick: false,
@@ -1106,6 +1139,51 @@ void main() {
       addTearDown(midi.dispose);
       var dones = 0;
       final practice = PracticeCubit(
+        clock: relogio,
+        midiInput: midi,
+        track: track,
+        scheduler: scheduler,
+        controller: scoreController,
+        hand: Hand.direita,
+        mode: PracticeMode.realtime,
+        measureIndexAt: timeline.measureIndexAt,
+        passOf: (i) => timeline.measures[i].pass,
+        range: interval,
+        onRangeDone: () => dones++,
+      );
+      addTearDown(practice.close);
+
+      practice.start();
+      expect(relogio.pendingTimers, hasLength(1), reason: 'o tique armado');
+      _advanceUntil(engine, scheduler, interval.endMs + 1000);
+      expect(dones, 0, reason: 'o tique ainda não rodou');
+      relogio.advance(const Duration(milliseconds: 150));
+      expect(dones, 1);
+      practice.stop();
+      expect(relogio.pendingTimers, isEmpty, reason: 'parar cancela o tique');
+    });
+
+    test('tempo real: toque errado logo depois do fim não marca compasso de '
+        'fora do intervalo (U12)', () async {
+      final track = _loadTrack('erik-satie.vsb');
+      final doc = _loadDoc('erik-satie.vsb');
+      final timeline = ScoreTimeline(doc);
+      final interval = twoBars(timeline);
+      final engine = FakeSoundEngine();
+      final scheduler = ScoreAudioScheduler(
+        clock: SystemClock(),
+        engine: engine,
+        track: track,
+        autoTick: false,
+      );
+      final scoreController = ScoreCubit(document: doc);
+      addTearDown(scoreController.close);
+      addTearDown(scoreController.clearAll);
+      final midi = FakeMidiInput();
+      addTearDown(midi.dispose);
+      var dones = 0;
+      final practice = PracticeCubit(
+        clock: SystemClock(),
         midiInput: midi,
         track: track,
         scheduler: scheduler,
@@ -1165,6 +1243,7 @@ void main() {
       final interval = twoBars(timeline);
       final engine = FakeSoundEngine();
       final scheduler = ScoreAudioScheduler(
+        clock: SystemClock(),
         engine: engine,
         track: track,
         autoTick: false,
@@ -1176,6 +1255,7 @@ void main() {
       addTearDown(midi.dispose);
       var dones = 0;
       final practice = PracticeCubit(
+        clock: SystemClock(),
         midiInput: midi,
         track: track,
         scheduler: scheduler,

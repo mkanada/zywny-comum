@@ -88,7 +88,7 @@ class StandInCubit extends Cubit<StandInState> {
   List<String> _measures = const [];
   final Map<String, List<StandInRest>> _measureRests = {};
   final Map<Object, _Flash> _flashes = {};
-  final Stopwatch _clock = Stopwatch()..start();
+  final Stopwatch _clock = Stopwatch(); // relógio: animação que só pinta
   Ticker? _ticker;
 
   /// Instante presente (para teste, sobrescreva com um relógio simulado).

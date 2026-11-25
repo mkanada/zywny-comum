@@ -24,6 +24,7 @@ import 'package:zywny_music/pitch_frame.dart';
 import 'package:zywny_comum/practice/hand.dart';
 import 'package:zywny_comum/practice/practice_controller.dart';
 import 'package:zywny_comum/settings/settings_cubit.dart';
+import 'package:zywny_clock/zywny_clock.dart';
 
 class _Engine implements SoundEngine {
   double now = 0;
@@ -122,6 +123,7 @@ void main() {
         final track = PerformanceTrack.fromDocument(_doc());
         final engine = _Engine();
         final scheduler = ScoreAudioScheduler(
+          clock: SystemClock(),
           engine: engine,
           track: track,
           autoTick: false,
@@ -132,6 +134,7 @@ void main() {
         final midi = _Input();
         addTearDown(midi.dispose);
         final practice = PracticeCubit(
+          clock: SystemClock(),
           midiInput: midi,
           track: track,
           scheduler: scheduler,
@@ -165,6 +168,7 @@ void main() {
         final track = PerformanceTrack.fromDocument(_doc());
         final engine = _Engine();
         final scheduler = ScoreAudioScheduler(
+          clock: SystemClock(),
           engine: engine,
           track: track,
           autoTick: false,
@@ -175,6 +179,7 @@ void main() {
         final midi = _Input();
         addTearDown(midi.dispose);
         final practice = PracticeCubit(
+          clock: SystemClock(),
           midiInput: midi,
           track: track,
           scheduler: scheduler,
@@ -210,6 +215,7 @@ void main() {
       final track = PerformanceTrack.fromDocument(_doc());
       final engine = _Engine();
       final scheduler = ScoreAudioScheduler(
+        clock: SystemClock(),
         engine: engine,
         track: track,
         autoTick: false,
@@ -220,6 +226,7 @@ void main() {
       final midi = _Input();
       addTearDown(midi.dispose);
       final practice = PracticeCubit(
+        clock: SystemClock(),
         midiInput: midi,
         track: track,
         scheduler: scheduler,
@@ -252,6 +259,7 @@ void main() {
         final track = PerformanceTrack.fromDocument(_doc());
         final engine = _Engine();
         final scheduler = ScoreAudioScheduler(
+          clock: SystemClock(),
           engine: engine,
           track: track,
           autoTick: false,
@@ -262,6 +270,7 @@ void main() {
         final midi = _Input();
         addTearDown(midi.dispose);
         final practice = PracticeCubit(
+          clock: SystemClock(),
           midiInput: midi,
           track: track,
           scheduler: scheduler,
@@ -291,6 +300,7 @@ void main() {
       final track = PerformanceTrack.fromDocument(_doc());
       final engine = _Engine();
       final scheduler = ScoreAudioScheduler(
+        clock: SystemClock(),
         engine: engine,
         track: track,
         autoTick: false,

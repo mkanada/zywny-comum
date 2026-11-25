@@ -24,6 +24,10 @@ dependencies:
     path: ../../score_bridge
   zywny_diag:
     path: ../zywny_diag
+  # O relógio do app (CT05b): o motor mudo lê o tempo dele e o agendador arma o
+  # seu timer por ele.
+  zywny_clock:
+    path: ../zywny_clock
 
 dev_dependencies:
   flutter_test:

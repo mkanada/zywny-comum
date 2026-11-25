@@ -32,6 +32,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart' show VoidCallback;
 import 'package:zywny_bloc/zywny_bloc.dart';
+import 'package:zywny_clock/zywny_clock.dart';
 import 'package:zywny_diag/diag_log.dart';
 
 import 'performance_track.dart';
@@ -92,8 +93,8 @@ class SchedulerState extends Equatable {
 /// Agendador puro (sem widgets) que liga [PerformanceTrack] a [SoundEngine]:
 /// mantém a agenda do motor preenchida um pouco à frente do relógio do
 /// dispositivo. Testável com um `FakeSoundEngine` que só registra
-/// (`autoTick: false` evita o `Timer.periodic` de verdade — os testes
-/// chamam [pump] direto).
+/// (`autoTick: false` evita o timer do [clock] — os testes chamam [pump]
+/// direto).
 ///
 /// É um Cubit síncrono (BL27): o estado observado é [SchedulerState] e
 /// `close()` para a agenda e tira os registros do relatório de bug.
@@ -101,12 +102,14 @@ class ScoreAudioScheduler extends Cubit<SchedulerState> {
   ScoreAudioScheduler({
     required this.engine,
     required this.track,
+    required this.clock,
     this.lookahead = const Duration(milliseconds: 250),
     this.tickInterval = const Duration(milliseconds: 25),
     // Não dá para virar `this._autoTick`: o parâmetro é público, o campo é
     // privado.
     bool autoTick = true,
-  }) : _autoTick = autoTick, super(const SchedulerState()) {
+  }) : _autoTick = autoTick,
+       super(const SchedulerState()) {
     // O relatório de bug para o som (e o metrônomo, que sai daqui) e guarda
     // onde a música estava.
     _diagOffFreeze = DiagLog.addFreezeHook(() {
@@ -139,16 +142,20 @@ class ScoreAudioScheduler extends Cubit<SchedulerState> {
   final SoundEngine engine;
   final PerformanceTrack track;
 
+  /// O relógio do app (CT05b): arma o timer que chama [pump] sozinho. O tempo
+  /// do som é o do motor ([engine]), não este.
+  final AppClock clock;
+
   /// Até quanto tempo (do dispositivo) à frente do relógio a agenda fica
   /// preenchida.
   final Duration lookahead;
 
-  /// Intervalo do `Timer.periodic` que chama [pump] sozinho.
+  /// Intervalo do timer (do [clock]) que chama [pump] sozinho.
   final Duration tickInterval;
 
   final bool _autoTick;
 
-  Timer? _timer;
+  AppTimer? _timer;
 
   double _deviceT0 = 0;
   double _musicalT0 = 0;
@@ -412,7 +419,7 @@ class ScoreAudioScheduler extends Cubit<SchedulerState> {
   }
 
   void _armTimer() {
-    if (_autoTick) _timer ??= Timer.periodic(tickInterval, (_) => pump());
+    if (_autoTick) _timer ??= clock.periodic(tickInterval, (_) => pump());
   }
 
   /// Começa (ou retoma) a tocar a partir de [fromMs]. Manda o Program
@@ -523,7 +530,7 @@ class ScoreAudioScheduler extends Cubit<SchedulerState> {
   }
 
   /// Preenche a agenda até `lookahead` à frente do relógio do motor. O
-  /// `Timer` interno chama isto sozinho; os testes chamam direto para
+  /// timer interno chama isto sozinho; os testes chamam direto para
   /// simular ticks sem depender de tempo real.
   void pump() {
     if (!state.running) return;

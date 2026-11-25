@@ -18,6 +18,7 @@ import 'package:zywny_comum/practice/hand.dart';
 import 'package:zywny_comum/practice/measure_rewind.dart';
 import 'package:zywny_comum/practice/practice_controller.dart';
 import 'package:zywny_diag/diag_log.dart';
+import 'package:zywny_clock/zywny_clock.dart';
 
 import 'support/practice_fakes.dart';
 
@@ -50,6 +51,7 @@ class _Rig {
         : plain.withOrnaments(plan: OrnamentPlan(app: appIds));
     timeline = ScoreTimeline(doc);
     scheduler = ScoreAudioScheduler(
+      clock: SystemClock(),
       engine: engine,
       track: track,
       autoTick: false,
@@ -62,6 +64,7 @@ class _Rig {
     final measures = timeline.measures;
     final skip = skipMeasure;
     practice = PracticeCubit(
+      clock: SystemClock(),
       midiInput: midi,
       track: track,
       scheduler: scheduler,

@@ -5,26 +5,30 @@ import 'dart:typed_data';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:zywny_audio/silent_sound_engine.dart';
 import 'package:zywny_audio/sound_engine.dart';
+import 'package:zywny_clock/zywny_clock.dart';
 
 void main() {
-  test('o relógio vem da função dada e anda com ela', () {
-    var t = 1.5;
-    final engine = SilentSoundEngine(nowSeconds: () => t);
+  test('o relógio é o do app e anda com ele (ManualClock)', () {
+    final relogio = ManualClock(DateTime(2026));
+    final engine = SilentSoundEngine(clock: relogio);
+    expect(engine.nowSeconds, 0);
+    expect(engine.earliestScheduleSeconds, 0);
+    relogio.advance(const Duration(milliseconds: 1500));
     expect(engine.nowSeconds, 1.5);
     expect(engine.earliestScheduleSeconds, 1.5);
-    t = 2.25;
+    relogio.advance(const Duration(milliseconds: 750));
     expect(engine.nowSeconds, 2.25);
   });
 
-  test('sem relógio dado, o tempo sai de um cronômetro do app', () async {
-    final engine = SilentSoundEngine();
+  test('com o SystemClock, o tempo do motor anda de verdade', () async {
+    final engine = SilentSoundEngine(clock: SystemClock());
     final before = engine.nowSeconds;
     await Future<void>.delayed(const Duration(milliseconds: 5));
     expect(engine.nowSeconds, greaterThan(before));
   });
 
   test('agendar, mandar e desligar não fazem nada e não jogam', () async {
-    final engine = SilentSoundEngine(nowSeconds: () => 0);
+    final engine = SilentSoundEngine(clock: ManualClock(DateTime(2026)));
     await engine.start();
     await engine.loadSoundFont(Uint8List(0));
     engine.send([0x90, 60, 100]);

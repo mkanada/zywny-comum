@@ -15,6 +15,7 @@ import 'package:zywny_audio/score_audio_scheduler.dart';
 import 'package:zywny_comum/practice/hand.dart';
 import 'package:zywny_comum/practice/practice_controller.dart';
 import 'package:zywny_comum/practice/practice_session.dart';
+import 'package:zywny_clock/zywny_clock.dart';
 
 import 'support/practice_fakes.dart';
 
@@ -57,11 +58,13 @@ class _Rig {
     PerformanceTrack? track,
   }) : track = track ?? _track() {
     scheduler = ScoreAudioScheduler(
+      clock: SystemClock(),
       engine: engine,
       track: this.track,
       autoTick: false,
     );
     practice = PracticeCubit(
+      clock: SystemClock(),
       midiInput: midi,
       track: this.track,
       scheduler: scheduler,

@@ -22,6 +22,7 @@ import 'package:zywny_comum/practice/hand.dart';
 import 'package:zywny_comum/practice/practice_controller.dart';
 import 'package:zywny_audio/performance_track.dart';
 import 'package:zywny_audio/score_audio_scheduler.dart';
+import 'package:zywny_clock/zywny_clock.dart';
 
 import 'support/practice_fakes.dart';
 
@@ -55,6 +56,7 @@ void main() {
 
     final engine = FakeSoundEngine();
     final scheduler = ScoreAudioScheduler(
+      clock: SystemClock(),
       engine: engine,
       track: track,
       autoTick: false,
@@ -63,6 +65,7 @@ void main() {
     final ghosts = GhostCubit()..attachDocument(doc);
     final midi = FakeMidiInput();
     final practice = PracticeCubit(
+      clock: SystemClock(),
       midiInput: midi,
       track: track,
       scheduler: scheduler,
