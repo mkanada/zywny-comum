@@ -5,8 +5,10 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:path_provider/path_provider.dart';
 
+import 'app_busy.dart';
 import 'diag_storage.dart';
 
+export 'app_busy.dart';
 export 'diag_storage.dart';
 
 /// Uma sessão do log: o período em que o aluno ficou num exercício, numa
@@ -68,10 +70,13 @@ class DiagLog {
   /// ciclo de vida. Chamar uma vez, logo depois de
   /// `WidgetsFlutterBinding.ensureInitialized`.
   ///
-  /// [storage] e [installHandlers] são dos testes.
+  /// [storage] e [installHandlers] são dos testes. [busy] (CT02) é o contador
+  /// do trabalho em curso: o relatório traz, sob `ocupado`, o que estava
+  /// pendente na hora.
   static Future<void> init({
     DiagStorage? storage,
     bool installHandlers = true,
+    AppBusy? busy,
   }) async {
     if (_storage != null) return;
     try {
@@ -81,6 +86,7 @@ class DiagLog {
       return;
     }
     final store = _storage!;
+    if (busy != null) retrato('ocupado', () => busy.pendentes);
     // O que sobrou de execuções anteriores conta como sessão encerrada.
     final old = store.keys().where(_isSessionKey).toList()..sort();
     for (final k in old) {
