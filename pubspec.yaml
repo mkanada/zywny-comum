@@ -17,6 +17,7 @@ workspace:
   - packages/zywny_library
   - packages/zywny_auth
   - packages/zywny_bloc
+  - packages/zywny_clock
 
 dependencies:
   flutter:
@@ -37,6 +38,10 @@ dependencies:
     path: packages/zywny_auth
   zywny_bloc:
     path: packages/zywny_bloc
+  # Relógio do app (CT05a): AppClock, SystemClock e ManualClock; ainda sem uso
+  # no código (a migração vem em CT05b a CT05f).
+  zywny_clock:
+    path: packages/zywny_clock
 
   cupertino_icons: ^1.0.8
   file_selector: ^1.0.3
