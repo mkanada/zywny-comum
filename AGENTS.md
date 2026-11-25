@@ -23,6 +23,10 @@ partitura). O guia completo, com as regras dos motores, está em
 - **StatefulWidget só** como dono de objeto do framework (`AnimationController`, `Ticker`,
   `TextEditingController`, `ScrollController`, `FocusNode`, `WidgetsBindingObserver`,
   `GlobalKey`…) ou de um Cubit que as ações da tela chamam, e sem `setState`.
+- **O widget recebe pelo construtor o máximo que puder** (dados, serviços, relógio,
+  motores, stores) e o repassa ao Cubit no `BlocProvider(create:)`; nada de buscar
+  dependência na árvore (`RepositoryProvider`, `context.read<Serviço>()`) quando ela
+  pode vir pelo construtor. Pela árvore só o Cubit da tela e o que é do framework.
 - **Efeito colateral** (navegar, diálogo, `SnackBar`) em `BlocListener`, nunca no `builder`.
 - **Motores:** métodos síncronos; o motor lê o `state` direto; `serial` no estado quando um
   aviso tem de repetir o mesmo valor; `BlocSelector` onde o motor emite por tique;
