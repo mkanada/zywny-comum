@@ -51,7 +51,7 @@ import 'hit_test.dart';
 import 'ghost_layer.dart';
 import 'model.dart';
 import 'page_layers.dart';
-import 'score_controller.dart';
+import 'score_cubit.dart';
 import 'score_page_view.dart';
 import 'score_trace.dart';
 import 'stand_in_layer.dart';
@@ -328,7 +328,7 @@ class ScoreView extends StatefulWidget {
   final VsbDocument document;
 
   /// Cor por id e destaques (A01c/A02b), compartilhado por todas as páginas.
-  final ScoreController? controller;
+  final ScoreCubit? controller;
 
   /// Navegação (`goToPage`, `nextPage`, ...).
   final ScoreViewController? viewController;
@@ -380,14 +380,14 @@ class ScoreView extends StatefulWidget {
   final Set<String>? tapClasses;
 
   /// Fantasmas de teclas erradas (G05), repassadas a cada `ScorePageView`.
-  final GhostController? ghosts;
+  final GhostCubit? ghosts;
 
   /// Pausas substitutas das colunas escondidas (L03), repassadas a cada
   /// `ScorePageView`.
-  final StandInController? standIns;
+  final StandInCubit? standIns;
 
   /// Faixas atrás das notas (LP03), repassadas a cada `ScorePageView`.
-  final ScoreBandController? bands;
+  final ScoreBandCubit? bands;
 
   @override
   State<ScoreView> createState() => ScoreViewState();

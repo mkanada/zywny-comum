@@ -19,7 +19,7 @@ void main() {
     cleanup,
   ) async {
     final doc = twoPages();
-    final controller = ScoreController(document: doc);
+    final controller = ScoreCubit(document: doc);
     final vc = ScoreViewController();
     final player = ScorePlayer(
       document: doc,
@@ -30,7 +30,7 @@ void main() {
     cleanup.add(() {
       controller.clearAll();
       player.dispose();
-      controller.dispose();
+      controller.close();
     });
     // m3 (8000 ms) está na página 1; a vista ainda não existe.
     player.seek(const Duration(milliseconds: 8000));
@@ -80,7 +80,7 @@ void main() {
         (24000, [], ['c2']),
       ],
     );
-    final controller = ScoreController(document: doc);
+    final controller = ScoreCubit(document: doc);
     final vc = ScoreViewController();
     final player = ScorePlayer(
       document: doc,
@@ -91,7 +91,7 @@ void main() {
     cleanup.add(() {
       controller.clearAll();
       player.dispose();
-      controller.dispose();
+      controller.close();
     });
     // m4 abre a haste da página 1 (borda 0 em 12000 ms).
     player.seek(const Duration(milliseconds: 12000));

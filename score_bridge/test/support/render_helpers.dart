@@ -60,6 +60,14 @@ Future<ByteData> harnessBytes(
   return bytes;
 }
 
+/// Espera o aviso de um cubit e só então o quadro. O `stream` entrega o aviso
+/// numa microtarefa, depois do `emit` (o `ChangeNotifier` avisava na hora); um
+/// `pump` logo após a troca pintaria o estado antigo.
+Future<void> pumpAvisos(WidgetTester tester) async {
+  await Future<void>.value();
+  await tester.pump();
+}
+
 /// Monta [widget] numa janela de exatamente `w × h` (dpr 1).
 Future<GlobalKey> pumpAtSize(
   WidgetTester tester,
@@ -122,7 +130,7 @@ Future<ByteData> pageViewBytes(
   WidgetTester tester,
   VsbDocument doc,
   int pageIndex, {
-  ScoreController? controller,
+  ScoreCubit? controller,
   Set<String>? animatableIds,
 }) async {
   final page = doc.pages[pageIndex];

@@ -17,7 +17,7 @@ void main() {
   late ScoreTimeline tl;
 
   setUpAll(() {
-    // ScoreController usa um Ticker (highlightAll com release) mesmo no
+    // ScoreCubit usa um Ticker (highlightAll com release) mesmo no
     // teste de reprodução completa abaixo, que não é testWidgets.
     TestWidgetsFlutterBinding.ensureInitialized();
     mapleLeafRag = _fixture('maple-leaf-rag.vsb');
@@ -128,7 +128,7 @@ void main() {
   test(
     'ScorePlayer toca a Maple Leaf Rag do início ao fim a 4x sem exceção',
     () {
-      final controller = ScoreController(document: mapleLeafRag);
+      final controller = ScoreCubit(document: mapleLeafRag);
       final player = ScorePlayer(
         document: mapleLeafRag,
         controller: controller,
@@ -148,7 +148,7 @@ void main() {
       } finally {
         controller.clearAll();
         player.dispose();
-        controller.dispose();
+        controller.close();
       }
     },
   );

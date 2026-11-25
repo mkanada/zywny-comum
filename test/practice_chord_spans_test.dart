@@ -139,7 +139,7 @@ class _Rig {
       ..setSpeed(1.0)
       ..beats = metronomeBeats(timeline)
       ..metronomeOn = true;
-    scoreController = ScoreController(document: doc);
+    scoreController = ScoreCubit(document: doc);
     final measures = timeline.measures;
     chords = chordsOf == null ? const [] : chordsOf!(track, timeline);
     practice = PracticeController(
@@ -176,7 +176,7 @@ class _Rig {
   late final PerformanceTrack track;
   late final ScoreTimeline timeline;
   late final ScoreAudioScheduler scheduler;
-  late final ScoreController scoreController;
+  late final ScoreCubit scoreController;
   late final PracticeController practice;
   int dones = 0;
 
@@ -195,7 +195,7 @@ class _Rig {
   void dispose() {
     practice.dispose();
     scoreController.clearAll();
-    scoreController.dispose();
+    scoreController.close();
     midi.dispose();
   }
 

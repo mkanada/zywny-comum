@@ -33,7 +33,7 @@ void main() {
   testWidgets('destaque de notas em fases diferentes', (tester) async {
     const piece = 'Gymnopedie';
     final doc = _load(piece);
-    final controller = ScoreController(document: doc);
+    final controller = ScoreCubit(document: doc);
     final page = doc.pages[0];
     final h = (_width * page.heightPx / page.widthPx).round();
     final key = await pumpAtSize(
@@ -143,7 +143,7 @@ Roteiro (relógio simulado do Flutter Tester):
 Cada frame é um recorte da região das notas; nenhuma nota "salta" — cada uma
 tem a própria fase (attack, hold, release) ao mesmo tempo.
 ''');
-    controller.dispose();
+    controller.close();
   });
 
   testWidgets('virada de página por haste, dirigida pelo player', (
@@ -151,7 +151,7 @@ tem a própria fase (attack, hold, release) ao mesmo tempo.
   ) async {
     const piece = 'Nocturne';
     final doc = _load(piece);
-    final controller = ScoreController(document: doc);
+    final controller = ScoreCubit(document: doc);
     final vc = ScoreViewController();
     final player = ScorePlayer(
       document: doc,
@@ -227,7 +227,7 @@ direita da haste; à esquerda dela aparece a página seguinte.
 ''');
     controller.clearAll();
     player.dispose();
-    controller.dispose();
+    controller.close();
   });
 
   testWidgets('haste nos saltos de repetição (E03b, D-SALTO)', (tester) async {
@@ -235,7 +235,7 @@ direita da haste; à esquerda dela aparece a página seguinte.
     final doc = VsbDocument.fromBytes(
       File('test/fixtures/maple-leaf-rag.vsb').readAsBytesSync(),
     );
-    final controller = ScoreController(document: doc);
+    final controller = ScoreCubit(document: doc);
     final vc = ScoreViewController();
     final player = ScorePlayer(
       document: doc,
@@ -353,7 +353,7 @@ O quadro "estacionada" de cada salto mostra o compasso de destino já visível
 ''');
     controller.clearAll();
     player.dispose();
-    controller.dispose();
+    controller.close();
   });
 
   for (final piece in const [
@@ -392,11 +392,11 @@ Future<void> _repeticaoAlternativaExample(
       int h,
       ScorePlayer player,
       ScoreViewController vc,
-      ScoreController controller,
+      ScoreCubit controller,
     })
   >
   setup({required bool useAlternates}) async {
-    final controller = ScoreController(document: doc);
+    final controller = ScoreCubit(document: doc);
     final vc = ScoreViewController();
     final player = ScorePlayer(
       document: doc,
@@ -568,10 +568,10 @@ como antes desta fase.
 
   active.controller.clearAll();
   active.player.dispose();
-  active.controller.dispose();
+  active.controller.close();
   before.controller.clearAll();
   before.player.dispose();
-  before.controller.dispose();
+  before.controller.close();
 }
 
 /// Retângulo (px do frame) que cobre as notas [ids], com folga.

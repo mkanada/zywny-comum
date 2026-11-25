@@ -114,7 +114,7 @@ String _blockSequence(VsbDocument doc) {
 
 void main() {
   setUpAll(() {
-    // ScoreController usa um Ticker (highlightAll com release) mesmo nos
+    // ScoreCubit usa um Ticker (highlightAll com release) mesmo nos
     // testes de reprodução completa abaixo, que não são testWidgets.
     TestWidgetsFlutterBinding.ensureInitialized();
   });
@@ -138,7 +138,7 @@ void main() {
     for (final name in _piecesWithRepeats) {
       testWidgets(name, (tester) async {
         final doc = _fixture(name);
-        final controller = ScoreController(document: doc);
+        final controller = ScoreCubit(document: doc);
         final player = ScorePlayer(document: doc, controller: controller);
         try {
           player.play();
@@ -151,7 +151,7 @@ void main() {
           expect(player.isPlaying, isFalse, reason: name);
           expect(player.position, player.duration, reason: name);
           // Deixa o release de qualquer destaque em curso terminar (o
-          // relógio do ScoreController é o dele, não o do player).
+          // relógio do ScoreCubit é o dele, não o do player).
           await tester.pump(const Duration(milliseconds: 600));
           await tester.pump(const Duration(milliseconds: 600));
           expect(
@@ -171,7 +171,7 @@ void main() {
         } finally {
           controller.clearAll();
           player.dispose();
-          controller.dispose();
+          controller.close();
         }
       });
     }

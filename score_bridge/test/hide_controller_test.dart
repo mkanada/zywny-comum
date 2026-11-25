@@ -1,4 +1,4 @@
-// Nota escondida (L02): o contrato do `ScoreController` — uma notificação por
+// Nota escondida (L02): o contrato do `ScoreCubit` — uma notificação por
 // chamada, ids expandidos, o acorde que some junto, a precedência sobre cor
 // fixa e destaque, e o que não muda sem um documento.
 import 'dart:io';
@@ -12,22 +12,25 @@ const _transparent = ui.Color(0x00000000);
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   late VsbDocument doc;
-  late ScoreController controller;
+  late ScoreCubit controller;
   late int notifications;
 
   setUp(() {
     doc = VsbDocument.fromBytes(
       File('test/fixtures/sumico/h010.vsb').readAsBytesSync(),
     );
-    controller = ScoreController(document: doc);
+    controller = ScoreCubit(document: doc);
     notifications = 0;
-    controller.addListener(() => notifications++);
+    // O `stream` entrega o aviso depois do `emit`: os testes esperam a fila
+    // (`pumpEventQueue`) antes de contar.
+    controller.stream.listen((_) => notifications++);
   });
 
-  tearDown(() => controller.dispose());
+  tearDown(() => controller.close());
 
-  test('setHidden: uma notificação, nota e acorde transparentes', () {
+  test('setHidden: uma notificação, nota e acorde transparentes', () async {
     controller.setHidden({'x1848jna', 'z1oagi0k', 'r10709ff'});
+    await pumpEventQueue();
     expect(notifications, 1);
     expect(controller.hiddenIds, {'x1848jna', 'z1oagi0k', 'r10709ff'});
     expect(controller.colors['x1848jna'], _transparent);
@@ -47,20 +50,24 @@ void main() {
     expect(controller.colors['x1848jna'], _transparent);
   });
 
-  test('reveal, clearHidden e setHidden igual não notificam à toa', () {
+  test('reveal, clearHidden e setHidden igual não notificam à toa', () async {
     controller.setHidden({'r10709ff'});
+    await pumpEventQueue();
     notifications = 0;
     controller.setHidden({'r10709ff'});
     controller.reveal('nc27kmr'); // não está escondida
     controller.reveal('id-que-nao-existe');
+    await pumpEventQueue();
     expect(notifications, 0);
 
     controller.reveal('r10709ff');
+    await pumpEventQueue();
     expect(notifications, 1);
     expect(controller.isHidden('r10709ff'), isFalse);
     expect(controller.colors, isEmpty);
 
     controller.clearHidden();
+    await pumpEventQueue();
     expect(notifications, 1, reason: 'já estava vazio');
   });
 
@@ -145,8 +152,8 @@ void main() {
   });
 
   test('sem documento: aceita os ids como estão e não calcula formas', () {
-    final bare = ScoreController();
-    addTearDown(bare.dispose);
+    final bare = ScoreCubit();
+    addTearDown(bare.close);
     bare.setHidden({'a', 'b'});
     expect(bare.hiddenIds, {'a', 'b'});
     expect(bare.colors['a'], _transparent);

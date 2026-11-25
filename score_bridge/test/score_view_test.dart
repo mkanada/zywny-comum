@@ -27,7 +27,7 @@ void main() {
   Widget view(
     VsbDocument doc, {
     ScoreViewController? vc,
-    ScoreController? controller,
+    ScoreCubit? controller,
     ScorePageMode mode = ScorePageMode.pagedSweep,
     ValueChanged<int>? onPageChanged,
     ValueListenable<SweepCurtain?>? curtain,
@@ -602,8 +602,8 @@ void main() {
     });
 
     testWidgets('destaque atravessa a virada', (tester) async {
-      final controller = ScoreController(document: doc);
-      addTearDown(controller.dispose);
+      final controller = ScoreCubit(document: doc);
+      addTearDown(controller.close);
       final vc = ScoreViewController();
       await pumpScoreView(
         tester,

@@ -143,15 +143,15 @@ void main() {
     });
   });
 
-  group('ScoreController resolve ids expandidos', () {
+  group('ScoreCubit resolve ids expandidos', () {
     test('setColor/highlight/colorOf em x-rend2 afetam o nó x', () {
       final doc = fakeDocument([
         [
           FakeMeasure('m1', 0, [FakeNote('x', 10)]),
         ],
       ], const []);
-      final controller = ScoreController(document: doc);
-      addTearDown(controller.dispose);
+      final controller = ScoreCubit(document: doc);
+      addTearDown(controller.close);
 
       controller.setColor('x-rend2', const ui.Color(0xFF00FF00));
       expect(controller.colorOf('x'), const ui.Color(0xFF00FF00));

@@ -1,6 +1,6 @@
 // Gera a imagem da revisão do treino com o código de verdade: uma sessão de
 // tempo real (PracticeController + agendador + notas MIDI simuladas) sobre a
-// Gymnopédie já gravada, as marcas viram fantasmas fixas (GhostController) e
+// Gymnopédie já gravada, as marcas viram fantasmas fixas (GhostCubit) e
 // a página sai do ScoreView.
 //
 //   REVISAO_PNG=/caminho/revisao.png flutter test test/revisao_imagem_manual_test.dart
@@ -58,8 +58,8 @@ void main() {
       track: track,
       autoTick: false,
     );
-    final scoreController = ScoreController(document: doc);
-    final ghosts = GhostController()..attachDocument(doc);
+    final scoreController = ScoreCubit(document: doc);
+    final ghosts = GhostCubit()..attachDocument(doc);
     final midi = FakeMidiInput();
     final practice = PracticeController(
       midiInput: midi,
@@ -216,8 +216,8 @@ void main() {
     print('página ${w}x$h -> $out');
 
     practice.dispose();
-    ghosts.dispose();
-    scoreController.dispose();
+    ghosts.close();
+    scoreController.close();
     midi.dispose();
   });
 }

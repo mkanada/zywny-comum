@@ -10,10 +10,6 @@ lib/practice/shift_banner.dart S=0 CN=0 VN=1 VLB=0 SW=0 L=1
 lib/settings/color_picker.dart S=0 CN=0 VN=0 VLB=0 SW=1 L=0 # framework: TextEditingController
 lib/ui/score_paging.dart S=0 CN=0 VN=0 VLB=0 SW=0 L=1
 packages/zywny_bloc/lib/src/bloc_repaint.dart S=0 CN=0 VN=0 VLB=0 SW=0 L=1
-score_bridge/lib/src/band.dart S=0 CN=1 VN=0 VLB=0 SW=0 L=0
-score_bridge/lib/src/ghost_layer.dart S=0 CN=1 VN=0 VLB=0 SW=0 L=0
-score_bridge/lib/src/score_controller.dart S=0 CN=1 VN=0 VLB=0 SW=0 L=0
-score_bridge/lib/src/score_page_view.dart S=1 CN=0 VN=0 VLB=0 SW=1 L=2
+score_bridge/lib/src/score_page_view.dart S=1 CN=0 VN=0 VLB=0 SW=1 L=0
 score_bridge/lib/src/score_player.dart S=0 CN=0 VN=5 VLB=0 SW=0 L=1
 score_bridge/lib/src/score_view.dart S=6 CN=1 VN=3 VLB=0 SW=1 L=5
-score_bridge/lib/src/stand_in_layer.dart S=0 CN=1 VN=0 VLB=0 SW=0 L=0

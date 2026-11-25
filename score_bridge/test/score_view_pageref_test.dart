@@ -24,7 +24,7 @@ void main() {
   Widget view(
     VsbDocument doc, {
     ScoreViewController? vc,
-    ScoreController? controller,
+    ScoreCubit? controller,
     ValueChanged<int>? onPageChanged,
     ValueListenable<SweepCurtain?>? curtain,
   }) => Directionality(
@@ -155,8 +155,8 @@ void main() {
     final ref = doc.geometryOf(0).elementOf(noteId);
     expect(ref, isNotNull);
 
-    final controller = ScoreController(document: doc);
-    addTearDown(controller.dispose);
+    final controller = ScoreCubit(document: doc);
+    addTearDown(controller.close);
     final vc = ScoreViewController();
     final key = await pumpAtSize(
       tester,

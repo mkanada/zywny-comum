@@ -48,8 +48,8 @@ void main() {
     testWidgets('trocar cor não incrementa pictureBuilds (critério 2)', (
       tester,
     ) async {
-      final controller = ScoreController();
-      addTearDown(controller.dispose);
+      final controller = ScoreCubit();
+      addTearDown(controller.close);
       final page = doc.pages[0];
       final key = await pumpAtSize(
         tester,

@@ -370,7 +370,7 @@ void main() {
       required PracticeMode mode,
       required _Engine engine,
       required ScoreAudioScheduler scheduler,
-      required ScoreController controller,
+      required ScoreCubit controller,
       required _Midi midi,
       required ScoreTimeline timeline,
       required void Function() onDone,
@@ -422,8 +422,8 @@ void main() {
         track: track,
         autoTick: false,
       );
-      final controller = ScoreController(document: _houseDoc());
-      addTearDown(controller.dispose);
+      final controller = ScoreCubit(document: _houseDoc());
+      addTearDown(controller.close);
       addTearDown(controller.clearAll);
       final midi = _Midi();
       addTearDown(midi.dispose);
@@ -466,8 +466,8 @@ void main() {
         track: track,
         autoTick: false,
       );
-      final controller = ScoreController(document: _houseDoc());
-      addTearDown(controller.dispose);
+      final controller = ScoreCubit(document: _houseDoc());
+      addTearDown(controller.close);
       addTearDown(controller.clearAll);
       final midi = _Midi();
       addTearDown(midi.dispose);
@@ -516,8 +516,8 @@ void main() {
         track: track,
         autoTick: false,
       );
-      final controller = ScoreController(document: _houseDoc());
-      addTearDown(controller.dispose);
+      final controller = ScoreCubit(document: _houseDoc());
+      addTearDown(controller.close);
       addTearDown(controller.clearAll);
       final midi = _Midi();
       addTearDown(midi.dispose);

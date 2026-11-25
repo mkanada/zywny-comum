@@ -1,6 +1,6 @@
 // Compasso inteiro escondido (T17, regra 8): o contrato do controller
 // (`setHiddenMeasures`, `revealMeasure`, `clearHidden`), a pausa de compasso do
-// `StandInController.setMeasures` e a imagem: o compasso fica só com as linhas
+// `StandInCubit.setMeasures` e a imagem: o compasso fica só com as linhas
 // da pauta e a pausa de compasso na cor de repouso, e revelar devolve a página
 // pixel a pixel.
 import 'dart:io';
@@ -43,12 +43,13 @@ void main() {
 
     test(
       'setHiddenMeasures esconde notas, acordes e pausas; uma notificação',
-      () {
-        final controller = ScoreController(document: doc);
-        addTearDown(controller.dispose);
+      () async {
+        final controller = ScoreCubit(document: doc);
+        addTearDown(controller.close);
         var n = 0;
-        controller.addListener(() => n++);
+        controller.stream.listen((_) => n++);
         controller.setHiddenMeasures({_m});
+        await pumpEventQueue();
         expect(n, 1);
         expect(controller.hiddenMeasureIds, {_m});
         expect(controller.isMeasureHidden(_m), isTrue);
@@ -64,15 +65,15 @@ void main() {
         expect(controller.hiddenShapesOf(page).notes, shapes.notes);
 
         controller.setHiddenMeasures({_m});
-        expect(n, 1, reason: 'igual não notifica');
         controller.revealMeasure(_next); // não está escondido
-        expect(n, 1);
+        await pumpEventQueue();
+        expect(n, 1, reason: 'igual não notifica');
       },
     );
 
     test('revealMeasure e clearHidden devolvem tudo', () {
-      final controller = ScoreController(document: doc);
-      addTearDown(controller.dispose);
+      final controller = ScoreCubit(document: doc);
+      addTearDown(controller.close);
       controller.setHiddenMeasures({_m, _next});
       final both = controller.hiddenIds.length;
       controller.revealMeasure(_next);
@@ -85,8 +86,8 @@ void main() {
     });
 
     test('nota solta e compasso convivem; o id expandido vale', () {
-      final controller = ScoreController(document: doc);
-      addTearDown(controller.dispose);
+      final controller = ScoreCubit(document: doc);
+      addTearDown(controller.close);
       controller.setHidden({'r10709ff'});
       controller.setHiddenMeasures({'$_m-rend2'});
       expect(controller.hiddenMeasureIds, {_m});
@@ -96,8 +97,8 @@ void main() {
     });
 
     test('id que não é compasso é ignorado', () {
-      final controller = ScoreController(document: doc);
-      addTearDown(controller.dispose);
+      final controller = ScoreCubit(document: doc);
+      addTearDown(controller.close);
       controller.setHiddenMeasures({'nao-existe'});
       expect(controller.hiddenMeasureIds, isEmpty);
     });
@@ -106,8 +107,8 @@ void main() {
       final tri = VsbDocument.fromBytes(
         File('test/fixtures/sumico/g11-tercina.vsb').readAsBytesSync(),
       );
-      final controller = ScoreController(document: tri);
-      addTearDown(controller.dispose);
+      final controller = ScoreCubit(document: tri);
+      addTearDown(controller.close);
       controller.setHiddenMeasures({'fz4nyf'});
       final shapes = tri.hiddenShapesForMeasures({'fz4nyf'});
       expect(shapes.tuplets, isNotEmpty);
@@ -119,15 +120,15 @@ void main() {
   });
 
   group('pausa de compasso', () {
-    late StandInController layer;
+    late StandInCubit layer;
     var clock = Duration.zero;
 
     setUp(() {
       clock = Duration.zero;
-      layer = StandInController(restColor: _rest)..nowOverride = () => clock;
+      layer = StandInCubit(restColor: _rest)..nowOverride = () => clock;
       layer.attachDocument(doc);
     });
-    tearDown(() => layer.dispose());
+    tearDown(() => layer.close());
 
     test('uma pausa por pauta que tem nota, na cor de repouso', () {
       layer.setMeasures([_m]);
@@ -159,15 +160,15 @@ void main() {
     });
 
     test('.vsb sem `inner` ou sem documento: sem pausa, sem erro', () {
-      final bare = StandInController(restColor: _rest);
-      addTearDown(bare.dispose);
+      final bare = StandInCubit(restColor: _rest);
+      addTearDown(bare.close);
       bare.setMeasures([_m]);
       expect(bare.visible, isEmpty);
       final old = VsbDocument.fromBytes(
         File('test/fixtures/erik-satie.vsb').readAsBytesSync(),
       );
-      final onOld = StandInController(restColor: _rest)..attachDocument(old);
-      addTearDown(onOld.dispose);
+      final onOld = StandInCubit(restColor: _rest)..attachDocument(old);
+      addTearDown(onOld.close);
       onOld.setMeasures(['qualquer']);
       expect(onOld.visible, isEmpty);
     });
@@ -184,10 +185,10 @@ void main() {
     testWidgets('o compasso fica só com a pauta e a pausa de compasso', (
       tester,
     ) async {
-      final controller = ScoreController(document: doc);
-      final layer = StandInController(restColor: _rest);
-      addTearDown(controller.dispose);
-      addTearDown(layer.dispose);
+      final controller = ScoreCubit(document: doc);
+      final layer = StandInCubit(restColor: _rest);
+      addTearDown(controller.close);
+      addTearDown(layer.close);
       final key = await pumpAtSize(
         tester,
         ScorePageView(
@@ -204,7 +205,7 @@ void main() {
 
       controller.setHiddenMeasures({_m});
       layer.setMeasures([_m]);
-      await tester.pump();
+      await pumpAvisos(tester);
       final after = await captureBytes(tester, key, w, h);
 
       // Sobram as linhas da pauta e as barras: bem menos tinta que antes.
@@ -241,7 +242,7 @@ void main() {
       // Revelar tudo devolve a página pixel a pixel.
       controller.clearHidden();
       layer.clear();
-      await tester.pump();
+      await pumpAvisos(tester);
       final back = await captureBytes(tester, key, w, h);
       expect(
         diffIn(

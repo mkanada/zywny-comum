@@ -50,18 +50,18 @@ void main() {
 
   late VsbDocument doc;
   late ScenePage page;
-  late StandInController layer;
+  late StandInCubit layer;
   var clock = Duration.zero;
 
   setUp(() {
     doc = VsbDocument.fromBytes(File(_vsb).readAsBytesSync());
     page = doc.pages[0];
     clock = Duration.zero;
-    layer = StandInController(restColor: _rest)..nowOverride = () => clock;
+    layer = StandInCubit(restColor: _rest)..nowOverride = () => clock;
     layer.attachDocument(doc);
   });
 
-  tearDown(() => layer.dispose());
+  tearDown(() => layer.close());
 
   /// O retângulo, em pixels da página, do glifo da pausa de [key].
   ui.Rect restRect(Object key) {
@@ -83,10 +83,11 @@ void main() {
   }
 
   group('controller', () {
-    test('setColumns calcula a pausa de cada coluna na cor de repouso', () {
+    test('setColumns calcula a pausa de cada coluna na cor de repouso', () async {
       var notified = 0;
-      layer.addListener(() => notified++);
+      layer.stream.listen((_) => notified++);
       layer.setColumns({1: _a, 2: _b});
+      await pumpEventQueue();
       expect(notified, 1);
       expect(layer.keys, [1, 2]);
       expect(layer.restOf(1)!.glyphId, endsWith(':E4E5'));
@@ -182,16 +183,16 @@ void main() {
     });
 
     test('sem documento: sem pausa; com `.vsb` antigo, nada quebra', () {
-      final bare = StandInController(restColor: _rest);
-      addTearDown(bare.dispose);
+      final bare = StandInCubit(restColor: _rest);
+      addTearDown(bare.close);
       bare.setColumns({1: _a});
       expect(bare.visible, isEmpty);
 
       final old = VsbDocument.fromBytes(
         File('test/fixtures/erik-satie.vsb').readAsBytesSync(),
       );
-      final onOld = StandInController(restColor: _rest)..attachDocument(old);
-      addTearDown(onOld.dispose);
+      final onOld = StandInCubit(restColor: _rest)..attachDocument(old);
+      addTearDown(onOld.close);
       onOld.setColumns({1: const ['orw55dt']});
       expect(onOld.visible, isEmpty);
     });
@@ -216,7 +217,7 @@ void main() {
       final (key, w, h) = await mount(tester);
       final bare = await captureBytes(tester, key, w, h);
       layer.setColumns({1: _a, 2: _b});
-      await tester.pump();
+      await pumpAvisos(tester);
       final shot = await captureBytes(tester, key, w, h);
       for (final k in [1, 2]) {
         expect(countColor(bare, w, restRect(k), _rest), 0);
@@ -233,13 +234,13 @@ void main() {
     ) async {
       final (key, w, h) = await mount(tester);
       layer.setColumns({1: _a, 2: _b});
-      await tester.pump();
+      await pumpAvisos(tester);
       final rest = await captureBytes(tester, key, w, h);
       final rest1 = countColor(rest, w, restRect(1), _rest);
       expect(rest1, greaterThan(40));
 
       layer.flash(1, _flash, hold: const Duration(seconds: 1));
-      await tester.pump();
+      await pumpAvisos(tester);
       final flashing = await captureBytes(tester, key, w, h);
       expect(countColor(flashing, w, restRect(1), _flash), greaterThan(40));
       expect(countColor(flashing, w, restRect(1), _rest), 0);
@@ -251,7 +252,7 @@ void main() {
 
       clock = const Duration(seconds: 3);
       layer.tickForTest();
-      await tester.pump();
+      await pumpAvisos(tester);
       final back = await captureBytes(tester, key, w, h);
       expect(countColor(back, w, restRect(1), _flash), 0);
       expect(countColor(back, w, restRect(1), _rest), rest1);
@@ -260,7 +261,7 @@ void main() {
     testWidgets('remove apaga só aquela pausa (critério 4)', (tester) async {
       final (key, w, h) = await mount(tester);
       layer.setColumns({1: _a, 2: _b});
-      await tester.pump();
+      await pumpAvisos(tester);
       final both = await captureBytes(tester, key, w, h);
       final rect1 = restRect(1);
       final rect2 = restRect(2);
@@ -268,7 +269,7 @@ void main() {
       expect(countColor(both, w, rect1, _rest), greaterThan(40));
 
       layer.remove(1);
-      await tester.pump();
+      await pumpAvisos(tester);
       final after = await captureBytes(tester, key, w, h);
       // A 2 ficou como estava; onde estava a 1, nenhum roxo.
       expect(countColor(after, w, rect2, _rest), rest2);
@@ -280,7 +281,7 @@ void main() {
     ) async {
       final (key, w, h) = await mount(tester);
       layer.setColumns({1: _dotted});
-      await tester.pump();
+      await pumpAvisos(tester);
       final shot = await captureBytes(tester, key, w, h);
       final rest = layer.restOf(1)!;
       expect(rest.dots, hasLength(1));

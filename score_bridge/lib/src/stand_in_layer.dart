@@ -11,6 +11,7 @@ import 'package:flutter/animation.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/rendering.dart' show CustomPainter;
 import 'package:flutter/scheduler.dart';
+import 'package:zywny_bloc/zywny_bloc.dart';
 
 import 'glyph_cache.dart';
 import 'model.dart';
@@ -20,7 +21,7 @@ import 'stand_in.dart';
 class VisibleStandIn {
   const VisibleStandIn(this.key, this.rest, this.color);
 
-  /// A chave da coluna, a mesma de [StandInController.setColumns].
+  /// A chave da coluna, a mesma de [StandInCubit.setColumns].
   final Object key;
   final StandInRest rest;
   final ui.Color color;
@@ -47,19 +48,34 @@ class _Flash {
 class _OwnTickerProvider implements TickerProvider {
   @override
   Ticker createTicker(TickerCallback onTick) =>
-      Ticker(onTick, debugLabel: 'StandInController');
+      Ticker(onTick, debugLabel: 'StandInCubit');
+}
+
+/// Estado do [StandInCubit]: só o `serial`, que sobe a cada aviso. As pausas
+/// estão no cubit; o pintor as lê ao pintar, com a cor do instante.
+class StandInState extends Equatable {
+  const StandInState(this.serial);
+
+  final int serial;
+
+  @override
+  List<Object?> get props => [serial];
 }
 
 /// Dono das pausas substitutas. O host diz **quais colunas** estão escondidas
-/// ([setColumns], cada uma com as notas dela); o controller calcula a pausa de
+/// ([setColumns], cada uma com as notas dela); o cubit calcula a pausa de
 /// cada uma (`VsbDocument.standInFor`) e a mantém na cor de repouso
 /// ([restColor]). [flash] pisca uma coluna (cor, ataque, sustentação,
-/// soltura), nos moldes de `ScoreController.highlight`, e volta ao repouso.
+/// soltura), nos moldes de `ScoreCubit.highlight`, e volta ao repouso.
 ///
 /// Uma coluna sem pausa calculável (`.vsb` antigo, figura desconhecida, pauta
 /// que não tem 5 linhas) fica de fora de [visible], sem exceção.
-class StandInController extends ChangeNotifier {
-  StandInController({required this.restColor});
+///
+/// Estado (BL25): o `state` é o `serial`; a cor de cada pausa depende do relógio
+/// no instante em que se lê ([colorOf], [visible]), então essas leituras ficam
+/// no cubit e o pintor as faz ao pintar.
+class StandInCubit extends Cubit<StandInState> {
+  StandInCubit({required this.restColor}) : super(const StandInState(0));
 
   /// A cor de repouso das pausas (o app passa `kMemoRestColor`).
   final ui.Color restColor;
@@ -90,7 +106,7 @@ class StandInController extends ChangeNotifier {
     if (_columns.isNotEmpty || _measures.isNotEmpty) {
       _compute();
       _computeMeasures();
-      notifyListeners();
+      _changed();
     }
   }
 
@@ -104,7 +120,7 @@ class StandInController extends ChangeNotifier {
     };
     _flashes.removeWhere((key, _) => !_columns.containsKey(key));
     _compute();
-    notifyListeners();
+    _changed();
   }
 
   /// Os compassos escondidos por inteiro agora ([ids] de compasso da cena;
@@ -124,7 +140,7 @@ class StandInController extends ChangeNotifier {
       (key, _) => !_columns.containsKey(key) && !_measures.contains(key),
     );
     _computeMeasures();
-    notifyListeners();
+    _changed();
   }
 
   /// Tira a pausa da coluna ou do compasso [key] (ele foi revelado). Sem
@@ -143,7 +159,7 @@ class StandInController extends ChangeNotifier {
     _measureRests.remove(key);
     _flashes.remove(key);
     if (_flashes.isEmpty) _stopTicker();
-    notifyListeners();
+    _changed();
   }
 
   /// Tira todas as pausas.
@@ -155,7 +171,7 @@ class StandInController extends ChangeNotifier {
     _measureRests.clear();
     _flashes.clear();
     _stopTicker();
-    notifyListeners();
+    _changed();
   }
 
   /// Pisca a pausa de [key]: `attack` até [color], `hold`, e `release` de
@@ -180,7 +196,7 @@ class StandInController extends ChangeNotifier {
       start: _now,
     );
     _ensureTicker();
-    notifyListeners();
+    _changed();
   }
 
   /// As chaves das colunas e dos compassos que existem agora (com ou sem
@@ -287,14 +303,21 @@ class StandInController extends ChangeNotifier {
       return now >= end;
     });
     if (_flashes.isEmpty) _stopTicker();
-    notifyListeners();
+    _changed();
+  }
+
+  /// Um aviso: o `serial` seguinte sai pelo `stream` (o `BlocRepaint` do pintor
+  /// ouve). Depois do [close] não há aviso (o `emit` lançaria).
+  void _changed() {
+    if (isClosed) return;
+    emit(StandInState(state.serial + 1));
   }
 
   @override
-  void dispose() {
+  Future<void> close() {
     _ticker?.dispose();
     _ticker = null;
-    super.dispose();
+    return super.close();
   }
 }
 
@@ -307,9 +330,9 @@ class StandInPainter extends CustomPainter {
     required this.pageRef,
     required this.glyphCache,
     required this.applyPageTransform,
-  }) : super(repaint: controller);
+  }) : super(repaint: BlocRepaint(controller));
 
-  final StandInController controller;
+  final StandInCubit controller;
   final ScenePage page;
   final PageRef pageRef;
   final GlyphCache glyphCache;

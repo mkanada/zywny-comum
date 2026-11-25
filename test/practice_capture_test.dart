@@ -60,8 +60,8 @@ void main() {
         track: track,
         autoTick: false,
       );
-      final scoreController = ScoreController(document: doc);
-      addTearDown(scoreController.dispose);
+      final scoreController = ScoreCubit(document: doc);
+      addTearDown(scoreController.close);
       addTearDown(scoreController.clearAll);
       final midi = FakeMidiInput();
       addTearDown(midi.dispose);
@@ -119,8 +119,8 @@ void main() {
         track: track,
         autoTick: false,
       );
-      final scoreController = ScoreController(document: doc);
-      addTearDown(scoreController.dispose);
+      final scoreController = ScoreCubit(document: doc);
+      addTearDown(scoreController.close);
       addTearDown(scoreController.clearAll);
       final midi = FakeMidiInput();
       addTearDown(midi.dispose);

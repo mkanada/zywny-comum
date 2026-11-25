@@ -12,7 +12,7 @@ void main() {
   ) async {
     final bytes = File('test/fixtures/r13-um-compasso.vsb').readAsBytesSync();
     final doc = VsbDocument.fromBytes(bytes);
-    final controller = ScoreController(document: doc);
+    final controller = ScoreCubit(document: doc);
     const grey = Color(0xFF8E8E93);
     final player = ScorePlayer(
       document: doc,
@@ -40,7 +40,7 @@ void main() {
       // Antes do fim do teste: os destaques têm animações em curso.
       controller.clearAll();
       player.dispose();
-      controller.dispose();
+      controller.close();
     }
   });
 
@@ -48,7 +48,7 @@ void main() {
       'host', (tester) async {
     final bytes = File('test/fixtures/r13-um-compasso.vsb').readAsBytesSync();
     final doc = VsbDocument.fromBytes(bytes);
-    final controller = ScoreController(document: doc);
+    final controller = ScoreCubit(document: doc);
     const green = Color(0xFF2E7D32);
     final player = ScorePlayer(
       document: doc,
@@ -68,7 +68,7 @@ void main() {
     } finally {
       controller.clearAll();
       player.dispose();
-      controller.dispose();
+      controller.close();
     }
   });
 
@@ -77,7 +77,7 @@ void main() {
   ) async {
     final bytes = File('test/fixtures/r13-um-compasso.vsb').readAsBytesSync();
     final doc = VsbDocument.fromBytes(bytes);
-    final controller = ScoreController(document: doc);
+    final controller = ScoreCubit(document: doc);
     const green = Color(0xFF2E7D32);
     final player = ScorePlayer(
       document: doc,
@@ -107,7 +107,7 @@ void main() {
     } finally {
       controller.clearAll();
       player.dispose();
-      controller.dispose();
+      controller.close();
     }
   });
 }

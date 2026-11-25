@@ -3,7 +3,7 @@
 // Sem `Ticker`, sem widget, sem `DateTime.now()`: o tempo é sempre um
 // argumento (`Duration` desde uma origem qualquer do chamador), o que torna o
 // motor determinístico e testável com tempo simulado. Quem dirige o relógio
-// é o `ScoreController`.
+// é o `ScoreCubit`.
 //
 // Cada nota tem o próprio estado `{início, fases, cor, curva}` num mapa
 // `id -> estado`. Não há agrupamento por instante: iniciar (ou reiniciar) uma

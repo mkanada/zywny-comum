@@ -18,7 +18,7 @@ void main() {
         File('test/fixtures/erik-satie.vsb').readAsBytesSync(),
       ),
     );
-    final controller = ScoreController(document: doc);
+    final controller = ScoreCubit(document: doc);
     final vc = ScoreViewController();
     final player = ScorePlayer(
       document: doc,
@@ -81,7 +81,7 @@ void main() {
     } finally {
       controller.clearAll();
       player.dispose();
-      controller.dispose();
+      controller.close();
       await tester.pump(const Duration(seconds: 2));
     }
   });

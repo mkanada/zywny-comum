@@ -1,5 +1,5 @@
 // `ScorePlayer` (A05a/A05b): o host simulado. Um relógio próprio lê o timemap
-// embutido no `.vsb` e acende/apaga as notas no `ScoreController`; a haste de
+// embutido no `.vsb` e acende/apaga as notas no `ScoreCubit`; a haste de
 // virada e a página corrente saem da posição, por função pura
 // (`ScoreTimeline.curtainAt`).
 //
@@ -61,7 +61,7 @@ import 'package:flutter/animation.dart' show Curve, Curves;
 import 'package:flutter/painting.dart' show Color;
 
 import 'model.dart';
-import 'score_controller.dart';
+import 'score_cubit.dart';
 import 'score_timeline.dart';
 import 'score_trace.dart';
 import 'score_view.dart';
@@ -213,7 +213,7 @@ class ScorePlayer {
   }
 
   final VsbDocument document;
-  final ScoreController controller;
+  final ScoreCubit controller;
 
   /// A vista se ligou depois de o player já ter uma posição (um `seek` logo ao
   /// montar a rodada, antes de o `ScoreView` existir): leva a vista à página

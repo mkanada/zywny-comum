@@ -2,13 +2,13 @@
 // dublê real ainda; mesmo estilo do `FakeMidiSender` de
 // test/midi_out_sound_engine_test.dart) alimentando um `ScoreAudioScheduler`
 // real (com um `FakeSoundEngine`, mesmo estilo de
-// test/score_audio_scheduler_test.dart) e um `ScoreController` real sobre o
+// test/score_audio_scheduler_test.dart) e um `ScoreCubit` real sobre o
 // corpus, para conferir a integração toda: nota certa avança o freio e pinta
 // verde; nota errada não avança, pisca a nota esperada mais próxima e marca
 // a tecla física errada.
 //
 // `test()` puro (não `testWidgets`): não há árvore de widget nenhuma para
-// montar, só `ScoreController`/`Ticker` (por isso o
+// montar, só `ScoreCubit`/`Ticker` (por isso o
 // `TestWidgetsFlutterBinding.ensureInitialized()` em `setUpAll`, mesmo
 // padrão de `score_bridge/test/score_player_test.dart`) e o `pumpEventQueue`
 // para esvaziar os microtasks do stream de notas (broadcast comum, sem
@@ -151,8 +151,8 @@ void main() {
         track: track,
         autoTick: false,
       );
-      final scoreController = ScoreController(document: doc);
-      addTearDown(scoreController.dispose);
+      final scoreController = ScoreCubit(document: doc);
+      addTearDown(scoreController.close);
       addTearDown(scoreController.clearAll);
       final midi = FakeMidiInput();
       addTearDown(midi.dispose);
@@ -204,8 +204,8 @@ void main() {
         track: track,
         autoTick: false,
       );
-      final scoreController = ScoreController(document: doc);
-      addTearDown(scoreController.dispose);
+      final scoreController = ScoreCubit(document: doc);
+      addTearDown(scoreController.close);
       addTearDown(scoreController.clearAll);
       final midi = FakeMidiInput();
       addTearDown(midi.dispose);
@@ -268,11 +268,11 @@ void main() {
         track: track,
         autoTick: false,
       );
-      final scoreController = ScoreController(document: doc);
-      addTearDown(scoreController.dispose);
+      final scoreController = ScoreCubit(document: doc);
+      addTearDown(scoreController.close);
       addTearDown(scoreController.clearAll);
-      final ghosts = GhostController()..attachDocument(doc);
-      addTearDown(ghosts.dispose);
+      final ghosts = GhostCubit()..attachDocument(doc);
+      addTearDown(ghosts.close);
       final midi = FakeMidiInput();
       addTearDown(midi.dispose);
       final practice = PracticeController(
@@ -347,11 +347,11 @@ void main() {
         track: track,
         autoTick: false,
       );
-      final scoreController = ScoreController(document: doc);
-      addTearDown(scoreController.dispose);
+      final scoreController = ScoreCubit(document: doc);
+      addTearDown(scoreController.close);
       addTearDown(scoreController.clearAll);
-      final ghosts = GhostController()..attachDocument(doc);
-      addTearDown(ghosts.dispose);
+      final ghosts = GhostCubit()..attachDocument(doc);
+      addTearDown(ghosts.close);
       final midi = FakeMidiInput();
       addTearDown(midi.dispose);
       final practice = PracticeController(
@@ -415,8 +415,8 @@ void main() {
         track: track,
         autoTick: false,
       );
-      final scoreController = ScoreController(document: doc);
-      addTearDown(scoreController.dispose);
+      final scoreController = ScoreCubit(document: doc);
+      addTearDown(scoreController.close);
       addTearDown(scoreController.clearAll);
       final midi = FakeMidiInput();
       addTearDown(midi.dispose);
@@ -462,8 +462,8 @@ void main() {
           track: track,
           autoTick: false,
         );
-        final scoreController = ScoreController(document: doc);
-        addTearDown(scoreController.dispose);
+        final scoreController = ScoreCubit(document: doc);
+        addTearDown(scoreController.close);
         addTearDown(scoreController.clearAll);
         final midi = FakeMidiInput();
         addTearDown(midi.dispose);
@@ -528,8 +528,8 @@ void main() {
         track: track,
         autoTick: false,
       );
-      final scoreController = ScoreController(document: doc);
-      addTearDown(scoreController.dispose);
+      final scoreController = ScoreCubit(document: doc);
+      addTearDown(scoreController.close);
       addTearDown(scoreController.clearAll);
       final midi = FakeMidiInput();
       addTearDown(midi.dispose);
@@ -580,10 +580,10 @@ void main() {
         track: track,
         autoTick: false,
       );
-      final scoreController = ScoreController(document: doc);
-      addTearDown(scoreController.dispose);
-      final ghosts = GhostController()..attachDocument(doc);
-      addTearDown(ghosts.dispose);
+      final scoreController = ScoreCubit(document: doc);
+      addTearDown(scoreController.close);
+      final ghosts = GhostCubit()..attachDocument(doc);
+      addTearDown(ghosts.close);
       final midi = FakeMidiInput();
       addTearDown(midi.dispose);
 
@@ -628,8 +628,8 @@ void main() {
         track: track,
         autoTick: false,
       );
-      final scoreController = ScoreController(document: doc);
-      addTearDown(scoreController.dispose);
+      final scoreController = ScoreCubit(document: doc);
+      addTearDown(scoreController.close);
       addTearDown(scoreController.clearAll);
       final midi = FakeMidiInput();
       addTearDown(midi.dispose);
@@ -682,11 +682,11 @@ void main() {
         track: track,
         autoTick: false,
       );
-      final scoreController = ScoreController(document: doc);
-      addTearDown(scoreController.dispose);
+      final scoreController = ScoreCubit(document: doc);
+      addTearDown(scoreController.close);
       addTearDown(scoreController.clearAll);
-      final ghosts = GhostController()..attachDocument(doc);
-      addTearDown(ghosts.dispose);
+      final ghosts = GhostCubit()..attachDocument(doc);
+      addTearDown(ghosts.close);
       final midi = FakeMidiInput();
       addTearDown(midi.dispose);
       final practice = PracticeController(
@@ -797,8 +797,8 @@ void main() {
         track: track,
         autoTick: false,
       );
-      final scoreController = ScoreController(document: doc);
-      addTearDown(scoreController.dispose);
+      final scoreController = ScoreCubit(document: doc);
+      addTearDown(scoreController.close);
       addTearDown(scoreController.clearAll);
       final midi = FakeMidiInput();
       addTearDown(midi.dispose);
@@ -867,8 +867,8 @@ void main() {
         track: track,
         autoTick: false,
       );
-      final scoreController = ScoreController(document: doc);
-      addTearDown(scoreController.dispose);
+      final scoreController = ScoreCubit(document: doc);
+      addTearDown(scoreController.close);
       addTearDown(scoreController.clearAll);
       final midi = FakeMidiInput();
       addTearDown(midi.dispose);
@@ -923,8 +923,8 @@ void main() {
         track: track,
         autoTick: false,
       );
-      final scoreController = ScoreController(document: doc);
-      addTearDown(scoreController.dispose);
+      final scoreController = ScoreCubit(document: doc);
+      addTearDown(scoreController.close);
       addTearDown(scoreController.clearAll);
       final midi = FakeMidiInput();
       addTearDown(midi.dispose);
@@ -978,8 +978,8 @@ void main() {
             track: track,
             autoTick: false,
           );
-          final scoreController = ScoreController(document: doc);
-          addTearDown(scoreController.dispose);
+          final scoreController = ScoreCubit(document: doc);
+          addTearDown(scoreController.close);
           addTearDown(scoreController.clearAll);
           final midi = FakeMidiInput();
           addTearDown(midi.dispose);
@@ -1050,8 +1050,8 @@ void main() {
         track: track,
         autoTick: false,
       );
-      final scoreController = ScoreController(document: doc);
-      addTearDown(scoreController.dispose);
+      final scoreController = ScoreCubit(document: doc);
+      addTearDown(scoreController.close);
       addTearDown(scoreController.clearAll);
       final midi = FakeMidiInput();
       addTearDown(midi.dispose);
@@ -1099,8 +1099,8 @@ void main() {
         track: track,
         autoTick: false,
       );
-      final scoreController = ScoreController(document: doc);
-      addTearDown(scoreController.dispose);
+      final scoreController = ScoreCubit(document: doc);
+      addTearDown(scoreController.close);
       addTearDown(scoreController.clearAll);
       final midi = FakeMidiInput();
       addTearDown(midi.dispose);
@@ -1169,8 +1169,8 @@ void main() {
         track: track,
         autoTick: false,
       );
-      final scoreController = ScoreController(document: doc);
-      addTearDown(scoreController.dispose);
+      final scoreController = ScoreCubit(document: doc);
+      addTearDown(scoreController.close);
       addTearDown(scoreController.clearAll);
       final midi = FakeMidiInput();
       addTearDown(midi.dispose);

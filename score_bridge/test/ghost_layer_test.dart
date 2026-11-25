@@ -18,11 +18,11 @@ void main() {
   test('aparece no note-on, respeita o mínimo e some com fade', () {
     TestWidgetsFlutterBinding.ensureInitialized();
     var now = Duration.zero;
-    final c = GhostController()
+    final c = GhostCubit()
       ..nowOverride = (() => now)
       ..attachDocument(doc)
       ..setExpected(chord);
-    addTearDown(c.dispose);
+    addTearDown(c.close);
 
     c.press(70);
     expect(c.visible.single.ghost.key, 70);
@@ -44,8 +44,8 @@ void main() {
   });
 
   test('teclas simultâneas colidem entre si; sem esperado, nada', () {
-    final c = GhostController()..attachDocument(doc);
-    addTearDown(c.dispose);
+    final c = GhostCubit()..attachDocument(doc);
+    addTearDown(c.close);
     c.press(70);
     expect(c.isEmpty, isTrue); // sem evento esperado ainda
     c.setExpected(chord);
@@ -56,8 +56,8 @@ void main() {
 
   group('tecla fora do tempo', () {
     test('com alvo próprio, sem esperado global: antes à esquerda, depois à direita', () {
-      final c = GhostController()..attachDocument(doc);
-      addTearDown(c.dispose);
+      final c = GhostCubit()..attachDocument(doc);
+      addTearDown(c.close);
       c.press(70, targetIds: chord);
       final onTime = c.visible.single.ghost;
       c.clear();
@@ -86,8 +86,8 @@ void main() {
       const semitones = {'c': 0, 'd': 2, 'e': 4, 'f': 5, 'g': 7, 'a': 9, 'b': 11};
       final note = doc.pitchPos!.events[chord.first]!;
       final key = (note.octave! + 1) * 12 + semitones[note.pname]! + note.alter!;
-      final c = GhostController()..attachDocument(doc);
-      addTearDown(c.dispose);
+      final c = GhostCubit()..attachDocument(doc);
+      addTearDown(c.close);
       c.press(key, targetIds: chord);
       final onTime = c.visible.single.ghost;
       c.clear();
@@ -107,10 +107,10 @@ void main() {
   group('revisão', () {
     test('fica fixa: não some com clear nem com o fade', () {
       var now = Duration.zero;
-      final c = GhostController()
+      final c = GhostCubit()
         ..nowOverride = (() => now)
         ..attachDocument(doc);
-      addTearDown(c.dispose);
+      addTearDown(c.close);
       c.setReview(const [
         GhostRequest(key: 70, targetIds: chord, side: -1),
         GhostRequest(key: 70, targetIds: chord, side: 1),
@@ -131,8 +131,8 @@ void main() {
     });
 
     test('um documento novo refaz as fantasmas da revisão', () {
-      final c = GhostController()..attachDocument(doc);
-      addTearDown(c.dispose);
+      final c = GhostCubit()..attachDocument(doc);
+      addTearDown(c.close);
       c.setReview(const [GhostRequest(key: 70, targetIds: chord)]);
       final first = c.review.single;
       final other = VsbDocument.fromBytes(

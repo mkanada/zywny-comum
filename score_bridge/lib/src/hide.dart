@@ -5,7 +5,7 @@
 //
 // Aqui só mora o **cálculo** (puro, sem Canvas): dado o conjunto `H` de todas as
 // notas escondidas, quais notas, nós `chord`, formas de barra e traços de linha
-// suplementar deixam de ser pintados. Quem o aplica é o `ScoreController`
+// suplementar deixam de ser pintados. Quem o aplica é o `ScoreCubit`
 // (cor transparente nas notas e acordes) e o `ScorePageView` (as formas
 // estáticas, que não têm id, saem da segmentação).
 //

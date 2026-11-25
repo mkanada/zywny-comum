@@ -126,8 +126,8 @@ void main() {
           track: track,
           autoTick: false,
         );
-        final scoreController = ScoreController(document: _doc());
-        addTearDown(scoreController.dispose);
+        final scoreController = ScoreCubit(document: _doc());
+        addTearDown(scoreController.close);
         addTearDown(scoreController.clearAll);
         final midi = _Input();
         addTearDown(midi.dispose);
@@ -169,8 +169,8 @@ void main() {
           track: track,
           autoTick: false,
         );
-        final scoreController = ScoreController(document: _doc());
-        addTearDown(scoreController.dispose);
+        final scoreController = ScoreCubit(document: _doc());
+        addTearDown(scoreController.close);
         addTearDown(scoreController.clearAll);
         final midi = _Input();
         addTearDown(midi.dispose);
@@ -214,8 +214,8 @@ void main() {
         track: track,
         autoTick: false,
       );
-      final scoreController = ScoreController(document: _doc());
-      addTearDown(scoreController.dispose);
+      final scoreController = ScoreCubit(document: _doc());
+      addTearDown(scoreController.close);
       addTearDown(scoreController.clearAll);
       final midi = _Input();
       addTearDown(midi.dispose);
@@ -256,8 +256,8 @@ void main() {
           track: track,
           autoTick: false,
         );
-        final scoreController = ScoreController(document: _doc());
-        addTearDown(scoreController.dispose);
+        final scoreController = ScoreCubit(document: _doc());
+        addTearDown(scoreController.close);
         addTearDown(scoreController.clearAll);
         final midi = _Input();
         addTearDown(midi.dispose);

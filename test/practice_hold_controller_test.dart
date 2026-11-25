@@ -64,7 +64,7 @@ class _Rig {
       midiInput: midi,
       track: this.track,
       scheduler: scheduler,
-      controller: ScoreController(document: _loadDoc()),
+      controller: ScoreCubit(document: _loadDoc()),
       hand: Hand.direita,
       mode: PracticeMode.wait,
       holdNotes: holdNotes,

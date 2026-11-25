@@ -129,7 +129,7 @@ void main() {
     for (final name in _piecesWithRepeats) {
       testWidgets(name, (tester) async {
         final doc = _fixture(name);
-        final controller = ScoreController(document: doc);
+        final controller = ScoreCubit(document: doc);
         final vc = ScoreViewController();
         await pumpAtSize(
           tester,
@@ -176,7 +176,7 @@ void main() {
         } finally {
           controller.clearAll();
           player.dispose();
-          controller.dispose();
+          controller.close();
         }
         await tester.pumpWidget(const SizedBox());
         expect(state.pictureStats.live, 0, reason: '$name: Picture vazando');

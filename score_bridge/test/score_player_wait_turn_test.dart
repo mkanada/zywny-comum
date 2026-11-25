@@ -60,7 +60,7 @@ void main() {
     // Relógio parado (o freio do modo espera) e a vista ligada ao player.
     Future<({ScorePlayer player, ScoreViewController vc, ManualClock clock})>
     parked(WidgetTester tester, Cleanup cleanup, VsbDocument doc) async {
-      final controller = ScoreController(document: doc);
+      final controller = ScoreCubit(document: doc);
       final vc = ScoreViewController();
       final clock = ManualClock();
       final player = ScorePlayer(
@@ -72,7 +72,7 @@ void main() {
       cleanup.add(() {
         controller.clearAll();
         player.dispose();
-        controller.dispose();
+        controller.close();
       });
       final p0 = doc.pages[0];
       await pumpAtSize(

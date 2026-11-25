@@ -13,6 +13,7 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/painting.dart';
+import 'package:zywny_bloc/zywny_bloc.dart';
 
 import 'hit_test.dart';
 import 'model.dart';
@@ -28,7 +29,7 @@ class ScoreBand {
   final List<String> noteIds;
   final String? label;
 
-  /// A cor desta faixa; `null` usa a do controlador ([ScoreBandController.fill]).
+  /// A cor desta faixa; `null` usa a do cubit ([ScoreBandCubit.fill]).
   final ui.Color? fill;
 }
 
@@ -286,10 +287,24 @@ ui.Rect _groupRect(_BandGroup group, {required double? labelSize}) {
   return ui.Rect.fromLTRB(left - space, top, right + space, bottom);
 }
 
-/// Controlador das faixas da partitura e suas cores; o `ScorePageView`
-/// repinta quando [bands] muda.
-class ScoreBandController extends ChangeNotifier {
-  ScoreBandController({required this.fill, required this.labelColor});
+/// Estado das faixas: as [bands] e o `serial`, que sobe a cada troca. O `serial`
+/// existe porque a troca sempre avisou, mesmo com a mesma lista (regra 3 dos
+/// motores): o `emit` não pode ignorar essa renotificação.
+class ScoreBandState extends Equatable {
+  const ScoreBandState({required this.bands, required this.serial});
+
+  final List<ScoreBand> bands;
+  final int serial;
+
+  @override
+  List<Object?> get props => [serial, bands];
+}
+
+/// Cubit das faixas da partitura e suas cores; o `ScorePageView` repinta quando
+/// [bands] muda (pelo `BlocRepaint`, que lê o `state` ao pintar).
+class ScoreBandCubit extends Cubit<ScoreBandState> {
+  ScoreBandCubit({required this.fill, required this.labelColor})
+    : super(const ScoreBandState(bands: [], serial: 0));
 
   /// O fundo da faixa (com a opacidade que o app escolher).
   final ui.Color fill;
@@ -297,13 +312,13 @@ class ScoreBandController extends ChangeNotifier {
   /// A cor do aviso.
   final ui.Color labelColor;
 
-  List<ScoreBand> _bands = const [];
+  List<ScoreBand> get bands => state.bands;
 
-  List<ScoreBand> get bands => _bands;
-
+  /// Troca as faixas e avisa, mesmo com a mesma lista. Fechado o cubit, a troca
+  /// não tem efeito: não há quem pinte, e o `emit` lançaria.
   set bands(List<ScoreBand> value) {
-    _bands = value;
-    notifyListeners();
+    if (isClosed) return;
+    emit(ScoreBandState(bands: value, serial: state.serial + 1));
   }
 
   void clear() => bands = const [];

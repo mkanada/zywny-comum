@@ -1,5 +1,5 @@
 // T02: liga MidiInputService -> WaitModeSession (T01) -> cores do
-// ScoreController + freio do ScoreAudioScheduler (K04) + teclado desenhado
+// ScoreCubit + freio do ScoreAudioScheduler (K04) + teclado desenhado
 // (M01). Ao contrário de practice_session.dart (T01, Dart puro), esta
 // classe é Flutter-aware de propósito — é a cola entre hardware/UI e o
 // núcleo puro.
@@ -55,7 +55,7 @@ const kReplayMinHoldMs = 120.0;
 /// Modo espera (T02): o aluno escolhe [hand], o app agenda a outra no
 /// [scheduler] (freio incluso) e cada nota tocada no [midiInput] alimenta o
 /// [WaitModeSession] — que devolve as cores esperada/certa para o
-/// [ScoreController] (ver "três camadas" em [_paintStep]) e o pitch errado
+/// [ScoreCubit] (ver "três camadas" em [_paintStep]) e o pitch errado
 /// para a fantasma e o teclado desenhado.
 class PracticeController {
   PracticeController({
@@ -294,12 +294,12 @@ class PracticeController {
 
   final MidiInputService _midiInput;
   final ScoreAudioScheduler scheduler;
-  final ScoreController controller;
+  final ScoreCubit controller;
   final Hand hand;
 
   /// Nota fantasma (G05): cada tecla errada apertada vira uma cabeça de nota
   /// na pauta, na coluna do passo atual. `null` desliga.
-  final GhostController? ghosts;
+  final GhostCubit? ghosts;
 
   /// Latência de entrada+saída calibrada (T04), em ms: descontada do carimbo
   /// de cada tecla antes de chegar à sessão.
@@ -1909,7 +1909,7 @@ class PracticeController {
   // -------------------------------------------------------------------------
   //
   // Embaixo, a cor da partitura. No meio, a de "esperada" nas notas do passo
-  // pendente — cor fixa do `ScoreController` (`setColors`), que fica até o
+  // pendente — cor fixa do `ScoreCubit` (`setColors`), que fica até o
   // passo fechar. Em cima, a de "certa" enquanto a tecla está apertada —
   // destaque animado, que ao apagar volta à cor fixa, então soltar uma nota
   // antes de o acorde fechar a devolve a "esperada". A errada vai para a

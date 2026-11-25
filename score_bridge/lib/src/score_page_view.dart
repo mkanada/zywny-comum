@@ -2,8 +2,8 @@
 //
 // Camadas: os segmentos estáticos de A01a viram `ui.Picture` gravados uma vez
 // (ver `PageLayers`) e os dinâmicos são pintados ao vivo com as cores do
-// `ScoreController`. `RepaintBoundary` em volta do `CustomPaint`, e o
-// `repaint:` do painter ligado ao controller: uma mudança de cor repinta sem
+// `ScoreCubit`. `RepaintBoundary` em volta do `CustomPaint`, e o `repaint:` do
+// painter ligado ao cubit (por um `BlocRepaint`): uma mudança de cor repinta sem
 // `setState`, sem reconstruir widget e sem refazer layout.
 //
 // TAMANHO: o widget tem a proporção da página (`widthPx : heightPx`) e escala
@@ -11,18 +11,20 @@
 // unidades de viewBox, então redimensionar não recompila nada.
 library;
 
+import 'dart:async';
 import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
+import 'package:zywny_bloc/zywny_bloc.dart';
 
 import 'band.dart';
 import 'ghost_layer.dart';
 import 'hit_test.dart';
 import 'model.dart';
 import 'page_layers.dart';
-import 'score_controller.dart';
+import 'score_cubit.dart';
 import 'segmentation.dart';
 import 'stand_in_layer.dart';
 
@@ -53,12 +55,12 @@ class ScorePageView extends StatefulWidget {
   /// `null` (padrão) = página normal (`PageRef(pageIndex)`). Um índice de
   /// sequência mostra `PageRef(pageIndex, sequence: sequence)` — uma página
   /// alternativa (§2.5, P03b) — com os mesmos ids de nota/compasso das
-  /// páginas normais, então cor e destaque (`ScoreController`) acendem sem
+  /// páginas normais, então cor e destaque (`ScoreCubit`) acendem sem
   /// código novo.
   final int? sequence;
 
   /// Cor por id e destaques. Sem controller a página só mostra o repouso.
-  final ScoreController? controller;
+  final ScoreCubit? controller;
 
   /// Ids que podem mudar de cor sem recompilar a página. `null` é o padrão:
   /// os ids `on`/`off` do timemap do documento (vazio, se não há timemap).
@@ -109,16 +111,16 @@ class ScorePageView extends StatefulWidget {
 
   /// Fantasmas de teclas erradas (G05), pintadas por cima da página com o
   /// mesmo transform dela. `null` (padrão): nenhuma camada extra.
-  final GhostController? ghosts;
+  final GhostCubit? ghosts;
 
   /// Pausas substitutas das colunas escondidas (L03), pintadas por cima da
   /// página com o mesmo transform dela (e por baixo das fantasmas). `null`
   /// (padrão): nenhuma camada extra, custo zero.
-  final StandInController? standIns;
+  final StandInCubit? standIns;
 
   /// Faixas atrás das notas (LP03): o aluno em azul, com o aviso. `null` não
   /// desenha nenhuma.
-  final ScoreBandController? bands;
+  final ScoreBandCubit? bands;
 
   @override
   State<ScorePageView> createState() => ScorePageViewState();
@@ -138,6 +140,10 @@ class ScorePageViewState extends State<ScorePageView> {
   // `_collectPromotions`); zerado quando muda documento/página.
   final Set<String> _promoted = {};
 
+  // A assinatura dos avisos do cubit de cores (o `stream`, assíncrono: o aviso
+  // chega antes do próximo quadro, não na hora do `emit`).
+  StreamSubscription<ScoreState>? _colorSub;
+
   ScenePage get _page => widget.document.pageAt(
     PageRef(widget.pageIndex, sequence: widget.sequence),
   );
@@ -148,9 +154,16 @@ class ScorePageViewState extends State<ScorePageView> {
     widget.controller?.attachDocument(widget.document);
     widget.ghosts?.attachDocument(widget.document);
     widget.standIns?.attachDocument(widget.document);
-    widget.controller?.addListener(_onControllerChanged);
+    _listenColors();
     _collectPromotions();
     _rebuildLayers();
+  }
+
+  void _listenColors() {
+    _colorSub?.cancel();
+    _colorSub = widget.controller?.stream.listen(
+      (_) => _onControllerChanged(),
+    );
   }
 
   @override
@@ -158,8 +171,7 @@ class ScorePageViewState extends State<ScorePageView> {
     super.didUpdateWidget(oldWidget);
     final controller = widget.controller;
     if (oldWidget.controller != controller) {
-      oldWidget.controller?.removeListener(_onControllerChanged);
-      controller?.addListener(_onControllerChanged);
+      _listenColors();
     }
     controller?.attachDocument(widget.document);
     widget.ghosts?.attachDocument(widget.document);
@@ -181,7 +193,8 @@ class ScorePageViewState extends State<ScorePageView> {
 
   @override
   void dispose() {
-    widget.controller?.removeListener(_onControllerChanged);
+    _colorSub?.cancel();
+    _colorSub = null;
     _layers?.dispose();
     super.dispose();
   }
@@ -430,10 +443,14 @@ void _unifySystemHeights(Map<String, Rect> rects) {
   flush();
 }
 
-/// O que o `Listenable` do painter escuta: o controller de cores e o de
-/// faixas (os que existirem; `null` se nenhum).
-Listenable? _repaintOf(Listenable? a, Listenable? b) {
-  final list = [a, b].whereType<Listenable>().toList();
+/// O que o `Listenable` do painter escuta: um `BlocRepaint` do cubit de cores e
+/// um do de faixas (os que existirem; `null` se nenhum). O painter lê o mapa e as
+/// faixas ao pintar; o `BlocRepaint` só avisa que vale repintar.
+Listenable? _repaintOf(ScoreCubit? a, ScoreBandCubit? b) {
+  final list = <Listenable>[
+    if (a != null) BlocRepaint(a),
+    if (b != null) BlocRepaint(b),
+  ];
   if (list.isEmpty) return null;
   return list.length == 1 ? list.single : Listenable.merge(list);
 }
@@ -450,12 +467,12 @@ class _PagePainter extends CustomPainter {
   }) : super(repaint: _repaintOf(controller, bands));
 
   final PageLayers layers;
-  final ScoreController? controller;
+  final ScoreCubit? controller;
   final Color? backgroundColor;
   final double haloSigmaScale;
 
   /// As faixas atrás das notas (LP03); `null` não desenha nenhuma.
-  final ScoreBandController? bands;
+  final ScoreBandCubit? bands;
   final int pageIndex;
   final ScoreGeometry geometry;
 

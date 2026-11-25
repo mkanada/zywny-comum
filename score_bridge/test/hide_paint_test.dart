@@ -79,7 +79,7 @@ void main() {
 
   Future<(GlobalKey, ScorePageViewState)> mount(
     WidgetTester tester,
-    ScoreController controller, {
+    ScoreCubit controller, {
     void Function(String id)? onTap,
   }) async {
     final key = await pumpAtSize(
@@ -99,8 +99,8 @@ void main() {
   testWidgets('esconder uma nota fora de barra: nada dela fica (critério 2)', (
     tester,
   ) async {
-    final controller = ScoreController();
-    addTearDown(controller.dispose);
+    final controller = ScoreCubit();
+    addTearDown(controller.close);
     final (key, _) = await mount(tester, controller);
     final before = await captureBytes(tester, key, w, h);
 
@@ -112,7 +112,7 @@ void main() {
     expect(darkBefore, greaterThan(100), reason: 'a cabeça existe antes');
 
     controller.setHidden({'r10709ff'});
-    await tester.pump();
+    await pumpAvisos(tester);
     final after = await captureBytes(tester, key, w, h);
 
     // A cabeça sumiu (sobra no máximo a linha da pauta que a cruza).
@@ -134,8 +134,8 @@ void main() {
   });
 
   testWidgets('a letra da nota escondida continua (verse)', (tester) async {
-    final controller = ScoreController();
-    addTearDown(controller.dispose);
+    final controller = ScoreCubit();
+    addTearDown(controller.close);
     final (key, _) = await mount(tester, controller);
     final before = await captureBytes(tester, key, w, h);
 
@@ -144,7 +144,7 @@ void main() {
     expect(darkIn(before, w, verse), greaterThan(50));
 
     controller.setHidden({'qyrisol'});
-    await tester.pump();
+    await pumpAvisos(tester);
     final after = await captureBytes(tester, key, w, h);
     expect(diffIn(before, after, w, verse), 0, reason: 'a letra não muda');
     expect(countDifferentPixels(before, after), greaterThan(0));
@@ -153,8 +153,8 @@ void main() {
   testWidgets('acorde: haste e colchete saem com as duas notas (regra 1)', (
     tester,
   ) async {
-    final controller = ScoreController();
-    addTearDown(controller.dispose);
+    final controller = ScoreCubit();
+    addTearDown(controller.close);
     final (key, _) = await mount(tester, controller);
     final before = await captureBytes(tester, key, w, h);
 
@@ -174,27 +174,27 @@ void main() {
 
     // Só uma das duas notas: o acorde fica, a haste fica.
     controller.setHidden({'x1848jna'});
-    await tester.pump();
+    await pumpAvisos(tester);
     final half = await captureBytes(tester, key, w, h);
     expect(darkIn(half, w, stem), stemBefore);
 
     // As duas: o acorde some inteiro, com a haste.
     controller.setHidden({'x1848jna', 'z1oagi0k'});
-    await tester.pump();
+    await pumpAvisos(tester);
     final both = await captureBytes(tester, key, w, h);
     expect(darkIn(both, w, stem), lessThan(stemBefore ~/ 4));
 
     // Revelar uma: a haste volta.
     controller.reveal('x1848jna');
-    await tester.pump();
+    await pumpAvisos(tester);
     final back = await captureBytes(tester, key, w, h);
     expect(darkIn(back, w, stem), stemBefore);
   });
 
   testWidgets('barra de ligação: 1 de 2 fica, 2 de 2 some, revelar volta '
       '(critério 3)', (tester) async {
-    final controller = ScoreController();
-    addTearDown(controller.dispose);
+    final controller = ScoreCubit();
+    addTearDown(controller.close);
     final (key, _) = await mount(tester, controller);
     final index = HidePageIndex.of(doc, page);
     final beam = index.beams.firstWhere((b) => b.id == 'l1z05zi4');
@@ -227,27 +227,27 @@ void main() {
 
     // 1 de 2 (a primeira coluna): a barra fica.
     controller.setHidden({'m1ujlm1s', 'u1knnyxl', 'w1x5tsbc'});
-    await tester.pump();
+    await pumpAvisos(tester);
     final one = await captureBytes(tester, key, w, h);
     expect(darkIn(one, w, box), beamInk);
 
     // 2 de 2: a barra some.
     controller.setHidden({'m1ujlm1s', 'u1knnyxl', 'w1x5tsbc', 'nc27kmr'});
-    await tester.pump();
+    await pumpAvisos(tester);
     final two = await captureBytes(tester, key, w, h);
     expect(darkIn(two, w, box), lessThan(beamInk ~/ 3));
 
     // Revelar uma: a barra volta, igual ao estado de antes.
     controller.reveal('nc27kmr');
-    await tester.pump();
+    await pumpAvisos(tester);
     final back = await captureBytes(tester, key, w, h);
     expect(countDifferentPixels(one, back), 0);
   });
 
   testWidgets('linha suplementar: só o traço da coluna escondida some '
       '(critério 4)', (tester) async {
-    final controller = ScoreController();
-    addTearDown(controller.dispose);
+    final controller = ScoreCubit();
+    addTearDown(controller.close);
     final (key, _) = await mount(tester, controller);
     final index = HidePageIndex.of(doc, page);
     final hidden = {'qyrisol', 't1hslndl'};
@@ -276,7 +276,7 @@ void main() {
     expect(mineInk, greaterThan(10));
 
     controller.setHidden(hidden);
-    await tester.pump();
+    await pumpAvisos(tester);
     final after = await captureBytes(tester, key, w, h);
 
     // O dela sumiu (a cabeça escondida também estava em cima dele).
@@ -294,8 +294,8 @@ void main() {
   testWidgets('clearHidden devolve a página pixel a pixel (critério 5)', (
     tester,
   ) async {
-    final controller = ScoreController();
-    addTearDown(controller.dispose);
+    final controller = ScoreCubit();
+    addTearDown(controller.close);
     final (key, _) = await mount(tester, controller);
     final before = await captureBytes(tester, key, w, h);
 
@@ -305,12 +305,12 @@ void main() {
       'r10709ff', 'x1848jna', 'z1oagi0k', // acorde + traço
       'qyrisol', 't1hslndl',
     });
-    await tester.pump();
+    await pumpAvisos(tester);
     final hiddenImg = await captureBytes(tester, key, w, h);
     expect(countDifferentPixels(before, hiddenImg), greaterThan(0));
 
     controller.clearHidden();
-    await tester.pump();
+    await pumpAvisos(tester);
     final after = await captureBytes(tester, key, w, h);
     expect(countDifferentPixels(before, after), 0);
     expect(controller.hiddenIds, isEmpty);
@@ -319,8 +319,8 @@ void main() {
 
   testWidgets('50 notas escondidas e rereveladas uma a uma: as recompilações '
       'estão nas formas sem id (critério 6)', (tester) async {
-    final controller = ScoreController();
-    addTearDown(controller.dispose);
+    final controller = ScoreCubit();
+    addTearDown(controller.close);
     final (key, state) = await mount(tester, controller);
     await captureBytes(tester, key, w, h);
 
@@ -337,7 +337,7 @@ void main() {
     expect(b0, state.layers.segments.staticSegmentCount);
 
     controller.setHidden(ids.toSet());
-    await tester.pump();
+    await pumpAvisos(tester);
     await captureBytes(tester, key, w, h);
     final bHide = state.pictureBuilds;
     // Uma só geração nova, mesmo escondendo 50 notas, acordes, barras e traços.
@@ -352,7 +352,7 @@ void main() {
       final layers = state.layers;
       final builds = state.pictureBuilds;
       controller.reveal(id);
-      await tester.pump();
+      await pumpAvisos(tester);
       await captureBytes(tester, key, w, h);
       final next = controller.hiddenLeavesOf(page);
       final leavesChanged = next.length != current.length;
@@ -385,13 +385,13 @@ void main() {
 
   testWidgets('highlight em nota escondida não a mostra; depois de reveal, '
       'mostra (critério 7)', (tester) async {
-    final controller = ScoreController();
-    addTearDown(controller.dispose);
+    final controller = ScoreCubit();
+    addTearDown(controller.close);
     final (key, _) = await mount(tester, controller);
     final head = rectOfId(doc, 'r10709ff');
 
     controller.setHidden({'r10709ff'});
-    await tester.pump();
+    await pumpAvisos(tester);
     controller.highlight('r10709ff', hold: const Duration(seconds: 5));
     await tester.pump(const Duration(milliseconds: 50));
     expect(controller.haloColors, isEmpty, reason: 'sem halo');
@@ -399,7 +399,7 @@ void main() {
     expect(countRedPixels(hiddenShot, w, head), 0);
 
     controller.reveal('r10709ff');
-    await tester.pump();
+    await pumpAvisos(tester);
     controller.highlight('r10709ff', hold: const Duration(seconds: 5));
     await tester.pump(const Duration(milliseconds: 50));
     final shown = await captureBytes(tester, key, w, h);
@@ -410,8 +410,8 @@ void main() {
   testWidgets('nota escondida não responde a toque; revelada, responde', (
     tester,
   ) async {
-    final controller = ScoreController();
-    addTearDown(controller.dispose);
+    final controller = ScoreCubit();
+    addTearDown(controller.close);
     final tapped = <String>[];
     await mount(tester, controller, onTap: tapped.add);
     final head = rectOfId(doc, 'r10709ff');
@@ -419,15 +419,15 @@ void main() {
     final at = origin + ui.Offset(head.center.dx, head.bottom - 8);
 
     controller.setHidden({'r10709ff'});
-    await tester.pump();
+    await pumpAvisos(tester);
     await tester.tapAt(at);
-    await tester.pump();
+    await pumpAvisos(tester);
     expect(tapped, isEmpty);
 
     controller.reveal('r10709ff');
-    await tester.pump();
+    await pumpAvisos(tester);
     await tester.tapAt(at);
-    await tester.pump();
+    await pumpAvisos(tester);
     expect(tapped, ['r10709ff']);
   });
 }

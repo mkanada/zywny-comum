@@ -236,14 +236,14 @@ void main() {
     expect(scoreBandRects(page, 0, geometry, const []), isEmpty);
   });
 
-  test('o controlador avisa quem o escuta quando as faixas mudam', () {
-    final controller = ScoreBandController(
+  test('o cubit avisa quem o escuta quando as faixas mudam', () async {
+    final controller = ScoreBandCubit(
       fill: const ui.Color(0x331E6FD9),
       labelColor: const ui.Color(0xFF1E6FD9),
     );
-    addTearDown(controller.dispose);
+    addTearDown(controller.close);
     var calls = 0;
-    controller.addListener(() => calls++);
+    controller.stream.listen((_) => calls++);
     expect(controller.bands, isEmpty);
     controller.bands = [
       ScoreBand(const ['orw55dt'], label: _doros),
@@ -251,17 +251,18 @@ void main() {
     expect(controller.bands, hasLength(1));
     controller.clear();
     expect(controller.bands, isEmpty);
+    await pumpEventQueue();
     expect(calls, 2);
   });
 
   testWidgets('a faixa aparece na página e trocar as faixas repinta', (
     tester,
   ) async {
-    final controller = ScoreBandController(
+    final controller = ScoreBandCubit(
       fill: const ui.Color(0x801E6FD9),
       labelColor: const ui.Color(0xFF1E6FD9),
     );
-    addTearDown(controller.dispose);
+    addTearDown(controller.close);
     final p = doc.pages[0];
     final key = await pumpAtSize(
       tester,
@@ -274,6 +275,7 @@ void main() {
     controller.bands = [
       ScoreBand(const ['e11eog5', 'xej0b6o'], label: _doros),
     ];
+    await Future<void>.value(); // o aviso do stream chega numa microtarefa
     await tester.pump();
     expect(tester.takeException(), isNull);
     final com = await captureBytes(tester, key, p.widthPx, p.heightPx);

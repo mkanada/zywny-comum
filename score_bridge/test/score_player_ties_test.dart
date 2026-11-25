@@ -72,7 +72,7 @@ void main() {
     final at = Duration(milliseconds: second.tstamp.round() + 100);
 
     Set<String> litAt({required bool mergeTies}) {
-      final controller = ScoreController(document: doc);
+      final controller = ScoreCubit(document: doc);
       final player = ScorePlayer(
         document: doc,
         controller: controller,
@@ -84,7 +84,7 @@ void main() {
       } finally {
         controller.clearAll();
         player.dispose();
-        controller.dispose();
+        controller.close();
       }
     }
 
@@ -92,7 +92,7 @@ void main() {
     expect(litAt(mergeTies: true), chain.toSet());
 
     // Tocando desde a cabeça, a cadeia acende de uma vez.
-    final controller = ScoreController(document: doc);
+    final controller = ScoreCubit(document: doc);
     final player = ScorePlayer(
       document: doc,
       controller: controller,
@@ -104,7 +104,7 @@ void main() {
     } finally {
       controller.clearAll();
       player.dispose();
-      controller.dispose();
+      controller.close();
     }
   });
 }

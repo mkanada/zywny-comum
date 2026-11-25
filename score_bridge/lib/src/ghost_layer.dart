@@ -8,6 +8,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/rendering.dart' show CustomPainter;
 import 'package:flutter/scheduler.dart';
+import 'package:zywny_bloc/zywny_bloc.dart';
 
 import 'ghost.dart';
 import 'glyph_cache.dart';
@@ -53,7 +54,19 @@ class GhostRequest {
 class _OwnTickerProvider implements TickerProvider {
   @override
   Ticker createTicker(TickerCallback onTick) =>
-      Ticker(onTick, debugLabel: 'GhostController');
+      Ticker(onTick, debugLabel: 'GhostCubit');
+}
+
+/// Estado do [GhostCubit]: só o `serial`, que sobe a cada aviso. As fantasmas
+/// (e a revisão) estão no cubit; o pintor as lê ao pintar, com o relógio do
+/// instante (ver a nota de [GhostCubit.visible]).
+class GhostState extends Equatable {
+  const GhostState(this.serial);
+
+  final int serial;
+
+  @override
+  List<Object?> get props => [serial];
 }
 
 /// Dono das fantasmas visíveis. Uma por tecla errada apertada; o conjunto é
@@ -63,12 +76,16 @@ class _OwnTickerProvider implements TickerProvider {
 /// [fade] e [minVisible] são parâmetros do host (D-FANT-DURACAO); a
 /// fantasma nunca some antes de [minVisible] desde o note-on, mesmo que a
 /// tecla seja solta antes.
-class GhostController extends ChangeNotifier {
-  GhostController({
+///
+/// Estado (BL25): o `state` é o `serial`; as fantasmas ficam no cubit e o
+/// `visible` é lido ao pintar, porque a opacidade depende do relógio naquele
+/// instante. Copiar a lista a cada tique custaria à toa.
+class GhostCubit extends Cubit<GhostState> {
+  GhostCubit({
     this.color = kDefaultGhostColor,
     this.fade = const Duration(milliseconds: 150),
     this.minVisible = const Duration(milliseconds: 250),
-  });
+  }) : super(const GhostState(0));
 
   final ui.Color color;
   final Duration fade;
@@ -92,7 +109,7 @@ class GhostController extends ChangeNotifier {
     // Outra gravura: as colunas e páginas da revisão mudaram, refaz.
     if (_reviewRequests.isNotEmpty) {
       _computeReview();
-      notifyListeners();
+      _changed();
     }
   }
 
@@ -122,14 +139,14 @@ class GhostController extends ChangeNotifier {
         if (seen.add('${r.key}|${r.side}|${r.targetIds.join(',')}')) r,
     ];
     _computeReview();
-    notifyListeners();
+    _changed();
   }
 
   void clearReview() {
     if (_reviewRequests.isEmpty && _review.isEmpty) return;
     _reviewRequests = const [];
     _review = const [];
-    notifyListeners();
+    _changed();
   }
 
   void _computeReview() {
@@ -194,7 +211,7 @@ class GhostController extends ChangeNotifier {
     if (_entries.isEmpty) return;
     _entries.clear();
     _stopTicker();
-    notifyListeners();
+    _changed();
   }
 
   void _recompute() {
@@ -250,7 +267,7 @@ class GhostController extends ChangeNotifier {
         _entries.remove(key);
       }
     }
-    notifyListeners();
+    _changed();
   }
 
   void _ensureTicker() {
@@ -282,14 +299,21 @@ class GhostController extends ChangeNotifier {
       return false;
     });
     if (!fading) _stopTicker();
-    notifyListeners();
+    _changed();
+  }
+
+  /// Um aviso: o `serial` seguinte sai pelo `stream` (o `BlocRepaint` do pintor
+  /// ouve). Depois do [close] não há aviso (o `emit` lançaria).
+  void _changed() {
+    if (isClosed) return;
+    emit(GhostState(state.serial + 1));
   }
 
   @override
-  void dispose() {
+  Future<void> close() {
     _ticker?.dispose();
     _ticker = null;
-    super.dispose();
+    return super.close();
   }
 }
 
@@ -302,9 +326,9 @@ class GhostPainter extends CustomPainter {
     required this.pageRef,
     required this.glyphCache,
     required this.applyPageTransform,
-  }) : super(repaint: controller);
+  }) : super(repaint: BlocRepaint(controller));
 
-  final GhostController controller;
+  final GhostCubit controller;
   final ScenePage page;
   final PageRef pageRef;
   final GlyphCache glyphCache;

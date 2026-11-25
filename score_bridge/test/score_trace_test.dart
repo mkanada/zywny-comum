@@ -38,7 +38,7 @@ void main() {
     final lines = <String>[];
     ScoreTrace.sink = (tag, message) => lines.add('[$tag] $message');
     final doc = twoPages();
-    final controller = ScoreController(document: doc);
+    final controller = ScoreCubit(document: doc);
     final vc = ScoreViewController();
     final clock = ManualClock();
     final player = ScorePlayer(
@@ -50,7 +50,7 @@ void main() {
     addTearDown(() {
       controller.clearAll();
       player.dispose();
-      controller.dispose();
+      controller.close();
     });
     final p0 = doc.pages[0];
     await pumpAtSize(

@@ -60,7 +60,7 @@ void main() {
     tester,
   ) async {
     final doc = _fixture('maple-leaf-rag.vsb');
-    final controller = ScoreController(document: doc);
+    final controller = ScoreCubit(document: doc);
     final curtain = ValueNotifier<SweepCurtain?>(null);
     final midX = sweepEndX(doc.pages[0], defaultBarWidth(doc)) / 2;
 
@@ -108,7 +108,7 @@ void main() {
     } finally {
       await tester.pumpWidget(const SizedBox());
       controller.clearAll();
-      controller.dispose();
+      controller.close();
       curtain.dispose();
     }
   });

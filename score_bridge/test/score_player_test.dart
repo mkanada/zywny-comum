@@ -37,7 +37,7 @@ class _Ids implements SceneVisitor {
 
 /// As notas que o timemap diz estarem ativas em [ms], resolvidas ao id da
 /// cena (E02a: um `-rend2` de repetição vira a base, do mesmo jeito que
-/// `ScoreController` resolve antes de acender).
+/// `ScoreCubit` resolve antes de acender).
 Set<String> activeAt(VsbDocument doc, double ms) {
   final active = <String>{};
   for (final e in doc.timemap!) {
@@ -97,7 +97,7 @@ void main() {
 
   ScorePlayer makePlayer(
     VsbDocument doc,
-    ScoreController controller, {
+    ScoreCubit controller, {
     ScoreViewController? view,
     void Function(TimemapEntry)? onEntry,
   }) => ScorePlayer(
@@ -113,12 +113,12 @@ void main() {
       testPlayer(name, (tester, cleanup) async {
         final doc = corpusDoc(name)!;
         final known = knownIds(doc);
-        final controller = ScoreController(document: doc);
+        final controller = ScoreCubit(document: doc);
         final player = makePlayer(doc, controller);
         cleanup.add(() {
           controller.clearAll();
           player.dispose();
-          controller.dispose();
+          controller.close();
         });
         final rng = math.Random(5);
         // 20 instantes sorteados, por seek.
@@ -154,12 +154,12 @@ void main() {
       'critério 3)', (tester, cleanup) async {
     final doc = corpusDoc('Gymnopedie')!;
     final known = knownIds(doc);
-    final controller = ScoreController(document: doc);
+    final controller = ScoreCubit(document: doc);
     final player = makePlayer(doc, controller);
     cleanup.add(() {
       controller.clearAll();
       player.dispose();
-      controller.dispose();
+      controller.close();
     });
     final rng = math.Random(7);
     for (var i = 0; i < 20; i++) {
@@ -181,7 +181,7 @@ void main() {
     (tester, cleanup) async {
       final bytes = File('test/fixtures/r13-um-compasso.vsb').readAsBytesSync();
       final doc = VsbDocument.fromBytes(bytes);
-      final controller = ScoreController(document: doc);
+      final controller = ScoreCubit(document: doc);
       final player = ScorePlayer(
         document: doc,
         controller: controller,
@@ -190,7 +190,7 @@ void main() {
       cleanup.add(() {
         controller.clearAll();
         player.dispose();
-        controller.dispose();
+        controller.close();
       });
       // Timemap: on m1n1 em 0, off m1n1 + on m1n1-rend2 em 2000 (o mesmo
       // instante: a nota repetida), off m1n1-rend2 + on m2n1 em 4000.
@@ -216,12 +216,12 @@ void main() {
   ) async {
     final doc = corpusDoc('Nocturne')!;
     expect(doc.pages.length, greaterThanOrEqualTo(3));
-    final controller = ScoreController(document: doc);
+    final controller = ScoreCubit(document: doc);
     final player = ScorePlayer(document: doc, controller: controller);
     cleanup.add(() {
       controller.clearAll();
       player.dispose();
-      controller.dispose();
+      controller.close();
     });
     player.play();
     player.speed = 50;
@@ -243,12 +243,12 @@ void main() {
     cleanup,
   ) async {
     final doc = corpusDoc('Scarlatti')!;
-    final controller = ScoreController(document: doc);
+    final controller = ScoreCubit(document: doc);
     final player = makePlayer(doc, controller);
     cleanup.add(() {
       controller.clearAll();
       player.dispose();
-      controller.dispose();
+      controller.close();
     });
     player.seek(const Duration(seconds: 30));
     final lit = controller.highlightedIds.toSet();
@@ -279,7 +279,7 @@ void main() {
     final doc = corpusDoc('Scarlatti')!;
     Set<String> run(double speed, int stepMs) {
       final seen = <String>{};
-      final controller = ScoreController(document: doc);
+      final controller = ScoreCubit(document: doc);
       final player = ScorePlayer(
         document: doc,
         controller: controller,
@@ -290,7 +290,7 @@ void main() {
       cleanup.add(() {
         controller.clearAll();
         player.dispose();
-        controller.dispose();
+        controller.close();
       });
       return seen;
     }
@@ -299,8 +299,8 @@ void main() {
     // conjuntos de notas acendidas.
     final seen1 = <String>{};
     final seen4 = <String>{};
-    final c1 = ScoreController(document: doc);
-    final c4 = ScoreController(document: doc);
+    final c1 = ScoreCubit(document: doc);
+    final c4 = ScoreCubit(document: doc);
     final p1 = ScorePlayer(
       document: doc,
       controller: c1,
@@ -318,8 +318,8 @@ void main() {
       c4.clearAll();
       p1.dispose();
       p4.dispose();
-      c1.dispose();
-      c4.dispose();
+      c1.close();
+      c4.close();
     });
     p1.play();
     p4.play();
@@ -337,12 +337,12 @@ void main() {
   testPlayer('pause/play não movem a posição nem reiniciam fades '
       '(critério 5)', (tester, cleanup) async {
     final doc = corpusDoc('Scarlatti')!;
-    final controller = ScoreController(document: doc);
+    final controller = ScoreCubit(document: doc);
     final player = ScorePlayer(document: doc, controller: controller);
     cleanup.add(() {
       controller.clearAll();
       player.dispose();
-      controller.dispose();
+      controller.close();
     });
     player.play();
     await tester.pump();
@@ -381,12 +381,12 @@ void main() {
       greaterThanOrEqualTo(100),
       reason: 'a Gymnopédie tem ~180 ids ausentes',
     );
-    final controller = ScoreController(document: doc);
+    final controller = ScoreCubit(document: doc);
     final player = ScorePlayer(document: doc, controller: controller);
     cleanup.add(() {
       controller.clearAll();
       player.dispose();
-      controller.dispose();
+      controller.close();
     });
     player.speed = 30;
     player.play();
@@ -407,7 +407,7 @@ void main() {
     ) async {
       final doc = corpusDoc('Scarlatti')!;
       expect(doc.pages.length, greaterThanOrEqualTo(3));
-      final controller = ScoreController(document: doc);
+      final controller = ScoreCubit(document: doc);
       final vc = ScoreViewController();
       final player = ScorePlayer(
         document: doc,
@@ -417,7 +417,7 @@ void main() {
       cleanup.add(() {
         controller.clearAll();
         player.dispose();
-        controller.dispose();
+        controller.close();
       });
       final p0 = doc.pages[0];
       final key = await pumpAtSize(
@@ -466,7 +466,7 @@ void main() {
     testPlayer('seek: dentro do último compasso, na página seguinte e antes '
         'da virada (critério 5)', (tester, cleanup) async {
       final doc = corpusDoc('Nocturne')!;
-      final controller = ScoreController(document: doc);
+      final controller = ScoreCubit(document: doc);
       final vc = ScoreViewController();
       final player = ScorePlayer(
         document: doc,
@@ -477,7 +477,7 @@ void main() {
       cleanup.add(() {
         controller.clearAll();
         player.dispose();
-        controller.dispose();
+        controller.close();
       });
       final p0 = doc.pages[0];
       await pumpAtSize(
@@ -531,7 +531,7 @@ void main() {
       cleanup,
     ) async {
       final doc = corpusDoc('Nocturne')!;
-      final controller = ScoreController(document: doc);
+      final controller = ScoreCubit(document: doc);
       final vc = ScoreViewController();
       final player = ScorePlayer(
         document: doc,
@@ -542,7 +542,7 @@ void main() {
       cleanup.add(() {
         controller.clearAll();
         player.dispose();
-        controller.dispose();
+        controller.close();
       });
       final p0 = doc.pages[0];
       final key = await pumpAtSize(
@@ -595,7 +595,7 @@ void main() {
     testPlayer('modo contínuo: sem haste, a rolagem acompanha o compasso '
         '(critério 8)', (tester, cleanup) async {
       final doc = corpusDoc('Nocturne')!;
-      final controller = ScoreController(document: doc);
+      final controller = ScoreCubit(document: doc);
       final vc = ScoreViewController();
       final player = ScorePlayer(
         document: doc,
@@ -606,7 +606,7 @@ void main() {
       cleanup.add(() {
         controller.clearAll();
         player.dispose();
-        controller.dispose();
+        controller.close();
       });
       final p0 = doc.pages[0];
       tester.view.physicalSize = ui.Size(
@@ -687,7 +687,7 @@ void main() {
           (20000, [], ['c1']),
         ],
       );
-      final controller = ScoreController(document: doc);
+      final controller = ScoreCubit(document: doc);
       final player = ScorePlayer(
         document: doc,
         controller: controller,
@@ -697,7 +697,7 @@ void main() {
       cleanup.add(() {
         controller.clearAll();
         player.dispose();
-        controller.dispose();
+        controller.close();
       });
       final edges = <double>[];
       player.curtain.addListener(() {
@@ -736,7 +736,7 @@ void main() {
         }
 
         final seenAdvance = <String>{};
-        final controllerA = ScoreController(document: doc);
+        final controllerA = ScoreCubit(document: doc);
         final playerA = ScorePlayer(
           document: doc,
           controller: controllerA,
@@ -748,7 +748,7 @@ void main() {
         }
 
         final seenClock = <String>{};
-        final controllerC = ScoreController(document: doc);
+        final controllerC = ScoreCubit(document: doc);
         final clock = ManualClock();
         final playerC = ScorePlayer(
           document: doc,
@@ -767,8 +767,8 @@ void main() {
           controllerC.clearAll();
           playerA.dispose();
           playerC.dispose();
-          controllerA.dispose();
-          controllerC.dispose();
+          controllerA.close();
+          controllerC.close();
         });
 
         expect(seenClock, seenAdvance);
@@ -780,7 +780,7 @@ void main() {
       'exceção — modo espera (critério 3)',
       (tester, cleanup) async {
         final doc = corpusDoc('Scarlatti')!;
-        final controller = ScoreController(document: doc);
+        final controller = ScoreCubit(document: doc);
         final clock = ManualClock()..positionMs = 30000;
         final player = ScorePlayer(
           document: doc,
@@ -790,7 +790,7 @@ void main() {
         cleanup.add(() {
           controller.clearAll();
           player.dispose();
-          controller.dispose();
+          controller.close();
         });
         player.seek(Duration(milliseconds: clock.positionMs.round()));
         final lit = controller.highlightedIds.toSet();
@@ -808,7 +808,7 @@ void main() {
     testPlayer('ManualClock: recuo de 5 s refaz como `seek`; recuo de 10 ms é '
         'ignorado (critério 4)', (tester, cleanup) async {
       final doc = corpusDoc('Scarlatti')!;
-      final controller = ScoreController(document: doc);
+      final controller = ScoreCubit(document: doc);
       final clock = ManualClock()..positionMs = 30000;
       final player = ScorePlayer(
         document: doc,
@@ -818,7 +818,7 @@ void main() {
       cleanup.add(() {
         controller.clearAll();
         player.dispose();
-        controller.dispose();
+        controller.close();
       });
       player.play();
       await tester.pump(const Duration(milliseconds: 16));
@@ -836,7 +836,7 @@ void main() {
       expect(player.position, const Duration(milliseconds: 25000));
       final viaClock = controller.highlightedIds.toSet();
 
-      final controller2 = ScoreController(document: doc);
+      final controller2 = ScoreCubit(document: doc);
       final player2 = ScorePlayer(
         document: doc,
         controller: controller2,
@@ -845,7 +845,7 @@ void main() {
       cleanup.add(() {
         controller2.clearAll();
         player2.dispose();
-        controller2.dispose();
+        controller2.close();
       });
       player2.seek(const Duration(milliseconds: 25000));
       expect(viaClock, controller2.highlightedIds.toSet());

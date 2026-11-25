@@ -1,8 +1,10 @@
-// `ScoreController` (A01c cor instantânea, A02b destaques): renderiza de
-// verdade e compara pixels contra o repouso.
+// `ScoreCubit` (A01c cor instantânea, A02b destaques): renderiza de
+// verdade e compara pixels contra o repouso. As transições (quando o cubit
+// avisa e quando não) estão no grupo `blocTest` no fim.
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
+import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:score_bridge/score_bridge.dart';
@@ -73,7 +75,7 @@ void main() {
   Future<ScorePageViewState> mount(
     WidgetTester tester,
     VsbDocument d,
-    ScoreController? controller, {
+    ScoreCubit? controller, {
     Set<String>? animatableIds,
   }) async {
     final p = d.pages[0];
@@ -107,14 +109,14 @@ void main() {
     testWidgets('setColor recolore toda a subárvore da nota e só ela', (
       tester,
     ) async {
-      final controller = ScoreController();
-      addTearDown(controller.dispose);
+      final controller = ScoreCubit();
+      addTearDown(controller.close);
       await mount(tester, doc, controller);
       final rest = await shot(tester, doc);
 
       final node = notesWithStem(doc, 0).first;
       controller.setColor(node.id!, _red);
-      await tester.pump();
+      await pumpAvisos(tester);
       final painted = await shot(tester, doc);
 
       final bounds = _diffBounds(rest, painted, page.widthPx)!;
@@ -146,12 +148,12 @@ void main() {
       tester,
     ) async {
       // Repouso sem cor.
-      final controller = ScoreController();
-      addTearDown(controller.dispose);
+      final controller = ScoreCubit();
+      addTearDown(controller.close);
       await mount(tester, doc, controller);
       final rest = await shot(tester, doc);
       controller.setColors({for (final id in noteIds.take(10)) id: _red});
-      await tester.pump();
+      await pumpAvisos(tester);
       expect(
         countDifferentPixels(rest, await shot(tester, doc)),
         greaterThan(0),
@@ -159,69 +161,72 @@ void main() {
       for (final id in noteIds.take(10)) {
         controller.clearColor(id);
       }
-      await tester.pump();
+      await pumpAvisos(tester);
       expect(countDifferentPixels(rest, await shot(tester, doc)), 0);
 
       // Repouso com uma nota azul vinda do documento (`@color`).
       final blueId = noteIds[3];
       final blueDoc = loadSatieWithColors({blueId: '#0000ff'});
-      final c2 = ScoreController();
-      addTearDown(c2.dispose);
+      final c2 = ScoreCubit();
+      addTearDown(c2.close);
       await tester.pumpWidget(const SizedBox());
       await mount(tester, blueDoc, c2);
       final blueRest = await shot(tester, blueDoc);
       expect(countDifferentPixels(rest, blueRest), greaterThan(0));
       c2.setColor(blueId, _red);
-      await tester.pump();
+      await pumpAvisos(tester);
       expect(
         countDifferentPixels(blueRest, await shot(tester, blueDoc)),
         greaterThan(0),
       );
       c2.clearColor(blueId);
-      await tester.pump();
+      await pumpAvisos(tester);
       // Voltou ao AZUL, não ao preto.
       expect(countDifferentPixels(blueRest, await shot(tester, blueDoc)), 0);
     });
 
-    test('setColors com 64 ids notifica uma vez só', () {
-      final controller = ScoreController(document: doc);
+    test('setColors com 64 ids notifica uma vez só', () async {
+      final controller = ScoreCubit(document: doc);
       var notifications = 0;
-      controller.addListener(() => notifications++);
+      controller.stream.listen((_) => notifications++);
       final ids = animatableIdsFromTimemap(doc.timemap)
           .where(page.byId.containsKey)
           .take(64)
           .toList();
       expect(ids, hasLength(64));
       controller.setColors({for (final id in ids) id: _red});
+      await pumpEventQueue();
       expect(notifications, 1);
       controller.setColors({for (final id in ids) id: _red}); // nada mudou
+      await pumpEventQueue();
       expect(notifications, 1);
       controller.clearAll();
+      await pumpEventQueue();
       expect(notifications, 2);
-      controller.dispose();
+      controller.close();
     });
 
     testWidgets('nenhuma operação de cor recompila Picture', (tester) async {
-      final controller = ScoreController();
-      addTearDown(controller.dispose);
+      final controller = ScoreCubit();
+      addTearDown(controller.close);
       final state = await mount(tester, doc, controller);
       final builds = state.pictureBuilds;
       controller.setColors({for (final id in noteIds.take(64)) id: _red});
-      await tester.pump();
+      await pumpAvisos(tester);
       await shot(tester, doc);
       controller.setColor(noteIds[0], const Color(0xFF00FF00));
       controller.clearColor(noteIds[1]);
-      await tester.pump();
+      await pumpAvisos(tester);
       controller.clearAll();
-      await tester.pump();
+      await pumpAvisos(tester);
       expect(state.pictureBuilds, builds);
     });
 
     testWidgets('id não-animável é promovido a dinâmico (recompila uma vez)', (
       tester,
     ) async {
-      final controller = ScoreController();
-      addTearDown(controller.dispose);
+      final controller = ScoreCubit();
+      addTearDown(controller.close);
       // Nenhum id animável: a página inteira é um só Picture estático.
       final state = await mount(tester, doc, controller, animatableIds: {});
       expect(state.layers.segments, hasLength(1));
@@ -230,40 +235,41 @@ void main() {
       expect(builds, 1);
 
       controller.setColor(noteIds.first, _red);
-      await tester.pump();
+      await pumpAvisos(tester);
       final painted = await shot(tester, doc);
       expect(countDifferentPixels(rest, painted), greaterThan(0));
       expect(state.pictureBuilds, greaterThan(builds));
       final afterPromotion = state.pictureBuilds;
       // Trocar de novo a cor do mesmo id já não recompila.
       controller.setColor(noteIds.first, const Color(0xFF00FF00));
-      await tester.pump();
+      await pumpAvisos(tester);
       await shot(tester, doc);
       expect(state.pictureBuilds, afterPromotion);
       // O Picture antigo foi descartado.
       expect(state.pictureStats.live, state.layers.compiledCount);
       // E voltar ao repouso continua exato.
       controller.clearAll();
-      await tester.pump();
+      await pumpAvisos(tester);
       expect(countDifferentPixels(rest, await shot(tester, doc)), 0);
     });
 
     testWidgets('id que não existe na página/documento é ignorado', (
       tester,
     ) async {
-      final controller = ScoreController();
-      addTearDown(controller.dispose);
+      final controller = ScoreCubit();
+      addTearDown(controller.close);
       final state = await mount(tester, doc, controller);
       final rest = await shot(tester, doc);
       final builds = state.pictureBuilds;
       var notifications = 0;
-      controller.addListener(() => notifications++);
+      controller.stream.listen((_) => notifications++);
       controller.setColor('nao-existe-rend2', _red);
       controller.highlight('nao-existe-rend2');
+      await pumpAvisos(tester);
       expect(notifications, 0);
       expect(controller.colorOf('nao-existe-rend2'), isNull);
       expect(controller.tickerActive, isFalse);
-      await tester.pump();
+      await pumpAvisos(tester);
       expect(countDifferentPixels(rest, await shot(tester, doc)), 0);
       expect(state.pictureBuilds, builds);
     });
@@ -273,8 +279,8 @@ void main() {
     testWidgets(
       'highlightAll com 50 ids: uma notificação; -rend2 resolve à base (E02a)',
       (tester) async {
-        final controller = ScoreController();
-        addTearDown(controller.dispose);
+        final controller = ScoreCubit();
+        addTearDown(controller.close);
         await mount(tester, doc, controller);
         final real = noteIds.take(50).toList();
         expect(real, hasLength(50));
@@ -284,8 +290,9 @@ void main() {
         // real, então eles não acrescentam nada a `highlightedCount`.
         final rend2 = [for (final id in real.take(20)) '$id-rend2'];
         var notifications = 0;
-        controller.addListener(() => notifications++);
+        controller.stream.listen((_) => notifications++);
         controller.highlightAll([...real, ...rend2]);
+        await pumpAvisos(tester);
         expect(notifications, 1);
         expect(controller.highlightedCount, 50);
         for (final id in real) {
@@ -305,8 +312,8 @@ void main() {
     );
 
     testWidgets('o Ticker roda só com animação ativa', (tester) async {
-      final controller = ScoreController();
-      addTearDown(controller.dispose);
+      final controller = ScoreCubit();
+      addTearDown(controller.close);
       await mount(tester, doc, controller);
       expect(controller.tickerActive, isFalse);
       controller.highlight(
@@ -314,7 +321,7 @@ void main() {
         release: const Duration(milliseconds: 300),
       );
       expect(controller.tickerActive, isTrue);
-      await tester.pump(); // primeiro frame: relógio em 0
+      await pumpAvisos(tester); // primeiro frame: relógio em 0
       await tester.pump(const Duration(milliseconds: 100));
       expect(controller.tickerActive, isTrue);
       await tester.pump(const Duration(milliseconds: 250));
@@ -330,8 +337,8 @@ void main() {
     testWidgets('acender uma nota no meio do release a reinicia e só ela', (
       tester,
     ) async {
-      final controller = ScoreController();
-      addTearDown(controller.dispose);
+      final controller = ScoreCubit();
+      addTearDown(controller.close);
       await mount(tester, doc, controller);
       final ids = noteIds.take(50).toList();
       controller.highlightAll(
@@ -340,7 +347,7 @@ void main() {
         hold: const Duration(milliseconds: 100),
         release: const Duration(milliseconds: 400),
       );
-      await tester.pump();
+      await pumpAvisos(tester);
       // Escalona: cada nota entra num instante diferente do relógio.
       for (var i = 0; i < 10; i++) {
         await tester.pump(const Duration(milliseconds: 40));
@@ -372,8 +379,8 @@ void main() {
     testWidgets(
       'clearAll no meio de 50 fades: página byte-idêntica ao repouso',
       (tester) async {
-        final controller = ScoreController();
-        addTearDown(controller.dispose);
+        final controller = ScoreCubit();
+        addTearDown(controller.close);
         await mount(tester, doc, controller);
         final rest = await shot(tester, doc);
         controller.setColor(noteIds[60], const Color(0xFF0000FF));
@@ -382,7 +389,7 @@ void main() {
           attack: const Duration(milliseconds: 100),
           release: const Duration(milliseconds: 500),
         );
-        await tester.pump();
+        await pumpAvisos(tester);
         await tester.pump(const Duration(milliseconds: 60));
         await tester.pump(const Duration(milliseconds: 90));
         expect(
@@ -390,7 +397,7 @@ void main() {
           greaterThan(0),
         );
         controller.clearAll();
-        await tester.pump();
+        await pumpAvisos(tester);
         expect(controller.tickerActive, isFalse);
         expect(countDifferentPixels(rest, await shot(tester, doc)), 0);
       },
@@ -401,15 +408,15 @@ void main() {
     ) async {
       final blueId = noteIds[5];
       final blueDoc = loadSatieWithColors({blueId: '#0000ff'});
-      final controller = ScoreController();
-      addTearDown(controller.dispose);
+      final controller = ScoreCubit();
+      addTearDown(controller.close);
       await mount(tester, blueDoc, controller);
       final rest = await shot(tester, blueDoc);
       controller.highlightAll([
         ...noteIds.take(20),
         blueId,
       ], hold: const Duration(seconds: 10));
-      await tester.pump();
+      await pumpAvisos(tester);
       await tester.pump(const Duration(milliseconds: 50));
       // A nota azul foi de azul (`@color`) para vermelho.
       expect(controller.colorOf(blueId), kDefaultHighlightColor);
@@ -427,8 +434,8 @@ void main() {
     testWidgets('setColor vira a cor de repouso; a animação a sobrepõe', (
       tester,
     ) async {
-      final controller = ScoreController();
-      addTearDown(controller.dispose);
+      final controller = ScoreCubit();
+      addTearDown(controller.close);
       await mount(tester, doc, controller);
       const green = Color(0xFF00AA00);
       final id = noteIds[0];
@@ -441,7 +448,7 @@ void main() {
         release: const Duration(milliseconds: 100),
         curve: Curves.linear,
       );
-      await tester.pump();
+      await pumpAvisos(tester);
       await tester.pump(const Duration(milliseconds: 50)); // meio do attack
       final mid = controller.colorOf(id)!;
       expect(
@@ -464,14 +471,14 @@ void main() {
     testWidgets('clearColor durante o destaque faz o release ir à original', (
       tester,
     ) async {
-      final controller = ScoreController();
-      addTearDown(controller.dispose);
+      final controller = ScoreCubit();
+      addTearDown(controller.close);
       await mount(tester, doc, controller);
       final id = noteIds[0];
       controller.setColor(id, const Color(0xFF00AA00));
       controller.highlight(id, hold: const Duration(milliseconds: 100));
       controller.clearColor(id);
-      await tester.pump();
+      await pumpAvisos(tester);
       await tester.pump(const Duration(milliseconds: 500));
       expect(controller.colorOf(id), isNull);
       expect(controller.colors, isEmpty);
@@ -480,8 +487,8 @@ void main() {
     testWidgets('sem Picture recompilado durante uma sequência de destaques', (
       tester,
     ) async {
-      final controller = ScoreController();
-      addTearDown(controller.dispose);
+      final controller = ScoreCubit();
+      addTearDown(controller.close);
       final state = await mount(tester, doc, controller);
       final builds = state.pictureBuilds;
       controller.highlightAll(
@@ -489,12 +496,62 @@ void main() {
         attack: const Duration(milliseconds: 50),
         release: const Duration(milliseconds: 200),
       );
-      await tester.pump();
+      await pumpAvisos(tester);
       for (var i = 0; i < 20; i++) {
         await tester.pump(const Duration(milliseconds: 16));
         await shot(tester, doc);
       }
       expect(state.pictureBuilds, builds);
+    });
+  });
+
+  group('transições do cubit (sem pintura)', () {
+    const red = ui.Color(0xFFFF0000);
+
+    blocTest<ScoreCubit, ScoreState>(
+      'uma cor nova avisa uma vez; a mesma cor de novo não avisa',
+      build: ScoreCubit.new,
+      act: (c) {
+        c.setColor('nota-1', red);
+        c.setColor('nota-1', red);
+      },
+      expect: () => [isA<ScoreState>().having((s) => s.serial, 'serial', 1)],
+    );
+
+    blocTest<ScoreCubit, ScoreState>(
+      'setColors com vários ids avisa uma vez só',
+      build: ScoreCubit.new,
+      act: (c) => c.setColors({'a': red, 'b': red, 'c': red}),
+      expect: () => [isA<ScoreState>().having((s) => s.serial, 'serial', 1)],
+    );
+
+    blocTest<ScoreCubit, ScoreState>(
+      'limpar o que não tem cor não avisa',
+      build: ScoreCubit.new,
+      act: (c) {
+        c.clearColor('nota-1');
+        c.clearAll();
+      },
+      expect: () => const <ScoreState>[],
+    );
+
+    blocTest<ScoreCubit, ScoreState>(
+      'esconder uma nota avisa; esconder de novo a mesma não avisa',
+      build: ScoreCubit.new,
+      act: (c) {
+        c.setHidden({'nota-1'});
+        c.setHidden({'nota-1'});
+      },
+      expect: () => [isA<ScoreState>().having((s) => s.serial, 'serial', 1)],
+      verify: (c) => expect(c.isHidden('nota-1'), isTrue),
+    );
+
+    test('depois do close, pintar uma cor não avisa nem lança', () async {
+      final c = ScoreCubit();
+      await c.close();
+      c.setColor('nota-1', red);
+      expect(c.colorOf('nota-1'), red, reason: 'a cor muda; só o aviso não sai');
+      expect(c.state.serial, 0);
     });
   });
 }

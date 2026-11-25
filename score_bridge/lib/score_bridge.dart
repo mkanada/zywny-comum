@@ -19,7 +19,7 @@ export 'src/scene_walk.dart' show SceneVisitor, walkScene;
 export 'src/highlight_engine.dart';
 export 'src/hit_test.dart';
 export 'src/page_layers.dart' show PageLayers, PictureStats;
-export 'src/score_controller.dart';
+export 'src/score_cubit.dart';
 export 'src/score_cursor.dart';
 export 'src/score_page_view.dart';
 export 'src/score_player.dart';

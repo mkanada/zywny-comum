@@ -1,11 +1,18 @@
-// `ScoreController`: cor por `xml:id` em runtime (A01c) e destaques animados
+// `ScoreCubit`: cor por `xml:id` em runtime (A01c) e destaques animados
 // (A02b).
 //
-// O controller é um `Listenable` que o `ScorePageView` liga ao `repaint:` do
-// `CustomPainter`: mudar uma cor repinta sem `setState` e sem reconstruir
-// nenhum widget. **Toda operação pública notifica no máximo uma vez** (e nada
-// quando nada mudou), e o `Ticker` dos destaques notifica uma vez por frame,
-// não uma por nota.
+// O cubit avisa pelo `stream` (o `state` é só o `serial`): o `ScorePageView` liga
+// um `BlocRepaint(cubit)` ao `repaint:` do `CustomPainter`, e mudar uma cor
+// repinta sem `setState` e sem reconstruir nenhum widget. **Toda operação
+// pública avisa no máximo uma vez** (e nada quando nada mudou), e o `Ticker` dos
+// destaques avisa uma vez por frame, não uma por nota.
+//
+// ESTADO E CUSTO (BL25): o `state` não guarda o mapa de cores. O mapa (e o halo)
+// é o interno deste cubit, exposto como visão não modificável, e o pintor o lê
+// ao pintar; o `state` só sobe o `serial` a cada aviso. Copiar o mapa a cada aviso
+// custaria (medido no Dart VM, por cópia: 43 µs com 300 entradas, 97 µs com 1000,
+// 341 µs com 3000), e o highlight avisa a cada quadro. A visão é a mesma a vida
+// toda, como antes do BLoC.
 //
 // MODELO DE COR de um id, em ordem de precedência:
 //   1. a cor da animação, enquanto há um destaque ativo no id;
@@ -51,6 +58,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/animation.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/scheduler.dart';
+import 'package:zywny_bloc/zywny_bloc.dart';
 
 import 'hide.dart';
 import 'highlight_engine.dart';
@@ -58,7 +66,7 @@ import 'model.dart';
 import 'scene_painter.dart' show kPageInitialColor;
 import 'scene_walk.dart';
 
-/// Cor de destaque padrão de [ScoreController.highlight].
+/// Cor de destaque padrão de [ScoreCubit.highlight].
 const kDefaultHighlightColor = ui.Color(0xFFD32F2F);
 
 /// A cor com que uma nota escondida é pintada (§11, regra 1): nada.
@@ -114,11 +122,22 @@ class _OriginalColors implements SceneVisitor {
 class _OwnTickerProvider implements TickerProvider {
   @override
   Ticker createTicker(TickerCallback onTick) =>
-      Ticker(onTick, debugLabel: 'ScoreController');
+      Ticker(onTick, debugLabel: 'ScoreCubit');
 }
 
-class ScoreController extends ChangeNotifier {
-  ScoreController({VsbDocument? document}) {
+/// Estado do [ScoreCubit]: só o `serial`, que sobe a cada aviso (o `emit` nunca
+/// ignora um aviso; as cores estão no cubit, ver a nota no topo do arquivo).
+class ScoreState extends Equatable {
+  const ScoreState(this.serial);
+
+  final int serial;
+
+  @override
+  List<Object?> get props => [serial];
+}
+
+class ScoreCubit extends Cubit<ScoreState> {
+  ScoreCubit({VsbDocument? document}) : super(const ScoreState(0)) {
     if (document != null) {
       attachDocument(document);
     }
@@ -166,7 +185,6 @@ class ScoreController extends ChangeNotifier {
   Ticker? _ticker;
   Duration _epoch = Duration.zero;
   Duration _now = Duration.zero;
-  bool _disposed = false;
 
   /// Associa o documento cujas páginas o controller pinta. Idempotente para o
   /// mesmo documento. Necessário para resolver a cor original de um nó e para
@@ -245,7 +263,7 @@ class ScoreController extends ChangeNotifier {
   /// voltar para esta cor).
   void setColor(String id, ui.Color color) {
     if (_setFixed(_resolve(id), color)) {
-      notifyListeners();
+      _changed();
     }
   }
 
@@ -256,7 +274,7 @@ class ScoreController extends ChangeNotifier {
       (id, color) => changed = _setFixed(_resolve(id), color) || changed,
     );
     if (changed) {
-      notifyListeners();
+      _changed();
     }
   }
 
@@ -291,7 +309,7 @@ class ScoreController extends ChangeNotifier {
       return; // escondida: segue transparente
     }
     _effective.remove(id);
-    notifyListeners();
+    _changed();
   }
 
   /// Volta a página ao repouso **agora**: apaga cores fixas e destaques, sem
@@ -313,7 +331,7 @@ class ScoreController extends ChangeNotifier {
     _engine.clear();
     _stopTicker();
     if (changed) {
-      notifyListeners();
+      _changed();
     }
   }
 
@@ -406,7 +424,7 @@ class ScoreController extends ChangeNotifier {
     final changed = _syncAnimated();
     _stopTicker();
     if (changed) {
-      notifyListeners();
+      _changed();
     }
   }
 
@@ -440,7 +458,7 @@ class ScoreController extends ChangeNotifier {
         if (_known(_resolve(raw))) _resolve(raw),
     };
     if (_applyHidden(next, _hiddenMeasures)) {
-      notifyListeners();
+      _changed();
     }
   }
 
@@ -448,7 +466,7 @@ class ScoreController extends ChangeNotifier {
   /// que estavam (T17, §11.2 regra 8): somem as notas, as pausas de verdade
   /// das pautas que têm nota, a tercina e as ligaduras que só tocam
   /// compassos escondidos. A pausa de compasso que entra no lugar é do
-  /// `StandInController.setMeasures`. Ids expandidos valem; id que não é
+  /// `StandInCubit.setMeasures`. Ids expandidos valem; id que não é
   /// compasso da cena é ignorado. Uma notificação. As notas de `setHidden`
   /// continuam escondidas.
   void setHiddenMeasures(Set<String> measureIds) {
@@ -457,7 +475,7 @@ class ScoreController extends ChangeNotifier {
         if (_known(_resolve(raw))) _resolve(raw),
     };
     if (_applyHidden(_hiddenExplicit, next)) {
-      notifyListeners();
+      _changed();
     }
   }
 
@@ -468,7 +486,7 @@ class ScoreController extends ChangeNotifier {
       return;
     }
     if (_applyHidden(_hiddenExplicit, {..._hiddenMeasures}..remove(id))) {
-      notifyListeners();
+      _changed();
     }
   }
 
@@ -488,7 +506,7 @@ class ScoreController extends ChangeNotifier {
       return;
     }
     if (_applyHidden({..._hiddenExplicit}..remove(id), _hiddenMeasures)) {
-      notifyListeners();
+      _changed();
     }
   }
 
@@ -496,7 +514,7 @@ class ScoreController extends ChangeNotifier {
   /// ao estado de antes de esconder qualquer coisa.
   void clearHidden() {
     if (_applyHidden(const {}, const {})) {
-      notifyListeners();
+      _changed();
     }
   }
 
@@ -609,7 +627,7 @@ class ScoreController extends ChangeNotifier {
       (_ticker ??= _OwnTickerProvider().createTicker(_onTick)).start();
     }
     if (changed) {
-      notifyListeners();
+      _changed();
     }
   }
 
@@ -620,7 +638,7 @@ class ScoreController extends ChangeNotifier {
       _stopTicker();
     }
     if (changed) {
-      notifyListeners();
+      _changed();
     }
   }
 
@@ -680,18 +698,18 @@ class ScoreController extends ChangeNotifier {
     return changed;
   }
 
-  @override
-  void dispose() {
-    _disposed = true;
-    _ticker?.dispose();
-    _ticker = null;
-    super.dispose();
+  /// Um aviso: o `serial` seguinte sai pelo `stream` (o `BlocRepaint` do pintor
+  /// e as assinaturas ouvem). Depois do [close] não há aviso, porque o `emit`
+  /// lançaria; a cor continua mudando, sem quem a pinte.
+  void _changed() {
+    if (isClosed) return;
+    emit(ScoreState(state.serial + 1));
   }
 
   @override
-  void notifyListeners() {
-    if (!_disposed) {
-      super.notifyListeners();
-    }
+  Future<void> close() {
+    _ticker?.dispose();
+    _ticker = null;
+    return super.close();
   }
 }

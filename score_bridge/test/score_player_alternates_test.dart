@@ -23,7 +23,7 @@ void main() {
   Widget view(
     VsbDocument doc, {
     required ScoreViewController vc,
-    required ScoreController controller,
+    required ScoreCubit controller,
     ScorePageMode mode = ScorePageMode.pagedSweep,
     ValueListenable<SweepCurtain?>? curtain,
   }) => Directionality(
@@ -64,8 +64,8 @@ void main() {
     testWidgets('critério 1 e 2: $mode, 4x do início ao fim — sequência de '
         'displayedPage bate com a rota de P04a', (tester) async {
       final vc = ScoreViewController();
-      final controller = ScoreController(document: doc);
-      addTearDown(controller.dispose);
+      final controller = ScoreCubit(document: doc);
+      addTearDown(controller.close);
       await pumpAtSize(
         tester,
         view(doc, vc: vc, controller: controller, mode: mode),
@@ -99,8 +99,8 @@ void main() {
   testWidgets('critério 2: continuousScroll nunca mostra alternativa '
       '(displayedPage.isAlternate sempre false)', (tester) async {
     final vc = ScoreViewController();
-    final controller = ScoreController(document: doc);
-    addTearDown(controller.dispose);
+    final controller = ScoreCubit(document: doc);
+    addTearDown(controller.close);
     await pumpAtSize(
       tester,
       view(
@@ -126,8 +126,8 @@ void main() {
     'com a nota acesa nela',
     (tester) async {
       final vc = ScoreViewController();
-      final controller = ScoreController(document: doc);
-      addTearDown(controller.dispose);
+      final controller = ScoreCubit(document: doc);
+      addTearDown(controller.close);
       final key = await pumpAtSize(
         tester,
         view(doc, vc: vc, controller: controller),
@@ -179,8 +179,8 @@ void main() {
     'início ao fim',
     (tester) async {
       final vc = ScoreViewController();
-      final controller = ScoreController(document: doc);
-      addTearDown(controller.dispose);
+      final controller = ScoreCubit(document: doc);
+      addTearDown(controller.close);
       await pumpAtSize(
         tester,
         view(doc, vc: vc, controller: controller),
@@ -210,8 +210,8 @@ void main() {
     'desmontar',
     (tester) async {
       final vc = ScoreViewController();
-      final controller = ScoreController(document: doc);
-      addTearDown(controller.dispose);
+      final controller = ScoreCubit(document: doc);
+      addTearDown(controller.close);
       await pumpAtSize(
         tester,
         view(doc, vc: vc, controller: controller),

@@ -15,7 +15,7 @@ void main() {
     tester,
   ) async {
     final document = doc();
-    final controller = ScoreController(document: document);
+    final controller = ScoreCubit(document: document);
     final player = ScorePlayer(
       document: document,
       controller: controller,
@@ -23,7 +23,7 @@ void main() {
     addTearDown(() {
       controller.clearAll();
       player.dispose();
-      controller.dispose();
+      controller.close();
     });
     // m1n1 soa de 0 a 2000 ms; a marca, só o primeiro segundo.
     player.seek(Duration.zero);
@@ -40,7 +40,7 @@ void main() {
 
   testWidgets('sem cueFade, a nota fica acesa até o off', (tester) async {
     final document = doc();
-    final controller = ScoreController(document: document);
+    final controller = ScoreCubit(document: document);
     final player = ScorePlayer(
       document: document,
       controller: controller,
@@ -48,7 +48,7 @@ void main() {
     addTearDown(() {
       controller.clearAll();
       player.dispose();
-      controller.dispose();
+      controller.close();
     });
     player.seek(Duration.zero);
     await tester.pump(const Duration(milliseconds: 1500));

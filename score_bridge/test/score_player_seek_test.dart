@@ -40,16 +40,16 @@ void main() {
 
   Future<void> withPlayer(
     VsbDocument doc,
-    Future<void> Function(ScoreController controller, ScorePlayer player) body,
+    Future<void> Function(ScoreCubit controller, ScorePlayer player) body,
   ) async {
-    final controller = ScoreController(document: doc);
+    final controller = ScoreCubit(document: doc);
     final player = ScorePlayer(document: doc, controller: controller);
     try {
       await body(controller, player);
     } finally {
       controller.clearAll();
       player.dispose();
-      controller.dispose();
+      controller.close();
     }
   }
 

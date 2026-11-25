@@ -85,8 +85,8 @@ Future<void> main() async {
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
-    final controller = ScoreController();
-    addTearDown(controller.dispose);
+    final controller = ScoreCubit();
+    addTearDown(controller.close);
     final key = GlobalKey();
     await tester.pumpWidget(
       Center(

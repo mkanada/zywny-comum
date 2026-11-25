@@ -108,7 +108,7 @@ class _Rig {
       track: track,
       autoTick: false,
     );
-    scoreController = ScoreController(document: _doc());
+    scoreController = ScoreCubit(document: _doc());
     practice = PracticeController(
       midiInput: midi,
       track: track,
@@ -133,7 +133,7 @@ class _Rig {
   final _Input midi = _Input();
   late final PerformanceTrack track;
   late final ScoreAudioScheduler scheduler;
-  late final ScoreController scoreController;
+  late final ScoreCubit scoreController;
   late final PracticeController practice;
   final List<int> shifts = [];
   void Function(int d)? onShift;
@@ -178,7 +178,7 @@ class _Rig {
 
   void dispose() {
     practice.dispose();
-    scoreController.dispose();
+    scoreController.close();
     midi.dispose();
   }
 }
