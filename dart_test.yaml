@@ -1,0 +1,5 @@
+# Quantos arquivos de teste rodam ao mesmo tempo. Sem isto, o `flutter test` usa
+# a metade dos núcleos (2 nesta máquina de 4) e deixa a outra metade parada: no
+# zywny-aprendizado, 14:30 com 2 e 8:57 com 4 (26/11/2026). O `-j` na linha de
+# comando continua valendo por cima.
+concurrency: 4

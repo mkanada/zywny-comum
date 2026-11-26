@@ -497,10 +497,13 @@ void main() {
         release: const Duration(milliseconds: 200),
       );
       await pumpAvisos(tester);
+      // O Picture só se faz no `paint` (`_pictureAt`), que o `pump` roda; a foto
+      // reaproveita as camadas já pintadas. Uma foto só, no fim: as 20 do laço
+      // custavam 6 s cada sem mudar a conta.
       for (var i = 0; i < 20; i++) {
         await tester.pump(const Duration(milliseconds: 16));
-        await shot(tester, doc);
       }
+      await shot(tester, doc);
       expect(state.pictureBuilds, builds);
     });
   });

@@ -132,7 +132,11 @@ void _parte3() {
           .toSet();
       final actual = track.startingIn(fromMs, toMs).map((e) => e.id).toSet();
 
-      expect(actual, expected, reason: 'janela [$fromMs, $toMs)');
+      // A diferença nos dois sentidos, e não `expect(actual, expected)`: o
+      // `equals` de dois `Set` grandes é quadrático (34 s nas 1000 janelas).
+      final janela = 'janela [$fromMs, $toMs)';
+      expect(expected.difference(actual), isEmpty, reason: 'faltam; $janela');
+      expect(actual.difference(expected), isEmpty, reason: 'sobram; $janela');
     }
   });
   test('startingIn filtra por pauta quando staves é informado', () {
