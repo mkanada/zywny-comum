@@ -118,6 +118,33 @@ void main() {
       expect(find.text('mão'), findsNothing);
     });
 
+    testWidgets('na trilha, a mão da etapa lê-se "Mão" em cima e a mão embaixo '
+        '(N19, como no treino livre)', (tester) async {
+      var stageTaps = 0;
+      await tester.pumpWidget(
+        _app(
+          PhoneRail(
+            playing: false,
+            onPlayPause: () {},
+            measure: 1,
+            totalMeasures: 30,
+            tempoPercent: 100,
+            handLabel: 'Dir.',
+            onOptions: () {},
+            stageTempo: '50%',
+            stageHand: 'Ambas',
+            onStageTap: () => stageTaps++,
+          ),
+        ),
+      );
+      final rotulo = tester.getTopLeft(find.text('Mão')).dy;
+      final valor = tester.getTopLeft(find.text('Ambas')).dy;
+      expect(rotulo, lessThan(valor));
+      expect(find.text('mão da etapa'), findsNothing);
+      await tester.tap(find.byTooltip('Mão da etapa — ver etapas'));
+      expect(stageTaps, 1);
+    });
+
     testWidgets('fora da trilha não existe', (tester) async {
       await tester.pumpWidget(_app(_rail()));
       expect(find.byTooltip('Ouvir o trecho'), findsNothing);

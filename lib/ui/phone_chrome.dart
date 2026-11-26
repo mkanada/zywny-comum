@@ -178,11 +178,14 @@ class PhoneRail extends StatelessWidget {
   List<Widget> _stageOrTrainingButtons() {
     if (stageTempo case final tempo?) {
       return [
+        // "Mão" em cima e a mão da etapa embaixo, como o botão do treino livre
+        // ("Mão: ambas"); "mão da etapa" embaixo lia-se "Ambas mão da etapa".
+        // A gaveta e o toque dizem que é a da etapa.
         if (stageHand case final hand?)
           _RailButton(
             key: tourKeys?.hand,
-            top: hand,
-            bottom: 'mão da etapa',
+            top: 'Mão',
+            bottom: hand,
             tooltip: 'Mão da etapa — ver etapas',
             onTap: onStageTap,
           ),
