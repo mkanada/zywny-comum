@@ -34,11 +34,19 @@ class ScoreBand {
 }
 
 /// Um retângulo de faixa numa página, no espaço de conteúdo (o das bbox do
-/// [ScoreGeometry]). [label] só no retângulo que tem a primeira nota da faixa;
-/// [labelSize] é a altura da letra, no mesmo espaço.
+/// [ScoreGeometry]). [label] só no retângulo que leva o aviso (um por sistema e
+/// cor); [labelSize] é a altura da letra, no mesmo espaço, e [labelLeft] a
+/// posição em x do texto (`null` sem aviso: o padrão é um pouco depois da borda
+/// esquerda, mas o aviso desvia do andamento, que fica no mesmo topo).
 @immutable
 class ScoreBandRect {
-  const ScoreBandRect(this.rect, {this.label, this.labelSize = 0, this.fill});
+  const ScoreBandRect(
+    this.rect, {
+    this.label,
+    this.labelSize = 0,
+    this.fill,
+    this.labelLeft,
+  });
 
   final ui.Rect rect;
   final String? label;
@@ -46,6 +54,9 @@ class ScoreBandRect {
 
   /// A cor do retângulo (a da [ScoreBand] que o gerou); `null` é a do controlador.
   final ui.Color? fill;
+
+  /// A borda esquerda do texto do aviso, no espaço de conteúdo.
+  final double? labelLeft;
 }
 
 /// Índice de uma página: a pauta ancestral de cada id, o sistema de cada pauta e
@@ -65,8 +76,15 @@ class _BandPageIndex {
   /// id da pauta → nó do sistema que a contém (`null` se nenhum).
   final Map<String, SceneNode?> systemOfStaff = {};
 
+  /// As caixas do andamento (`tempo`, ♩ = 100) da página: o aviso da faixa não
+  /// pode cobri-las. Só as que têm bbox e estão visíveis.
+  final List<ui.Rect> marks = [];
+
   void _walk(SceneNode node, String? staffId, SceneNode? system) {
     final kind = node.className.split(' ').first;
+    if (kind == 'tempo' && !node.hidden && node.bbox != null) {
+      marks.add(node.bbox!);
+    }
     // O sistema é a linha da partitura. Cada compasso tem as suas pautas (uma
     // por nó), então a faixa agrupa pelo sistema, não pela pauta.
     if (kind == 'system') system = node;
@@ -114,7 +132,7 @@ List<ScoreBandRect> scoreBandRects(
   List<ScoreBand> bands,
 ) {
   final index = _bandIndexes[page] ??= _BandPageIndex(page);
-  final out = <(Object, ScoreBandRect)>[];
+  final pieces = <_BandPiece>[];
   for (final band in bands) {
     if (band.noteIds.isEmpty) continue;
     final firstId = band.noteIds.first;
@@ -129,75 +147,170 @@ List<ScoreBandRect> scoreBandRects(
           .putIfAbsent(_groupOf(index, staffId), () => _BandGroup())
           .add(ref, staffId, index.staves[staffId]!);
     }
-    // A primeira nota da faixa define em qual retângulo cai o aviso.
+    // A primeira nota da faixa define em qual sistema o aviso é candidato.
     final firstRef = geometry.elementOf(firstId);
     final firstStaff = firstRef == null || firstRef.page != pageIndex
         ? null
         : _staffIdOf(page, index, firstRef);
     final firstGroup = firstStaff == null ? null : _groupOf(index, firstStaff);
     for (final entry in groups.entries) {
-      final hasLabel = band.label != null && entry.key == firstGroup;
-      final space = _spaceOf(
-        entry.value.refs,
-        _firstGeometry(entry.value.staves.values),
-      );
-      final base = _groupRect(entry.value, labelSize: null);
-      final fitted = hasLabel ? _fittingLabelSize(base.top, space) : null;
-      // Sem folga nem para uma letra legível, o aviso não se desenha.
-      final showLabel = hasLabel && fitted != null;
-      final labelSize = fitted ?? 2.5 * space;
-      out.add((
-        entry.key,
-        ScoreBandRect(
-          showLabel
-              ? ui.Rect.fromLTRB(
-                  base.left,
-                  base.top - scoreBandLabelReserve(labelSize),
-                  base.right,
-                  base.bottom,
-                )
-              : base,
-          label: showLabel ? band.label : null,
-          labelSize: labelSize,
+      pieces.add(
+        _BandPiece(
+          group: entry.key,
+          rect: _groupRect(entry.value, labelSize: null),
+          space: _spaceOf(
+            entry.value.refs,
+            _firstGeometry(entry.value.staves.values),
+          ),
           fill: band.fill,
+          label: band.label != null && entry.key == firstGroup
+              ? band.label
+              : null,
         ),
-      ));
+      );
     }
   }
-  return _mergeOverlapping(out);
+  return _placeLabels(pieces, index.marks);
 }
 
-/// Junta as faixas que se tocam ou se sobrepõem no mesmo sistema e na mesma cor
-/// (dois trechos vizinhos do aluno, cuja folga de cada lado se cruza): uma faixa
-/// contínua, com um aviso só (o do retângulo mais à esquerda que tem um). Faixas
-/// de sistemas diferentes, de cores diferentes, ou separadas por um vão, ficam
-/// como estão.
-List<ScoreBandRect> _mergeOverlapping(List<(Object, ScoreBandRect)> entries) {
-  final byGroup = <(Object, ui.Color?), List<ScoreBandRect>>{};
-  for (final (group, rect) in entries) {
-    byGroup.putIfAbsent((group, rect.fill), () => []).add(rect);
+/// Um pedaço de faixa (um sistema de uma faixa) antes de juntar: o retângulo sem
+/// o aviso, a distância entre linhas que dá a letra e, se a faixa tem aviso e a
+/// primeira nota cai aqui, o texto dele ([label]).
+class _BandPiece {
+  const _BandPiece({
+    required this.group,
+    required this.rect,
+    required this.space,
+    required this.fill,
+    required this.label,
+  });
+
+  /// O sistema (ou a pauta, sem sistema) do pedaço.
+  final Object group;
+  final ui.Rect rect;
+  final double space;
+  final ui.Color? fill;
+  final String? label;
+}
+
+/// Os pedaços de um mesmo sistema e cor que se tocam ou se sobrepõem: uma faixa
+/// contínua, com a união dos retângulos e o aviso do que tem um (o mais à
+/// esquerda).
+class _BandRun {
+  _BandRun(_BandPiece first)
+    : rect = first.rect,
+      fill = first.fill,
+      label = first.label,
+      labelSpace = first.space;
+
+  ui.Rect rect;
+  final ui.Color? fill;
+  String? label;
+
+  /// A distância entre linhas do pedaço que leva o aviso (dá o tamanho da letra).
+  double labelSpace;
+
+  void join(_BandPiece next) {
+    rect = rect.expandToInclude(next.rect);
+    if (label == null && next.label != null) {
+      label = next.label;
+      labelSpace = next.space;
+    }
+  }
+}
+
+/// Junta os pedaços de cada sistema e cor em faixas contínuas (as que se tocam
+/// viram uma só, com a união dos retângulos), e dá o aviso a uma só por sistema
+/// e cor: a primeira faixa contínua, da esquerda para a direita, que tem aviso e
+/// cabe. Faixas de sistemas ou de cores diferentes não se juntam; duas faixas do
+/// mesmo sistema e cor separadas por um vão ficam como retângulos separados, mas
+/// só a da esquerda leva o aviso.
+List<ScoreBandRect> _placeLabels(List<_BandPiece> pieces, List<ui.Rect> marks) {
+  final byGroup = <(Object, ui.Color?), List<_BandPiece>>{};
+  for (final piece in pieces) {
+    byGroup.putIfAbsent((piece.group, piece.fill), () => []).add(piece);
   }
   final out = <ScoreBandRect>[];
-  for (final rects in byGroup.values) {
-    rects.sort((a, b) => a.rect.left.compareTo(b.rect.left));
-    var current = rects.first;
-    for (final next in rects.skip(1)) {
-      if (next.rect.left > current.rect.right) {
-        out.add(current);
-        current = next;
+  for (final group in byGroup.values) {
+    group.sort((a, b) => a.rect.left.compareTo(b.rect.left));
+    final runs = <_BandRun>[];
+    for (final piece in group) {
+      if (runs.isNotEmpty && piece.rect.left <= runs.last.rect.right) {
+        runs.last.join(piece);
+      } else {
+        runs.add(_BandRun(piece));
+      }
+    }
+    // O aviso vai à primeira faixa contínua que tem um e cabe; as outras saem
+    // sem ele.
+    var labelled = false;
+    for (final run in runs) {
+      final label = run.label;
+      final placed = !labelled && label != null
+          ? _placedLabel(run, marks)
+          : null;
+      if (placed == null) {
+        out.add(ScoreBandRect(run.rect, fill: run.fill));
         continue;
       }
-      final withLabel = current.label != null ? current : next;
-      current = ScoreBandRect(
-        current.rect.expandToInclude(next.rect),
-        label: withLabel.label,
-        labelSize: withLabel.labelSize,
-        fill: current.fill,
+      labelled = true;
+      out.add(
+        ScoreBandRect(
+          ui.Rect.fromLTRB(
+            run.rect.left,
+            run.rect.top - scoreBandLabelReserve(placed.labelSize),
+            run.rect.right,
+            run.rect.bottom,
+          ),
+          label: label,
+          labelSize: placed.labelSize,
+          fill: run.fill,
+          labelLeft: placed.left,
+        ),
       );
     }
-    out.add(current);
   }
   return out;
+}
+
+/// O tamanho e a posição do aviso de [run], ou `null` se ele não se desenha (sem
+/// folga no topo da página).
+({double labelSize, double left})? _placedLabel(
+  _BandRun run,
+  List<ui.Rect> marks,
+) {
+  final space = run.labelSpace;
+  final fitted = _fittingLabelSize(run.rect.top, space);
+  if (fitted == null) return null;
+  return (labelSize: fitted, left: _labelLeftOf(run.rect, fitted, marks));
+}
+
+/// A largura do aviso, estimada pela letra ([labelSize]): só serve para saber se
+/// ele cruza uma caixa de andamento e se cabe na faixa (o texto real é medido na
+/// pintura). "você" em negrito fica perto de 2,8 da letra; 3,2 dá uma folga.
+double scoreBandLabelWidth(double labelSize) => labelSize * 3.2;
+
+/// A posição em x do aviso de uma faixa de retângulo [rect] (sem a reserva da
+/// letra). O texto fica na reserva que a faixa ganha acima de [rect]: do topo da
+/// reserva, mais 0,2 da letra, até a borda de cima de [rect]. Cada caixa de
+/// andamento que cobre esse trecho empurra o aviso para a direita dela. Não corta
+/// o aviso por largura: uma faixa curta deixa o texto passar da borda, como antes.
+double _labelLeftOf(ui.Rect rect, double labelSize, List<ui.Rect> marks) {
+  final textTop = rect.top - scoreBandLabelReserve(labelSize) + labelSize * 0.2;
+  final textBottom = rect.top;
+  final width = scoreBandLabelWidth(labelSize);
+  var left = rect.left + labelSize * 0.2;
+  var moved = true;
+  while (moved) {
+    moved = false;
+    for (final mark in marks) {
+      if (mark.right <= left || mark.left >= left + width) continue;
+      if (mark.bottom <= textTop || mark.top >= textBottom) continue;
+      left = mark.right + labelSize * 0.5;
+      moved = true;
+    }
+  }
+  return left;
 }
 
 /// A pauta que desenha a nota [ref] (id da cena), ou `null` se ela não tem
@@ -353,7 +466,7 @@ void paintScoreBands(
     text.paint(
       canvas,
       ui.Offset(
-        r.rect.left + r.labelSize * 0.2,
+        r.labelLeft ?? r.rect.left + r.labelSize * 0.2,
         r.rect.top + r.labelSize * 0.2,
       ),
     );

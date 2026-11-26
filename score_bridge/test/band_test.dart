@@ -236,6 +236,76 @@ void main() {
     expect(scoreBandRects(page, 0, geometry, const []), isEmpty);
   });
 
+  group('o aviso e o andamento (UX15, N3)', () {
+    // `b107zbnm` é o andamento (♩ = 100) do primeiro sistema, acima da pauta de
+    // cima. As notas `orw55dt` (compasso 1) e `hbju5tb` (compasso 4) estão nesse
+    // sistema, e o aviso da faixa cai no topo, onde o andamento fica.
+    const primeiroSistema = ['orw55dt', 'q1t6l0ej', 'r1c5f34m', 'hbju5tb'];
+
+    test('o aviso não cobre o andamento do primeiro sistema', () {
+      final mark = page.byId['b107zbnm']!.bbox!;
+      final r = rectsOf(primeiroSistema, label: _doros).single;
+      expect(r.label, _doros);
+      final size = r.labelSize;
+      // Onde o aviso ficaria sem o desvio: o texto cruza a caixa do andamento.
+      final textoEm = r.rect.left + size * 0.2;
+      final textoTopo = r.rect.top + size * 0.2;
+      final textoFundo = r.rect.top + scoreBandLabelReserve(size);
+      expect(textoEm < mark.right, isTrue);
+      expect(textoEm + scoreBandLabelWidth(size) > mark.left, isTrue);
+      expect(textoTopo < mark.bottom && mark.top < textoFundo, isTrue);
+      // Com o desvio, o texto sai depois da caixa e continua dentro da faixa.
+      expect(r.labelLeft, greaterThanOrEqualTo(mark.right));
+      expect(
+        r.labelLeft! + scoreBandLabelWidth(size),
+        lessThanOrEqualTo(r.rect.right),
+      );
+    });
+
+    test('sem andamento por perto, o aviso fica na posição de sempre', () {
+      final r = rectsOf(const ['e11eog5', 'xej0b6o'], label: _doros).single;
+      expect(r.label, _doros);
+      expect(r.labelLeft, closeTo(r.rect.left + r.labelSize * 0.2, 1e-9));
+    });
+
+    test('um aviso só por sistema e cor, mesmo com um vão entre as faixas', () {
+      // Duas faixas do sistema `tdowfwl`, uma no começo e outra no fim, com
+      // compassos sem nota do aluno no meio: dois retângulos, um aviso.
+      final sistema = _subtreeIds(systemNodeOf('tdowfwl'));
+      final notas = <(String, double)>[];
+      for (final n in doc.midi!.notes) {
+        final ref = geometry.elementOf(n.id);
+        if (ref != null && ref.page == 0 && sistema.contains(ref.id)) {
+          notas.add((n.id, ref.bbox.left));
+        }
+      }
+      notas.sort((a, b) => a.$2.compareTo(b.$2));
+      final esquerda = notas.first.$2;
+      final largura = notas.last.$2 - esquerda;
+      final inicio = [
+        for (final (id, x) in notas)
+          if (x < esquerda + largura * 0.25) id,
+      ];
+      final fim = [
+        for (final (id, x) in notas)
+          if (x > esquerda + largura * 0.75) id,
+      ];
+      expect(inicio, isNotEmpty);
+      expect(fim, isNotEmpty);
+
+      final rects = scoreBandRects(page, 0, geometry, [
+        ScoreBand(inicio, label: _doros),
+        ScoreBand(fim, label: _doros),
+      ]);
+      expect(rects, hasLength(2));
+      final comAviso = rects.where((r) => r.label != null).toList();
+      expect(comAviso, hasLength(1));
+      // O aviso é o da faixa da esquerda (a primeira nota da faixa do começo).
+      final semAviso = rects.singleWhere((r) => r.label == null);
+      expect(comAviso.single.rect.left, lessThan(semAviso.rect.left));
+    });
+  });
+
   test('o cubit avisa quem o escuta quando as faixas mudam', () async {
     final controller = ScoreBandCubit(
       fill: const ui.Color(0x331E6FD9),

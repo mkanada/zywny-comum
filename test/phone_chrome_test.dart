@@ -103,7 +103,19 @@ void main() {
     testWidgets('fora da trilha mantém andamento e mão', (tester) async {
       await tester.pumpWidget(_app(_rail()));
       expect(find.text('100%'), findsOneWidget);
-      expect(find.text('mão'), findsOneWidget);
+      expect(find.text('Mão'), findsOneWidget);
+      expect(find.text('Ambas'), findsOneWidget);
+    });
+
+    testWidgets('o botão da mão lê-se "Mão: ambas" (N19), não "Ambas mão"', (
+      tester,
+    ) async {
+      await tester.pumpWidget(_app(_rail()));
+      final rotulo = tester.getTopLeft(find.text('Mão')).dy;
+      final valor = tester.getTopLeft(find.text('Ambas')).dy;
+      // "Mão" em cima, a mão embaixo: a ordem de leitura é o rótulo antes.
+      expect(rotulo, lessThan(valor));
+      expect(find.text('mão'), findsNothing);
     });
 
     testWidgets('fora da trilha não existe', (tester) async {

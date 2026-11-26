@@ -203,10 +203,12 @@ class PhoneRail extends StatelessWidget {
         tooltip: 'Andamento',
         onTap: onOptions,
       ),
+      // "Mão" em cima e a mão embaixo: lê-se "Mão: ambas". Com a mão embaixo do
+      // "Ambas" o botão lia-se "Ambas mão" (N19).
       _RailButton(
         key: tourKeys?.hand,
-        top: handLabel,
-        bottom: 'mão',
+        top: 'Mão',
+        bottom: handLabel,
         tooltip: 'Mão',
         onTap: onOptions,
       ),
