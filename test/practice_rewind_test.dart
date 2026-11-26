@@ -42,6 +42,8 @@ class _Rig {
     this.noticeDuration = const Duration(hours: 1),
     this.appIds = const {},
     this.onMissReplay,
+    this.repeatWithoutWait = false,
+    this.repeatSpanOf,
   }) {
     final doc = _loadDoc();
     final plain = PerformanceTrack.fromDocument(doc);
@@ -95,6 +97,8 @@ class _Rig {
         rewoundAt.add(engine.now);
       },
       repeatSpeeds: repeatSpeeds,
+      repeatWithoutWait: repeatWithoutWait,
+      repeatSpanOf: repeatSpanOf,
       repeatNoticeDuration: noticeDuration,
       onMissReplay: onMissReplay,
     );
@@ -122,6 +126,8 @@ class _Rig {
   final Duration noticeDuration;
   final Set<String> appIds;
   final Future<void> Function(RepeatMiss miss)? onMissReplay;
+  final bool repeatWithoutWait;
+  final ({int first, int last})? Function(int measure)? repeatSpanOf;
   final FakeSoundEngine engine = FakeSoundEngine();
   final FakeMidiInput midi = FakeMidiInput();
   late final PerformanceTrack track;
@@ -301,6 +307,19 @@ void main() {
       book.error(2);
       expect(book.rewind(2), 3);
       expect(book.counts, {2: 2});
+    });
+
+    test('volta de trecho (EC02): zera os erros a partir do primeiro compasso '
+        'do trecho e conta só no que errou', () {
+      final book = MeasureRewinds()
+        ..error(1)
+        ..error(2)
+        ..error(3);
+      expect(book.rewind(3, from: 2), 2);
+      expect(book.hasError(1), isTrue, reason: 'antes do trecho, o erro fica');
+      expect(book.hasError(2), isFalse);
+      expect(book.hasError(3), isFalse);
+      expect(book.counts, {3: 1});
     });
   });
 
@@ -812,6 +831,216 @@ void main() {
     });
   });
 
+  group('volta sem o degrau "só notas" (EC01, repeatWithoutWait)', () {
+    late _Rig rig;
+    tearDown(() => rig.dispose());
+
+    test('sem o só notas, o erro volta direto no andamento (sem sessão de '
+        'espera); o certo no único degrau acaba a escada sem aviso', () async {
+      rig = _Rig(
+        mode: PracticeMode.realtime,
+        firstMeasure: 1,
+        endMeasure: 3,
+        repeatWithoutWait: true,
+      );
+      final start1 = rig.timeline.measures[1].startMs.toDouble();
+      rig.practice.start();
+      await rig.playTimed(1, miss: 0);
+      rig.advanceTo(rig.timeline.measures[1].endMs + 400);
+      await rig.settle();
+      expect(rig.rewound, [(1, start1)]);
+      expect(rig.status!.rungCount, 1);
+      expect(rig.status!.rung.isWait, isFalse);
+      expect(rig.status!.countingIn, isFalse);
+      expect(rig.scheduler.metronomeMuted, isFalse);
+      expect(rig.scheduler.isRunning, isTrue);
+      expect(rig.practice.rewinds, {1: 1});
+      await rig.playTimed(1);
+      rig.passEnd(1);
+      expect(rig.status, isNull, reason: 'acertou no último degrau');
+      expect(rig.practice.rewinds, {1: 1});
+      await rig.playTimed(2);
+      rig.passEnd(2);
+      expect(rig.dones, 1);
+      expect(rig.rewound, hasLength(1));
+      expect(rig.practice.stageResult!.rewinds, {1: 1});
+    });
+
+    test(
+      'com um andamento menor, o erro volta a ele sem passar pelo só notas; '
+      'acertar sobe com aviso e contagem, e no último a música segue',
+      () async {
+        rig = _Rig(
+          mode: PracticeMode.realtime,
+          firstMeasure: 1,
+          endMeasure: 3,
+          repeatSpeeds: const [0.5],
+          repeatWithoutWait: true,
+        );
+        rig.practice.start();
+        await rig.playTimed(1, miss: 0);
+        rig.advanceTo(rig.timeline.measures[1].endMs + 400);
+        await rig.settle();
+        // Sem o só notas, o primeiro degrau é o de 50%.
+        expect(rig.status!.rungCount, 2);
+        expect(rig.status!.rung.isWait, isFalse);
+        expect(rig.status!.rung.speed, 0.5);
+        expect(rig.scheduler.speed, 0.5);
+        // Errou a 50%: volta ao mesmo degrau, sem subir.
+        await rig.playTimed(1, miss: 0);
+        rig.advanceTo(rig.timeline.measures[1].endMs + 400);
+        expect(rig.status!.notice, RepeatNotice.missed);
+        expect(rig.status!.rungIndex, 0);
+        await rig.settle();
+        expect(rig.status!.rung.speed, 0.5);
+        // Acertou a 50%: sobe ao andamento da rodada, com aviso e contagem.
+        await rig.playTimed(1);
+        rig.passEnd(1);
+        expect(rig.status!.notice, RepeatNotice.passed);
+        expect(rig.status!.rung.speed, 1.0);
+        await rig.settle();
+        expect(rig.status!.countingIn, isTrue);
+        rig.runCountIn();
+        expect(rig.scheduler.speed, 1.0);
+        // Acertou no último degrau: a escada acaba e a música segue, sem aviso.
+        await rig.playTimed(1);
+        rig.passEnd(1);
+        expect(rig.status, isNull);
+        expect(rig.practice.stageResult!.rewinds, {1: 3});
+      },
+    );
+  });
+
+  group('volta a um trecho (EC02, repeatSpanOf)', () {
+    late _Rig rig;
+    tearDown(() => rig.dispose());
+
+    // O compasso 3 repete o trecho 2 e 3: a volta dele começa no 2.
+    ({int first, int last})? trecho23(int measure) =>
+        measure == 3 ? (first: 2, last: 3) : null;
+
+    test('o erro no último compasso do trecho volta ao começo do trecho, o '
+        'trecho é cobrado de novo, e o certo segue do fim do último', () async {
+      rig = _Rig(
+        mode: PracticeMode.realtime,
+        firstMeasure: 1,
+        endMeasure: 4,
+        repeatWithoutWait: true,
+        repeatSpanOf: trecho23,
+      );
+      final start2 = rig.timeline.measures[2].startMs.toDouble();
+      final end3 = rig.timeline.measures[3].endMs.toDouble() + 400;
+      rig.practice.start();
+      await rig.playTimed(1);
+      await rig.playTimed(2);
+      await rig.playTimed(3, miss: 0);
+      rig.advanceTo(end3);
+      expect(rig.rewound, [(2, start2)]);
+      expect(rig.status!.measure, 3);
+      await rig.settle();
+      expect(rig.practice.rewinds, {3: 1});
+      await rig.playTimed(2);
+      await rig.playTimed(3);
+      rig.passEnd(3);
+      expect(rig.status, isNull);
+      expect(rig.rewound, hasLength(1));
+      expect(rig.dones, 1);
+      expect(rig.practice.stageResult!.rewinds, {3: 1});
+    });
+
+    test(
+      'errar de novo volta outra vez ao começo do trecho; um erro no começo '
+      'do trecho torna o degrau não limpo, mesmo com o último certo',
+      () async {
+        rig = _Rig(
+          mode: PracticeMode.realtime,
+          firstMeasure: 1,
+          endMeasure: 4,
+          repeatWithoutWait: true,
+          repeatSpanOf: trecho23,
+        );
+        final start2 = rig.timeline.measures[2].startMs.toDouble();
+        final end3 = rig.timeline.measures[3].endMs.toDouble() + 400;
+        rig.practice.start();
+        await rig.playTimed(1);
+        await rig.playTimed(2);
+        await rig.playTimed(3, miss: 0);
+        rig.advanceTo(end3);
+        await rig.settle();
+        // Na repetição o 2 erra e o 3 sai certo: o degrau não é limpo.
+        await rig.playTimed(2, miss: 0);
+        await rig.playTimed(3);
+        rig.advanceTo(end3);
+        expect(rig.status!.notice, RepeatNotice.missed);
+        expect(rig.rewound, [(2, start2), (2, start2)]);
+        expect(rig.practice.rewinds, {3: 1}, reason: 'a volta ainda não');
+        await rig.settle();
+        expect(rig.practice.rewinds, {3: 2});
+        await rig.playTimed(2);
+        await rig.playTimed(3);
+        rig.passEnd(3);
+        expect(rig.status, isNull);
+        expect(rig.dones, 1);
+        expect(rig.practice.stageResult!.rewinds, {3: 2});
+      },
+    );
+
+    test('o degrau só notas ignora o trecho: volta só ao compasso que errou; o '
+        'de andamento volta ao começo do trecho', () async {
+      rig = _Rig(
+        mode: PracticeMode.realtime,
+        firstMeasure: 1,
+        endMeasure: 4,
+        repeatSpeeds: const [0.5],
+        repeatSpanOf: trecho23,
+      );
+      final start2 = rig.timeline.measures[2].startMs.toDouble();
+      final start3 = rig.timeline.measures[3].startMs.toDouble();
+      final end3 = rig.timeline.measures[3].endMs.toDouble() + 400;
+      rig.practice.start();
+      await rig.playTimed(1);
+      await rig.playTimed(2);
+      await rig.playTimed(3, miss: 0);
+      rig.advanceTo(end3);
+      expect(rig.rewound, [(3, start3)]);
+      expect(rig.status!.rung.isWait, isTrue);
+      await rig.settle();
+      await rig.playWaitMeasure();
+      expect(rig.status!.notice, RepeatNotice.passed);
+      expect(rig.rewound, [(3, start3), (2, start2)]);
+      await rig.settle();
+      rig.runCountIn();
+      expect(rig.status!.rung.speed, 0.5);
+      expect(rig.practice.rewinds, {3: 2});
+    });
+
+    test(
+      'sem trecho (repeatSpanOf nulo), o compasso repete sozinho, como antes',
+      () async {
+        rig = _Rig(
+          mode: PracticeMode.realtime,
+          firstMeasure: 1,
+          endMeasure: 4,
+          repeatWithoutWait: true,
+          repeatSpanOf: (_) => null,
+        );
+        final start3 = rig.timeline.measures[3].startMs.toDouble();
+        rig.practice.start();
+        await rig.playTimed(1);
+        await rig.playTimed(2);
+        await rig.playTimed(3, miss: 0);
+        rig.advanceTo(rig.timeline.measures[3].endMs + 400);
+        expect(rig.rewound, [(3, start3)]);
+        await rig.settle();
+        await rig.playTimed(3);
+        rig.passEnd(3);
+        expect(rig.status, isNull);
+        expect(rig.dones, 1);
+        expect(rig.practice.stageResult!.rewinds, {3: 1});
+      },
+    );
+  });
+
   group('a escuta do erro (onMissReplay)', () {
     late _Rig rig;
     tearDown(() => rig.dispose());
@@ -1005,6 +1234,35 @@ void main() {
         expect(lines.where((l) => l.contains('contagem=true')), isNotEmpty);
       },
     );
+
+    test('o começo da escada diz o trecho quando ele é mais que o compasso '
+        '(EC02)', () async {
+      final store = MemoryDiagStorage();
+      await DiagLog.init(storage: store, installHandlers: false);
+      final rig = _Rig(
+        mode: PracticeMode.realtime,
+        firstMeasure: 1,
+        endMeasure: 4,
+        repeatWithoutWait: true,
+        repeatSpanOf: (m) => m == 3 ? (first: 2, last: 3) : null,
+      );
+      addTearDown(rig.dispose);
+      rig.practice.start();
+      await rig.playTimed(1);
+      await rig.playTimed(2);
+      await rig.playTimed(3, miss: 0);
+      rig.advanceTo(rig.timeline.measures[3].endMs + 400);
+      final lines = store
+          .read('app')
+          .split('\n')
+          .where((l) => l.contains('[volta]'))
+          .toList();
+      expect(
+        lines.where((l) => l.contains('compasso=3 escada de 1 degraus')),
+        hasLength(1),
+      );
+      expect(lines.where((l) => l.contains('trecho=2-3')), hasLength(1));
+    });
   });
 
   // A nota do app na folga da fronteira (`kRangeBoundaryToleranceMs`). O timemap

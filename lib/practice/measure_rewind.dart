@@ -24,8 +24,17 @@ class MeasureRewinds {
   /// O compasso [measure] volta: a tentativa nova começa limpa nele e em
   /// tudo o que vem depois. Devolve o número da tentativa que começa (2 na
   /// primeira volta).
-  int rewind(int measure) {
-    _errors.removeWhere((m, _) => m >= measure);
+  ///
+  /// Com [from] (EC02, a volta a um trecho), a tentativa nova começa limpa a
+  /// partir de [from], o primeiro compasso do trecho que repete, e a volta
+  /// conta só em [measure], o que errou.
+  int rewind(int measure, {int? from}) {
+    assert(
+      from == null || from <= measure,
+      'o trecho começa antes do compasso que errou',
+    );
+    final first = from ?? measure;
+    _errors.removeWhere((m, _) => m >= first);
     final count = (_counts[measure] ?? 0) + 1;
     _counts[measure] = count;
     return count + 1;

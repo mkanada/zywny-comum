@@ -197,9 +197,14 @@ class RepeatLadder {
   /// `kMusicStageSpeeds`: `[só notas, 50%, 75%]`. Os andamentos de [speeds] que
   /// não são menores que [top] ficam de fora, e a ordem e as repetições não
   /// importam.
+  ///
+  /// Com [wait] `false` (EC01, a volta sem o degrau "só notas", usada pelo
+  /// Eco) a escada não tem o `[só notas]` do começo: `[50%, 75%]` na etapa de
+  /// 75%. Com [top] `null` a etapa é só notas, e [wait] não muda nada.
   factory RepeatLadder.of({
     required double? top,
     required List<double> speeds,
+    bool wait = true,
   }) {
     if (top == null) return RepeatLadder([const RepeatRung.wait()]);
     if (top <= 0) {
@@ -208,7 +213,7 @@ class RepeatLadder {
     final below = speeds.where((s) => s > 0 && s < top).toSet().toList()
       ..sort();
     return RepeatLadder([
-      const RepeatRung.wait(),
+      if (wait) const RepeatRung.wait(),
       for (final speed in below) RepeatRung.tempo(speed),
       RepeatRung.tempo(top),
     ]);

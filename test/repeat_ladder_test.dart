@@ -152,4 +152,52 @@ void main() {
       expect(const RepeatRung.tempo(0.5).isWait, isFalse);
     },
   );
+
+  group('sem o degrau "só notas" (EC01, wait: false)', () {
+    test('etapa de 50%: só o andamento da etapa', () {
+      final ladder = RepeatLadder.of(top: 0.5, speeds: _speeds, wait: false);
+      expect(ladder.rungs, [const RepeatRung.tempo(0.5)]);
+    });
+
+    test('etapa de 75%: 50% e 75%, sem o só notas do começo', () {
+      final ladder = RepeatLadder.of(top: 0.75, speeds: _speeds, wait: false);
+      expect(ladder.rungs, [
+        const RepeatRung.tempo(0.5),
+        const RepeatRung.tempo(0.75),
+      ]);
+    });
+
+    test('etapa de 100%: 50%, 75%, 90% e 100%', () {
+      final ladder = RepeatLadder.of(top: 1.0, speeds: _speeds, wait: false);
+      expect(ladder.rungs, [
+        const RepeatRung.tempo(0.5),
+        const RepeatRung.tempo(0.75),
+        const RepeatRung.tempo(0.9),
+        const RepeatRung.tempo(1.0),
+      ]);
+    });
+
+    test('sem andamentos menores, só o da etapa', () {
+      final ladder = RepeatLadder.of(top: 0.5, speeds: const [], wait: false);
+      expect(ladder.rungs, [const RepeatRung.tempo(0.5)]);
+    });
+
+    test('etapa só notas: wait: false não muda nada, continua [só notas]', () {
+      final ladder = RepeatLadder.of(top: null, speeds: _speeds, wait: false);
+      expect(ladder.rungs, [const RepeatRung.wait()]);
+    });
+
+    test('errar sem o só notas volta ao primeiro andamento, e acertar no '
+        'último acaba a escada sem aviso', () {
+      final ladder = RepeatLadder.of(top: 0.75, speeds: _speeds, wait: false);
+      expect(ladder.missed().next, const RepeatRung.tempo(0.5));
+      expect(ladder.index, 0);
+      final up = ladder.passed();
+      expect(up.next, const RepeatRung.tempo(0.75));
+      expect(up.countIn, isTrue);
+      final done = ladder.passed();
+      expect(done.finished, isTrue);
+      expect(done.notice, RepeatNotice.none);
+    });
+  });
 }

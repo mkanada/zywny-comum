@@ -177,6 +177,8 @@ class PracticeCubit extends Cubit<PracticeState> {
     this.measureSpanOf,
     this.onRewind,
     this.repeatSpeeds = const [],
+    this.repeatWithoutWait = false,
+    this.repeatSpanOf,
     this.repeatNoticeDuration = kRepeatNoticeDuration,
     this.onMissReplay,
     this.restColors = const {},
@@ -449,6 +451,19 @@ class PracticeCubit extends Cubit<PracticeState> {
   /// notas" e o da rodada. Só vale com [rewindOnError].
   final List<double> repeatSpeeds;
 
+  /// A volta sem o degrau "só notas" (EC01, o Eco): a escada começa no andamento
+  /// menor de [repeatSpeeds] (ou no da rodada) e não passa pelo modo espera. Só
+  /// faz diferença no tempo real; na etapa só notas a escada continua `[só notas]`.
+  final bool repeatWithoutWait;
+
+  /// A volta a um trecho (EC02, o Eco): para o compasso que errou [measure],
+  /// devolve o trecho que repete (do começo do compasso `first` ao fim do `last`,
+  /// índices de `ScoreTimeline.measures`, com `first <= measure <= last`). Vale
+  /// nos degraus de andamento; o degrau "só notas" segue só o compasso que errou.
+  /// `null` (ou sem o parâmetro) é o próprio compasso, como antes. Só vale com
+  /// [rewindOnError].
+  final ({int first, int last})? Function(int measure)? repeatSpanOf;
+
   /// Quanto tempo o aviso ("Errou" ou "Acertou") fica antes de o compasso repetir.
   final Duration repeatNoticeDuration;
 
@@ -464,8 +479,14 @@ class PracticeCubit extends Cubit<PracticeState> {
   /// A escada do compasso que repete agora (`null` quando não repete).
   RepeatLadder? _ladder;
 
-  /// O compasso que a escada repete.
+  /// O compasso que a escada repete (o que errou).
   int _repeatMeasure = 0;
+
+  /// O trecho que os degraus de andamento repetem, do começo do primeiro
+  /// compasso ([_repeatFirst]) ao fim do último ([_repeatLast]). Sem
+  /// [repeatSpanOf] é o próprio [_repeatMeasure].
+  int _repeatFirst = 0;
+  int _repeatLast = 0;
 
   /// Aviso ou contagem em curso: a tecla não conta (como na pausa), menos a
   /// soltura, que segue para a sessão para não deixar nota presa.
@@ -1071,12 +1092,26 @@ class PracticeCubit extends Cubit<PracticeState> {
   bool _judgeRung(double pos) {
     final rt = _rt;
     if (rt == null || _wait != null || _ladder == null) return false;
-    final measure = _repeatMeasure;
-    final start = _measureStartMs(measure);
-    final end = _measureEndMs(measure);
+    final span = _rungSpan();
+    final start = _measureStartMs(span.first);
+    final end = _measureEndMs(span.last);
     if (pos < end || rt.hasPendingIn(start, end)) return false;
     return _decideRung();
   }
+
+  /// O trecho que o degrau atual repete. No degrau "só notas" é o compasso que
+  /// errou (a volta a um trecho não vale para ele, EC02); nos de andamento, o
+  /// trecho de [_repeatFirst] a [_repeatLast]. Com a escada no ar.
+  ({int first, int last}) _rungSpan() {
+    if (_ladder!.current.isWait) {
+      return (first: _repeatMeasure, last: _repeatMeasure);
+    }
+    return (first: _repeatFirst, last: _repeatLast);
+  }
+
+  /// Algum compasso de [first] a [last] tem erro na tentativa em curso.
+  bool _hasErrorIn(int first, int last) =>
+      _rewindBook.errorMeasures.any((m) => m >= first && m <= last);
 
   /// A escada de repetição, no modo espera: o compasso que repete acabou (o
   /// passo pendente já é de outro compasso). `true` se a escada segurou a
@@ -1098,7 +1133,8 @@ class PracticeCubit extends Cubit<PracticeState> {
   bool _decideRung() {
     final ladder = _ladder!;
     final measure = _repeatMeasure;
-    final clean = !_rewindBook.hasError(measure);
+    final span = _rungSpan();
+    final clean = !_hasErrorIn(span.first, span.last);
     final outcome = clean ? ladder.passed() : ladder.missed();
     DiagLog.log(
       'volta',
@@ -1118,25 +1154,38 @@ class PracticeCubit extends Cubit<PracticeState> {
   /// A escada começa no [measure] (o primeiro erro dele, fora da escada): o
   /// aviso de "Errou" e, depois, o compasso repete no primeiro degrau.
   void _startRepeat(int measure) {
+    final span = repeatSpanOf?.call(measure);
+    assert(
+      span == null || (span.first <= measure && measure <= span.last),
+      'o trecho da volta tem de conter o compasso que errou',
+    );
+    _repeatFirst = span?.first ?? measure;
+    _repeatLast = span?.last ?? measure;
     _ladder = RepeatLadder.of(
       top: mode == PracticeMode.realtime ? _baseSpeed : null,
       speeds: repeatSpeeds,
+      wait: !repeatWithoutWait,
     );
     _repeatMeasure = measure;
+    // O trecho aparece no log só quando é mais que o compasso que errou.
+    final trecho = _repeatFirst == measure && _repeatLast == measure
+        ? ''
+        : ' trecho=$_repeatFirst-$_repeatLast';
     DiagLog.log(
       'volta',
       'compasso=$measure escada de ${_ladder!.length} degraus, '
-          'do ${_ladder!.current}',
+          'do ${_ladder!.current}$trecho',
     );
     _hold(RepeatNotice.missed, countIn: false);
   }
 
-  /// O aviso da escada: a música para no começo do compasso que repete, o host
-  /// leva a partitura para lá ([onRewind]) e, depois de [repeatNoticeDuration],
-  /// o degrau começa ([_beginRung]).
+  /// O aviso da escada: a música para no começo do trecho que repete (o
+  /// compasso que errou, no degrau "só notas"), o host leva a partitura para lá
+  /// ([onRewind]) e, depois de [repeatNoticeDuration], o degrau começa
+  /// ([_beginRung]). Aqui o degrau seguinte já é o `current`.
   void _hold(RepeatNotice notice, {required bool countIn}) {
-    final measure = _repeatMeasure;
-    final startMs = _measureStartMs(measure);
+    final first = _rungSpan().first;
+    final startMs = _measureStartMs(first);
     scheduler.pause();
     scheduler.seek(startMs - kRangeBoundaryToleranceMs);
     _gateAhead = false;
@@ -1149,7 +1198,7 @@ class PracticeCubit extends Cubit<PracticeState> {
           ? RepeatNotice.none
           : notice,
     );
-    onRewind?.call(measure, startMs);
+    onRewind?.call(first, startMs);
     _holdCountIn = countIn;
     _holdTimer?.cancel();
     _holdTimer = clock.timer(repeatNoticeDuration, _endHold);
@@ -1262,9 +1311,10 @@ class PracticeCubit extends Cubit<PracticeState> {
     }
     final measure = _repeatMeasure;
     final rung = ladder.current;
-    final startMs = _measureStartMs(measure);
-    final endMs = _measureEndMs(measure);
-    final attempt = _rewindBook.rewind(measure);
+    final span = _rungSpan();
+    final startMs = _measureStartMs(span.first);
+    final endMs = _measureEndMs(span.last);
+    final attempt = _rewindBook.rewind(measure, from: span.first);
     _keyLog.clear();
     _dropAfter(measure);
     scheduler.setSpeed(rung.speed ?? _baseSpeed);
@@ -1292,9 +1342,9 @@ class PracticeCubit extends Cubit<PracticeState> {
       // veredito (e do `seek`), e a primeira batida dele saía atrasada pela
       // antecedência do agendador e pela latência de saída (issue 26). Com erro,
       // o `_hold` pausa e volta como sempre.
-      final following = _measureAfter(measure, endMs);
+      final following = _measureAfter(span.last, endMs);
       _gateAhead = ladder.index == ladder.length - 1 && following != null;
-      scheduler.setGate(_gateAhead ? _gateOf(following!) : _gateOf(measure));
+      scheduler.setGate(_gateAhead ? _gateOf(following!) : _gateOf(span.last));
       _rt?.resetTo(startMs, untilMs: endMs);
       _lastPositionMs = startMs;
       _setBrake(null);
@@ -1318,7 +1368,10 @@ class PracticeCubit extends Cubit<PracticeState> {
   /// a partir do compasso seguinte, no andamento da etapa, sem aviso.
   void _endRepeat() {
     final measure = _repeatMeasure;
-    final endMs = _measureEndMs(measure);
+    // A música segue do fim do trecho que o último degrau repetiu (o compasso,
+    // só na escada de modo espera). Lido antes de a escada sair.
+    final last = _rungSpan().last;
+    final endMs = _measureEndMs(last);
     DiagLog.log('volta', 'compasso=$measure certo: a escada acabou');
     _cancelRepeat();
     scheduler.setSpeed(_baseSpeed);
@@ -1332,7 +1385,7 @@ class PracticeCubit extends Cubit<PracticeState> {
       rt.resetTo(endMs + kRangeBoundaryToleranceMs, untilMs: range!.endMs);
     }
     _lastPositionMs = endMs;
-    _watchMeasure = _measureAfter(measure, endMs);
+    _watchMeasure = _measureAfter(last, endMs);
     final next = _watchMeasure;
     scheduler.setGate(next == null ? null : _gateOf(next));
     // Com o portão adiantado (`_gateAhead`) a música já segue tocando o compasso
