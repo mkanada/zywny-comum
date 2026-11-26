@@ -6,6 +6,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import 'package:zywny_bloc/zywny_bloc.dart';
+import 'package:zywny_clock/zywny_clock.dart';
 import 'package:zywny_midi/midi_input_service.dart';
 
 import '../midi/piano_keyboard.dart';
@@ -125,6 +126,7 @@ class TransposeCheckRequest {
     required this.deviceName,
     required this.input,
     required this.previous,
+    required this.clock,
     this.playOwnSound,
     this.playOnKeyboard,
     this.naming = NoteNaming.latin,
@@ -135,6 +137,10 @@ class TransposeCheckRequest {
   final Transposition transposition;
   final String deviceName;
   final MidiInputService input;
+
+  /// O relógio do app (CT05c): o prazo da tecla e a pausa entre os dois sons
+  /// do teste da entrada são dele.
+  final AppClock clock;
 
   /// O que já se sabia do teclado; a conferência acrescenta o que descobrir.
   final KeyboardTransposeBehavior previous;
@@ -161,6 +167,7 @@ Future<KeyboardTransposeBehavior?> showTransposeCheck(
       deviceName: request.deviceName,
       input: request.input,
       previous: request.previous,
+      clock: request.clock,
       playOwnSound: request.playOwnSound,
       playOnKeyboard: request.playOnKeyboard,
       naming: request.naming,
@@ -234,6 +241,7 @@ class TransposeCheckCubit extends Cubit<TransposeCheckState> {
     required this.transposition,
     required this.input,
     required this.previous,
+    required this.clock,
     this.playOwnSound,
     this.playOnKeyboard,
     required this.keyTimeout,
@@ -248,8 +256,13 @@ class TransposeCheckCubit extends Cubit<TransposeCheckState> {
   final Duration keyTimeout;
   final Duration inputGap;
 
+  /// O relógio do app (CT05c): o prazo da tecla e a pausa da entrada.
+  final AppClock clock;
+
   StreamSubscription<PlayedNote>? _sub;
-  Timer? _prazo;
+  AppTimer? _prazo;
+  AppTimer? _pausa;
+  Completer<void>? _esperaDaPausa;
   bool _testeDaEntradaRodando = false;
 
   int get _k => transposition.semitones;
@@ -262,7 +275,7 @@ class TransposeCheckCubit extends Cubit<TransposeCheckState> {
     _sub = input.notes.listen((n) {
       if (n.on) _aoApertar(n.pitch);
     });
-    _prazo = Timer(keyTimeout, () {
+    _prazo = clock.timer(keyTimeout, () {
       _pararEscuta();
       _ir(TransposeStep.noKey);
     });
@@ -298,7 +311,7 @@ class TransposeCheckCubit extends Cubit<TransposeCheckState> {
     _atualizar(state.copyWith(inputPlayed: 0));
     await play(kCheckKeyMidi);
     _atualizar(state.copyWith(inputPlayed: 1));
-    await Future<void>.delayed(inputGap);
+    await _esperarPausa(inputGap);
     if (isClosed) return;
     await play(_tomSoando);
     _atualizar(state.copyWith(inputPlayed: 2));
@@ -357,6 +370,25 @@ class TransposeCheckCubit extends Cubit<TransposeCheckState> {
     _sub = null;
   }
 
+  /// Espera [d] no relógio do app, entre os dois sons do teste da entrada. Ao
+  /// fechar, a espera acaba na hora: quem a esperava confere [isClosed].
+  Future<void> _esperarPausa(Duration d) {
+    final espera = Completer<void>();
+    _esperaDaPausa = espera;
+    _pausa = clock.timer(d, () {
+      if (!espera.isCompleted) espera.complete();
+    });
+    return espera.future;
+  }
+
+  void _pararPausa() {
+    _pausa?.cancel();
+    _pausa = null;
+    final espera = _esperaDaPausa;
+    _esperaDaPausa = null;
+    if (espera != null && !espera.isCompleted) espera.complete();
+  }
+
   void _ir(TransposeStep step) => _atualizar(state.copyWith(step: step));
 
   void _atualizar(TransposeCheckState next) {
@@ -367,6 +399,7 @@ class TransposeCheckCubit extends Cubit<TransposeCheckState> {
   @override
   Future<void> close() {
     _pararEscuta();
+    _pararPausa();
     return super.close();
   }
 }
@@ -379,6 +412,7 @@ class _TransposeCheckDialog extends StatelessWidget {
     required this.deviceName,
     required this.input,
     required this.previous,
+    required this.clock,
     required this.playOwnSound,
     required this.playOnKeyboard,
     required this.naming,
@@ -390,6 +424,7 @@ class _TransposeCheckDialog extends StatelessWidget {
   final String deviceName;
   final MidiInputService input;
   final KeyboardTransposeBehavior previous;
+  final AppClock clock;
   final Future<bool> Function(int pitch)? playOwnSound;
   final Future<void> Function(int pitch)? playOnKeyboard;
   final NoteNaming naming;
@@ -402,6 +437,7 @@ class _TransposeCheckDialog extends StatelessWidget {
       transposition: transposition,
       input: input,
       previous: previous,
+      clock: clock,
       playOwnSound: playOwnSound,
       playOnKeyboard: playOnKeyboard,
       keyTimeout: keyTimeout,

@@ -479,11 +479,12 @@ void main() {
       WidgetTester tester,
       ShiftNoticeCubit notice,
       Stream<PlayedNote> notes,
+      AppClock clock,
     ) => tester.pumpWidget(
       MaterialApp(
         home: Scaffold(
           body: Stack(
-            children: [ShiftBanner(notice: notice, notes: notes)],
+            children: [ShiftBanner(notice: notice, notes: notes, clock: clock)],
           ),
         ),
       ),
@@ -499,7 +500,8 @@ void main() {
       });
       rig.onShift = (d) =>
           notice.show(shiftNoticeFor(d: d, k: 0, frameShiftsOut: false));
-      await show(tester, notice, rig.midi.notes);
+      final relogio = ManualClock(DateTime(2026, 11, 25, 10));
+      await show(tester, notice, rig.midi.notes, relogio);
       expect(find.byKey(const ValueKey('shift-banner')), findsNothing);
       for (var i = 0; i < 3; i++) {
         await rig.play(i, shift: 3, flush: tester.pump);
@@ -524,29 +526,48 @@ void main() {
     // e as notas, de um teclado falso à parte.
     late ShiftNoticeCubit notice;
     late _Input keyboard;
+    // O prazo da faixa é o do relógio do teste: só anda quando o teste manda.
+    late ManualClock relogio;
     setUp(() {
       notice = ShiftNoticeCubit();
       keyboard = _Input();
+      relogio = ManualClock(DateTime(2026, 11, 25, 10));
     });
     tearDown(() async {
       await notice.close();
       keyboard.dispose();
     });
 
+    // Anda o relógio do teste e deixa o aviso chegar à faixa (um Stream, e um
+    // quadro para a árvore refazer o desenho).
+    Future<void> andar(
+      WidgetTester tester,
+      ManualClock relogio,
+      Duration d,
+    ) async {
+      relogio.advance(d);
+      await tester.pump();
+      await tester.pump();
+    }
+
     testWidgets('some sozinha em 8 s', (tester) async {
-      await show(tester, notice, keyboard.notes);
+      await show(tester, notice, keyboard.notes, relogio);
       notice.show(const ShiftNotice('oi'));
       await tester.pump();
       expect(find.text('oi'), findsOneWidget);
-      await tester.pump(const Duration(seconds: 7));
+      await andar(tester, relogio, const Duration(seconds: 7));
       expect(find.text('oi'), findsOneWidget);
-      await tester.pump(const Duration(seconds: 1, milliseconds: 100));
+      await andar(
+        tester,
+        relogio,
+        const Duration(seconds: 1, milliseconds: 100),
+      );
       expect(find.text('oi'), findsNothing);
       expect(notice.state.notice, isNull);
     });
 
     testWidgets('some ao tocar a próxima nota', (tester) async {
-      await show(tester, notice, keyboard.notes);
+      await show(tester, notice, keyboard.notes, relogio);
       notice.show(const ShiftNotice('oi'));
       await tester.pump();
       keyboard.note(60, on: false);
@@ -560,19 +581,19 @@ void main() {
     });
 
     testWidgets('o lembrete de voltar a 0 não some ao tocar', (tester) async {
-      await show(tester, notice, keyboard.notes);
+      await show(tester, notice, keyboard.notes, relogio);
       notice.show(const ShiftNotice(kShiftReminderMessage, hideOnPlay: false));
       await tester.pump();
       keyboard.note(60, on: true);
       await tester.pump();
       await tester.pump();
       expect(find.text(kShiftReminderMessage), findsOneWidget);
-      await tester.pump(const Duration(seconds: 9));
+      await andar(tester, relogio, const Duration(seconds: 9));
       expect(find.text(kShiftReminderMessage), findsNothing);
     });
 
     testWidgets('tocar na faixa a fecha', (tester) async {
-      await show(tester, notice, keyboard.notes);
+      await show(tester, notice, keyboard.notes, relogio);
       notice.show(const ShiftNotice('oi'));
       await tester.pump();
       await tester.tap(find.text('oi'));
@@ -582,15 +603,15 @@ void main() {
     });
 
     testWidgets('um aviso novo reinicia os 8 s', (tester) async {
-      await show(tester, notice, keyboard.notes);
+      await show(tester, notice, keyboard.notes, relogio);
       notice.show(const ShiftNotice('um'));
       await tester.pump();
-      await tester.pump(const Duration(seconds: 6));
+      await andar(tester, relogio, const Duration(seconds: 6));
       notice.show(const ShiftNotice('dois'));
       await tester.pump();
-      await tester.pump(const Duration(seconds: 6));
+      await andar(tester, relogio, const Duration(seconds: 6));
       expect(find.text('dois'), findsOneWidget);
-      await tester.pump(const Duration(seconds: 3));
+      await andar(tester, relogio, const Duration(seconds: 3));
       expect(find.text('dois'), findsNothing);
     });
   });

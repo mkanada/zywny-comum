@@ -1,5 +1,6 @@
 import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:zywny_clock/zywny_clock.dart';
 import 'package:zywny_comum/app/splash_cubit.dart';
 
 void main() {
@@ -25,7 +26,10 @@ void main() {
 
   group('SplashCubit', () {
     test('começa cobrindo o app', () {
-      final cubit = SplashCubit(duration: const Duration(seconds: 10));
+      final cubit = SplashCubit(
+        duration: const Duration(seconds: 10),
+        clock: ManualClock(DateTime(2026, 11, 25, 10)),
+      );
       addTearDown(cubit.close);
 
       expect(cubit.state.showing, isTrue);
@@ -33,23 +37,38 @@ void main() {
 
     blocTest<SplashCubit, SplashState>(
       'hide tira a splash de cima',
-      build: () => SplashCubit(duration: const Duration(seconds: 10)),
+      build: () => SplashCubit(
+        duration: const Duration(seconds: 10),
+        clock: ManualClock(DateTime(2026, 11, 25, 10)),
+      ),
       act: (cubit) => cubit.hide(),
       expect: () => [const SplashState(showing: false)],
     );
 
-    blocTest<SplashCubit, SplashState>(
-      'o tempo passa e a splash sai sozinha',
-      build: () => SplashCubit(duration: const Duration(milliseconds: 10)),
-      wait: const Duration(milliseconds: 60),
-      expect: () => [const SplashState(showing: false)],
-    );
+    test('o tempo passa e a splash sai sozinha, no relógio dado', () {
+      final relogio = ManualClock(DateTime(2026, 11, 25, 10));
+      final cubit = SplashCubit(
+        duration: const Duration(milliseconds: 1800),
+        clock: relogio,
+      );
+      addTearDown(cubit.close);
+
+      relogio.advance(const Duration(milliseconds: 1799));
+      expect(cubit.state.showing, isTrue);
+
+      relogio.advance(const Duration(milliseconds: 1));
+      expect(cubit.state.showing, isFalse);
+    });
 
     test('se fechar antes do tempo, o aviso não chega e não lança', () async {
-      final cubit = SplashCubit(duration: const Duration(milliseconds: 20));
+      final relogio = ManualClock(DateTime(2026, 11, 25, 10));
+      final cubit = SplashCubit(
+        duration: const Duration(milliseconds: 20),
+        clock: relogio,
+      );
 
       await cubit.close();
-      await Future<void>.delayed(const Duration(milliseconds: 50));
+      relogio.advance(const Duration(milliseconds: 50));
 
       expect(cubit.isClosed, isTrue);
       expect(
@@ -57,6 +76,7 @@ void main() {
         isTrue,
         reason: 'o estado não mudou depois do close',
       );
+      expect(relogio.pendingTimers, isEmpty, reason: 'o timer foi cancelado');
     });
   });
 }

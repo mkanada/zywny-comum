@@ -710,11 +710,11 @@ class GeneralSettingsPanel extends StatelessWidget {
       // Fecha as configurações primeiro: a captura é da tela onde o
       // erro aconteceu, não da lista de opções.
       onClose();
+      // O atraso é de tela: o painel fecha antes da captura. O relógio do app
+      // chega a este painel com a LibraryScreen (CT05f).
+      const atraso = Duration(milliseconds: 450);
       unawaited(
-        Future<void>.delayed(
-          const Duration(milliseconds: 450),
-          BugReportScope.start,
-        ),
+        Future<void>.delayed(atraso, BugReportScope.start), // relógio: tela
       );
     },
   );

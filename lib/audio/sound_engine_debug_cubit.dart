@@ -66,6 +66,9 @@ class SoundEngineDebugCubit extends Cubit<SoundEngineDebugState> {
 
   NativeSoundEngine? _motor;
   Timer? _estatisticas;
+  static const _tique = Duration(milliseconds: 500);
+
+  void _amostrar(Timer _) => _emitir(state.copyWith(serial: state.serial + 1));
 
   /// O motor aberto, para a tela ler as estatísticas; `null` antes do primeiro
   /// toque.
@@ -116,10 +119,8 @@ class SoundEngineDebugCubit extends Cubit<SoundEngineDebugState> {
       return null;
     }
     _motor = motor;
-    _estatisticas ??= Timer.periodic(
-      const Duration(milliseconds: 500),
-      (_) => _emitir(state.copyWith(serial: state.serial + 1)),
-    );
+    // As estatísticas do motor nativo são amostradas no ritmo dele (decisão 2).
+    _estatisticas ??= Timer.periodic(_tique, _amostrar); // relógio: decisão 2
     return motor;
   }
 

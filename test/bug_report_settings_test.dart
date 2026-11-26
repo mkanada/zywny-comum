@@ -7,6 +7,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:shared_preferences_platform_interface/in_memory_shared_preferences_async.dart';
 import 'package:shared_preferences_platform_interface/shared_preferences_async_platform_interface.dart';
 import 'package:zywny_comum/app/general_settings_panel.dart';
+
+import 'support/relogio_de_teste.dart';
+
 import 'package:zywny_comum/diag/bug_report_scope.dart';
 import 'package:zywny_comum/settings/settings_cubit.dart';
 import 'package:zywny_comum/ui/theme.dart';
@@ -30,6 +33,9 @@ Future<void> abrirAvancado(WidgetTester tester) async {
   await tester.pumpAndSettle();
 }
 
+// O relógio do relatório neste arquivo: um só, do começo ao fim.
+final _relogio = relogioDeTeste();
+
 void main() {
   setUp(() {
     SharedPreferencesAsyncPlatform.instance =
@@ -50,8 +56,11 @@ void main() {
         theme: buildAppTheme(),
         builder: onClose == null
             ? null
-            : (context, child) =>
-                  BugReportScope(appName: 'teste', child: child!),
+            : (context, child) => BugReportScope(
+                clock: _relogio,
+                appName: 'teste',
+                child: child!,
+              ),
         home: Scaffold(
           body: GeneralSettingsPanel(
             settings: SettingsCubit(),

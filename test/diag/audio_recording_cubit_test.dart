@@ -4,6 +4,8 @@ import 'package:zywny_comum/diag/audio_recording_cubit.dart';
 import 'package:zywny_comum/diag/audio_recording_service.dart';
 import 'package:zywny_diag/diag_log.dart';
 
+import '../support/relogio_de_teste.dart';
+
 class _Fake implements AudioRecordingService {
   _Fake({this.podeComecar = true});
 
@@ -54,14 +56,16 @@ void main() {
   group('AudioRecordingCubit', () {
     blocTest<AudioRecordingCubit, AudioRecordingState>(
       'alternar liga a gravação',
-      build: () => AudioRecordingCubit(service: _Fake()),
+      build: () =>
+          AudioRecordingCubit(service: _Fake(), clock: relogioDeTeste()),
       act: (cubit) => cubit.alternar(),
       expect: () => [const AudioRecordingState(gravando: true)],
     );
 
     blocTest<AudioRecordingCubit, AudioRecordingState>(
       'alternar de novo para e guarda o arquivo: conta uma parada e avisa',
-      build: () => AudioRecordingCubit(service: _Fake()),
+      build: () =>
+          AudioRecordingCubit(service: _Fake(), clock: relogioDeTeste()),
       act: (cubit) async {
         await cubit.alternar();
         await cubit.alternar();
@@ -78,7 +82,10 @@ void main() {
 
     blocTest<AudioRecordingCubit, AudioRecordingState>(
       'sem microfone avisa e não conta parada',
-      build: () => AudioRecordingCubit(service: _Fake(podeComecar: false)),
+      build: () => AudioRecordingCubit(
+        service: _Fake(podeComecar: false),
+        clock: relogioDeTeste(),
+      ),
       act: (cubit) => cubit.alternar(),
       expect: () => [
         const AudioRecordingState(
@@ -88,7 +95,10 @@ void main() {
     );
 
     test('a gravação abre uma sessão de depuração e close a fecha', () async {
-      final cubit = AudioRecordingCubit(service: _Fake());
+      final cubit = AudioRecordingCubit(
+        service: _Fake(),
+        clock: relogioDeTeste(),
+      );
 
       await cubit.alternar();
       expect(
@@ -105,6 +115,32 @@ void main() {
             .text,
         contains('fim: gravacao microfone'),
       );
+    });
+
+    test('o tempo gravado anda com o relógio dado', () async {
+      final relogio = relogioDeTeste();
+      final cubit = AudioRecordingCubit(service: _Fake(), clock: relogio);
+      addTearDown(cubit.close);
+
+      await cubit.alternar();
+      relogio.advance(const Duration(seconds: 3));
+
+      expect(cubit.state.decorrido, const Duration(seconds: 3));
+    });
+
+    test('o aviso da gravação salva some no prazo do relógio dado', () async {
+      final relogio = relogioDeTeste();
+      final cubit = AudioRecordingCubit(service: _Fake(), clock: relogio);
+      addTearDown(cubit.close);
+
+      await cubit.alternar();
+      await cubit.alternar();
+      expect(cubit.state.aviso, 'Gravação salva: Download/Zywny/a.m4a');
+
+      relogio.advance(const Duration(seconds: 5));
+      expect(cubit.state.aviso, isNotNull, reason: 'antes dos 6 s');
+      relogio.advance(const Duration(seconds: 1));
+      expect(cubit.state.aviso, isNull);
     });
   });
 }

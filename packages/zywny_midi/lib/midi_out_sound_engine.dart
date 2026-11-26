@@ -57,7 +57,7 @@ class MidiOutSoundEngine implements SoundEngine {
        _nowSeconds = nowSeconds ?? _stopwatchClock();
 
   static double Function() _stopwatchClock() {
-    final clock = Stopwatch()..start();
+    final clock = Stopwatch()..start(); // relógio: motor de saída MIDI: o tempo é o do motor de som (decisão 2)
     return () => clock.elapsedMicroseconds / 1e6;
   }
 
@@ -157,7 +157,7 @@ class MidiOutSoundEngine implements SoundEngine {
 
   void _armTimer() {
     if (_autoTick) {
-      _timer ??= Timer.periodic(_dispatchInterval, (_) => pump());
+      _timer ??= Timer.periodic(_dispatchInterval, (_) => pump()); // relógio: motor de saída MIDI: o tempo é o do motor de som (decisão 2)
     }
   }
 

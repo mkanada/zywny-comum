@@ -8,6 +8,7 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:score_bridge/score_bridge.dart' show ScoreTrace;
 import 'package:zywny_bloc/zywny_bloc.dart';
+import 'package:zywny_clock/zywny_clock.dart';
 import 'package:zywny_diag/diag_log.dart';
 
 import '../about/about_screen.dart' show packageVersionText;
@@ -43,6 +44,7 @@ class BugReportScope extends StatefulWidget {
     super.key,
     required this.appName,
     required this.child,
+    required this.clock,
     this.sender,
     @visibleForTesting this.deliver = deliverBugReport,
     @visibleForTesting this.recorder,
@@ -51,6 +53,10 @@ class BugReportScope extends StatefulWidget {
   /// `aprendizado`, `musicas`: vai no nome do arquivo e no relatório.
   final String appName;
   final Widget child;
+
+  /// O relógio do app (CT05c): o prazo de tela, o segurar dos três dedos e a
+  /// hora do relatório. O `main` passa o do aparelho; o roteiro, o seu.
+  final AppClock clock;
 
   /// Para onde vai o **Enviar à equipe** (o app entrega uma). Sem ele, ou com
   /// `isAvailable` falso, a tela só gera o arquivo.
@@ -106,7 +112,7 @@ class BugReportScopeState extends State<BugReportScope>
   final BugReportFlowCubit _flow = BugReportFlowCubit();
   final GlobalKey _boundary = GlobalKey();
   final Set<int> _pointers = {};
-  Timer? _hold;
+  AppTimer? _hold;
   Map<String, String> _device = const {};
   String _version = '';
 
@@ -114,7 +120,7 @@ class BugReportScopeState extends State<BugReportScope>
   void initState() {
     super.initState();
     _current = this;
-    DiagLog.retrato('app',() => {'app': widget.appName});
+    DiagLog.retrato('app', () => {'app': widget.appName});
     // O rastro da partitura (player e vista) vai para o mesmo log.
     ScoreTrace.sink = DiagLog.log;
     WidgetsBinding.instance.addObserver(this);
@@ -140,12 +146,12 @@ class BugReportScopeState extends State<BugReportScope>
   // errado"): tamanho, tema, memória, quadros lentos, toques.
   // -------------------------------------------------------------------------
 
-  Timer? _metricsTimer;
+  AppTimer? _metricsTimer;
 
   @override
   void didChangeMetrics() {
     _metricsTimer?.cancel();
-    _metricsTimer = Timer(const Duration(milliseconds: 250), () {
+    _metricsTimer = widget.clock.timer(const Duration(milliseconds: 250), () {
       if (!mounted) return;
       final view = View.of(context);
       final size = view.physicalSize / view.devicePixelRatio;
@@ -187,7 +193,9 @@ class BugReportScopeState extends State<BugReportScope>
     DiagLog.log('app', 'o sistema avisou: pouca memória');
   }
 
-  final Stopwatch _slowClock = Stopwatch()..start();
+  // Quadros lentos medidos no próprio aparelho: é o desenho de verdade, não o
+  // relógio do app.
+  final Stopwatch _slowClock = Stopwatch()..start(); // relógio: aparelho
   int _slowSkipped = 0;
 
   void _onTimings(List<ui.FrameTiming> timings) {
@@ -323,7 +331,7 @@ class BugReportScopeState extends State<BugReportScope>
       BugReportInput(
         appName: widget.appName,
         appVersion: _version.replaceFirst('Versão ', ''),
-        at: DateTime.now(),
+        at: widget.clock.now(),
         doing: doing,
         happened: happened,
         device: _device,
@@ -412,7 +420,7 @@ class BugReportScopeState extends State<BugReportScope>
     _pointers.add(e.pointer);
     if (_pointers.length >= kBugReportFingers && !_flow.state.parada) {
       _hold?.cancel();
-      _hold = Timer(kBugReportHold, () => unawaited(start()));
+      _hold = widget.clock.timer(kBugReportHold, () => unawaited(start()));
     }
   }
 
@@ -447,6 +455,7 @@ class BugReportScopeState extends State<BugReportScope>
               Positioned.fill(
                 child: AudioRecordingCorner(
                   service: widget.recorder,
+                  clock: widget.clock,
                   // Parar a gravação abre a tela de envio, com a sessão dela no log.
                   onStopped: () => unawaited(start()),
                 ),

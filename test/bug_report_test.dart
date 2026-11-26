@@ -11,7 +11,10 @@ import 'package:zywny_comum/diag/bug_report_delivery.dart';
 import 'package:zywny_comum/diag/bug_report_scope.dart';
 import 'package:zywny_comum/diag/bug_report_sender.dart';
 import 'package:zywny_comum/diag/diag_screens.dart';
+import 'package:zywny_clock/zywny_clock.dart';
 import 'package:zywny_diag/diag_log.dart';
+
+import 'support/relogio_de_teste.dart';
 
 class _Ticking extends StatefulWidget {
   const _Ticking();
@@ -60,6 +63,7 @@ class _FakeSender implements BugReportSender {
 
 Widget _app(BugReportSender? sender) => MaterialApp(
   builder: (context, child) => BugReportScope(
+    clock: _relogio,
     appName: 'teste',
     sender: sender,
     deliver: (name, data) async => BugReportDelivery(savedAt: '/x/$name'),
@@ -91,7 +95,11 @@ class _FakeRecorder implements AudioRecordingService {
 /// Segura o dedo no canto da gravação o bastante para ligar/desligar.
 Future<void> _holdCorner(WidgetTester tester, Offset at) async {
   final g = await tester.startGesture(at);
-  await tester.pump(kAudioRecordingHold + const Duration(milliseconds: 50));
+  await passar(
+    tester,
+    _relogio,
+    kAudioRecordingHold + const Duration(milliseconds: 50),
+  );
   await g.up();
   await tester.pump();
 }
@@ -105,10 +113,14 @@ Future<void> openReport(WidgetTester tester) async {
     () => Future<void>.delayed(const Duration(milliseconds: 300)),
   );
   await tester.pump();
-  await tester.pump(const Duration(seconds: 1));
+  await passar(tester, _relogio, const Duration(seconds: 1));
 }
 
+// O relógio de cada teste: os prazos do relatório (os três dedos, o canto) são dele.
+late ManualClock _relogio;
+
 void main() {
+  setUp(() => _relogio = relogioDeTeste());
   tearDown(DiagLog.reset);
 
   group('o arquivo', () {
@@ -169,6 +181,7 @@ void main() {
       MaterialApp(
         navigatorObservers: [DiagScreens.observer],
         builder: (context, child) => BugReportScope(
+          clock: _relogio,
           appName: 'teste',
           deliver: (name, data) async {
             delivered = name;
@@ -186,7 +199,7 @@ void main() {
         ),
       ),
     );
-    await tester.pump(const Duration(seconds: 1));
+    await passar(tester, _relogio, const Duration(seconds: 1));
     final before = tester.widget<Text>(find.textContaining('v=')).data;
     DiagLog.log('nota', 'on 60');
 
@@ -196,7 +209,7 @@ void main() {
     // As animações pararam e a tela do relatório está por cima.
     expect(find.text('Reportar um bug'), findsOneWidget);
     final after = tester.widget<Text>(find.textContaining('v=')).data;
-    await tester.pump(const Duration(seconds: 2));
+    await passar(tester, _relogio, const Duration(seconds: 2));
     expect(tester.widget<Text>(find.textContaining('v=')).data, after);
     expect(after, isNotNull);
     expect(before, isNot(isEmpty));
@@ -237,6 +250,7 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         builder: (context, child) => BugReportScope(
+          clock: _relogio,
           appName: 'teste',
           recorder: rec,
           deliver: (name, data) async => BugReportDelivery(savedAt: '/x/$name'),
@@ -258,7 +272,7 @@ void main() {
       () => Future<void>.delayed(const Duration(milliseconds: 300)),
     );
     await tester.pump();
-    await tester.pump(const Duration(seconds: 7));
+    await passar(tester, _relogio, const Duration(seconds: 7));
 
     expect(find.text('Reportar um bug'), findsOneWidget);
     final gravacao = DiagLog.collect().singleWhere(
@@ -271,7 +285,7 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         builder: (context, child) =>
-            BugReportScope(appName: 'teste', child: child!),
+            BugReportScope(clock: _relogio, appName: 'teste', child: child!),
         home: const Scaffold(body: Center(child: _Ticking())),
       ),
     );
@@ -279,7 +293,7 @@ void main() {
     final frozenText = tester.widget<Text>(find.textContaining('v=')).data;
     await tester.tap(find.text('Cancelar'));
     await tester.pump();
-    await tester.pump(const Duration(seconds: 2));
+    await passar(tester, _relogio, const Duration(seconds: 2));
     expect(
       tester.widget<Text>(find.textContaining('v=')).data,
       isNot(frozenText),
@@ -290,7 +304,7 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         builder: (context, child) =>
-            BugReportScope(appName: 'teste', child: child!),
+            BugReportScope(clock: _relogio, appName: 'teste', child: child!),
         home: const Scaffold(body: Center(child: Text('oi'))),
       ),
     );
@@ -300,12 +314,16 @@ void main() {
       await tester.startGesture(center),
       await tester.startGesture(center + const Offset(60, 0)),
     ];
-    await tester.pump(kBugReportHold + const Duration(milliseconds: 50));
+    await passar(
+      tester,
+      _relogio,
+      kBugReportHold + const Duration(milliseconds: 50),
+    );
     await tester.runAsync(
       () => Future<void>.delayed(const Duration(milliseconds: 300)),
     );
     await tester.pump();
-    await tester.pump(const Duration(seconds: 1));
+    await passar(tester, _relogio, const Duration(seconds: 1));
     expect(find.text('Reportar um bug'), findsOneWidget);
     for (final f in fingers) {
       await f.up();
@@ -316,14 +334,14 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         builder: (context, child) =>
-            BugReportScope(appName: 'teste', child: child!),
+            BugReportScope(clock: _relogio, appName: 'teste', child: child!),
         home: const Scaffold(body: Center(child: Text('oi'))),
       ),
     );
     final center = tester.getCenter(find.text('oi'));
     final a = await tester.startGesture(center - const Offset(60, 0));
     final b = await tester.startGesture(center);
-    await tester.pump(kBugReportHold * 2);
+    await passar(tester, _relogio, kBugReportHold * 2);
     expect(find.text('Reportar um bug'), findsNothing);
     await a.up();
     await b.up();
@@ -344,7 +362,7 @@ void main() {
     testWidgets('sem envio disponível, só gera o arquivo', (tester) async {
       tall(tester);
       await tester.pumpWidget(_app(_FakeSender(available: false)));
-      await tester.pump(const Duration(seconds: 1));
+      await passar(tester, _relogio, const Duration(seconds: 1));
       await openReport(tester);
       expect(find.text('Gerar relatório'), findsOneWidget);
       expect(find.text('Enviar à equipe'), findsNothing);
@@ -354,7 +372,7 @@ void main() {
       final sender = _FakeSender();
       tall(tester);
       await tester.pumpWidget(_app(sender));
-      await tester.pump(const Duration(seconds: 1));
+      await passar(tester, _relogio, const Duration(seconds: 1));
       await openReport(tester);
       expect(find.text('Só gerar o arquivo'), findsOneWidget);
       await tester.enterText(
@@ -387,7 +405,7 @@ void main() {
       await tester.pumpWidget(
         _app(_FakeSender(failWith: const BugReportSendException('Muitos.'))),
       );
-      await tester.pump(const Duration(seconds: 1));
+      await passar(tester, _relogio, const Duration(seconds: 1));
       await openReport(tester);
       await tester.tap(find.text('Enviar à equipe'));
       await tester.pumpAndSettle();
@@ -398,7 +416,7 @@ void main() {
     testWidgets('erro de rede dá a mensagem genérica', (tester) async {
       tall(tester);
       await tester.pumpWidget(_app(_FakeSender(failWith: StateError('x'))));
-      await tester.pump(const Duration(seconds: 1));
+      await passar(tester, _relogio, const Duration(seconds: 1));
       await openReport(tester);
       await tester.tap(find.text('Enviar à equipe'));
       await tester.pumpAndSettle();
@@ -410,7 +428,7 @@ void main() {
       (tester) async {
         final sender = _FakeSender();
         await tester.pumpWidget(_app(sender));
-        await tester.pump(const Duration(seconds: 1));
+        await passar(tester, _relogio, const Duration(seconds: 1));
         expect(BugReportScope.canSend, isTrue);
 
         late BugReportReceipt receipt;
@@ -440,7 +458,7 @@ void main() {
 
     testWidgets('sendNow sem envio disponível diz o motivo', (tester) async {
       await tester.pumpWidget(_app(_FakeSender(available: false)));
-      await tester.pump(const Duration(seconds: 1));
+      await passar(tester, _relogio, const Duration(seconds: 1));
       expect(BugReportScope.canSend, isFalse);
       await expectLater(
         BugReportScope.sendNow(doing: 'a', happened: 'b'),

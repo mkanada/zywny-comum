@@ -3,6 +3,7 @@
 import 'dart:async';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:zywny_clock/zywny_clock.dart';
 import 'package:zywny_comum/practice/shift_banner.dart';
 import 'package:zywny_comum/practice/shift_detector.dart';
 import 'package:zywny_comum/practice/shift_notice_cubit.dart';
@@ -11,18 +12,26 @@ import 'package:zywny_midi/midi_input_service.dart';
 // O aviso e as notas de cada teste: montados no `setUp` do grupo.
 late ShiftNoticeCubit _notice;
 late StreamController<PlayedNote> _notes;
+// O prazo da faixa é o do relógio de cada teste (CT05c): só anda quando o teste manda.
+late ManualClock _relogio;
 
 PlayedNote _nota({bool on = true}) =>
     PlayedNote(pitch: 60, velocity: 80, channel: 0, on: on, atSeconds: 0);
 
 ShiftBannerCubit _criar({Duration duration = const Duration(seconds: 8)}) =>
-    ShiftBannerCubit(notice: _notice, notes: _notes.stream, duration: duration);
+    ShiftBannerCubit(
+      notice: _notice,
+      notes: _notes.stream,
+      duration: duration,
+      clock: _relogio,
+    );
 
 void main() {
   group('ShiftBannerCubit', () {
     setUp(() {
       _notice = ShiftNoticeCubit();
       _notes = StreamController<PlayedNote>.broadcast();
+      _relogio = ManualClock(DateTime(2026, 11, 25, 10));
     });
 
     tearDown(() async {
@@ -83,8 +92,18 @@ void _testesDoFechar() {
     addTearDown(cubit.close);
 
     _notice.show(const ShiftNotice('oi'));
-    await Future<void>.delayed(const Duration(milliseconds: 40));
+    await pumpEventQueue();
+    expect(cubit.state.shown, const ShiftNotice('oi'));
 
+    _relogio.advance(const Duration(milliseconds: 19));
+    expect(
+      cubit.state.shown,
+      const ShiftNotice('oi'),
+      reason: 'antes do prazo',
+    );
+
+    _relogio.advance(const Duration(milliseconds: 1));
+    await pumpEventQueue();
     expect(cubit.state.shown, isNull);
     expect(_notice.state.notice, isNull);
   });

@@ -26,7 +26,7 @@ class FakeAuthStore extends AuthStoreBase implements AuthStore {
           email: email,
           displayName: nickname ?? 'Aluno de Teste',
           refreshToken: 'fake-refresh-token',
-          lastServerCheckAt: DateTime.now(),
+          lastServerCheckAt: DateTime.now(), // relógio: conta falsa de teste: o carimbo da conferência não é o relógio do app
           nickname: nickname,
         ),
       ),
@@ -49,7 +49,7 @@ class FakeAuthStore extends AuthStoreBase implements AuthStore {
           providerId: 'google.com',
           idToken: 'fake-id-token',
           refreshToken: 'fake-refresh-token',
-          lastServerCheckAt: DateTime.now(),
+          lastServerCheckAt: DateTime.now(), // relógio: conta falsa de teste: o carimbo da conferência não é o relógio do app
           nickname: nickname,
         ),
         errorMessage:
@@ -88,7 +88,7 @@ class FakeAuthStore extends AuthStoreBase implements AuthStore {
           email: 'aluno@zywny.app',
           displayName: 'Aluno de Teste',
           refreshToken: 'fake-refresh-token',
-          lastServerCheckAt: DateTime.now(),
+          lastServerCheckAt: DateTime.now(), // relógio: conta falsa de teste: o carimbo da conferência não é o relógio do app
         ),
       ),
     );
@@ -100,7 +100,7 @@ class FakeAuthStore extends AuthStoreBase implements AuthStore {
     final user = currentUser;
     if (user == null) return;
     mudar(
-      AuthState.authenticated(user.copyWith(lastServerCheckAt: DateTime.now())),
+      AuthState.authenticated(user.copyWith(lastServerCheckAt: DateTime.now())), // relógio: conta falsa de teste: o carimbo da conferência não é o relógio do app
     );
   }
 

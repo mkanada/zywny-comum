@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:zywny_clock/zywny_clock.dart';
 import 'package:zywny_comum/app/splash_screen.dart';
 
 void main() {
@@ -8,10 +9,12 @@ void main() {
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
 
+    // O tempo da splash é o do relógio dado (CT05c): só anda quando o teste manda.
+    final relogio = ManualClock(DateTime(2026, 11, 25, 10));
     await tester.pumpWidget(
-      const Directionality(
+      Directionality(
         textDirection: TextDirection.ltr,
-        child: SplashOverlay(child: Text('app')),
+        child: SplashOverlay(clock: relogio, child: const Text('app')),
       ),
     );
     expect(
@@ -24,7 +27,11 @@ void main() {
       1,
     );
 
-    await tester.pump(const Duration(milliseconds: 1900));
+    relogio.advance(const Duration(milliseconds: 1900));
+    // O aviso do cubit chega por um Stream (uma microtarefa): um quadro para
+    // ele entrar no estado, outro para a árvore refazer o desenho.
+    await tester.pump();
+    await tester.pump();
     expect(
       tester.widget<AnimatedOpacity>(find.byType(AnimatedOpacity)).opacity,
       0,

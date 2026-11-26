@@ -4,6 +4,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import 'package:zywny_bloc/zywny_bloc.dart';
+import 'package:zywny_clock/zywny_clock.dart';
 import 'package:zywny_midi/midi_input_service.dart';
 
 import 'shift_detector.dart';
@@ -20,12 +21,16 @@ class ShiftBanner extends StatelessWidget {
     super.key,
     required this.notice,
     required this.notes,
+    required this.clock,
     this.duration = kShiftBannerDuration,
   });
 
   /// O Cubit que guarda o aviso: a faixa o lê e o fecha; quem o mostra é o dono.
   final ShiftNoticeCubit notice;
   final Stream<PlayedNote> notes;
+
+  /// O relógio do app (CT05c): o prazo de sumir da faixa é o dele.
+  final AppClock clock;
   final Duration duration;
 
   @override
@@ -37,6 +42,7 @@ class ShiftBanner extends StatelessWidget {
       notice: notice,
       notes: notes,
       duration: duration,
+      clock: clock,
     ),
     child: const _ShiftBannerView(),
   );
@@ -60,6 +66,7 @@ class ShiftBannerCubit extends Cubit<ShiftBannerState> {
     required ShiftNoticeCubit notice,
     required Stream<PlayedNote> notes,
     required this.duration,
+    required this.clock,
   }) : _notice = notice,
        super(ShiftBannerState(shown: notice.state.notice)) {
     _sub = notes.listen(_aoTocar);
@@ -71,9 +78,12 @@ class ShiftBannerCubit extends Cubit<ShiftBannerState> {
   /// Dono do aviso: a faixa só o lê, e fechar passa por ele.
   final ShiftNoticeCubit _notice;
   final Duration duration;
+
+  /// O relógio do app (CT05c): o prazo de sumir é dele.
+  final AppClock clock;
   late final StreamSubscription<PlayedNote> _sub;
   late final StreamSubscription<ShiftNoticeState> _avisoSub;
-  Timer? _prazo;
+  AppTimer? _prazo;
 
   /// A nota que fez o aviso nascer chega a esta faixa na mesma entrega (o
   /// treino a recebeu primeiro): só vale como "tocou de novo" a que vier
@@ -85,7 +95,7 @@ class ShiftBannerCubit extends Cubit<ShiftBannerState> {
 
   void _armar() {
     _prazo?.cancel();
-    _prazo = state.shown == null ? null : Timer(duration, fechar);
+    _prazo = state.shown == null ? null : clock.timer(duration, fechar);
   }
 
   void _aoAviso(ShiftNoticeState estado) {

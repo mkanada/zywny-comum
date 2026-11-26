@@ -2,7 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:zywny_comum/diag/audio_recording_corner.dart';
 import 'package:zywny_comum/diag/audio_recording_service.dart';
+import 'package:zywny_clock/zywny_clock.dart';
 import 'package:zywny_diag/diag_log.dart';
+
+import 'support/relogio_de_teste.dart';
 
 class _Fake implements AudioRecordingService {
   _Fake({this.canStart = true});
@@ -37,7 +40,11 @@ Widget _app(_Fake fake, {VoidCallback? onTap, VoidCallback? onStopped}) =>
             ),
           ),
           Positioned.fill(
-            child: AudioRecordingCorner(service: fake, onStopped: onStopped),
+            child: AudioRecordingCorner(
+              clock: _relogio,
+              service: fake,
+              onStopped: onStopped,
+            ),
           ),
         ],
       ),
@@ -48,7 +55,10 @@ Iterable<String> _gravacaoLogs() => DiagLog.collect()
     .where((f) => f.text.contains('#sessao tipo=gravacao'))
     .map((f) => f.text);
 
+late ManualClock _relogio;
+
 void main() {
+  setUp(() => _relogio = relogioDeTeste());
   tearDown(DiagLog.reset);
 
   testWidgets('gravar abre uma sessão de depuração; parar a fecha e avisa', (
@@ -61,7 +71,11 @@ void main() {
         tester.getBottomLeft(find.byType(MaterialApp)) + const Offset(20, -20);
 
     var g = await tester.startGesture(corner);
-    await tester.pump(kAudioRecordingHold + const Duration(milliseconds: 50));
+    await passar(
+      tester,
+      _relogio,
+      kAudioRecordingHold + const Duration(milliseconds: 50),
+    );
     await g.up();
     await tester.pump();
     DiagLog.log('teste', 'durante a gravação');
@@ -69,7 +83,11 @@ void main() {
     expect(stopped, 0);
 
     g = await tester.startGesture(corner);
-    await tester.pump(kAudioRecordingHold + const Duration(milliseconds: 50));
+    await passar(
+      tester,
+      _relogio,
+      kAudioRecordingHold + const Duration(milliseconds: 50),
+    );
     await g.up();
     await tester.pump();
     expect(stopped, 1);
@@ -77,7 +95,7 @@ void main() {
     final fechada = _gravacaoLogs().single;
     expect(fechada, contains('fim: gravacao microfone'));
     expect(fechada, isNot(contains('depois de parar')));
-    await tester.pump(const Duration(seconds: 7));
+    await passar(tester, _relogio, const Duration(seconds: 7));
   });
 
   testWidgets('sem microfone, a sessão fecha e não abre o relatório', (
@@ -91,12 +109,16 @@ void main() {
     final g = await tester.startGesture(
       tester.getBottomLeft(find.byType(MaterialApp)) + const Offset(20, -20),
     );
-    await tester.pump(kAudioRecordingHold + const Duration(milliseconds: 50));
+    await passar(
+      tester,
+      _relogio,
+      kAudioRecordingHold + const Duration(milliseconds: 50),
+    );
     await g.up();
     await tester.pump();
     expect(stopped, 0);
     expect(_gravacaoLogs().single, contains('fim: gravacao microfone'));
-    await tester.pump(const Duration(seconds: 5));
+    await passar(tester, _relogio, const Duration(seconds: 5));
   });
 
   testWidgets('segurar o canto liga e desliga a gravação', (tester) async {
@@ -106,19 +128,27 @@ void main() {
         tester.getBottomLeft(find.byType(MaterialApp)) + const Offset(20, -20);
 
     var g = await tester.startGesture(corner);
-    await tester.pump(kAudioRecordingHold + const Duration(milliseconds: 50));
+    await passar(
+      tester,
+      _relogio,
+      kAudioRecordingHold + const Duration(milliseconds: 50),
+    );
     await g.up();
     await tester.pump();
     expect(fake.starts, 1);
     expect(find.textContaining('Gravando'), findsOneWidget);
 
     g = await tester.startGesture(corner);
-    await tester.pump(kAudioRecordingHold + const Duration(milliseconds: 50));
+    await passar(
+      tester,
+      _relogio,
+      kAudioRecordingHold + const Duration(milliseconds: 50),
+    );
     await g.up();
     await tester.pump();
     expect(fake.stops, 1);
     expect(find.textContaining('Gravação salva'), findsOneWidget);
-    await tester.pump(const Duration(seconds: 7));
+    await passar(tester, _relogio, const Duration(seconds: 7));
   });
 
   testWidgets('toque curto, ou fora do canto, não grava', (tester) async {
@@ -128,12 +158,16 @@ void main() {
         tester.getBottomLeft(find.byType(MaterialApp)) + const Offset(20, -20);
 
     var g = await tester.startGesture(corner);
-    await tester.pump(const Duration(milliseconds: 300));
+    await passar(tester, _relogio, const Duration(milliseconds: 300));
     await g.up();
-    await tester.pump(kAudioRecordingHold);
+    await passar(tester, _relogio, kAudioRecordingHold);
 
     g = await tester.startGesture(const Offset(400, 100));
-    await tester.pump(kAudioRecordingHold + const Duration(milliseconds: 50));
+    await passar(
+      tester,
+      _relogio,
+      kAudioRecordingHold + const Duration(milliseconds: 50),
+    );
     await g.up();
     expect(fake.starts, 0);
   });
@@ -153,11 +187,15 @@ void main() {
     final g = await tester.startGesture(
       tester.getBottomLeft(find.byType(MaterialApp)) + const Offset(20, -20),
     );
-    await tester.pump(kAudioRecordingHold + const Duration(milliseconds: 50));
+    await passar(
+      tester,
+      _relogio,
+      kAudioRecordingHold + const Duration(milliseconds: 50),
+    );
     await g.up();
     await tester.pump();
     expect(find.textContaining('Não deu para gravar'), findsOneWidget);
     expect(find.textContaining('Gravando'), findsNothing);
-    await tester.pump(const Duration(seconds: 5));
+    await passar(tester, _relogio, const Duration(seconds: 5));
   });
 }

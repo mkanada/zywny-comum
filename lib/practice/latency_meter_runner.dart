@@ -192,7 +192,7 @@ class LatencyMeterRunner {
        _wait = wait ?? Future<void>.delayed;
 
   static double Function() _stopwatchClock() {
-    final watch = Stopwatch()..start();
+    final watch = Stopwatch()..start(); // relógio: medição de latência: o tempo é o do aparelho de som e do microfone (decisão 2)
     return () => watch.elapsedMicroseconds / 1e6;
   }
 

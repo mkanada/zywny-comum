@@ -57,7 +57,8 @@ class DiagLog {
   static const keepEnded = 2;
 
   static DiagStorage? _storage;
-  static final Stopwatch _clock = Stopwatch();
+  static final Stopwatch _clock =
+      Stopwatch(); // relógio: tempo do log medido no aparelho
   static int _seq = 0;
   static final List<DiagSession> _open = [];
   static final List<String> _ended = [];
@@ -99,7 +100,7 @@ class DiagLog {
     _clock.start();
     log(
       'app',
-      '==== nova execução ${DateTime.now().toIso8601String()} '
+      '==== nova execução ${DateTime.now().toIso8601String()} ' // relógio: carimbo do log: a hora real do aparelho, não a do roteiro
           '(${defaultTargetPlatform.name}${kIsWeb ? ', web' : ''}) ====',
     );
     if (installHandlers) _installHandlers();
@@ -108,9 +109,12 @@ class DiagLog {
       // para o log de tempos em tempos: quem reporta nem sempre sabe dizer
       // quando a coisa começou a andar errado.
       _beat?.cancel();
-      _beat = Timer.periodic(heartbeat, (_) {
+      // O pulso do log conta o tempo real do aparelho, não o do roteiro.
+      void pulso(Timer _) {
         if (_open.isNotEmpty) logState('periódico');
-      });
+      }
+
+      _beat = Timer.periodic(heartbeat, pulso); // relógio: pulso do log
     }
   }
 
@@ -180,7 +184,7 @@ class DiagLog {
   static void log(String tag, String message) {
     final store = _storage;
     if (store == null) return;
-    final now = DateTime.now();
+    final now = DateTime.now(); // relógio: carimbo do log: a hora real do aparelho, não a do roteiro
     final line =
         '${now.toIso8601String()} +${_clock.elapsedMilliseconds}ms '
         '[$tag] $message\n';
@@ -201,7 +205,7 @@ class DiagLog {
       's${(++_seq).toString().padLeft(5, '0')}',
       kind,
       name,
-      DateTime.now(),
+      DateTime.now(), // relógio: carimbo do log: a hora real do aparelho, não a do roteiro
     );
     _open.add(s);
     store.append(
@@ -220,7 +224,7 @@ class DiagLog {
     // O fim vai para a própria sessão, mesmo que outra esteja por cima.
     _storage?.append(
       s.key,
-      '${DateTime.now().toIso8601String()} +${_clock.elapsedMilliseconds}ms '
+      '${DateTime.now().toIso8601String()} +${_clock.elapsedMilliseconds}ms ' // relógio: carimbo do log: a hora real do aparelho, não a do roteiro
       '[sessao] fim: ${s.kind} ${s.name}\n',
     );
     _ended.add(s.key);

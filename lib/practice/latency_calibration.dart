@@ -94,7 +94,7 @@ class LatencyCalibration {
                   600)
               .round(),
     );
-    Timer(total, finish);
+    Timer(total, finish); // relógio: medição de latência: o tempo é o do aparelho de som e do microfone (decisão 2)
   }
 
   /// Fecha a rodada agora (a UI pode cancelar) e resolve [result].

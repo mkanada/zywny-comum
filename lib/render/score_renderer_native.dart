@@ -35,7 +35,9 @@ class NativeScoreRenderer implements ScoreRenderer {
       // guardamos uma cópia no diretório corrente, com data/hora no nome.
       String? debugCopyPath;
       if (request.options['vsbDebug'] == true) {
-        final timestamp = DateTime.now().toIso8601String().replaceAll(
+        // O nome do arquivo leva a hora real do aparelho (carimbo de arquivo).
+        final agora = DateTime.now(); // relógio: hora real
+        final timestamp = agora.toIso8601String().replaceAll(
           RegExp(r'[:.]'),
           '-',
         );

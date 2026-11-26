@@ -6,6 +6,7 @@ import 'dart:async';
 
 import 'package:flutter/services.dart';
 import 'package:zywny_bloc/zywny_bloc.dart';
+import 'package:zywny_clock/zywny_clock.dart';
 import 'package:zywny_diag/diag_log.dart';
 
 import 'audio_recording_service.dart';
@@ -55,17 +56,20 @@ class AudioRecordingState extends Equatable {
 /// Liga e para a gravação e guarda o toque no canto. Abre uma sessão de
 /// depuração (`gravacao`) ao ligar e a fecha ao parar, para o log.
 class AudioRecordingCubit extends Cubit<AudioRecordingState> {
-  AudioRecordingCubit({AudioRecordingService? service})
+  AudioRecordingCubit({AudioRecordingService? service, required this.clock})
     : _servicoDado = service,
       super(const AudioRecordingState());
 
   /// Os testes passam um falso; sem ele, cria o da plataforma ao primeiro uso.
   final AudioRecordingService? _servicoDado;
+
+  /// O relógio do app (CT05c): o segurar, o tempo gravado e o aviso são dele.
+  final AppClock clock;
   AudioRecordingService? _servico;
   DiagSession? _sessao;
-  Timer? _segurar;
-  Timer? _tique;
-  Timer? _tempoDoAviso;
+  AppTimer? _segurar;
+  AppTimer? _tique;
+  AppTimer? _tempoDoAviso;
   bool _ocupado = false;
   int? _ponteiro;
   Offset _origem = Offset.zero;
@@ -79,7 +83,7 @@ class AudioRecordingCubit extends Cubit<AudioRecordingState> {
     _ponteiro = ponteiro;
     _origem = posicao;
     _segurar?.cancel();
-    _segurar = Timer(kAudioRecordingHold, () => unawaited(alternar()));
+    _segurar = clock.timer(kAudioRecordingHold, () => unawaited(alternar()));
   }
 
   /// O dedo andou mais de 24 px: era arrasto, não segurar.
@@ -136,10 +140,10 @@ class AudioRecordingCubit extends Cubit<AudioRecordingState> {
           );
           return;
         }
-        final inicio = DateTime.now();
-        _tique = Timer.periodic(const Duration(seconds: 1), (_) {
+        final inicio = clock.now();
+        _tique = clock.periodic(const Duration(seconds: 1), (_) {
           if (isClosed) return;
-          emit(state.copyWith(decorrido: DateTime.now().difference(inicio)));
+          emit(state.copyWith(decorrido: clock.now().difference(inicio)));
         });
         emit(state.copyWith(gravando: true, limparAviso: true));
       }
@@ -151,7 +155,7 @@ class AudioRecordingCubit extends Cubit<AudioRecordingState> {
   void _avisar(String texto, Duration tempo) {
     _tempoDoAviso?.cancel();
     emit(state.copyWith(aviso: texto));
-    _tempoDoAviso = Timer(tempo, () {
+    _tempoDoAviso = clock.timer(tempo, () {
       if (isClosed) return;
       emit(state.copyWith(limparAviso: true));
     });

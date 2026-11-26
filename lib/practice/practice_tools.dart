@@ -254,6 +254,7 @@ class CalibrationCubit extends Cubit<CalibrationState> {
 
   LatencyCalibration? _rodada;
   Timer? _contador;
+  static const _tique = Duration(milliseconds: 100);
 
   /// Começa (ou recomeça) a rodada.
   void comecar() {
@@ -261,10 +262,8 @@ class CalibrationCubit extends Cubit<CalibrationState> {
     _rodada = rodada;
     emit(state.copyWith(phase: CalibrationPhase.running, clicksPlayed: 0));
     rodada.start();
-    _contador = Timer.periodic(
-      const Duration(milliseconds: 100),
-      (_) => _contar(),
-    );
+    // A barra da calibração lê o motor de som no ritmo dele (decisão 2).
+    _contador = Timer.periodic(_tique, (_) => _contar()); // relógio: decisão 2
     unawaited(
       rodada.result.then((ms) {
         _contador?.cancel();

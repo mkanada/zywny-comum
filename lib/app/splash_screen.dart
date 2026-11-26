@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:zywny_bloc/zywny_bloc.dart';
+import 'package:zywny_clock/zywny_clock.dart';
 
 import '../ui/brand.dart';
 import 'splash_cubit.dart';
@@ -164,11 +165,16 @@ class SplashOverlay extends StatelessWidget {
   const SplashOverlay({
     super.key,
     required this.child,
+    required this.clock,
     this.enabled = true,
     this.duration = const Duration(milliseconds: 1800),
   });
 
   final Widget child;
+
+  /// O relógio do app (CT05c): a splash some no tempo dele, e o roteiro de
+  /// capturas pode mandar nele.
+  final AppClock clock;
   final bool enabled;
   final Duration duration;
 
@@ -176,7 +182,7 @@ class SplashOverlay extends StatelessWidget {
   Widget build(BuildContext context) {
     if (!enabled) return child;
     return BlocProvider(
-      create: (_) => SplashCubit(duration: duration),
+      create: (_) => SplashCubit(duration: duration, clock: clock),
       child: Stack(
         fit: StackFit.expand,
         children: [

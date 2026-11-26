@@ -79,7 +79,7 @@ class _RecordService implements AudioRecordingService {
       }
       final dir = await _recordingsDir();
       _dropOld(dir);
-      final now = DateTime.now();
+      final now = DateTime.now(); // relógio: nome do arquivo: a hora real do aparelho (carimbo de arquivo)
       final path = '${dir.path}/zywny-audio-${_stamp(now)}.$_extension';
       // Sem ganho automático, eco nem redução de ruído: o que se quer é o
       // som como chegou ao microfone.

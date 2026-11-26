@@ -7,6 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:shared_preferences_platform_interface/in_memory_shared_preferences_async.dart';
 import 'package:shared_preferences_platform_interface/shared_preferences_async_platform_interface.dart';
+import 'package:zywny_clock/zywny_clock.dart';
 import 'package:zywny_comum/practice/transpose_check.dart';
 import 'package:zywny_music/transposition.dart';
 import 'package:zywny_comum/settings/settings_cubit.dart';
@@ -99,6 +100,9 @@ void main() {
     late List<int> keyboardSounds;
     KeyboardTransposeBehavior? result;
     var closed = false;
+    // O prazo da tecla e a pausa da entrada são do relógio da folha: só andam
+    // quando o teste manda (`relogio.advance`).
+    late ManualClock relogio;
 
     setUp(() {
       input = FakeMidiInput();
@@ -106,6 +110,7 @@ void main() {
       keyboardSounds = [];
       result = null;
       closed = false;
+      relogio = ManualClock(DateTime(2026, 11, 25, 10));
     });
 
     Future<void> open(
@@ -127,6 +132,7 @@ void main() {
                     deviceName: 'Yamaha',
                     input: input,
                     previous: previous,
+                    clock: relogio,
                     keyTimeout: keyTimeout,
                     inputGap: const Duration(milliseconds: 100),
                     playOwnSound: (pitch) async {
@@ -286,7 +292,9 @@ void main() {
     testWidgets('prazo sem nota: avisa e deixa tentar de novo', (tester) async {
       await open(tester, keyTimeout: const Duration(seconds: 2));
       await tap(tester, 'Já ajustei');
-      await tester.pump(const Duration(seconds: 3));
+      relogio.advance(const Duration(seconds: 3));
+      await tester.pump();
+      await tester.pump();
       expect(
         find.text('Não chegou nada do teclado. Ele está conectado?'),
         findsOneWidget,
@@ -307,7 +315,9 @@ void main() {
       await open(tester, keyboardOutput: true);
       await tap(tester, 'Já ajustei');
       await press(tester, 63);
-      // O app manda a escrita (Dó4) e depois a soada (Mi♭4), crus.
+      // O app manda a escrita (Dó4) e depois a soada (Mi♭4), crus. A pausa de
+      // 100 ms entre as duas é do relógio do teste.
+      relogio.advance(const Duration(milliseconds: 100));
       await tester.pump(const Duration(milliseconds: 500));
       expect(keyboardSounds, [60, 63]);
       expect(
@@ -329,6 +339,7 @@ void main() {
       await tap(tester, 'Já ajustei');
       await press(tester, 60);
       await tap(tester, 'Sim');
+      relogio.advance(const Duration(milliseconds: 100));
       await tester.pump(const Duration(milliseconds: 500));
       await tap(tester, 'A 2ª');
       await tap(tester, 'Concluir');

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:zywny_bloc/zywny_bloc.dart';
+import 'package:zywny_clock/zywny_clock.dart';
 
 import 'audio_recording_cubit.dart';
 import 'audio_recording_service.dart';
@@ -24,17 +25,25 @@ const double kAudioRecordingCorner = 72;
 /// continua recebendo-os. Enquanto grava, um ponto vermelho com o tempo fica
 /// à vista, também sem tomar toque.
 class AudioRecordingCorner extends StatelessWidget {
-  const AudioRecordingCorner({super.key, this.service, this.onStopped});
+  const AudioRecordingCorner({
+    super.key,
+    this.service,
+    this.onStopped,
+    required this.clock,
+  });
 
   /// Os testes passam um falso; sem ele, cria o da plataforma ao primeiro uso.
   final AudioRecordingService? service;
+
+  /// O relógio do app (CT05c): o segurar e o tempo da gravação.
+  final AppClock clock;
 
   /// Chamado ao parar a gravação, depois de fechar a sessão de depuração.
   final VoidCallback? onStopped;
 
   @override
   Widget build(BuildContext context) => BlocProvider(
-    create: (_) => AudioRecordingCubit(service: service),
+    create: (_) => AudioRecordingCubit(service: service, clock: clock),
     child: BlocListener<AudioRecordingCubit, AudioRecordingState>(
       // Parar a gravação abre a tela de envio: efeito de tela, no listener.
       listenWhen: (antes, depois) => depois.paradas != antes.paradas,

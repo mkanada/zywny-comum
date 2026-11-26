@@ -1,6 +1,7 @@
 // A conferência do TRANSPOSE por dentro (Q06): o Cubit lê a tecla, faz o teste
 // de ouvido e o da entrada, guarda o que descobre e para a escuta no close.
 import 'package:flutter_test/flutter_test.dart';
+import 'package:zywny_clock/zywny_clock.dart';
 import 'package:zywny_comum/practice/transpose_check.dart';
 import 'package:zywny_comum/settings/settings_cubit.dart';
 import 'package:zywny_music/transposition.dart';
@@ -15,11 +16,14 @@ void main() {
     late FakeMidiInput input;
     late List<int> ownSounds;
     late List<int> keyboardSounds;
+    // Os prazos (a tecla e a pausa da entrada) são do relógio do teste.
+    late ManualClock relogio;
 
     setUp(() {
       input = FakeMidiInput();
       ownSounds = [];
       keyboardSounds = [];
+      relogio = ManualClock(DateTime(2026, 11, 25, 10));
     });
 
     tearDown(() => input.dispose());
@@ -42,6 +46,7 @@ void main() {
           : null,
       keyTimeout: keyTimeout,
       inputGap: Duration.zero,
+      clock: relogio,
     );
 
     test('começa na instrução, sem nada descoberto', () {
@@ -136,7 +141,7 @@ void main() {
       addTearDown(cubit.close);
 
       cubit.ouvirTecla();
-      await Future<void>.delayed(const Duration(milliseconds: 40));
+      relogio.advance(const Duration(milliseconds: 40));
 
       expect(cubit.state.step, TransposeStep.noKey);
     });
@@ -147,7 +152,10 @@ void main() {
 
       cubit.ouvirTecla();
       input.press(63);
-      await Future<void>.delayed(const Duration(milliseconds: 20));
+      await pumpEventQueue();
+      // A pausa de zero entre as duas notas vence no relógio do teste.
+      relogio.advance(Duration.zero);
+      await pumpEventQueue();
       expect(cubit.state.step, TransposeStep.inputTest);
       expect(cubit.state.inputPlayed, 2);
       expect(keyboardSounds, [60, 63]);

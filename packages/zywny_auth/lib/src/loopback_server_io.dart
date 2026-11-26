@@ -35,13 +35,12 @@ class LoopbackServer {
   }) {
     final completer = Completer<String>();
     _pending = completer;
-    _timer = Timer(
-      timeout,
-      () => _fail(
-        completer,
-        const AuthException('O login demorou demais: o navegador não voltou.'),
-      ),
+    // O prazo de conexão do servidor de loopback é de rede, não o tempo da música.
+    void expirou() => _fail(
+      completer,
+      const AuthException('O login demorou demais: o navegador não voltou.'),
     );
+    _timer = Timer(timeout, expirou); // relógio: rede
     _server.listen((request) async {
       final params = request.uri.queryParameters;
       final error = params['error'];
