@@ -10,6 +10,7 @@ import 'package:score_bridge/score_bridge.dart' show kDefaultBarColor;
 import 'package:zywny_audio/soundfont_store.dart';
 import 'package:zywny_auth/zywny_auth.dart';
 import 'package:zywny_bloc/zywny_bloc.dart';
+import 'package:zywny_clock/zywny_clock.dart';
 
 import '../about/about_screen.dart';
 import '../auth/account_settings_section.dart';
@@ -91,6 +92,7 @@ class GeneralSettingsPanel extends StatelessWidget {
     super.key,
     required this.settings,
     required this.midiDeviceManager,
+    required this.clock,
     required this.customSoundFont,
     required this.onChooseSoundFont,
     required this.onResetSoundFont,
@@ -107,6 +109,9 @@ class GeneralSettingsPanel extends StatelessWidget {
 
   final SettingsCubit settings;
   final MidiDeviceManager midiDeviceManager;
+
+  /// O relógio do app (CT05f): o atraso de "Reportar um bug" é dele.
+  final AppClock clock;
 
   /// O usuário escolheu um `.sf2` próprio (senão vale o TimGM6mb embutido).
   final bool customSoundFont;
@@ -710,11 +715,11 @@ class GeneralSettingsPanel extends StatelessWidget {
       // Fecha as configurações primeiro: a captura é da tela onde o
       // erro aconteceu, não da lista de opções.
       onClose();
-      // O atraso é de tela: o painel fecha antes da captura. O relógio do app
-      // chega a este painel com a LibraryScreen (CT05f).
-      const atraso = Duration(milliseconds: 450);
+      // O atraso é de tela: o painel fecha antes da captura.
       unawaited(
-        Future<void>.delayed(atraso, BugReportScope.start), // relógio: tela
+        clock
+            .wait(const Duration(milliseconds: 450))
+            .then((_) => BugReportScope.start()),
       );
     },
   );
@@ -812,6 +817,7 @@ class GeneralSettingsScreen extends StatelessWidget {
     super.key,
     required this.settings,
     required this.midiDeviceManager,
+    required this.clock,
     this.soundFonts = const SoundFontStore(),
     this.libraryStore,
     this.pickLibraryFile = pickLibraryBytes,
@@ -826,6 +832,9 @@ class GeneralSettingsScreen extends StatelessWidget {
 
   final SettingsCubit settings;
   final MidiDeviceManager midiDeviceManager;
+
+  /// O relógio do app (CT05f), repassado ao painel (o atraso de "Reportar um bug").
+  final AppClock clock;
   final SoundFontStore soundFonts;
 
   /// As bibliotecas instaladas (a seção Bibliotecas); `null` não mostra a
@@ -895,6 +904,7 @@ class GeneralSettingsScreen extends StatelessWidget {
         builder: (context, custom) => GeneralSettingsPanel(
           settings: settings,
           midiDeviceManager: midiDeviceManager,
+          clock: clock,
           customSoundFont: custom,
           onChooseSoundFont: () =>
               unawaited(context.read<GeneralSettingsCubit>().escolherTimbre()),

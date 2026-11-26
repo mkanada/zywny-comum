@@ -4,5 +4,6 @@
 library;
 
 export 'src/app_clock.dart';
+export 'src/app_clock_wait.dart';
 export 'src/manual_clock.dart';
 export 'src/system_clock.dart';

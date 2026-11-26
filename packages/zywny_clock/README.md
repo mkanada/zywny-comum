@@ -7,6 +7,8 @@ arma um timer recebe um `AppClock` pelo construtor (`required`).
 - `AppClock`: `now()` (a data e a hora, para a meta, a constância, os minutos e o
   aviso), `seconds` (o tempo contínuo, para sessões, avisos e agendador),
   `timer(após, callback)` e `periodic(a_cada, callback)`.
+- `clock.wait(d)` (extensão de `AppClock`): o `Future.delayed` do app, sobre o
+  `timer`. Completa quando o relógio anda `d`.
 - `AppTimer`: `cancel()`, `isActive` e `tick` (quantos disparos até agora).
 - `SystemClock()`: o de verdade (`DateTime.now`, um `Stopwatch` e os `Timer` do Dart).
 - `ManualClock(inicio)`: só anda com `advance(d)`, e os timers vencidos disparam

@@ -12,6 +12,7 @@ import 'package:zywny_midi/midi_device_manager.dart';
 import 'package:zywny_comum/app/general_settings_panel.dart';
 import 'package:zywny_comum/settings/settings_cubit.dart';
 import 'package:zywny_comum/ui/theme.dart';
+import 'package:zywny_clock/zywny_clock.dart';
 
 class _NoDevicesMidi implements MidiCommand {
   @override
@@ -56,6 +57,7 @@ void main() {
             child: GeneralSettingsPanel(
               settings: SettingsCubit(),
               midiDeviceManager: manager,
+              clock: SystemClock(),
               customSoundFont: false,
               onChooseSoundFont: () {},
               onResetSoundFont: () {},

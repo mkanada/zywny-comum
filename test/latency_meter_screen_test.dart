@@ -17,6 +17,8 @@ import 'package:zywny_midi/midi_device_manager.dart';
 
 import 'support/latency_world.dart';
 
+import 'package:zywny_clock/zywny_clock.dart';
+
 class _NoDevicesMidi implements MidiCommand {
   @override
   Future<List<MidiDevice>?> get devices async => const [];
@@ -129,6 +131,7 @@ void main() {
             child: GeneralSettingsPanel(
               settings: SettingsCubit(),
               midiDeviceManager: manager,
+              clock: SystemClock(),
               customSoundFont: false,
               onChooseSoundFont: () {},
               onResetSoundFont: () {},

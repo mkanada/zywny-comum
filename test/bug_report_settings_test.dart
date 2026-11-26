@@ -65,6 +65,7 @@ void main() {
           body: GeneralSettingsPanel(
             settings: SettingsCubit(),
             midiDeviceManager: manager,
+            clock: _relogio,
             customSoundFont: false,
             onChooseSoundFont: () {},
             onResetSoundFont: () {},
@@ -105,7 +106,7 @@ void main() {
     await tester.tap(find.text('Reportar um bug'));
     await tester.pump();
     expect(closed, 1);
-    await tester.pump(const Duration(milliseconds: 500));
+    await passar(tester, _relogio, const Duration(milliseconds: 500));
     await tester.runAsync(
       () => Future<void>.delayed(const Duration(milliseconds: 300)),
     );
